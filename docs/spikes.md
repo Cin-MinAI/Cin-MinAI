@@ -4,11 +4,19 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 
 | Spike | Status | Verdict |
 |-------|--------|---------|
-| Terminal widget | Done 2026-09-24 | **GO** — own pyte widget |
-| Streaming (Ollama → panel) | Not started | — |
+| Terminal emulation (pyte) | Done 2026-09-24 | **GO** — pyte reused inside the terminal relay |
+| ISO remaster | Not started | — |
+| Terminal relay (vs. VTE patch) | Not started | — |
+| Desktop surface (applet, sidebar, hotkey) | Not started | — |
+| Firefox (extension + native messaging) | Not started | — |
+| Streaming (Ollama → sidebar) | Not started | — |
 | Sandbox (bwrap) | Not started | — |
-| Polkit helper | Not started | — |
+| Admin mechanism (D-Bus + polkit) | Not started | — |
 | Model bakeoff | Not started | — |
+
+> 2026-09-24: the project scope changed from a standalone terminal app to a Mint-derived distro
+> (PLAN D10). The terminal spike below was run for the old app design. Its findings still apply
+> to the emulation layer of the terminal relay (PLAN D13); its "Decision" section is superseded.
 
 ---
 
@@ -23,7 +31,7 @@ Textual 8.2.8, pyte 0.8.2. Run with `python check.py` from a venv (`uv venv`).
 
 ### Result: 17/17 checks pass
 
-| Check (spec §51) | Result |
+| Check (old spec §51; now SPEC §16.2) | Result |
 |------------------|--------|
 | `cd` + `export` persist across commands | PASS |
 | Printable keys via real Textual key events | PASS |
@@ -75,11 +83,14 @@ Textual 8.2.8, pyte 0.8.2. Run with `python check.py` from a venv (`uv venv`).
 
 ### Decision
 
-**GO: build M1 on our own pyte-based widget** behind the `TerminalSession` / emulator
+*(Superseded by PLAN D12/D13 — there is no standalone terminal widget any more. What carries
+over: pyte with the `AltScreen` fixes as the relay's emulator, and the throughput plan below.)*
+
+Original decision: **GO: build M1 on our own pyte-based widget** behind the `TerminalSession` / emulator
 interfaces. Throughput work in M1, in order of cost:
 
 1. Plain-text fast path — for chunks with no ESC bytes while on the primary screen, only the
    last `rows` lines affect the display; feed just those (the full raw stream still goes to
-   the log used for compiler-context extraction, §41).
+   the log used for compiler-context extraction, SPEC §11.4).
 2. If still too slow: spike **libvterm** (C, used by Neovim; `libvterm0` is in the Ubuntu
    repos) via ctypes as a drop-in emulator.

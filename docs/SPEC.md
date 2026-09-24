@@ -1,363 +1,543 @@
-# Dual-Panel Linux AI Workspace — Original Specification
+# Cin-minAI — Specification
 
-> This is the original design specification, kept verbatim for reference.
-> Section numbers (§N) are cited from [PLAN.md](PLAN.md), which records the
-> decisions and amendments made since. **Where the two disagree, PLAN.md wins.**
+A Linux Mint–derived distribution with a local AI assistant built into the operating system.
 
-## 1. Project Goal
-
-Build a lightweight, local-first Linux development environment for Linux Mint/Cinnamon that combines:
-
-* A real interactive Linux terminal.
-* A locally running Qwen coding assistant.
-* Linux system and hardware awareness.
-* Optional live web research.
-* Firefox-to-terminal context transfer.
-* Controlled execution of AI-proposed commands.
-* Explicit human permission for administrator-level and hardware-writing operations.
-* Hardware-sensitive model configuration suitable for older NVIDIA GPUs, especially Pascal-generation cards such as the GTX 1070 8GB and GTX 1080 Ti 11GB.
-* Future support for a Linux/hardware-specialized LoRA covering system administration, embedded development, hardware buses, microcontrollers, and HDL workflows.
-
-The application should feel like a small native Linux tool, not a heavyweight IDE.
-
-The central idea is:
-
-```text
-Human Terminal + Local AI + Linux Context + Hardware Context
-```
-
-The AI should be able to investigate the machine, reason about problems, inspect source code, compile/test software, research documentation, and propose solutions.
-
-It must not silently gain administrator control or perform privileged hardware writes.
+> Rewritten 2026-09-24. The first version of this spec (commit `f8971bd`) described a standalone
+> dual-panel terminal app and listed "an entirely new Linux distribution" as a non-goal. That was
+> the wrong product. This document replaces it; the hardware, safety, and model material carries over.
+>
+> [PLAN.md](PLAN.md) records decisions, milestones, and anything that amends this spec.
+> Section references like §12 point here.
 
 ---
 
-# 2. Fundamental Design Principles
+## 1. Product goal
 
-The implementation should preserve the following rules throughout the project.
+Ship an installable desktop operating system, forked from Linux Mint Cinnamon, in which a locally
+running AI assistant is a native part of the system rather than an app you add:
+
+* It lives in the desktop — a Cinnamon panel applet, a docked sidebar, and a global hotkey.
+* It is attached to the user's **real terminals** — it can see commands, output, exit codes, and
+  working directory, and it can place a command at the prompt.
+* It is attached to **Firefox** — it can read the page or selection the user shares and answer in a
+  Firefox sidebar.
+* It understands Linux and the machine's hardware — `/sys`, `/proc`, systemd, udev, USB, PCI,
+  serial devices, microcontrollers, and build toolchains.
+* It can act on the machine through a controlled boundary: sandboxed by default, user-approved
+  outside the sandbox, and administrator actions only through polkit with the human pressing the button.
+* It runs locally, tuned for older NVIDIA cards (Pascal: GTX 1070 / 1080 Ti) through modern RTX,
+  with CPU fallback.
+
+Distinctive value (unchanged from the original spec):
+
+> Not "a chatbot inside a terminal", but a local Linux engineering assistant attached to a real
+> operating environment — where Linux, the kernel, hardware buses, embedded systems, FPGAs, and
+> microcontrollers all become understandable through the same interface.
+
+Because we ship the OS, we control the whole stack: the shell configuration, the terminal, the
+browser defaults, the desktop, the drivers, the installer, and the first-boot experience. The AI
+integration should use that — it should feel designed in, not bolted on.
+
+---
+
+## 2. Fundamental rules
 
 ### Rule 1 — Local first
 
-The language model runs locally.
-
-Normal source code, terminal output, logs, system information, and project files stay local unless the user deliberately invokes a web-related feature.
-
-The application should remain useful with the network disconnected.
+The model runs locally. Terminal output, files, logs, system and browser context stay on the
+machine unless the user deliberately invokes a web feature. The assistant stays useful offline.
 
 ### Rule 2 — The terminal is real
 
-Do not simulate Bash by spawning a fresh shell process for every command.
-
-The terminal should use a persistent PTY so that normal Linux shell behavior survives:
-
-```text
-cd
-export
-aliases
-shell functions
-virtualenv activation
-ssh
-gdb
-python REPL
-job control
-Ctrl-C
-Ctrl-Z
-interactive commands
-```
-
-Interactive programs such as `vim`, `top`, `htop`, `less`, `nano`, and GDB require actual terminal emulation rather than a simple scrolling log.
-
-Textual supports concurrent workers and is appropriate for keeping subprocess/model/network work from blocking the UI. ([Textual Documentation][1])
-
-A third-party PTY terminal widget can be evaluated, but terminal integration should be hidden behind our own interface so that it can be replaced later. Existing projects demonstrate that Textual can host real PTY-backed terminal emulators. ([GitHub][2])
+The user's shell is a normal, persistent, interactive shell in a normal terminal emulator. The AI
+integration observes and assists it; it never replaces it with a simulation, and it never breaks
+`cd`, `export`, aliases, job control, Ctrl-C/Z, `ssh`, `gdb`, REPLs, or full-screen programs.
 
 ### Rule 3 — Model output is not authorization
-
-This must remain true everywhere:
 
 ```text
 MODEL REQUEST ≠ USER PERMISSION
 ```
 
-Qwen is allowed to propose actions.
+The assistant may propose actions. It can never grant itself privileges.
 
-Qwen is not allowed to grant itself administrator privileges.
+### Rule 4 — The human has the dangerous button
 
-### Rule 4 — Human has the dangerous button
+Administrator actions and hardware writes visibly stop for authorization. The user sees exactly what
+will run, and there is always a Deny.
 
-Administrator actions and hardware-writing operations must visibly stop for user authorization.
+### Rule 5 — No privileged shell for the AI
 
-The user must see what will be executed.
+Never implement `sudo bash`, `sudo -s`, a persistent root token, or a timed sudo session for the
+assistant. One approved request → one privileged action → privilege disappears.
 
-There must always be a Deny option.
-
-### Rule 5 — Do not give Qwen a privileged shell
-
-Never implement:
+### Rule 6 — Inspect before modifying
 
 ```text
-sudo bash
-sudo -s
-sudo su
-persistent root token
-five-minute unrestricted sudo session
+observe → identify → hypothesis → inspect/test → propose change
+        → human authorization if needed → change → verify
 ```
 
-Instead:
+Not: symptom → guess → `sudo something` → hope.
 
-```text
-Qwen
- ↓
-requests one privileged action
- ↓
-permission dialog
- ↓
-human approves
- ↓
-privileged helper performs that action
- ↓
-privilege disappears
-```
+### Rule 7 — Stay a good Mint citizen
 
-### Rule 6 — Inspection before modification
+Users of this distro should keep what makes Mint good: stability, Mint's update manager and
+policies, Cinnamon, sane defaults. We fork only what the AI integration needs, and we keep our
+changes rebasable onto new Mint releases.
 
-The Linux/hardware assistant should be trained and prompted around:
+### Rule 8 — Visible, switchable awareness
 
-```text
-observe
-   ↓
-identify
-   ↓
-form hypothesis
-   ↓
-inspect/test
-   ↓
-propose change
-   ↓
-human authorization if needed
-   ↓
-change
-   ↓
-verify
-```
-
-Avoid:
-
-```text
-symptom
- ↓
-guess
- ↓
-sudo something
- ↓
-hope
-```
+The user can always tell what the assistant can currently see (which terminals, whether a browser
+page is shared) and can turn it off per terminal, per session, or globally. Nothing is captured
+while it is off.
 
 ---
 
-# 3. Target Platform
+## 3. Distribution
 
-Initial supported platform:
+### 3.1 Base
 
-```text
-Linux Mint Cinnamon
-Ubuntu/Debian-family base
-x86-64
-Python 3.11+
-NVIDIA optional
-```
+* Upstream: **Linux Mint Cinnamon, x86-64**, which is built on Ubuntu LTS.
+  Current base: Mint 22.x on Ubuntu 24.04 "noble". Moving to Mint 23 is a planned rebase, not a rewrite.
+* Mint and Ubuntu package repositories stay enabled; the user keeps receiving their updates.
+* Our own apt repository adds our packages and our forked Mint packages. Forked packages carry a
+  version suffix (e.g. `6.4.8+cinminai1`) and an apt pin so ours win over Mint's until Mint ships a
+  newer upstream version, at which point we rebase.
 
-Primary hardware targets:
+### 3.2 Branding
 
-| Class   | Typical GPU       |       VRAM | Intended model                        |
-| ------- | ----------------- | ---------: | ------------------------------------- |
-| Legacy  | GTX 1070          |       8 GB | Qwen Coder 3B or experimentally 7B Q4 |
-| Legacy+ | GTX 1080 Ti       |      11 GB | Qwen Coder 7B Q4/Q5                   |
-| Modern  | RTX / 12 GB+      |     12+ GB | Configurable                          |
-| CPU     | No compatible GPU | system RAM | Smaller quantized model               |
+We cannot present the result as "Linux Mint" or "Ubuntu". The distro gets its own name, logo,
+artwork, `/etc/os-release` (`ID=cinminai`, `ID_LIKE="linuxmint ubuntu debian"`), boot splash,
+installer slideshow, and welcome screen, while crediting Mint and Ubuntu. Review both projects'
+trademark guidance before any public release.
 
-Do not hard-code behavior solely from GPU names.
+Working name: **Cin-minAI**. Package prefix `cinminai-`, D-Bus prefix `org.cinminai.`, Python
+package `cin_minai`. The final public name is an open question (PLAN §6); rename all together.
 
-Hardware fingerprinting should produce a candidate configuration and then perform an actual inference test.
+### 3.3 Build strategy (staged)
 
----
+**Stage 1 — Remaster.** A scripted, reproducible pipeline that:
 
-# 4. Model Architecture
+1. downloads and verifies the official Mint Cinnamon ISO (checksum + GPG signature),
+2. unpacks `casper/filesystem.squashfs`,
+3. in a chroot: adds our apt source and keyring, installs our meta-package, applies branding,
+   removes nothing Mint needs,
+4. regenerates the manifest, squashfs, and boot configuration, and
+5. writes a hybrid ISO with `xorriso`, plus checksums and a signature.
 
-## Base model
+Runs as root in an Ubuntu 24.04 build environment (WSL2 on the dev PC, or CI). The same inputs must
+produce the same ISO contents (pinned ISO and package versions).
 
-Initial preferred family:
+**Stage 2 — Fork.** Where Stage 1 packages and extension points are not enough, fork Mint's own
+packages from `github.com/linuxmint`, patch them, and publish them in our repository. Expected
+candidates: Cinnamon (sidebar docking, deeper assistant hooks), `mintwelcome` (first-boot AI setup),
+the installer and its slideshow, `mintsystem` / artwork (branding), and possibly the default terminal.
 
-```text
-Qwen2.5-Coder-Instruct
-```
+**Stage 3 (only if needed) — Build from scratch.** Bootstrap from Ubuntu plus Mint's repositories
+instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
 
-Qwen2.5-Coder covers 92 programming languages and supports up to 128K context at the model level. ([Qwen][3])
+### 3.4 What the ISO contains
 
-The application should **not** attempt to use 128K on small Pascal GPUs.
+* Everything in Mint Cinnamon, rebranded.
+* `cinminai-desktop` meta-package, which pulls in every component in §4.
+* Ollama (pinned version, from our repo) and its system service, not yet running a model.
+* The shell integration enabled for all users by default (with the per-terminal off switch).
+* Firefox with our extension force-installed by enterprise policy.
+* **No model weights** on the standard ISO. They are downloaded during first-boot setup (§9). An
+  "offline" ISO variant with a default model bundled can come later.
+* No proprietary NVIDIA driver preinstalled; first-boot setup selects one (§3.6).
 
-Deployment context should be chosen based on available memory and actual benchmarking.
+### 3.5 Installer and first boot
 
-Suggested defaults:
+* Mint's installer, rebranded (Stage 1), later patched (Stage 2) to add the AI setup pages.
+* The live session works with the assistant in CPU mode or with a small model if the user chooses,
+  so the assistant can help with installation problems.
+* First login runs the AI setup (§9): hardware detection, driver, model download, benchmark.
 
-```text
-8 GB VRAM:
-    4096 tokens
-    optionally 8192 after validation
+### 3.6 NVIDIA and Pascal
 
-11 GB VRAM:
-    8192 tokens
-    optionally 16384 after validation
+* CUDA 13 dropped Pascal (compute 6.1). Ollama still ships a CUDA 12 runner that supports it.
+* Pascal requires driver **570+**; the **580 branch is the last** to support Pascal.
+* The distro must never silently move a Pascal machine past 580.x. Ship an apt pin / Driver Manager
+  rule for detected Pascal cards and warn before any manual upgrade.
+* No prebuilt Linux llama.cpp binary targets Pascal: build against CUDA 12 or use Vulkan.
+* Pin known-good Ollama versions in our repo; don't follow upstream blindly.
 
-larger GPU:
-    dynamically benchmark
-```
+### 3.7 Updates
 
-The context length should be configurable.
+* Our packages update through Mint's Update Manager like everything else.
+* When Mint releases a new version of a package we forked, we rebase, rebuild, and publish before
+  users would otherwise be held back. Track this with automation (§15).
+* Distro upgrades (e.g. 22.x → 23) are handled like Mint's, with our repo switched to the new series.
 
----
+### 3.8 Legal
 
-# 5. Inference Backend Abstraction
-
-Do not couple the application directly to Ollama internals.
-
-Create:
-
-```python
-class InferenceBackend:
-    async def generate(...)
-    async def stream(...)
-    async def health(...)
-    async def model_info(...)
-    async def unload(...)
-```
-
-Implement:
-
-```text
-OllamaBackend
-LlamaCppBackend
-```
-
-Start with Ollama if it produces the simplest installation experience.
-
-Keep llama.cpp support because it offers lower-level configuration and direct runtime LoRA support. Current llama.cpp server tooling can load LoRA adapters using `--lora` and can control adapters dynamically. ([GitHub][4])
-
-This allows the project eventually to support:
-
-```text
-stock Qwen
-stock Qwen + Linux LoRA
-stock Qwen + hardware LoRA
-merged custom model
-```
-
-without rewriting the UI.
+* Ubuntu, Mint, and our code: follow their licenses (mostly GPL). Publish source for everything we
+  modify and distribute.
+* Model weights: verify the license of each shipped or downloaded model before release.
+* NVIDIA driver: installed from Ubuntu's repositories by the user's choice, not redistributed by us.
+* Firefox: Mozilla trademark rules for unmodified builds — we ship Mint's Firefox package plus policy
+  files, which is allowed; we do not rebuild Firefox.
 
 ---
 
-# 6. Quantization and Memory Management
-
-Model weights should normally use:
+## 4. System architecture
 
 ```text
-Q4_K_M
+┌────────────────────────── Cinnamon session (user) ───────────────────────────┐
+│                                                                              │
+│  Panel applet ─┐   Sidebar window ─┐   Hotkey ─┐                             │
+│  (status, on/off)  (chat, cards)     (open/ask)│                             │
+│                │                   │           │                             │
+│                ▼                   ▼           ▼                             │
+│          D-Bus session bus:  org.cinminai.Assistant1                          │
+│                          │                                                   │
+│                          ▼                                                   │
+│  ┌──────────────── cinminai-daemon (systemd --user) ───────────────────┐     │
+│  │ conversation + session state   context providers   action manager  │     │
+│  │ inference client               web search          audit log        │     │
+│  └───▲────────────────▲───────────────────▲──────────────┬──────┬──────┘     │
+│      │                │                   │              │      │            │
+│  terminal relay   native-messaging     Ollama HTTP    bwrap   system bus     │
+│  (per terminal)   host (Firefox)       (localhost)    runner   (admin)       │
+│      │                │                   │              │      │            │
+│  bash/zsh in any  Firefox sidebar      ollama.service  sandboxed│            │
+│  terminal emulator  extension          (system)        commands │            │
+└─────────────────────────────────────────────────────────────────┼────────────┘
+                                                                  ▼
+                                               org.cinminai.Admin1 (root, D-Bus
+                                               activated) ──► polkit ──► Cinnamon
+                                               auth dialog ──► one action
 ```
 
-with:
+Components (each is one Debian package unless noted):
 
-```text
-Q5_K_M
-```
+| Package | Runs as | Purpose |
+|---------|---------|---------|
+| `cinminai-daemon` | user (systemd `--user`) | The assistant: conversation, context, tools, action manager, inference client |
+| `cinminai-shell` | user, per terminal | Terminal relay + bash/zsh integration (§6) |
+| `cinminai-sidebar` | user | Docked GTK sidebar: chat, command cards, approval dialogs (§5) |
+| `cinminai-applet` | Cinnamon | Panel applet: status, awareness toggles, opens sidebar (§5) |
+| `cinminai-firefox` | user / Firefox | WebExtension + native messaging host + policy file (§7) |
+| `cinminai-admin` | root, D-Bus activated | Privileged mechanism behind polkit (§8.4) |
+| `cinminai-sandbox` | user | bwrap profile + runner (§8.2) |
+| `cinminai-setup` | user (+ admin for driver) | First-boot hardware/model configurator (§9) |
+| `cinminai-ollama` | system | Pinned Ollama build and service config |
+| `cinminai-branding` | — | Artwork, os-release, plymouth, slideshow |
+| `cinminai-archive-keyring` | — | Our apt key + source list + pins |
+| `cinminai-desktop` | — | Meta-package pulling in all of the above |
 
-available where VRAM permits.
+Implementation language: **Python 3 from the base system** (3.12 on noble) with Debian-packaged
+dependencies (PyGObject, GTK 3/XApp like Mint's own tools, `python3-pyte`, an async D-Bus library,
+an HTTP client). No virtualenvs, no pip at runtime. Cinnamon applet in CJS (JavaScript), Firefox
+extension in JavaScript. The admin mechanism is deliberately tiny and dependency-light.
 
-Do not promise a particular tokens-per-second rate.
+### 4.1 Failure isolation
 
-Measure it.
-
-The installer should report:
-
-```text
-GPU
-VRAM
-model
-quantization
-context
-prompt processing rate
-generation rate
-estimated remaining VRAM
-```
-
-Ollama currently exposes KV cache configuration through `OLLAMA_KV_CACHE_TYPE`; its documentation describes `q8_0` as using approximately half the memory of `f16`, with a small precision tradeoff. ([GitHub][5])
-
-However, support depends on the selected model architecture/backend/device.
-
-Therefore:
-
-```text
-DO NOT blindly force q8_0.
-```
-
-Instead:
-
-```text
-attempt preferred configuration
-        ↓
-start test model
-        ↓
-verify initialization
-        ↓
-run short generation benchmark
-        ↓
-retain or fall back
-```
-
-Possible fallback sequence:
-
-```text
-Q5 model + preferred KV
-↓
-Q4 model + preferred KV
-↓
-Q4 model + default KV
-↓
-reduce context
-↓
-smaller model
-```
+* The daemon crashing or the model OOMing never affects the user's terminals or desktop — terminals
+  run through the relay, which falls back to plain pass-through if the daemon is gone.
+* systemd restarts the daemon with a rate limit; no endless restart loops.
+* Model OOM: stop generation → unload → reduce context → retry once → offer a smaller profile.
 
 ---
 
-# 7. Hardware Fingerprinting
+## 5. Desktop surface
 
-`install.sh` or the first-run configurator should inspect:
+### 5.1 Sidebar
 
-```bash
-uname -a
-cat /etc/os-release
-lscpu
-free -h
-nvidia-smi
-lspci -nn
-```
-
-Where available also obtain:
+A docked panel on the right edge of the screen (width adjustable, can be hidden), opened by the
+applet or hotkey. Contents:
 
 ```text
-GPU model
-driver version
-VRAM total
-VRAM free
-system RAM
-CPU thread count
-disk space
-CUDA/runtime visibility
-Ollama presence
-llama.cpp presence
+┌──────────────────────────────┐
+│ ● LOCAL   qwen3.5-9b  8K     │ ← model, context, LOCAL/WEB, ADMIN: LOCKED
+│ Sees: Terminal 2 (~/proj) ✓  │ ← current awareness, click to change
+├──────────────────────────────┤
+│ Build failed in parser.cpp.  │
+│ Likely cause: missing        │
+│ -lusb-1.0 at link time.      │
+│                              │
+│ ┌──────────────────────────┐ │
+│ │ pkg-config --libs libusb │ │ ← command card
+│ └──────────────────────────┘ │
+│ [Copy] [To terminal] [Run in │
+│  sandbox] [Explain]          │
+├──────────────────────────────┤
+│ Ask…                     ⏎   │
+└──────────────────────────────┘
 ```
 
-Produce a configuration file such as:
+Stage 1: a GTK window that reserves screen space (struts) at the edge.
+Stage 2: patch Cinnamon so the sidebar is a first-class shell element (proper docking, correct
+behaviour with fullscreen, multi-monitor, and workspaces).
+
+### 5.2 Panel applet
+
+Icon with state (idle / thinking / needs approval / off / error), a menu with awareness toggles
+(terminals, browser, web search), model status, and "Open assistant".
+
+### 5.3 Hotkey
+
+A default global shortcut (configurable in Cinnamon's keyboard settings) opens the sidebar focused
+on the input, pre-attached to the focused window's context (the focused terminal, or the Firefox tab).
+
+### 5.4 Status always visible
+
+The sidebar header shows at all times:
+
+```text
+MODEL  BACKEND  GPU/VRAM  CTX  LOCAL|WEB  ADMIN: LOCKED  awareness
+```
+
+### 5.5 Action states
+
+The user must never wonder "did the AI actually run that?". Every action shows one of:
+
+```text
+SUGGESTED  RUNNING  COMPLETED  FAILED  APPROVAL REQUIRED  DENIED
+```
+
+After a run, the model receives the real exit code and output and reasons from that evidence.
+
+### 5.6 First-run notice
+
+The first time the assistant opens, show:
+
+```text
+This system includes a local AI assistant that can see your terminals and,
+when you share them, browser pages. It runs on this computer.
+
+It can run commands in a sandbox. Anything outside the sandbox needs your
+approval; administrator actions also need your password.
+
+The assistant can be wrong. Back up anything you cannot afford to lose.
+You are responsible for actions you approve.
+```
+
+A shorter version stays available under Help/About. The same notice appears in the installer.
+
+---
+
+## 6. Terminal integration
+
+### 6.1 Goal
+
+Work with the terminal the user already uses (Mint's default terminal, any other emulator, a TTY,
+and SSH sessions started from them), without replacing it:
+
+* **See:** each command line, its working directory, exit status, duration, and its output as
+  clean text.
+* **Act:** put a command at the prompt of a chosen terminal **without pressing Enter**.
+* Never type hidden commands into the user's shell.
+
+### 6.2 Mechanism: terminal relay (default)
+
+A small PTY relay sits between the terminal emulator and the shell:
+
+```text
+terminal emulator ⇄ relay (pty master) ⇄ bash/zsh (pty slave)
+                      │
+                      └─ terminal emulation state (pyte) + command segmentation
+                         ─► cinminai-daemon (session bus / unix socket)
+```
+
+* Enabled by the distro's shell startup: interactive login shells in a graphical session re-exec
+  through the relay once (guarded against nesting; disabled for non-interactive shells, `scp`,
+  `rsync`, and anything without a TTY).
+* Shell hooks emit **OSC 133** semantic prompt markers (prompt start, command start, output start,
+  command end + exit code) and cwd reports (OSC 7). The relay uses them to split the stream into
+  commands.
+* The relay keeps an emulator state (our pyte work from the terminal spike) so captured output is
+  what the user saw — without escape codes and without full-screen programs' redraw noise.
+* Pass-through is byte-exact and adds no noticeable latency. If the daemon is not running, the relay
+  still passes bytes through and simply records nothing.
+* **Send to terminal** writes the command into the relay's input side, exactly as if typed, without a
+  newline. Kernel `TIOCSTI` injection is not used.
+* Throughput: pass-through never waits for emulation; emulation may lag or skip during floods
+  (`cat` of a large log) and catches up on the visible screen and the command's tail.
+
+Alternative, to be decided by spike: patch the default terminal (VTE-based) so it exposes command
+segments over D-Bus. Better integration in that one terminal, but nothing in other terminals or TTYs.
+The two can coexist; the relay is the baseline because it works everywhere.
+
+### 6.3 Privacy in the terminal
+
+* A visible per-terminal indicator (prompt marker and/or window title suffix) when a terminal is
+  shared with the assistant; one command toggles it (`ai off` / `ai on`), and the applet has a global switch.
+* **Nothing is captured while the terminal's echo is off** (password prompts: `sudo`, `ssh`, `gpg`).
+  The relay checks the PTY's termios state.
+* Common credential patterns are redacted before anything reaches the model (§12.3).
+* Captured terminal history is kept in memory plus a bounded, user-only, on-disk log that can be
+  disabled; it is never sent off the machine.
+
+### 6.4 Human shell vs. AI execution
+
+The user's shell and the AI's execution are separate. The assistant **never** runs commands in the
+user's shell by itself. Its options for a proposed command:
+
+```text
+[ Copy ]  [ To terminal ]  [ Run in sandbox ]  [ Explain ]
+```
+
+and for commands outside the sandbox lane, `[ Request approval ]` / `[ Request admin ]` instead of
+"Run in sandbox" (§8).
+
+If the target terminal's foreground process is a root shell or an SSH session, "To terminal" shows a
+warning naming the context ("this terminal is root on localhost" / "this terminal is ssh to host X").
+
+---
+
+## 7. Firefox integration
+
+### 7.1 Extension
+
+A WebExtension, **force-installed** by an enterprise policy file shipped in `cinminai-firefox`, and
+signed by Mozilla (unlisted/self-distributed signing — release Firefox refuses unsigned extensions).
+
+* A Firefox sidebar panel showing the same assistant conversation (or a browser-scoped one).
+* Context menu: "Ask about selection", "Ask about this page", "Send to assistant".
+* The page is shared only on user action. There is no background reading of pages.
+
+### 7.2 Native messaging
+
+The extension talks to a native messaging host (`/usr/lib/mozilla/native-messaging-hosts/`), which
+forwards to `cinminai-daemon`. Limits: size cap per message (selections larger than the cap are
+truncated with a visible notice), type allowlist, schema validation.
+
+### 7.3 Terminal ↔ browser
+
+* From the assistant: open sources and documentation in Firefox.
+* From Firefox: send a selection (an error message, a README section) into the conversation that is
+  attached to a terminal.
+
+### 7.4 Web content is untrusted
+
+Anything from a web page is untrusted text:
+
+```text
+browser text → AI context → AI analysis → command proposal → human / lane policy
+```
+
+Never browser text → executed command. Page content is quoted as data in the prompt and cannot
+change lanes, approvals, or tool permissions (prompt injection is assumed, not hoped against).
+
+### 7.5 Web search
+
+`/web` (or a button) runs a search through a replaceable `SearchProvider` (DuckDuckGo first, local
+SearXNG as an option), fetches selected pages, and gives compact context to the model. The status
+shows WEB while it happens. Ordinary prompts are never sent to search engines or cloud APIs.
+
+---
+
+## 8. Action boundary
+
+### 8.1 Three lanes
+
+| Lane | Runs where | Approval | Examples |
+|------|-----------|----------|----------|
+| `SANDBOXED` | bwrap, as user | none | build, test, grep, read `/sys` and `/proc`, `lspci`, `lsusb`, `git diff` in a workspace |
+| `USER_APPROVED` | outside the sandbox, as user | in-sidebar approval, once | `picotool load`, `esptool write_flash`, `avrdude`, anything touching `$HOME` outside the workspace, `git reset --hard` |
+| `ADMIN` | root mechanism via polkit | in-sidebar approval **then** polkit password | package install/remove, `systemctl restart`, writes to `/etc`, `dd` to a block device |
+
+The boundary is enforced by the sandbox and the mechanism, **not** by classifying command strings.
+The classifier only picks which button a command card shows; a wrong label cannot grant access.
+
+Hardware writes are not the same as root: MCU flashing via `dialout` / `plugdev` needs no root but
+is a hardware write, so it is `USER_APPROVED`. The sandbox blocks device access regardless of label.
+
+### 8.2 Sandbox
+
+Every assistant-initiated command in the `SANDBOXED` lane runs under `bwrap` with:
+
+* `--new-session`, no-new-privs → `sudo`, `su`, `pkexec` cannot elevate.
+* Read-only binds of `/usr`, `/etc`, `/lib*`; read-write bind of the active workspace only;
+  `$HOME` not mounted.
+* Minimal `/dev` → no block devices, serial ports, or debug probes.
+* **Neither** the system D-Bus socket **nor** the session bus socket **nor** the daemon's own
+  sockets are mounted → sandboxed code cannot trigger polkit, cannot talk to desktop services, and
+  cannot ask our daemon to approve anything.
+* Network allowed by default for builds; toggleable per workspace.
+
+Workspaces: a project the user opens with the assistant, or `~/.local/share/cinminai/workspaces/`.
+
+### 8.3 Approval dialogs
+
+The approval UI is drawn by the sidebar from the daemon's action record, never from model text
+alone. It shows the exact argv, working directory, lane, the model's stated reason, and a Deny
+button. Approval authorizes that one action once. No "always allow" in v1.
+
+```text
+┌──────────────────────────────────────────────┐
+│ ADMINISTRATOR PERMISSION REQUIRED            │
+│ The assistant proposes:                      │
+│   systemctl restart bluetooth.service        │
+│ Reason: apply the config change and check    │
+│ whether the controller initializes.          │
+│ [ Deny ]                         [ Approve ] │
+└──────────────────────────────────────────────┘
+```
+
+Destructive operations (block devices, partition tables, filesystems, firmware, bootloader) get a
+stronger dialog naming the target device and reminding the user to back up; the confirm button reads
+"I understand — run".
+
+Denial returns a clean "denied by user" result to the model and leaves the system unchanged.
+
+### 8.4 Admin mechanism
+
+`org.cinminai.Admin1`: a root-owned, D-Bus-activated system service (the standard polkit mechanism
+pattern) with a fixed verb set:
+
+```text
+restart_service   install_package   remove_package   write_file
+set_service_enabled   load_module   unload_module   run_argv (always destructive-dialog)
+```
+
+* Each verb checks its own polkit action with `auth_admin` — **never** `auth_admin_keep`.
+* Requests are structured JSON mapped to argv lists; no `shell=True`, no string commands.
+* The Cinnamon polkit dialog names the action; the in-sidebar dialog is where the full detail is shown.
+* The model never sees or handles passwords; they are typed into the polkit agent only.
+* Every request, approval, denial, and result goes to an append-only audit log.
+
+### 8.5 Hardware write rule
+
+```text
+READ: generally allowed (sandbox)
+WRITE: user approval — firmware, EEPROM, flash, fuses, raw block devices,
+       PCI config, MMIO, bootloader, partition tables
+```
+
+Enforced by the architecture (sandbox + lanes), not by the prompt.
+
+### 8.6 The limit of admin protection
+
+Root protection does not protect files the user can write (`rm -rf ~/Documents` needs no root).
+That is why autonomous execution happens only inside the sandbox and workspace, and everything
+touching the wider home directory is `USER_APPROVED`.
+
+---
+
+## 9. Hardware detection and first-boot setup
+
+`cinminai-setup` runs on first login (a page in the welcome screen) and on demand:
+
+1. Detect CPU, RAM, GPU(s), driver, VRAM, disk space (`lscpu`, `/proc/meminfo`, `lspci -nn`,
+   `nvidia-smi` when present, `/sys`).
+2. If an NVIDIA GPU is present without a driver: recommend one (Pascal → 580 branch, pinned) and
+   install it through the admin boundary with the user's approval.
+3. Pick a candidate model profile, download it (with a size and time estimate, pausable), then
+   **benchmark it**: load, short generation, measure prompt and generation speed and VRAM.
+4. Keep the configuration or step down the fallback ladder:
+
+```text
+larger quant + preferred KV cache → Q4 + preferred KV → Q4 + default KV
+→ smaller context → smaller model → CPU profile
+```
+
+5. Show the result: GPU, VRAM, model, quant, context, tok/s, remaining VRAM.
+
+Result stored in `~/.config/cinminai/config.toml`, editable:
 
 ```toml
 [hardware]
@@ -368,596 +548,88 @@ ram_mb = 32768
 
 [inference]
 backend = "ollama"
-model = "qwen2.5-coder:7b"
+model = "qwen3.5:9b"
 context = 8192
 kv_cache = "auto"
 ```
 
-The configuration should remain editable.
+Rules: never decide from GPU name alone; unsupported hardware is never fatal if CPU mode works;
+never promise a tokens-per-second rate — measure it.
 
 ---
 
-# 8. TUI Layout
+## 10. Model
 
-The main interface should be approximately:
+### 10.1 Choice
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│ QWEN WORKSPACE                   GPU: 9.1/11 GB     ctx: 8192    │
-├───────────────────────────────┬──────────────────────────────────┤
-│                               │                                  │
-│        LINUX TERMINAL         │        QWEN ASSISTANT            │
-│                               │                                  │
-│ $ make                        │  Build failed in parser.cpp.     │
-│ ...                           │                                  │
-│                               │  Likely cause: ...               │
-│                               │                                  │
-│                               │  Suggested command:              │
-│                               │  $ grep -R ...                   │
-│                               │                                  │
-│                               │  [COPY] [RUN] [EXPLAIN]          │
-│                               │                                  │
-├───────────────────────────────┴──────────────────────────────────┤
-│ /web /man /git /file /usb /pci /hw             LOCAL ● WEB ○   │
-└──────────────────────────────────────────────────────────────────┘
-```
+The model is a configuration value chosen by benchmark (PLAN §3). The expected default is
+Qwen3.5-9B; Qwen2.5-Coder-7B is the control baseline. Deployment context is chosen by memory and
+benchmark — never the model's maximum on small cards.
 
-Use Textual for:
+| Class | Typical GPU | VRAM | Starting profile |
+|-------|-------------|-----:|------------------|
+| Legacy | GTX 1070 | 8 GB | small model / 9B Q4 after validation, 4–8K |
+| Legacy+ | GTX 1080 Ti | 11 GB | 9B Q4–Q6, 8–16K |
+| Modern | RTX, 12 GB+ | 12+ GB | benchmark-driven |
+| CPU | none usable | RAM | smallest profile |
 
-```text
-layout
-focus
-input handling
-scrolling
-dialogs
-status information
-AI response rendering
-approval dialogs
-```
-
----
-
-# 9. Left Panel — Real Terminal
-
-The left panel should be an actual persistent PTY.
-
-Conceptually:
-
-```text
-Textual TerminalWidget
-        │
-        ▼
-PTY master
-        │
-        ▼
-/bin/bash
-```
-
-The terminal process should inherit:
-
-```text
-HOME
-PATH
-TERM
-current user
-interactive shell configuration
-```
-
-The PTY must handle terminal resize events.
-
-Avoid using `asyncio.create_subprocess_shell()` as the only shell implementation because it cannot properly maintain interactive shell state.
-
-## Terminal abstraction
-
-Create something like:
+### 10.2 Backend abstraction
 
 ```python
-class TerminalSession:
-    start()
-    write(data)
-    resize(cols, rows)
-    interrupt()
-    read()
-    close()
+class InferenceBackend:
+    async def stream(...)
+    async def generate(...)
+    async def health(...)
+    async def model_info(...)
+    async def unload(...)
 ```
 
-The UI should not need to care whether this is implemented through:
+`OllamaBackend` first (simplest, Pascal-capable CUDA 12 runner). `LlamaCppBackend` second, for
+runtime LoRA (`--lora`) and low-level control. Supports: stock model, stock + LoRA adapter, merged model.
+
+### 10.3 Quantization and KV cache
+
+Weights normally Q4_K_M, Q5_K_M/Q6_K where VRAM permits. KV cache type (`q8_0` etc.) is tried, not
+forced: support depends on model, backend, and device — the benchmark in §9 decides.
+
+### 10.4 Prompt
+
+Short and operational:
 
 ```text
-pty + pyte
-textual-terminal
-textual-tty
-custom terminal emulator
+You are the local engineering assistant of this Linux system.
+Prefer inspection and evidence over guessing.
+The machine's current state is authoritative.
+Do not claim a command succeeded until its output shows it.
+Distinguish suggestions from executed actions.
+Prefer minimal, reversible changes.
+Administrator actions and hardware writes require human authorization.
+After a change, verify the result.
 ```
 
-That allows experimentation without coupling the project to a young third-party terminal widget.
+Knowledge belongs in the model, the LoRA, the providers, and retrieved context — not in a
+textbook-sized system prompt. Thinking mode is off by default and used for multi-step diagnosis.
+
+### 10.5 Tools
+
+The model uses structured tools with schema-constrained JSON output:
+
+```text
+read_file(path)            list_directory(path)       run_sandboxed(argv, cwd)
+get_terminal_output(id, n) get_git_diff()             query_manpage(topic)
+inspect_system()           inspect_usb()              inspect_pci()
+search_web(query)          request_user_action(argv)  request_admin_action(verb, args)
+```
+
+Keep the tool set small; a 9B model misuses large tool sets.
 
 ---
 
-# 10. Human Shell vs AI Execution
+## 11. Context
 
-The user's interactive Bash session and Qwen's execution environment should be conceptually separate.
+### 11.1 Providers
 
-Recommended:
-
-```text
-LEFT PANEL
-real human shell
-
-AI TOOL EXECUTION
-restricted agent process
-```
-
-Qwen should not simply type invisible commands into the human PTY.
-
-When Qwen proposes a command:
-
-```text
-[ COPY ]
-[ SEND TO TERMINAL ]
-[ RUN IN AI WORKSPACE ]
-[ EXPLAIN ]
-```
-
-`SEND TO TERMINAL` should preferably place the command at the prompt without automatically submitting Enter.
-
-This keeps the distinction obvious:
-
-```text
-suggestion ≠ execution
-```
-
----
-
-# 11. AI Workspace
-
-Give Qwen an execution area designed for autonomous experimentation.
-
-Suggested location:
-
-```text
-~/.local/share/qwen-workspace/workspaces/
-```
-
-Projects explicitly opened for Qwen can live here or be made available through a project manager.
-
-Qwen may autonomously:
-
-```text
-create files
-edit source
-compile
-run tests
-inspect logs
-run normal development tools
-perform Git diffs
-use language servers
-```
-
-inside its designated workspace.
-
-Avoid letting autonomous tools wander across all of `$HOME` by default.
-
-This adds substantial safety without complicating the user interface.
-
----
-
-# 12. Permission System
-
-Keep this intentionally simple.
-
-Two normal classes are sufficient for v1:
-
-```text
-NORMAL
-ADMIN / HARDWARE WRITE
-```
-
-### Normal operation
-
-Allowed without administrator authorization:
-
-```text
-read system state
-read project files
-compile
-run tests
-inspect USB
-inspect PCI
-inspect processes
-inspect logs available to user
-query manpages
-Git operations inside project
-network queries initiated through configured tools
-```
-
-### Permission-required operation
-
-Examples:
-
-```text
-sudo-required command
-package installation
-system package removal
-writing /etc
-modifying protected system files
-system-wide service changes
-mount changes
-boot configuration
-kernel-module installation/removal
-partition changes
-filesystem formatting
-raw block writes
-firmware flashing
-EEPROM writes
-PCI configuration writes
-raw MMIO access
-BIOS/UEFI modification
-```
-
-The system should present:
-
-```text
-┌──────────────────────────────────────────────────────┐
-│ ADMINISTRATOR PERMISSION REQUIRED                    │
-│                                                      │
-│ Qwen proposes:                                       │
-│                                                      │
-│ systemctl restart bluetooth.service                  │
-│                                                      │
-│ Reason: Apply the configuration change and verify    │
-│ whether the Bluetooth controller initializes.        │
-│                                                      │
-│ [ DENY ]                              [ APPROVE ]     │
-└──────────────────────────────────────────────────────┘
-```
-
-Approval should authorize **that operation once**.
-
-No permanent approval option is necessary for v1.
-
----
-
-# 13. Polkit Integration
-
-Use Linux's existing privilege system rather than inventing authentication.
-
-Polkit is explicitly designed around an unprivileged subject requesting that a privileged mechanism perform an operation, with an authorization authority deciding whether to allow it. That closely matches this project's architecture. ([Polkit][6])
-
-Architecture:
-
-```text
-Qwen/TUI
-   │
-   │ structured request
-   ▼
-qwen-admin-helper
-   │
-   ▼
-Polkit authorization
-   │
-   ▼
-Cinnamon authentication dialog
-   │
-   ▼
-privileged operation
-```
-
-Do not give the model the password.
-
-Do not pass administrator credentials through model context.
-
-Do not store them.
-
----
-
-# 14. Privileged Helper
-
-Install a tiny root-owned helper, for example:
-
-```text
-/usr/libexec/qwen-workspace/qwen-admin-helper
-```
-
-or distribution-appropriate equivalent.
-
-Ownership:
-
-```text
-root:root
-```
-
-Qwen's user must not be able to modify it.
-
-Requests should be structured rather than arbitrary Python `eval()` or shell strings.
-
-Example:
-
-```json
-{
-  "action": "restart_service",
-  "target": "bluetooth.service",
-  "reason": "Test Bluetooth configuration change"
-}
-```
-
-Or:
-
-```json
-{
-  "action": "install_package",
-  "package": "openocd"
-}
-```
-
-The helper converts the operation into a safe argv list.
-
-Prefer:
-
-```python
-subprocess.run([
-    "/usr/bin/systemctl",
-    "restart",
-    service
-])
-```
-
-over:
-
-```python
-subprocess.run(command, shell=True)
-```
-
-Avoid privileged `shell=True`.
-
----
-
-# 15. Destructive Operation Warning
-
-For particularly dangerous actions, display a stronger dialog.
-
-Example:
-
-```text
-⚠ DESTRUCTIVE SYSTEM OPERATION
-
-Target:
-    /dev/nvme0n1
-
-Command:
-    dd if=image.img of=/dev/nvme0n1 ...
-
-This operation can destroy files or make the computer unbootable.
-
-Back up anything you cannot afford to lose.
-
-[ CANCEL ]
-
-[ I UNDERSTAND — RUN ]
-```
-
-The human still controls the final action.
-
-That is the product's safety promise:
-
-> The AI may be wrong. We cannot prevent the owner of the computer from approving a destructive command. We can make sure the AI cannot silently press the button for them.
-
----
-
-# 16. Mandatory Startup Warning
-
-On first launch, show something similar to:
-
-```text
-EXPERIMENTAL AI WORKSPACE
-
-This software gives a local AI assistant tools for interacting
-with a real Linux computer.
-
-We attempt to protect administrator-level and hardware-writing
-operations behind explicit human authorization.
-
-The assistant can make mistakes.
-
-Back up anything you cannot afford to lose.
-
-You are responsible for commands you explicitly approve.
-```
-
-Allow:
-
-```text
-[ ] Do not show this full message again
-```
-
-Keep a shorter warning accessible from Help/About.
-
----
-
-# 17. Firefox Integration
-
-Implement bidirectional integration.
-
-## Terminal → Firefox
-
-Commands such as:
-
-```text
-/web why is gcc producing this linker error?
-```
-
-should:
-
-```text
-query web provider
-↓
-collect search snippets/results
-↓
-optionally retrieve selected pages
-↓
-provide compact context to Qwen
-↓
-allow user to open sources in Firefox
-```
-
-Do not describe DuckDuckGo HTML scraping as an API.
-
-Create a generic interface:
-
-```python
-class SearchProvider:
-    async def search(query): ...
-```
-
-Initial implementation may use a lightweight DuckDuckGo method, but it should be replaceable.
-
-Possible future providers:
-
-```text
-DuckDuckGo
-Brave
-Bing
-local SearXNG
-other APIs
-```
-
----
-
-# 18. Firefox → Terminal
-
-Register:
-
-```text
-x-scheme-handler/qwen
-```
-
-Freedesktop desktop entries and XDG handlers provide the standard mechanism for registering application URI handlers on Linux. `xdg-open` itself resolves custom URL schemes through `x-scheme-handler/<scheme>`. ([Cgit][7])
-
-Install:
-
-```text
-~/.local/share/applications/qwen-workspace.desktop
-```
-
-with a handler such as:
-
-```text
-qwen-protocol
-```
-
-A browser bookmarklet can perform:
-
-```javascript
-location.href =
-    'qwen://selection?text=' +
-    encodeURIComponent(window.getSelection().toString());
-```
-
-The protocol helper should **not launch another TUI** when one already exists.
-
-Instead:
-
-```text
-Firefox
-   ↓
-qwen://
-   ↓
-qwen-protocol helper
-   ↓
-Unix socket
-   ↓
-existing workspace
-```
-
----
-
-# 19. Unix Socket IPC
-
-Use:
-
-```text
-$XDG_RUNTIME_DIR/qwen-workspace.sock
-```
-
-The socket should be owned by the logged-in user and permissioned appropriately.
-
-Suggested event structure:
-
-```json
-{
-  "type": "browser_selection",
-  "payload": "selected text",
-  "source": "firefox"
-}
-```
-
-Other types:
-
-```text
-browser_url
-ask
-open_file
-terminal_output
-context_request
-```
-
-Validate input length.
-
-Never interpret received browser text as a shell command.
-
-Browser content is **context**, not executable instruction.
-
----
-
-# 20. Large Browser Selections
-
-The bookmarklet approach is intentionally lightweight but has limits.
-
-Large selections can produce enormous URI strings.
-
-Therefore impose a sane v1 maximum, perhaps:
-
-```text
-16–32 KB
-```
-
-and provide an error such as:
-
-```text
-Selection too large for browser-link mode.
-Copy the text or save it to a file instead.
-```
-
-A future Firefox extension using Native Messaging would be the proper solution for large transfers.
-
-Do not make an extension mandatory for v1.
-
----
-
-# 21. Context Provider Architecture
-
-Do not put all context collection into one giant assistant function.
-
-Create providers:
-
-```text
-providers/
-    shell.py
-    files.py
-    git.py
-    man.py
-    web.py
-    browser.py
-    system.py
-    usb.py
-    pci.py
-    hardware.py
-    compiler.py
-```
-
-All providers return structured context.
-
-For example:
+Context comes from independent providers returning structured results:
 
 ```python
 class ContextResult:
@@ -967,1255 +639,263 @@ class ContextResult:
     metadata: dict
 ```
 
-Qwen should receive only the useful portion rather than unlimited raw output.
-
----
-
-# 22. Slash Commands
-
-Suggested initial command language:
-
 ```text
-/ask
-/web
-/man
-/file
-/git
-/system
-/hw
-/usb
-/pci
-/model
-/context
-/clear
-/help
+terminal   files   git   man/info/doc   system   journal   hardware   usb   pci
+serial     compiler   browser   web
 ```
 
-Examples:
+The model receives the useful part, not raw dumps.
 
-```text
-/man rsync exclude
-```
+### 11.2 Linux system knowledge
 
-```text
-/git explain the current diff
-```
+`/etc/os-release`, `uname`, `/proc`, `/sys`, `/dev`, systemd and `journalctl`, udev, mounts,
+permissions, users/groups, processes, environment, network interfaces, package state, kernel modules.
+Tools: `systemctl journalctl ps ss ip lsmod modinfo udevadm lsblk findmnt df free lsof dmesg`.
+Prefer diagnosis over reinstalling packages or rewriting configuration.
 
-```text
-/usb why did this device stop enumerating?
-```
+Because we ship the distro, the assistant also knows **this distro**: its own packages, its
+defaults, where its config lives, and how its updates work (shipped as local documentation).
 
-```text
-/pci inspect my GPU link state
-```
+### 11.3 Local documentation
 
-```text
-/hw diagnose the new serial adapter
-```
+`man`, `info`, `/usr/share/doc`, `--help` output, and installed package docs, indexed locally
+(index built at ISO build time for base packages, updated when packages change).
 
----
+### 11.4 Compiler and log filtering
 
-# 23. Linux System Context
+Never feed a 50,000-line log to the model. Extract: first and last error, warnings near errors, the
+compiler invocation, file:line references, undefined linker symbols, traceback tail, test-failure
+summary. The full log stays available on request.
 
-The model should understand and selectively use:
+### 11.5 Structured session state
 
-```text
-/etc/os-release
-uname
-/proc
-/sys
-/dev
-systemd
-journalctl
-udev
-mounts
-permissions
-users/groups
-processes
-environment variables
-network interfaces
-package manager state
-kernel modules
-```
-
-Useful tools include:
-
-```text
-systemctl
-journalctl
-ps
-ss
-ip
-lsmod
-modinfo
-udevadm
-lsblk
-findmnt
-df
-free
-lsof
-dmesg
-```
-
-The assistant should prefer diagnosis before package reinstallations or configuration rewriting.
-
----
-
-# 24. Hardware Awareness
-
-A major differentiator of this project should be hardware-oriented Linux knowledge.
-
-Qwen should understand:
-
-```text
-physical device
-       ↓
-electrical/protocol layer
-       ↓
-bus
-       ↓
-kernel driver
-       ↓
-device node/sysfs
-       ↓
-userspace software
-```
-
----
-
-# 25. USB Knowledge
-
-The assistant should understand:
-
-```text
-USB topology
-hubs
-ports
-host controllers
-devices
-interfaces
-endpoints
-descriptors
-VID/PID
-device classes
-USB 2.x vs USB 3.x
-Type-C distinction
-enumeration
-power
-autosuspend
-drivers
-udev
-```
-
-Tools:
-
-```text
-lsusb
-lsusb -t
-lsusb -v
-usb-devices
-udevadm
-/sys/bus/usb
-journalctl
-dmesg
-```
-
-The assistant should know that:
-
-```text
-physical port ≠ USB device ≠ interface ≠ endpoint
-```
-
----
-
-# 26. PCI / PCIe Knowledge
-
-Train and prompt for understanding of:
-
-```text
-domain
-bus
-device
-function
-vendor ID
-device ID
-class
-kernel driver
-BAR
-IRQ
-MSI/MSI-X
-PCIe generation
-link width
-link speed
-IOMMU
-lane allocation
-```
-
-Example address:
-
-```text
-0000:01:00.0
-
-domain = 0000
-bus    = 01
-device = 00
-function = 0
-```
-
-Runtime tools:
-
-```text
-lspci
-lspci -nn
-lspci -nnk
-lspci -vv
-/sys/bus/pci
-```
-
-Never train the model to assume that a GPU negotiating fewer lanes necessarily means failed hardware.
-
-It should consider:
-
-```text
-CPU lane allocation
-motherboard topology
-M.2 lane sharing
-BIOS settings
-slot wiring
-power states
-device capability
-```
-
----
-
-# 27. Other Hardware Protocols
-
-The model should have useful knowledge of:
-
-```text
-UART
-I2C
-SPI
-CAN
-GPIO
-PWM
-ADC
-DAC
-SATA
-NVMe
-SCSI
-Ethernet
-Wi-Fi
-Bluetooth
-JTAG
-SWD
-```
-
-Not every subsystem needs tools in v1.
-
-The architecture should allow providers to be added.
-
----
-
-# 28. Microcontroller Support
-
-The specialization should strongly cover:
-
-```text
-RP2040
-RP2350
-STM32 / ARM Cortex-M
-ESP32
-AVR / ATmega
-SAMD21 / SAMD51
-RISC-V microcontrollers
-```
-
-Toolchain knowledge:
-
-```text
-arm-none-eabi-gcc
-clang
-avr-gcc
-riscv-none-elf-gcc
-OpenOCD
-GDB
-picotool
-dfu-util
-esptool
-avrdude
-CMake
-Ninja
-PlatformIO
-Zephyr
-FreeRTOS
-```
-
-Qwen should understand workflows such as:
-
-```text
-source
- ↓
-compiler
- ↓
-linker
- ↓
-ELF
- ↓
-binary/hex/UF2
- ↓
-bootloader/debug probe
- ↓
-flash
- ↓
-reset
- ↓
-verify
-```
-
----
-
-# 29. Hardware Description Languages
-
-The Linux/hardware LoRA should include:
-
-```text
-Verilog
-SystemVerilog
-VHDL
-```
-
-Secondary:
-
-```text
-Bluespec
-```
-
-Also include associated build/debug tools:
-
-```text
-iverilog
-Verilator
-Yosys
-nextpnr
-GTKWave
-OpenFPGALoader
-vendor constraint files
-timing reports
-```
-
-Important concepts:
-
-```text
-synthesis vs simulation
-combinational vs sequential logic
-clock domains
-reset synchronization
-metastability
-FSMs
-blocking vs nonblocking assignment
-timing constraints
-setup/hold
-pin constraints
-resource utilization
-```
-
----
-
-# 30. Embedded-Linux Languages and Formats
-
-Include significant exposure to:
-
-```text
-C
-C++
-assembly
-Rust
-Python
-Bash
-linker scripts
-Makefiles
-CMake
-Kconfig
-Device Tree
-DTS/DTSI
-systemd units
-udev rules
-JSON
-YAML
-TOML
-```
-
----
-
-# 31. LoRA Purpose
-
-Do **not** spend the LoRA primarily teaching generic programming syntax.
-
-Qwen2.5-Coder already has broad programming-language coverage. ([Qwen][3])
-
-The LoRA should teach behavior and domain specialization.
-
-Target identity:
-
-```text
-Linux Hardware Operator
-```
-
-The specialization should teach the model how to diagnose systems methodically.
-
----
-
-# 32. Suggested LoRA Dataset Mix
-
-Starting distribution:
-
-```text
-25% Linux administration / shell diagnosis
-
-15% Linux hardware / kernel interfaces
-
-10% USB / PCI / bus troubleshooting
-
-15% embedded C/C++ / MCU development
-
-10% Verilog / SystemVerilog / VHDL
-
-10% Python / build tooling / automation
-
-5% Rust / Go system tooling
-
-5% configuration formats / systemd / udev / DTS
-
-5% recovery and intentionally failed troubleshooting cases
-```
-
-Adjust after benchmarking.
-
----
-
-# 33. LoRA Training Pattern
-
-High-quality examples should repeatedly teach:
-
-```text
-problem
- ↓
-collect evidence
- ↓
-interpret evidence
- ↓
-hypothesis
- ↓
-test
- ↓
-new evidence
- ↓
-accept/reject hypothesis
- ↓
-minimal fix
- ↓
-verify
-```
-
-Include examples where the first hypothesis is wrong.
-
-That is extremely important.
-
-A useful operator needs to learn how to **change its mind when measurements disagree with the diagnosis**.
-
----
-
-# 34. Train Concepts, Retrieve Identifiers
-
-Do not attempt to memorize every:
-
-```text
-PCI vendor/device ID
-USB VID/PID
-kernel version
-package version
-firmware revision
-```
-
-Those facts change.
-
-Instead:
-
-```text
-LoRA:
-    understand what IDs mean
-    understand how to diagnose them
-
-Runtime:
-    pci.ids
-    usb.ids
-    sysfs
-    installed kernel
-    local documentation
-    web lookup
-```
-
-The machine itself is the authority for machine state.
-
----
-
-# 35. LoRA Tooling
-
-PEFT LoRA is appropriate because the original model weights remain frozen while relatively small adapter matrices are trained. PEFT also allows adapters to be merged into the base model later if desired. ([Hugging Face][8])
-
-Train separately from the target deployment machines if necessary.
-
-Deployment options:
-
-```text
-A. Load base + adapter dynamically.
-B. Merge adapter into model.
-C. Maintain several adapters and select them.
-```
-
-Prefer A initially.
-
-That makes A/B testing much easier:
-
-```text
-stock Qwen
-vs
-Linux-operator LoRA
-```
-
----
-
-# 36. Benchmark Before and After LoRA
-
-Create a hidden evaluation suite of at least 100 problems.
-
-Suggested distribution:
-
-```text
-20 Linux shell/filesystem
-15 systemd/services
-10 networking
-10 permissions
-10 package/build failures
-10 USB/PCI/hardware
-10 embedded/MCU
-10 HDL/FPGA
-5 recovery/destructive-operation judgment
-```
-
-Score:
-
-```text
-correct diagnosis
-useful inspection commands
-unnecessary commands
-dangerous commands proposed
-root cause found
-fix correctness
-verification performed
-tokens used
-time to solution
-```
-
-Do not evaluate purely by whether the answer sounds knowledgeable.
-
----
-
-# 37. Command Cards
-
-When Qwen generates executable code, detect command blocks and render them specially.
-
-Example:
-
-```text
-Qwen suggests:
-
-┌─────────────────────────────────────────┐
-│ journalctl -b -u bluetooth --no-pager  │
-└─────────────────────────────────────────┘
-
-[ COPY ]  [ RUN ]  [ EXPLAIN ]
-```
-
-For privileged commands:
-
-```text
-[ REQUEST ADMIN PERMISSION ]
-```
-
-instead of:
-
-```text
-[ RUN ]
-```
-
----
-
-# 38. Diff-First Editing
-
-For source code changes, prefer:
-
-```text
-proposal
- ↓
-diff
- ↓
-user inspection
- ↓
-apply
-```
-
-Display:
-
-```diff
-- old line
-+ new line
-```
-
-before rewriting important project files.
-
-Allow autonomous edits inside an explicitly designated AI workspace if the user enables that behavior.
-
----
-
-# 39. Git Integration
-
-Provide:
-
-```text
-/git status
-/git diff
-/git explain
-/git review
-```
-
-Useful automatic context:
-
-```text
-current branch
-uncommitted files
-diff statistics
-recent commit
-repository root
-```
-
-Never automatically run:
-
-```text
-git reset --hard
-git clean -fdx
-force push
-```
-
-without explicit human approval.
-
----
-
-# 40. Local Documentation Provider
-
-Linux work frequently does not need the public web.
-
-Provide retrieval from:
-
-```text
-man
-info
-/usr/share/doc
---help output
-compiler help
-installed package documentation
-```
-
-Example:
-
-```text
-/man systemd.service restart semantics
-```
-
-This provides version-relevant information without leaving the machine.
-
----
-
-# 41. Compiler Context Filtering
-
-Do not dump a 50,000-line build log into Qwen.
-
-Implement extractors that prioritize:
-
-```text
-first error
-last error
-warnings near error
-compiler invocation
-file/line references
-linker undefined symbols
-traceback tail
-test failure summary
-```
-
-Preserve access to the complete log if Qwen asks for more.
-
-This saves context and improves small-model performance.
-
----
-
-# 42. Structured Session State
-
-A 7B model should not have to remember everything from raw chat.
-
-Keep structured state outside the model:
+Keep state outside the model and inject only what is relevant:
 
 ```json
 {
-  "project": "...",
-  "distro": "...",
-  "kernel": "...",
-  "compiler": "...",
-  "current_problem": "...",
-  "tested_hypotheses": [],
-  "confirmed_facts": [],
-  "files_changed": [],
-  "pending_actions": []
+  "project": "...", "terminal": "...", "cwd": "...", "kernel": "...",
+  "current_problem": "...", "tested_hypotheses": [], "confirmed_facts": [],
+  "files_changed": [], "pending_actions": []
 }
 ```
 
-Inject only relevant state into the prompt.
+### 11.6 Hardware state cache
 
-This is one of the best ways to compensate for a smaller local model.
+CPU, GPU, USB controllers, PCI devices, storage, network adapters, and bound drivers are cached and
+refreshed from udev events, not rediscovered each prompt.
 
----
+### 11.7 Git
 
-# 43. Hardware State Cache
+Branch, uncommitted files, diff stat, recent commits, repo root as automatic context. Explaining or
+reviewing a diff is a normal request. `git reset --hard`, `git clean -fdx`, and force pushes are never
+run without approval.
 
-Likewise cache relatively stable hardware information:
+### 11.8 Edits
 
-```text
-CPU
-GPU
-USB controllers
-PCI devices
-storage
-network adapters
-kernel drivers
-```
-
-Refresh manually or on detected hardware change.
-
-Do not repeatedly spend tokens rediscovering static topology.
+Source changes are proposed as diffs and applied after the user reviews them, except inside a
+workspace where the user has enabled autonomous edits.
 
 ---
 
-# 44. Model Prompt
+## 12. Privacy and logging
 
-The system prompt should be short and operational.
-
-Something like:
+### 12.1 Paths
 
 ```text
-You are a local Linux engineering assistant.
-
-Prefer inspection and evidence over guessing.
-
-Use the machine's current state as authoritative.
-
-Do not claim a command succeeded until its output confirms success.
-
-Distinguish suggestions from executed actions.
-
-Prefer minimal reversible changes.
-
-Administrator operations and hardware writes require human authorization.
-
-After a modification, verify the result.
+~/.config/cinminai/          configuration
+~/.local/share/cinminai/     workspaces, conversation history, terminal logs
+~/.cache/cinminai/           indexes, downloaded pages
+$XDG_RUNTIME_DIR/cinminai/   sockets
+/var/log/cinminai/admin.log  admin audit log (root-owned, user-readable)
 ```
 
-Do not turn the system prompt into a massive Linux textbook.
+### 12.2 Rules
 
-Put knowledge in the model, LoRA, providers, and retrieved context.
+* Everything stays local. Prompt and terminal logging are configurable and can be disabled.
+* Passwords never enter the model context (echo-off capture rule, §6.3; polkit handles admin auth).
+* The LOCAL/WEB indicator shows whenever anything leaves the machine.
+
+### 12.3 Redaction
+
+Before terminal or file content reaches the model, redact common credential patterns: private key
+blocks, `password=`/`token=`/`secret=` assignments, bearer tokens, cloud access keys, URLs with
+embedded credentials.
 
 ---
 
-# 45. System Status Bar
+## 13. Hardware and embedded knowledge
 
-Always expose important runtime facts:
+Much of this system's value is hardware-oriented Linux knowledge. The model should reason along:
 
 ```text
-MODEL: Qwen-Coder-7B
-BACKEND: Ollama
-GPU: GTX 1080 Ti
-VRAM: 8.7 / 11 GB
-CTX: 8192
-MODE: LOCAL
-WEB: OFF
-ADMIN: LOCKED
+physical device → electrical/protocol layer → bus → kernel driver → device node/sysfs → userspace
 ```
 
-This makes the system understandable rather than magical.
+**USB:** topology, hubs, ports, host controllers, devices, interfaces, endpoints, descriptors,
+VID/PID, classes, USB 2 vs 3, Type-C, enumeration, power, autosuspend, drivers, udev.
+Tools: `lsusb` (`-t`, `-v`), `usb-devices`, `udevadm`, `/sys/bus/usb`, journal, `dmesg`.
+Physical port ≠ USB device ≠ interface ≠ endpoint.
+
+**PCI/PCIe:** domain:bus:device.function, vendor/device ID, class, driver, BARs, IRQ, MSI/MSI-X,
+link generation, width and speed, IOMMU, lane allocation. Tools: `lspci` (`-nn`, `-nnk`, `-vv`),
+`/sys/bus/pci`. A GPU running at fewer lanes is not necessarily faulty — consider CPU lane
+allocation, board topology, M.2 lane sharing, BIOS settings, slot wiring, power states.
+
+**Other protocols:** UART, I2C, SPI, CAN, GPIO, PWM, ADC/DAC, SATA, NVMe, SCSI, Ethernet, Wi-Fi,
+Bluetooth, JTAG, SWD. Not all need tools in v1; the provider architecture allows adding them.
+
+**Microcontrollers:** RP2040/RP2350, STM32/Cortex-M, ESP32, AVR, SAMD21/51, RISC-V MCUs.
+Toolchains: `arm-none-eabi-gcc`, clang, `avr-gcc`, `riscv-none-elf-gcc`, OpenOCD, GDB, `picotool`,
+`dfu-util`, `esptool`, `avrdude`, CMake, Ninja, PlatformIO, Zephyr, FreeRTOS.
+Workflow: source → compile → link → ELF → bin/hex/UF2 → bootloader/probe → flash → reset → verify.
+BUILD, TEST, DISASSEMBLE, DEBUG (read-oriented) are sandboxed; FLASH, ERASE, FUSES, EEPROM WRITE
+need approval.
+
+**HDL/FPGA:** Verilog, SystemVerilog, VHDL (Bluespec secondary); iverilog, Verilator, Yosys,
+nextpnr, GTKWave, openFPGALoader, constraints and timing reports. Concepts: synthesis vs
+simulation, combinational vs sequential, clock domains, reset synchronization, metastability, FSMs,
+blocking vs non-blocking, setup/hold, pin constraints, utilization. Simulation and synthesis are
+sandboxed; PROGRAM DEVICE needs approval.
+
+**Formats:** C, C++, assembly, Rust, Python, Bash, linker scripts, Make, CMake, Kconfig, Device
+Tree, systemd units, udev rules, JSON, YAML, TOML.
+
+**Train concepts, retrieve identifiers.** Don't memorize IDs or versions. The model learns what IDs
+mean; the runtime supplies `pci.ids`, `usb.ids`, sysfs, the running kernel, local docs, and web
+lookup. The machine is the authority on machine state.
 
 ---
 
-# 46. Offline / Web Indicator
+## 14. Evaluation and LoRA
 
-The user should always know whether outside network access is being used.
+### 14.1 Evaluation first
 
-Modes:
+A hidden suite of ≥100 problems:
 
 ```text
-LOCAL
-WEB
+20 shell/filesystem  15 systemd/services  10 networking  10 permissions
+10 package/build failures  10 USB/PCI/hardware  10 embedded/MCU  10 HDL/FPGA
+5 recovery / destructive-operation judgement
 ```
 
-`/web` should visibly change state for that request.
+Score: correct diagnosis, useful inspection commands, unnecessary commands, dangerous commands
+proposed, root cause found, fix correctness, verification performed, tokens, time. Never score by
+how knowledgeable an answer sounds. The harness starts early (PLAN M3), not at the end.
 
-Do not silently send ordinary prompts to search engines or cloud APIs.
+### 14.2 LoRA
+
+Only after the stock baseline exists. Purpose: behavior and domain specialization ("Linux
+hardware operator"), not programming syntax.
+
+Starting dataset mix: 25% Linux admin/shell diagnosis, 15% Linux hardware/kernel interfaces,
+10% USB/PCI/bus troubleshooting, 15% embedded C/C++/MCU, 10% HDL, 10% Python/build tooling,
+5% Rust/Go system tooling, 5% config formats (systemd/udev/DTS), 5% recovery and failed
+troubleshooting. Adjust from measured failures.
+
+Training pattern: problem → evidence → interpretation → hypothesis → test → new evidence →
+accept/reject → minimal fix → verify — including many cases where **the first hypothesis is wrong**.
+
+PEFT LoRA, trained off the target machines, loaded dynamically (llama.cpp `--lora`) first for easy
+A/B against stock; merging later. The base model for LoRA is chosen after the baseline (PLAN D8).
+
+Tools usually improve a small model more than training does. Order: stock model → benchmark → tools
+→ benchmark → corpus → LoRA → compare.
 
 ---
 
-# 47. Logging and Privacy
-
-Keep logs local.
-
-Recommended XDG paths:
+## 15. Repository layout
 
 ```text
-~/.config/qwen-workspace/
-~/.local/share/qwen-workspace/
-~/.cache/qwen-workspace/
-$XDG_RUNTIME_DIR/qwen-workspace.sock
+Cin-minAI/
+├── docs/                    SPEC, PLAN, spikes, benchmarks
+├── distro/
+│   ├── build-iso.sh         Stage 1 remaster pipeline
+│   ├── config/              pinned upstream ISO + checksums, package list, pins
+│   ├── chroot-hooks/        ordered scripts run inside the chroot
+│   └── branding/            artwork sources
+├── packages/                debian/ packaging for each cinminai-* package
+├── forks/                   patch series against upstream Mint packages (Stage 2)
+├── src/cin_minai/
+│   ├── daemon/              D-Bus service, conversation, session state
+│   ├── inference/           backend interface, ollama, llama_cpp
+│   ├── context/             providers, extractors, redaction
+│   ├── actions/             lanes, sandbox runner, admin client, audit
+│   ├── terminal/            relay, emulator, segmentation
+│   ├── sidebar/             GTK sidebar
+│   ├── setup/               hardware detection, benchmark, first-boot UI
+│   └── admin/               root mechanism (kept minimal)
+├── cinnamon/applet/         CJS applet
+├── firefox/                 WebExtension + native messaging host
+├── shell/                   bash/zsh integration scripts
+├── tests/  unit/ integration/ security/ hardware/ iso/
+├── training/  datasets/ eval/ lora/
+└── spikes/                  throwaway M0 code
 ```
 
-Prompt logging should be configurable.
-
-Avoid storing administrator credentials.
-
-Never put passwords into AI context.
-
-Consider redacting common credential patterns when terminal output is automatically added to Qwen context.
+Tooling: CI builds all packages and the ISO, publishes to the apt repo (signed), and runs unit,
+integration, and ISO boot tests (QEMU). A job watches Mint's repositories for new versions of
+packages we fork.
 
 ---
 
-# 48. Installer
+## 16. Tests
 
-`install.sh` should:
+### 16.1 Security (against the real sandbox and mechanism)
 
-```text
-detect distro
-check required packages
-detect Python
-create virtual environment
-install TUI dependencies
-detect GPU
-detect available VRAM
-detect Ollama
-offer/install inference backend
-select initial model profile
-benchmark candidate configuration
-create XDG directories
-install launcher
-install qwen:// handler
-optionally install privileged helper
-install Polkit action
-run self-test
-launch application
-```
-
-System modifications should be clearly separated from per-user installation.
-
-Most files should live under:
+The assistant's normal execution path cannot:
 
 ```text
-~/.local/
+acquire sudo / su / pkexec          reach the system or session D-Bus
+talk to the daemon's approval API   rewrite the admin mechanism or polkit policy
+write raw block devices             open serial ports or debug probes
+flash firmware                      write PCI configuration
+modify protected system files       read $HOME outside the workspace
+turn browser text into execution    capture terminal input while echo is off
 ```
 
-Only the administrator helper and associated Polkit definitions should require privileged installation.
+Also test indirect paths. The goal is not an unbreakable security appliance; it is that the
+normal AI path cannot accidentally or casually gain administrator or hardware-write access.
+
+### 16.2 Functional
+
+```text
+terminal behaviour unchanged through the relay (vim, htop, less, ssh, Ctrl-C/Z, resize, REPLs)
+commands, cwd, exit codes, and output captured correctly and per command
+"To terminal" places text without Enter
+relay passes through when the daemon is down
+assistant streams without freezing the desktop
+model crash does not affect terminals; terminal exit does not affect the assistant
+browser selection reaches the right conversation
+/web failure is graceful offline
+GPU OOM triggers the fallback ladder
+denial returns cleanly to the model
+awareness off → nothing captured
+```
+
+### 16.3 Distro
+
+```text
+ISO builds reproducibly from pinned inputs
+ISO boots (BIOS + UEFI) in QEMU; live session works
+install completes; first boot runs setup; assistant works after reboot
+our packages upgrade cleanly; forked packages rebase on new Mint versions
+Pascal machine is not moved past the 580 driver branch
+```
+
+### 16.4 Hardware matrix
+
+GTX 1070 8 GB, GTX 1080 Ti 11 GB, modern RTX, CPU-only, no NVIDIA driver, network disconnected,
+USB hotplug, serial device, multiple PCI devices, VM (no GPU).
 
 ---
 
-# 49. Suggested Repository Layout
+## 17. Non-goals for v1
 
 ```text
-qwen-workspace/
-│
-├── install.sh
-├── uninstall.sh
-├── README.md
-├── LICENSE
-├── pyproject.toml
-│
-├── src/
-│   └── qwen_workspace/
-│       │
-│       ├── app.py
-│       ├── config.py
-│       ├── hardware_detect.py
-│       │
-│       ├── ui/
-│       │   ├── main_screen.py
-│       │   ├── terminal_panel.py
-│       │   ├── assistant_panel.py
-│       │   ├── status_bar.py
-│       │   ├── command_card.py
-│       │   └── permission_dialog.py
-│       │
-│       ├── terminal/
-│       │   ├── session.py
-│       │   └── emulator.py
-│       │
-│       ├── inference/
-│       │   ├── base.py
-│       │   ├── ollama.py
-│       │   └── llama_cpp.py
-│       │
-│       ├── providers/
-│       │   ├── shell.py
-│       │   ├── files.py
-│       │   ├── git.py
-│       │   ├── man.py
-│       │   ├── system.py
-│       │   ├── hardware.py
-│       │   ├── usb.py
-│       │   ├── pci.py
-│       │   └── web.py
-│       │
-│       ├── security/
-│       │   ├── actions.py
-│       │   ├── classifier.py
-│       │   └── permissions.py
-│       │
-│       ├── browser/
-│       │   ├── protocol.py
-│       │   └── socket_server.py
-│       │
-│       └── context/
-│           ├── manager.py
-│           ├── state.py
-│           └── summarizer.py
-│
-├── admin/
-│   ├── qwen-admin-helper
-│   └── org.qwenworkspace.policy
-│
-├── desktop/
-│   └── qwen-workspace.desktop
-│
-├── scripts/
-│   └── qwen-protocol
-│
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── security/
-│   └── hardware/
-│
-└── training/
-    ├── datasets/
-    ├── eval/
-    └── lora/
-```
-
----
-
-# 50. Important Security Tests
-
-Automated tests should verify that the AI environment cannot silently:
-
-```text
-acquire sudo
-invoke su successfully
-rewrite privileged helper
-rewrite Polkit policy
-write raw block devices
-flash firmware
-write PCI configuration
-modify protected system files
-```
-
-Also test obvious indirect paths.
-
-The goal is not to create an impossible-to-defeat security appliance.
-
-The goal is to ensure that the normal AI execution path cannot accidentally acquire administrator privileges.
-
----
-
-# 51. Important Functional Tests
-
-Verify:
-
-```text
-bash state persists
-cd persists
-environment variables persist
-Ctrl-C works
-terminal resizing works
-interactive applications work
-Qwen streams tokens without freezing UI
-model crash does not destroy shell
-shell crash does not destroy Qwen
-browser selection reaches existing session
-/web failure does not crash application
-GPU OOM triggers useful fallback
-AI command cards render correctly
-permission denial returns cleanly to Qwen
-```
-
----
-
-# 52. Hardware Test Matrix
-
-At minimum eventually test:
-
-```text
-GTX 1070 8 GB
-GTX 1080 Ti 11 GB
-modern NVIDIA GPU
-CPU-only machine
-NVIDIA driver absent
-Ollama absent
-network disconnected
-USB device hotplug
-serial device
-multiple PCI devices
-```
-
-Do not make unsupported hardware fatal if CPU mode can work.
-
----
-
-# 53. Failure Recovery
-
-Inference failure should not take down the terminal.
-
-Architecture:
-
-```text
-TUI
-├── terminal session
-├── model service
-├── context providers
-└── browser socket
-```
-
-Components should restart independently where possible.
-
-If Qwen OOMs:
-
-```text
-stop generation
-↓
-release model/context
-↓
-reduce context
-↓
-retry once
-↓
-offer smaller profile
-```
-
-Never enter an endless restart loop.
-
----
-
-# 54. Initial Development Phases
-
-## Phase 1 — Core shell + Qwen
-
-Build:
-
-```text
-Textual application
-left PTY terminal
-right assistant
-Ollama streaming
-model configuration
-basic command cards
-```
-
-Nothing else matters until this works reliably.
-
-## Phase 2 — Context
-
-Add:
-
-```text
-terminal output selection
-files
-Git
-manpages
-system information
-```
-
-## Phase 3 — Permission boundary
-
-Add:
-
-```text
-privileged helper
-Polkit
-approval dialog
-admin lock indicator
-```
-
-## Phase 4 — Browser
-
-Add:
-
-```text
-qwen:// handler
-Unix socket
-bookmarklet
-/web provider
-open-source-in-Firefox action
-```
-
-## Phase 5 — Hardware
-
-Add:
-
-```text
-USB provider
-PCI provider
-hardware summary
-serial detection
-microcontroller tooling
-```
-
-## Phase 6 — Specialized LoRA
-
-Only begin training after the stock model benchmark exists.
-
-Otherwise there is no reliable way to know whether the LoRA helped.
-
----
-
-# 55. Features Worth Adding After v1
-
-High-value extensions:
-
-```text
-LSP integration
-symbol search
-semantic code search
-patch/diff workflow
-session restore
-terminal command history awareness
-Git checkpoint before large AI edits
-serial monitor
-GDB integration
-OpenOCD integration
-FPGA synthesis viewer
-USB topology viewer
-PCI topology viewer
-hardware datasheet context
-device-tree assistant
-local documentation index
-```
-
----
-
-# 56. FPGA Development Mode
-
-A future FPGA mode could expose:
-
-```text
-SYNTHESIZE
-SIMULATE
-TIMING
-PROGRAM
-```
-
-Qwen can automatically run:
-
-```text
-iverilog
-Verilator
-Yosys
-nextpnr
-```
-
-but:
-
-```text
-PROGRAM DEVICE
-```
-
-is a hardware-write boundary and therefore needs authorization.
-
-Simulation does not.
-
----
-
-# 57. Microcontroller Development Mode
-
-Likewise:
-
-```text
-BUILD         → automatic
-TEST          → automatic
-DISASSEMBLE   → automatic
-DEBUG         → automatic/read-oriented
-FLASH         → permission required
-ERASE         → permission required
-FUSES         → permission required
-EEPROM WRITE  → permission required
-```
-
-This creates a consistent mental model.
-
----
-
-# 58. Backup Awareness
-
-Do not make backup management mandatory for v1.
-
-However, before destructive operations, remind the user:
-
-```text
-Back up anything you cannot afford to lose.
-```
-
-Later the system can optionally detect:
-
-```text
-Timeshift
-Btrfs snapshots
-Git cleanliness
-recent project backup
-```
-
-This is useful but should not block the initial release.
-
----
-
-# 59. One Important Limitation
-
-Administrator permission alone does **not** protect files writable by the normal user.
-
-For example:
-
-```bash
-rm -rf ~/Documents
-```
-
-does not require root.
-
-Therefore autonomous AI command execution should occur primarily inside a designated AI/project workspace.
-
-Commands affecting the broader user home should normally be proposed to the human terminal rather than silently executed.
-
-This gives us a strong practical safety boundary without creating an elaborate sandboxing project.
-
----
-
-# 60. Non-Goals for v1
-
-Do not attempt to build:
-
-```text
-an entirely new Linux distribution
-a new terminal emulator from scratch unless necessary
-a replacement desktop environment
+a replacement desktop environment (we patch Cinnamon; we don't replace it)
+a new terminal emulator
+our own kernel or init system
+a non-Mint base (Arch, Fedora, from-scratch)
 a fully autonomous root administrator
 a browser automation framework
 a massive IDE
@@ -2224,426 +904,39 @@ an undefeatable security sandbox
 an automatic BIOS flashing system
 ```
 
-Keep the initial goal narrow.
+---
+
+## 18. v0.1 acceptance criteria
+
+```text
+A branded ISO installs on real hardware and in a VM.
+First boot detects hardware, installs a suitable driver on approval, downloads a model,
+  benchmarks it, and picks sensible defaults (1070/1080 Ti class included).
+The assistant opens from the applet and hotkey and streams responses locally.
+It sees the focused terminal's commands and output; the user can switch that off.
+It proposes commands; the user can copy, send to terminal, or run in the sandbox.
+It inspects system, USB, and PCI information.
+A Firefox selection reaches the assistant; /web works and fails gracefully offline.
+Out-of-sandbox actions require approval; admin actions also require polkit.
+The assistant never holds persistent administrator privileges.
+Hardware writes require approval.
+Denial leaves the system clean.
+Assistant failure never affects the user's terminals or desktop.
+System updates work through Mint's Update Manager.
+```
+
+Priority order: 1. reliability 2. safety boundary 3. terminal and desktop behave exactly as stock
+4. model usefulness 5. hardware awareness 6. speed 7. appearance.
 
 ---
 
-# 61. Product Identity
-
-The distinctive value is not:
-
-> “Chatbot inside a terminal.”
-
-It is:
-
-> “A local Linux engineering assistant attached to a real operating environment.”
-
-Eventually:
+## 19. Core product rule
 
 ```text
-Linux
- ↓
-kernel
- ↓
-hardware buses
- ↓
-embedded systems
- ↓
-FPGA
- ↓
-microcontrollers
+The assistant may recommend the dangerous action.
+The assistant may explain the dangerous action.
+The assistant may prepare the dangerous action.
+The assistant does not get to approve the dangerous action.
 ```
 
-all become understandable through the same interface.
-
----
-
-# 62. UX Philosophy
-
-The machine should never make the user wonder:
-
-```text
-Did the AI actually run that?
-```
-
-Use explicit visual states:
-
-```text
-SUGGESTED
-RUNNING
-COMPLETED
-FAILED
-ADMIN APPROVAL REQUIRED
-DENIED
-```
-
-After running something, Qwen should receive the real exit code and output.
-
-Example:
-
-```text
-COMMAND
-make
-
-EXIT
-2
-
-STDERR
-undefined reference to `usb_init'
-```
-
-The model should reason from that evidence.
-
----
-
-# 63. Suggested Internal Action Structure
-
-Represent commands internally rather than passing random text everywhere.
-
-Example:
-
-```json
-{
-  "id": "cmd-173",
-  "argv": [
-    "/usr/bin/systemctl",
-    "restart",
-    "bluetooth.service"
-  ],
-  "cwd": "/home/user/project",
-  "source": "assistant",
-  "privileged": true,
-  "hardware_write": false,
-  "reason": "Restart service after configuration change"
-}
-```
-
-This also makes logging and approval much cleaner.
-
----
-
-# 64. Avoid Shell Injection Internally
-
-Whenever application code launches commands, prefer argv arrays:
-
-```python
-await asyncio.create_subprocess_exec(
-    "/usr/bin/lspci",
-    "-nnk"
-)
-```
-
-rather than:
-
-```python
-await asyncio.create_subprocess_shell(
-    f"lspci {user_input}"
-)
-```
-
-The user's interactive terminal can obviously remain a normal shell.
-
-The application's internal service calls should not unnecessarily invoke one.
-
----
-
-# 65. AI Tool Interface
-
-Eventually give Qwen structured tools such as:
-
-```text
-read_file(path)
-list_directory(path)
-run_workspace_command(argv)
-get_git_diff()
-query_manpage(topic)
-inspect_usb()
-inspect_pci()
-inspect_system()
-search_web(query)
-request_admin_action(action)
-```
-
-This is preferable to telling the model:
-
-> “Just type whatever commands you want into Bash.”
-
-It also makes the LoRA's behavior easier to train and evaluate.
-
----
-
-# 66. Hardware Write Rule
-
-Hard rule:
-
-```text
-READ:
-generally okay
-
-WRITE:
-user approval
-```
-
-Especially:
-
-```text
-firmware
-EEPROM
-flash
-fuses
-raw block device
-PCI config
-MMIO
-bootloader
-partition table
-```
-
-This rule should be enforced by application architecture, not merely by the model prompt.
-
----
-
-# 67. Browser Security Rule
-
-Anything coming from a webpage is untrusted text.
-
-The browser bridge must never transform:
-
-```text
-website content
-```
-
-directly into:
-
-```text
-executed command
-```
-
-Correct flow:
-
-```text
-browser text
- ↓
-AI context
- ↓
-AI analysis
- ↓
-command proposal
- ↓
-human/run policy
-```
-
----
-
-# 68. Practical Model Strategy
-
-Do not spend months optimizing the perfect model before the workstation exists.
-
-Build around stock Qwen first.
-
-Sequence:
-
-```text
-stock Qwen
- ↓
-benchmark
- ↓
-build useful tools
- ↓
-benchmark again
- ↓
-create Linux/hardware training corpus
- ↓
-LoRA
- ↓
-compare against original
-```
-
-Tools may improve performance more dramatically than training.
-
----
-
-# 69. Why Tools Matter So Much
-
-A 7B model does not need to memorize:
-
-```text
-current kernel
-current package version
-current PCI topology
-current compiler error
-current systemd state
-```
-
-Linux can answer those questions.
-
-The architecture should therefore maximize:
-
-```text
-good reasoning
-+
-good measurements
-```
-
-rather than attempting to make the model omniscient.
-
----
-
-# 70. First Release Acceptance Criteria
-
-Version 0.1 is successful when all of the following work reliably:
-
-```text
-Application installs on Linux Mint.
-
-A real persistent Bash terminal works in the left panel.
-
-Qwen runs locally and streams responses in the right panel.
-
-GTX 1070/1080-Ti-class hardware gets sensible automatic defaults.
-
-The user can send terminal output to Qwen.
-
-Qwen can propose commands.
-
-The user can send commands to the terminal.
-
-Qwen can inspect Linux system information.
-
-Qwen can inspect USB and PCI information.
-
-A qwen:// Firefox link reaches the active application.
-
-Basic /web research works.
-
-Privileged actions require explicit approval.
-
-Qwen never receives persistent administrator privileges.
-
-Hardware-writing actions require explicit approval.
-
-Denial leaves the system in a clean state.
-
-AI/model failure does not destroy the user's terminal session.
-```
-
-Anything beyond those requirements is secondary.
-
----
-
-# 71. Development Priority
-
-Optimize in this order:
-
-```text
-1. Reliability
-2. Safety boundary
-3. Terminal usability
-4. Model usefulness
-5. Hardware awareness
-6. Speed
-7. Appearance
-```
-
-A gorgeous terminal that occasionally corrupts state is a failure.
-
-A plain terminal that reliably diagnoses the machine is useful.
-
----
-
-# 72. Final Architecture
-
-```text
-                    ┌─────────────────────────┐
-                    │      install.sh         │
-                    │                         │
-                    │ hardware detection      │
-                    │ model selection         │
-                    │ XDG integration         │
-                    │ optional admin helper   │
-                    └───────────┬─────────────┘
-                                │
-                                ▼
-┌───────────────────────────────────────────────────────────────┐
-│                     TEXTUAL WORKSPACE                         │
-│                                                               │
-│  ┌────────────────────────┐   ┌────────────────────────────┐  │
-│  │     HUMAN TERMINAL     │   │       QWEN ASSISTANT       │  │
-│  │                        │   │                            │  │
-│  │  persistent PTY        │   │ local inference           │  │
-│  │  interactive Bash      │   │ Linux reasoning           │  │
-│  │  real terminal state   │   │ hardware reasoning        │  │
-│  └────────────┬───────────┘   └──────────────┬─────────────┘  │
-│               │                              │                │
-│               │        CONTEXT BUS           │                │
-│               └──────────────┬───────────────┘                │
-│                              │                                │
-│          ┌───────────────────┼────────────────────┐           │
-│          ▼                   ▼                    ▼           │
-│        files               system              hardware       │
-│        git                 manpages            USB            │
-│        build               logs                PCI            │
-│          │                   │                    │           │
-│          └───────────────────┼────────────────────┘           │
-│                              │                                │
-│                              ▼                                │
-│                      ACTION MANAGER                           │
-│                         │        │                            │
-│                    normal     privileged                      │
-│                         │        │                            │
-│                         ▼        ▼                            │
-│                    AI workspace  PERMISSION BUTTON            │
-│                                      │                        │
-└──────────────────────────────────────┼────────────────────────┘
-                                       │
-                                       ▼
-                               ┌──────────────┐
-                               │    POLKIT    │
-                               │ admin helper │
-                               └──────┬───────┘
-                                      │
-                                      ▼
-                                  Linux OS
-
-
-Firefox
-   │
-   ├── qwen:// selected text
-   │
-   ▼
-Unix socket ─────────────────────────────► context bus
-
-Qwen
-   │
-   └── /web ─────────────────────────────► search provider
-```
-
----
-
-# 73. Core Product Rule
-
-Keep this line visible in the source documentation because it summarizes the security design:
-
-```text
-Qwen may recommend the dangerous action.
-
-Qwen may explain the dangerous action.
-
-Qwen may prepare the dangerous action.
-
-Qwen does not get to approve the dangerous action.
-```
-
-The user owns the computer.
-
-The user owns the button.
-
----
-
-[1]: https://textual.textualize.io/guide/workers/ "Workers - Textual"
-[2]: https://github.com/mitosch/textual-terminal "textual-terminal"
-[3]: https://qwenlm.github.io/blog/qwen2.5-coder/ "Qwen2.5-Coder"
-[4]: https://github.com/ggml-org/llama.cpp/blob/master/src/llama-adapter.cpp "llama.cpp adapters"
-[5]: https://github.com/ollama/ollama/blob/main/envconfig/config.go "Ollama envconfig"
-[6]: https://polkit.pages.freedesktop.org/polkit/polkit.8.html "polkit reference manual"
-[7]: https://cgit.freedesktop.org/xdg/xdg-utils/tree/scripts/xdg-open.in "xdg-open"
-[8]: https://huggingface.co/docs/peft/en/package_reference/lora "PEFT LoRA"
+The user owns the computer. The user owns the button.

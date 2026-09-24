@@ -1,10 +1,12 @@
 # Cin-minAI
 
-A local-first, dual-panel Linux AI workspace for Linux Mint/Cinnamon: a real persistent terminal
-on the left, a locally running Qwen assistant on the right, with Linux and hardware awareness and
-a human-controlled permission boundary for anything privileged or hardware-writing.
+A Linux Mint Cinnamon–derived distribution with a local AI assistant built into the operating
+system: a desktop sidebar, panel applet, and hotkey; awareness of your real terminals and of
+Firefox; Linux and hardware knowledge; and a human-controlled boundary for anything privileged or
+hardware-writing.
 
-**Status:** planning — see [docs/PLAN.md](docs/PLAN.md). Original design: [docs/SPEC.md](docs/SPEC.md).
+**Status:** M0 spikes — see [docs/PLAN.md](docs/PLAN.md). Design: [docs/SPEC.md](docs/SPEC.md).
+Spike results: [docs/spikes.md](docs/spikes.md).
 
 ## Core rule
 
@@ -13,5 +15,6 @@ It never approves one. The user owns the computer, and the user owns the button.
 
 ## Targets
 
-- Linux Mint Cinnamon (Ubuntu/Debian base), x86-64, Python 3.11+
+- Base: Linux Mint Cinnamon 22.x (Ubuntu 24.04), x86-64
 - NVIDIA optional; tuned for Pascal (GTX 1070 / 1080 Ti) through modern RTX, with CPU fallback
+- Model runs locally (Ollama); nothing leaves the machine unless you use a web feature

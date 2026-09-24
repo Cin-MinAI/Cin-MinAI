@@ -1,58 +1,60 @@
 # Cin-minAI — Implementation Plan
 
-Living plan for the dual-panel Linux AI workspace. The original design is in
-[SPEC.md](SPEC.md); section references like §12 point there. This document
-records what we decided since, and **overrides the spec where they differ**.
+Living plan for the Cin-minAI distribution. The design is in [SPEC.md](SPEC.md); section references
+like §6.2 point there. This document records decisions and milestones and **overrides the spec where
+they differ**.
 
-Last updated: 2026-09-24
+Last updated: 2026-09-24 (rewritten for the distro scope)
 
 ---
 
 ## 1. Decisions log
 
-| # | Decision | Replaces / amends |
-|---|----------|-------------------|
-| D1 | Safety boundary is enforced by an OS sandbox (bubblewrap), not by classifying command strings. The classifier only picks which button a command card shows. | §12, §50, §59, §66 |
-| D2 | Three action lanes instead of two: `SANDBOXED`, `USER_APPROVED`, `ADMIN`. | §12 |
-| D3 | Polkit policy uses `auth_admin` only — never `auth_admin_keep`. | §13, Rule 5 |
-| D4 | The model is a config value chosen by benchmark, not "Qwen2.5-Coder". Default candidate is Qwen3.5-9B; Qwen2.5-Coder-7B stays as the control baseline. | §3, §4, §7 |
-| D5 | Ollama is the default backend (it ships a CUDA 12 runner that still supports Pascal). llama.cpp stays as the second backend for LoRA work. | §5 |
-| D6 | Tool calls use schema-constrained JSON output (Ollama `format`), not free-form native function calling. | §65 |
-| D7 | Thinking mode off by default; opt-in for multi-step diagnosis. | new |
-| D8 | LoRA base model is **not** decided until after the M7 baseline benchmark. | §31, §35 |
-| D9 | Code lives in a private GitHub repo; develop on the Windows PC (WSL2), validate on the Mint box. | new |
+| # | Decision | Status |
+|---|----------|--------|
+| D1 | The safety boundary is enforced by an OS sandbox (bubblewrap), not by classifying command strings. The classifier only picks which button a command card shows. | kept (SPEC §8.2) |
+| D2 | Three action lanes: `SANDBOXED`, `USER_APPROVED`, `ADMIN`. | kept (SPEC §8.1) |
+| D3 | Polkit uses `auth_admin` only — never `auth_admin_keep`. | kept (SPEC §8.4) |
+| D4 | The model is a config value chosen by benchmark. Expected default Qwen3.5-9B; Qwen2.5-Coder-7B is the control baseline. | kept |
+| D5 | Ollama is the default backend (CUDA 12 runner still supports Pascal); llama.cpp second, for LoRA. | kept |
+| D6 | Tool calls use schema-constrained JSON output (Ollama `format`), not free-form function calling. | kept |
+| D7 | Thinking mode off by default; opt-in for multi-step diagnosis. | kept |
+| D8 | LoRA base model is not decided until after the baseline benchmark. | kept |
+| D9 | Private GitHub repo. Develop on the Windows PC (WSL2 for builds, Hyper-V VM for ISO tests); validate hardware on the Mint box. | amended |
+| D10 | **The product is a Linux Mint Cinnamon–derived distribution**, not an app. Base: Mint 22.x / Ubuntu 24.04. Supersedes the original spec's app scope. | new |
+| D11 | Build in stages: (1) scripted remaster of the official Mint ISO plus our apt repo; (2) fork Mint packages where extension points aren't enough; (3) from-scratch build only if (1) stops being maintainable. | new |
+| D12 | The AI surface is OS-wide: a `systemd --user` daemon, a Cinnamon applet, a docked sidebar, and a global hotkey. No standalone terminal app. | new |
+| D13 | Terminal attach via a PTY relay + OSC 133 shell hooks (works with any terminal, TTYs, SSH). A patch to the default VTE terminal is evaluated in M0 as a complement, not a replacement. | new, pending spike |
+| D14 | Firefox integration via a Mozilla-signed WebExtension, force-installed by enterprise policy, talking to the daemon through native messaging. Replaces the original bookmarklet / `qwen://` scheme. | new |
+| D15 | IPC: session D-Bus (`org.cinminai.Assistant1`) for desktop clients; a D-Bus-activated system service (`org.cinminai.Admin1`) with polkit checks for admin actions, replacing a `pkexec` helper. The sandbox mounts neither bus nor the daemon's sockets. | new |
+| D16 | Python 3 from the base system with Debian-packaged dependencies. No venv/pip at runtime. GTK 3 / XApp for UI, matching Mint's own tools. | new |
+| D17 | The distro must be rebranded; it can't ship as "Linux Mint". Working name Cin-minAI until the public name is chosen. | new |
+| D18 | Model weights are not on the standard ISO; first-boot setup downloads and benchmarks them. | new |
+| D19 | Nothing is captured from a terminal while its echo is off, and every terminal shows whether the assistant can see it. | new (SPEC §6.3) |
 
 ### D1 — Sandbox details
 
-Every AI workspace command runs under `bwrap` with:
+Every assistant command in the `SANDBOXED` lane runs under `bwrap` with `--new-session` and
+no-new-privs, read-only system binds, read-write workspace only, `$HOME` not mounted, minimal
+`/dev`, and **no** system bus, session bus, or daemon sockets (so `systemctl restart …` cannot
+raise a real polkit dialog and sandboxed code cannot ask the daemon for approval). Network on by
+default for builds, toggleable per workspace. The security tests (SPEC §16.1) run against this profile.
 
-- `--new-session` and no-new-privs → setuid binaries (`sudo`, `su`, `pkexec`) cannot elevate.
-- Read-only bind of `/usr`, `/etc`, `/lib*`; read-write bind of the workspace only; `$HOME` not mounted.
-- Minimal `--dev /dev` → no block devices, serial ports, or debug probes.
-- System D-Bus socket (`/run/dbus/system_bus_socket`) **not** mounted → `systemctl restart …`
-  cannot trigger a real polkit password dialog that looks like our approved flow.
-- Network: allowed by default for builds (package fetches), toggleable per workspace.
+### D11 — Why remaster first
 
-The §50 security tests run against this real profile.
+Every Mint derivative starts by adding packages to an existing base. Stage 1 gives a bootable,
+installable, updateable system early, and all of our own packages are needed in every stage anyway.
+Stage 2 forks are limited to what the integration needs (expected: Cinnamon for sidebar docking,
+`mintwelcome` for first-boot setup, installer slideshow and branding). Each fork is a patch series in
+`forks/` so rebasing onto a new Mint version is mechanical.
 
-### D2 — Action lanes
+### D13 — Why a relay
 
-| Lane | Runs where | Approval | Examples |
-|------|-----------|----------|----------|
-| `SANDBOXED` | bwrap, as user | none | build, test, grep, read `/sys`, `lspci`, `git diff` in workspace |
-| `USER_APPROVED` | outside sandbox, as user | in-app dialog, once | `picotool load`, `esptool write_flash`, `avrdude`, anything touching `$HOME` outside workspace, `git reset --hard` |
-| `ADMIN` | root helper via polkit | in-app dialog **then** polkit | package install, `systemctl restart`, `/etc` writes, `dd` to block device |
-
-Rationale: many hardware writes (MCU flashing via `dialout`/`plugdev` groups) need no root at
-all, so "admin == hardware write" is false. The sandbox blocks device access regardless of how
-the classifier labels a command.
-
-### D3 — Admin helper
-
-- `/usr/libexec/cin-minai/admin-helper`, root:root, 0755; reads one JSON request on stdin.
-- Fixed verb set (`restart_service`, `install_package`, `remove_package`, `write_file`, …) mapped to argv.
-- A catch-all `run_argv` verb exists but always goes through the destructive-operation dialog (§15).
-- The Cinnamon polkit dialog only shows the helper path, so the **in-app dialog is the one that explains the action**.
+A shell hook alone sees commands and exit codes but not output. Patching the default terminal sees
+output but only in that one terminal. A PTY relay between the terminal and the shell sees everything
+in every terminal, can place text at the prompt (no `TIOCSTI`, which modern kernels disable), and
+reuses the pyte emulation from the terminal spike. Risks to measure in M0: added latency,
+throughput, and edge cases (`sudo -i`, `su`, `tmux`, `ssh`, nested shells).
 
 ---
 
@@ -60,20 +62,16 @@ the classifier labels a command.
 
 | Machine | Role | Specs | Notes |
 |---------|------|-------|-------|
-| Dev PC (Windows 10) | development, "modern" profile | Ryzen 9 3900X, RTX 4070 12 GB, driver 591 | Work in WSL2 Ubuntu (not installed yet: `wsl --install`) |
-| Mint box (`mint@192.168.5.70`) | Pascal target, integration tests | i7-4790K (4c/8t, AVX2), GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Installer, polkit, USB/PCI, benchmarks |
+| Dev PC (Windows 10 Pro) | development, package + ISO builds, VM tests, "modern" GPU profile | Ryzen 9 3900X, RTX 4070 12 GB, driver 591 | Virtualization enabled 2026-09-24. WSL2 Ubuntu 24.04 for builds (install pending). Hyper-V VMs to boot and install ISOs (no GPU in VM). |
+| Mint box (`mint@192.168.5.70`) | Pascal target, hardware tests, benchmarks | i7-4790K, GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Currently a normal Mint install. Real-hardware installs of our ISO need a spare disk or a dual-boot partition (open question). |
 
-Stock Mint 22.3 ships Python 3.12 **without** `python3-venv` or pip. The installer must not
-assume them: use a user-space `uv` binary (as the spikes do) or require `python3-venv` via apt.
+Build environment: Ubuntu 24.04 (matches Mint 22.x's base) with `squashfs-tools`, `xorriso`,
+`debootstrap`, `devscripts`, `sbuild`/`pbuilder`, `reprepro` (or `aptly`), `qemu-system-x86`, `ovmf`.
 
-Pascal constraints (as of Sept 2026):
-
-- CUDA 13 dropped Pascal (compute 6.1). Ollama still ships a CUDA 12 runner and picks it automatically.
-- Requires NVIDIA driver **570+**. The **580 branch is the last to support Pascal** → installer must
-  warn before any driver upgrade past 580.x on Pascal cards.
-- No prebuilt Linux llama.cpp binary for Pascal: compile against CUDA 12, or use the Vulkan build.
-- Pin known-good Ollama versions; projects moving to CUDA-13-only will silently drop Pascal.
-- DDR3 (~20 GB/s) makes CPU-offloaded MoE models slow on prompt ingestion.
+Pascal constraints (Sept 2026): CUDA 13 dropped Pascal; Ollama still ships a CUDA 12 runner. Driver
+570+ required, **580 branch is the last for Pascal** → the distro pins it on Pascal machines. No
+prebuilt Pascal llama.cpp for Linux (build against CUDA 12 or use Vulkan). Pin Ollama versions. DDR3
+(~20 GB/s) makes CPU-offloaded MoE models slow on prompt ingestion.
 
 ---
 
@@ -84,21 +82,17 @@ Pascal constraints (as of Sept 2026):
 | Model | Type | Q4 size | Role |
 |-------|------|---------|------|
 | Qwen3.5-9B | Dense, hybrid Gated DeltaNet attention, vision, hybrid thinking | ~5.5 GB | **Expected default** (1080 Ti, 4070) |
-| Qwen3.5-4B | same family | ~2.5 GB | Fallback / CPU / 8 GB cards |
+| Qwen3.5-4B | same family | ~2.5 GB | Fallback / CPU / 8 GB cards / live session |
 | Qwen2.5-Coder-7B | Dense, standard attention | ~4.7 GB | **Control baseline**; safest LoRA path |
 | Qwen3.6-35B-A3B | MoE, 3B active | ~20 GB | Experimental "deep think" profile via expert offload to RAM |
 
-Notes:
-
-- No coder-specific Qwen model exists below 30B in the 3.5/3.6/3.8 generations.
-- Qwen3.5 needs Ollama ≥ 0.17.4.
-- Hybrid attention uses much less KV cache at long context → larger usable context per GB.
-- Qwen3.5 performance on Pascal is **unmeasured** — no public numbers found. The bakeoff decides.
-- Many third-party benchmark claims conflict; trust our own eval, not leaderboards.
+Notes: no coder-specific Qwen below 30B in the 3.5/3.6/3.8 generations; Qwen3.5 needs Ollama ≥
+0.17.4; hybrid attention needs much less KV cache at long context; Qwen3.5 on Pascal is unmeasured.
+Trust our eval, not leaderboards. Verify each model's license before the distro downloads it by default.
 
 ### Bakeoff matrix (M0)
 
-Run on the 1080 Ti; repeat the same matrix on the 4070 for the modern profile.
+Run on the 1080 Ti; repeat on the 4070.
 
 | Candidate | Quants | Contexts |
 |-----------|--------|----------|
@@ -107,19 +101,10 @@ Run on the 1080 Ti; repeat the same matrix on the 4070 for the modern profile.
 | Qwen2.5-Coder-7B | Q5_K_M | 8K, 16K |
 | Qwen3.6-35B-A3B (RAM offload) | Q4_K_M | 8K |
 
-Measure per run:
-
-- prompt-processing and generation tok/s
-- peak VRAM and RAM
-- time-to-first-token on a 4K-token build log
-- valid JSON tool-call rate over 50 attempts
-- score on ~20 Linux diagnosis tasks (seed of the §36 eval suite)
-
-Output: `bench-results/` (git-ignored) plus a summary committed to `docs/benchmarks.md`,
-which then drives the hardware profiles in `hardware_detect.py`.
-
-Rough expectations (to be replaced by measurements): 9B Q5/Q6 on 1080 Ti ~30–50 tok/s
-generation; 35B-A3B offload ~8–15 tok/s with slow prompt ingestion.
+Measure: prompt and generation tok/s, peak VRAM and RAM, time-to-first-token on a 4K-token build
+log, valid JSON tool-call rate over 50 attempts, score on ~20 Linux diagnosis tasks (seed of the
+SPEC §14.1 suite). Output: `bench-results/` (git-ignored) plus `docs/benchmarks.md`, which drives the
+profiles in first-boot setup.
 
 ---
 
@@ -127,81 +112,92 @@ generation; 35B-A3B offload ~8–15 tok/s with slow prompt ingestion.
 
 Each milestone has an exit test. Nothing moves forward on a red exit test.
 
-### M0 — Spikes (≈1 week, throwaway code in `spikes/`)
+### M0 — Spikes (throwaway code in `spikes/`)
 
-- **Terminal**: pty + `pyte` in a custom Textual widget vs. `textual-terminal`. Test `vim`,
-  `htop`, `less`, Ctrl-C/Z, resize, and throughput (`yes | head -100000`). Expected outcome:
-  own ~400-line widget over `pyte` with ≤30 fps render throttling.
-- **Streaming**: Ollama tokens into a Textual panel while the terminal is busy.
-- **Sandbox**: bwrap profile; prove `sudo`, `pkexec`, `systemctl` via D-Bus, and writing `/dev/sda` all fail.
-- **Polkit**: pkexec + helper + policy on Mint showing the Cinnamon auth dialog.
-- **Model bakeoff** (§3 above).
+| Spike | Question | Exit |
+|-------|----------|------|
+| **Terminal emulation** | Can pyte give us clean terminal text in Python? | **Done — GO** (see spikes.md). Now reused inside the relay. |
+| **ISO remaster** | Can we script Mint 22.3 ISO → our ISO with one extra package from our own signed apt repo? | ISO boots in a Hyper-V VM (UEFI) and QEMU (BIOS), installs, and the package upgrades from our repo after install. |
+| **Terminal relay** | Relay + OSC 133 hooks in Mint's default terminal: latency, throughput, correctness; compare with a VTE patch. | vim/htop/less/ssh/tmux/`sudo -i` behave identically; per-command output captured; send-to-prompt works; echo-off capture suppressed; keystroke latency not noticeable. |
+| **Desktop surface** | Cinnamon applet + docked GTK sidebar + global hotkey talking to a stub daemon over session D-Bus. | Sidebar docks with struts, survives workspace/monitor changes; hotkey opens it focused; applet reflects daemon state. |
+| **Firefox** | Signed WebExtension (sidebar + context menu) + native messaging host + policy install. | Fresh profile gets the extension automatically; a selection reaches the stub daemon; oversize input is truncated with notice. |
+| **Streaming** | Ollama tokens into the sidebar while the desktop and terminals are busy. | No visible stutter in terminals or the desktop during generation. |
+| **Sandbox** | bwrap profile per D1. | `sudo`, `pkexec`, `su`, D-Bus `systemctl`, writing `/dev/sda`, opening `/dev/ttyUSB0`, reaching the daemon socket — all fail. |
+| **Admin mechanism** | D-Bus-activated root service + polkit action on Mint. | Cinnamon auth dialog appears per request; no cached auth; denial is clean. |
+| **Model bakeoff** | §3 above. | `docs/benchmarks.md` written. |
 
-Exit: a written go/no-go per spike in `docs/spikes.md`.
+Exit: go/no-go per spike in `docs/spikes.md`. Suggested order: ISO remaster → terminal relay →
+desktop surface → sandbox → admin → Firefox → streaming → bakeoff (bakeoff can run in parallel on
+the Mint box at any time).
 
-### M1 — Core shell + assistant (spec Phase 1)
+### M1 — Distro skeleton
 
-- Package skeleton (`pyproject.toml`, `src/cin_minai/`, ruff, pytest).
-- `TerminalSession` interface + pyte implementation.
-- `InferenceBackend` interface + `OllamaBackend`.
-- Split layout, status bar, streaming chat.
-- Command cards: COPY and SEND TO TERMINAL (types at prompt, no Enter).
-- Independent supervisors: model crash ≠ shell crash.
+- Signed apt repository (key generated and stored offline; CI signs with a subkey).
+- `cinminai-archive-keyring`, `cinminai-branding`, `cinminai-desktop` (meta) packages.
+- `distro/build-iso.sh` from the spike, made reproducible from pinned inputs.
+- CI: build packages + ISO, QEMU boot test (BIOS + UEFI), publish.
+- Rebranding: os-release, artwork, plymouth, installer slideshow, welcome screen.
 
-Exit: §51 functional tests pass, except browser/web items.
+Exit: a branded ISO installs in a VM and receives an update from our repository through Mint's Update Manager.
 
-### M2 — Hardware profile + per-user installer
+### M2 — Assistant core on the desktop
 
-- `hardware_detect.py` → `~/.config/cin-minai/config.toml` (§7).
-- Benchmark + fallback ladder (§6), results shown to the user.
-- Driver/CUDA-runner checks for Pascal (see §2).
-- `install.sh` user-level part: venv, XDG dirs, `.desktop` launcher.
+- `cinminai-daemon`: session D-Bus API, `InferenceBackend` + `OllamaBackend`, conversation, session state, supervisor/OOM ladder.
+- `cinminai-ollama` pinned package and service.
+- `cinminai-sidebar` (chat, streaming, status header), `cinminai-applet`, hotkey.
+- First-run notice (SPEC §5.6).
 
-Exit: fresh Mint box → working app with measured defaults, no root required.
+Exit: in an installed VM (CPU profile) and on the Mint box (GPU), the assistant opens from applet and
+hotkey and streams answers; killing the daemon doesn't affect the desktop and it restarts cleanly.
 
-### M3 — Context + sandboxed execution (spec Phase 2 + 3a)
+### M3 — Terminal integration + sandboxed execution
 
-- Provider framework returning `ContextResult`: shell output selection, files, git, man/info, system.
-- Compiler-log extractor (§41), structured session state (§42), credential redaction (§47).
-- `ActionManager` with the three lanes; bwrap runner.
-- RUN IN AI WORKSPACE with exit code + output fed back to the model; visible states (§62).
-- Structured JSON tools (§65).
-- Start the eval harness here (not at the end).
+- `cinminai-shell`: relay, bash/zsh hooks, awareness indicator and toggles, echo-off rule, redaction.
+- Terminal context provider + compiler/log extractor (SPEC §11.4).
+- Command cards: Copy, To terminal, Run in sandbox, Explain.
+- `cinminai-sandbox` + `ActionManager` (`SANDBOXED` lane), results fed back to the model, visible action states.
+- Structured JSON tools (SPEC §10.5); other context providers (files, git, man, system, journal).
+- Start the eval harness here.
 
-Exit: model diagnoses a seeded build failure end-to-end inside the sandbox.
+Exit: the assistant diagnoses a seeded build failure from the user's real terminal and verifies the fix in the sandbox.
 
-### M4 — Admin boundary (spec Phase 3b)
+### M4 — Action boundary
 
-- Root helper, polkit policy, privileged installer section, `uninstall.sh`.
-- Permission dialog, destructive-operation dialog, `ADMIN: LOCKED` indicator.
-- First-run warning (§16).
-- `tests/security/` covering all of §50 against the real sandbox.
+- `USER_APPROVED` lane and approval dialogs; destructive-operation dialog.
+- `cinminai-admin` mechanism + polkit policy; audit log; `ADMIN: LOCKED` indicator.
+- `tests/security/` covering SPEC §16.1 against the real sandbox and mechanism.
 
-Exit: all security tests green on the Mint box.
+Exit: all security tests green on the Mint box and in the VM.
 
-### M5 — Browser + web (spec Phase 4)
+### M5 — First-boot setup + hardware
 
-- Unix socket server with length limits and a type allowlist.
-- `cin-minai-protocol` handler, `x-scheme-handler` registration, bookmarklet.
-- `SearchProvider`: DuckDuckGo first, SearXNG second.
-- LOCAL/WEB indicator; open sources in Firefox.
+- `cinminai-setup`: hardware detection, driver recommendation and install via the admin lane,
+  Pascal 580 pin, model download, benchmark + fallback ladder, config file.
+- Hardware providers: USB, PCI, serial, from sysfs + `usb.ids` / `pci.ids`; udev-driven cache.
+- MCU flash/erase actions in the `USER_APPROVED` lane.
 
-Exit: selection in Firefox lands in the running session; `/web` works and fails gracefully offline.
+Exit: fresh install on the Mint box's hardware ends with a working GPU profile chosen by measurement; a fresh VM ends with a working CPU profile.
 
-### M6 — Hardware providers (spec Phase 5)
+### M6 — Firefox + web
 
-- USB and PCI providers from sysfs + `usb.ids` / `pci.ids`.
-- Hardware state cache with `udev` monitor refresh.
-- Serial device detection; MCU flash/erase actions in the `USER_APPROVED` lane.
+- `cinminai-firefox`: signed extension, sidebar, context menu, native messaging host, policy.
+- `SearchProvider` (DuckDuckGo, then SearXNG), page fetch, LOCAL/WEB indicator, open sources in Firefox.
 
-Exit: §70 acceptance criteria all pass → **v0.1**.
+Exit: a selection in Firefox lands in the terminal-attached conversation; `/web` works and fails gracefully offline.
 
-### M7 — Eval, then LoRA (spec Phase 6)
+### M7 — Deeper fork → v0.1
 
-- Hidden ≥100-problem eval suite with automated harness scoring the §36 metrics.
-- Stock baseline per hardware profile.
-- Decide LoRA base (D8). Confirm training (Unsloth/PEFT) and llama.cpp runtime `--lora`
-  support for the chosen architecture before building the dataset.
+- Stage 2 forks as needed: Cinnamon (first-class sidebar), `mintwelcome` (setup page), installer
+  (AI pages, notice), anything the M2–M6 work showed the extension points can't do.
+- Automation that detects new Mint versions of forked packages and rebases.
+- Real-hardware install test on the Pascal machine.
+
+Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
+
+### M8 — Eval, then LoRA
+
+- ≥100-problem hidden eval suite with automated scoring (SPEC §14.1); stock baseline per hardware profile.
+- Decide LoRA base (D8); confirm training and llama.cpp `--lora` support for that architecture.
 - Dataset targeted at measured failures; train off-box; A/B via `LlamaCppBackend`.
 
 ---
@@ -210,28 +206,38 @@ Exit: §70 acceptance criteria all pass → **v0.1**.
 
 | Risk | Mitigation |
 |------|------------|
-| Terminal emulation quality/speed in Textual | M0 spike; `TerminalSession` interface allows swapping |
+| Forked Mint packages fall behind upstream | Fork as little as possible; patch series in `forks/`; automated upstream watch; Stage 1 works without forks |
+| Remastering breaks on a new Mint ISO | Pinned inputs; CI boot tests; Stage 3 is the fallback |
+| Relay adds latency or breaks edge cases | M0 spike with explicit edge-case list; pass-through mode; per-terminal off switch; VTE patch as complement |
+| Users see terminal capture as spyware | Visible per-terminal indicator, one-command off switch, echo-off rule, local-only storage, first-run notice (D19) |
+| Firefox extension signing / policy changes | Unlisted AMO signing; keep the extension small; pin tested Firefox behaviour in ISO tests |
+| Prompt injection from web pages or terminal output | Untrusted content is data only; lanes and approvals are enforced outside the model |
 | Small model misusing tools | Constrained JSON, few tools, eval-driven prompt tuning |
-| Pascal dropped by inference backends | Pin versions; CUDA 12 / Vulkan fallback; watch Ollama releases |
-| Qwen3.5 slow on Pascal (new DeltaNet kernels, no tensor cores) | Bakeoff includes Qwen2.5-Coder-7B as a standard-attention fallback |
-| LoRA tooling immature for hybrid architecture | D8: decide base after baseline; Qwen2.5-Coder is the known-good path |
-| Sandbox gaps (D-Bus, `/dev`, setuid, user namespaces) | Security tests against real bwrap profile |
-| Scope creep (FPGA/MCU modes, LSP) | Held to post-v0.1 per §55, §60 |
+| Pascal dropped by inference backends or drivers | Pin Ollama and the 580 driver branch; CUDA 12 / Vulkan fallback |
+| Qwen3.5 slow on Pascal | Bakeoff includes Qwen2.5-Coder-7B as a standard-attention fallback |
+| LoRA tooling immature for hybrid architecture | D8 |
+| Sandbox gaps (D-Bus, `/dev`, setuid, user namespaces) | Security tests against the real profile |
+| Trademark / licensing | Rebrand (D17); review Mint, Ubuntu, Mozilla, and model licenses before public release |
+| Scope creep (FPGA/MCU modes, LSP, own terminal) | Held to after v0.1 (SPEC §17) |
 
 ---
 
 ## 6. Open questions
 
-- **Project name.** Working name `Cin-minAI` (package `cin_minai`). The spec's `qwen-*` names
-  (URL scheme, helper, socket) are placeholders — rename them all together before M4/M5 ships.
-- **License.** Private for now; choose before any public release.
-- **Sync to Mint box.** `git pull` over the GitHub remote vs. PyCharm remote interpreter — decide at M0.
+- **Public name** of the distro (D17). Rename packages, D-Bus names, and paths together, before M1 publishes anything.
+- **Base series:** stay on Mint 22.x (Ubuntu 24.04, supported to 2029) for v0.1, or wait for Mint 23
+  (Ubuntu 26.04)? Current plan: 22.x, rebase later.
+- **Apt repository hosting:** GitHub Pages / releases, a VPS, or object storage. Needed by M1.
+- **Real-hardware testing:** spare disk or dual-boot partition on the Mint box, or a separate test machine.
+- **Default terminal:** keep Mint's default, or ship a different one if the VTE-patch route wins in M0.
+- **Live-session assistant:** CPU-only small model in the live session, or assistant off until installed?
+- **License** for our own code (GPL-compatible, since we patch GPL packages). Decide before M1.
 
 ---
 
-> Qwen may recommend the dangerous action.
-> Qwen may explain the dangerous action.
-> Qwen may prepare the dangerous action.
-> Qwen does not get to approve the dangerous action.
+> The assistant may recommend the dangerous action.
+> The assistant may explain the dangerous action.
+> The assistant may prepare the dangerous action.
+> The assistant does not get to approve the dangerous action.
 >
-> The user owns the computer. The user owns the button. (§73)
+> The user owns the computer. The user owns the button. (SPEC §19)
