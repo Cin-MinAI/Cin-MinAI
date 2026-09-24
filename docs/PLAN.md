@@ -82,7 +82,8 @@ prompt ingestion.
 
 | Model | Type | Q4 size | Role |
 |-------|------|---------|------|
-| Qwen3.5-9B | Dense, hybrid Gated DeltaNet attention, vision, hybrid thinking | ~5.5 GB | **Expected default** (1080 Ti, 4070) |
+| **Qwen3-14B** | Dense, standard attention, hybrid thinking | 8.4 GiB | **Incumbent — already running on the Mint box** (see below); the bar every candidate must beat |
+| Qwen3.5-9B | Dense, hybrid Gated DeltaNet attention, vision, hybrid thinking | ~5.5 GB | Challenger for default (1080 Ti, 4070): less VRAM, more headroom for the desktop |
 | Qwen3.5-4B | same family | ~2.5 GB | Fallback / CPU / 8 GB cards / live session |
 | Qwen2.5-Coder-7B | Dense, standard attention | ~4.7 GB | **Control baseline**; safest LoRA path |
 | Qwen3.6-35B-A3B | MoE, 3B active | ~20 GB | Experimental "deep think" profile via expert offload to RAM |
@@ -92,12 +93,32 @@ build that supports its architecture (pin one we've tested); hybrid attention ne
 cache at long context; Qwen3.5 on Pascal is unmeasured.
 Trust our eval, not leaderboards. Verify each model's license before the distro downloads it by default.
 
+### Baseline already on the Mint box (built 2026-08-23 with Codex, found 2026-09-24)
+
+`~/Documents/Codex/2026-08-23/h/work/local-ai-testbed` on the Mint box:
+
+- llama.cpp b10603 (`c060ca9`), built with Ubuntu's `nvidia-cuda-toolkit` **12.0** (no NVIDIA
+  repo needed), GCC/G++ 12 as host compiler, `CMAKE_CUDA_ARCHITECTURES=61`, flash attention on.
+- Official `Qwen/Qwen3-14B-GGUF` Q4_K_M, all layers on the GPU; `qwen14b.service` (systemd
+  `--user`): `-c 16384 --cache-type-k/v q8_0 -np 1 -rea off`, localhost:8080 with an API key,
+  `--sleep-idle-seconds 300`.
+- Measured: ~25–29 tok/s generation, ~509 tok/s prompt (pp512); wake from idle to first token
+  2.5 s. VRAM: 9.9 GiB peak at 4K context; **10.9 of 11.0 GiB used at 16K** incl. the desktop —
+  only ~300 MB left for the desktop, Firefox, and the sidebar.
+- Also there: a GTK chat GUI with context compression (`gui/qwen_gui.py`) and an Aider workflow.
+
+Carry into the product: the CUDA 12.0 + gcc-12 + sm_61 recipe (add `sm_75;86;89` for Turing–Ada,
+and `GGML_NATIVE=OFF` + runtime-selected CPU variants for a distributable build — this build is
+`GGML_NATIVE=ON`), q8_0 KV cache, idle unload. The VRAM margin at 16K is the main open question
+the bakeoff must answer for the 14B vs. the 9B.
+
 ### Bakeoff matrix (M0)
 
 Run on the 1080 Ti; repeat on the 4070.
 
 | Candidate | Quants | Contexts |
 |-----------|--------|----------|
+| Qwen3-14B (incumbent) | Q4_K_M | 8K, 16K |
 | Qwen3.5-9B | Q4_K_M, Q5_K_M, Q6_K | 8K, 16K, 32K |
 | Qwen3.5-4B | Q8_0 | 16K |
 | Qwen2.5-Coder-7B | Q5_K_M | 8K, 16K |
