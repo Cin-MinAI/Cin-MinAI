@@ -141,7 +141,7 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
 
 * Everything in Mint Cinnamon, rebranded.
 * `cinminai-desktop` meta-package, which pulls in every component in §4.
-* Ollama (pinned version, from our repo) and its system service, not yet running a model.
+* Our llama.cpp build (`cinminai-llama`, pinned, from our repo) and its service, not yet running a model.
 * The shell integration enabled for all users by default (with the per-terminal off switch).
 * Firefox with our extension force-installed by enterprise policy.
 * **No model weights** on the standard ISO. They are downloaded during first-boot setup (§9). An
@@ -157,12 +157,14 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
 
 ### 3.6 NVIDIA and Pascal
 
-* CUDA 13 dropped Pascal (compute 6.1). Ollama still ships a CUDA 12 runner that supports it.
+* CUDA 13 dropped Pascal (compute 6.1); we build llama.cpp with the CUDA 12 toolkit (sm_61 plus
+  modern archs) so one package serves Pascal and current cards.
 * Pascal requires driver **570+**; the **580 branch is the last** to support Pascal.
 * The distro must never silently move a Pascal machine past 580.x. Ship an apt pin / Driver Manager
   rule for detected Pascal cards and warn before any manual upgrade.
-* No prebuilt Linux llama.cpp binary targets Pascal: build against CUDA 12 or use Vulkan.
-* Pin known-good Ollama versions in our repo; don't follow upstream blindly.
+* No prebuilt Linux llama.cpp binary targets Pascal, hence our own build; a Vulkan build is the
+  fallback (also covers AMD/Intel GPUs).
+* Pin known-good llama.cpp releases in our repo; don't follow upstream blindly.
 
 ### 3.7 Updates
 
@@ -199,10 +201,10 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
 │  │ inference client               web search          audit log        │     │
 │  └───▲────────────────▲───────────────────▲──────────────┬──────┬──────┘     │
 │      │                │                   │              │      │            │
-│  terminal relay   native-messaging     Ollama HTTP    bwrap   system bus     │
+│  terminal relay   native-messaging  llama-server HTTP bwrap   system bus     │
 │  (per terminal)   host (Firefox)       (localhost)    runner   (admin)       │
 │      │                │                   │              │      │            │
-│  bash/zsh in any  Firefox sidebar      ollama.service  sandboxed│            │
+│  bash/zsh in any  Firefox sidebar   llama.cpp (user)  sandboxed│            │
 │  terminal emulator  extension          (system)        commands │            │
 └─────────────────────────────────────────────────────────────────┼────────────┘
                                                                   ▼
@@ -223,7 +225,7 @@ Components (each is one Debian package unless noted):
 | `cinminai-admin` | root, D-Bus activated | Privileged mechanism behind polkit (§8.4) |
 | `cinminai-sandbox` | user | bwrap profile + runner (§8.2) |
 | `cinminai-setup` | user (+ admin for driver) | First-boot hardware/model configurator (§9) |
-| `cinminai-ollama` | system | Pinned Ollama build and service config |
+| `cinminai-llama` | user (systemd `--user`, started by the daemon) | Pinned llama.cpp build (`llama-server`; CUDA 12, Vulkan, CPU backends) and its service |
 | `cinminai-branding` | — | Artwork, os-release, plymouth, slideshow |
 | `cinminai-archive-keyring` | — | Our apt key + source list + pins |
 | `cinminai-desktop` | — | Meta-package pulling in all of the above |
@@ -547,11 +549,20 @@ vram_mb = 11264
 ram_mb = 32768
 
 [inference]
-backend = "ollama"
-model = "qwen3.5:9b"
+backend = "llama.cpp"            # llama-server; build variant chosen by detection
+build = "cuda12"                 # cuda12 | vulkan | cpu
+model = "Qwen3.5-9B-Q5_K_M.gguf" # GGUF in ~/.local/share/cinminai/models, sha256 pinned
 context = 8192
-kv_cache = "auto"
+n_gpu_layers = "all"
+kv_cache = "auto"                # f16 | q8_0 | q4_0, tried by the benchmark
+flash_attn = "auto"
+batch = 512
+threads = "auto"
+extra_args = []                  # any other llama-server flag, for hand tuning
 ```
+
+Every `llama-server` option is reachable from this file; the daemon restarts the server when it
+changes.
 
 Rules: never decide from GPU name alone; unsupported hardware is never fatal if CPU mode works;
 never promise a tokens-per-second rate — measure it.
@@ -584,8 +595,11 @@ class InferenceBackend:
     async def unload(...)
 ```
 
-`OllamaBackend` first (simplest, Pascal-capable CUDA 12 runner). `LlamaCppBackend` second, for
-runtime LoRA (`--lora`) and low-level control. Supports: stock model, stock + LoRA adapter, merged model.
+`LlamaCppBackend` only (PLAN D5): talks to our `llama-server` over localhost HTTP (streaming
+completions, JSON-schema/grammar-constrained output, `/health`, `/props`), and supervises it
+(start/restart with the configured flags, OOM ladder). Full low-level control, runtime LoRA
+(`--lora`). Supports: stock model, stock + LoRA adapter, merged model. The interface stays, so
+another backend could be added later without touching the rest.
 
 ### 10.3 Quantization and KV cache
 
@@ -817,7 +831,7 @@ Cin-minAI/
 ├── forks/                   patch series against upstream Mint packages (Stage 2)
 ├── src/cin_minai/
 │   ├── daemon/              D-Bus service, conversation, session state
-│   ├── inference/           backend interface, ollama, llama_cpp
+│   ├── inference/           backend interface, llama_cpp (client + server supervisor)
 │   ├── context/             providers, extractors, redaction
 │   ├── actions/             lanes, sandbox runner, admin client, audit
 │   ├── terminal/            relay, emulator, segmentation

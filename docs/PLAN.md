@@ -16,8 +16,8 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D2 | Three action lanes: `SANDBOXED`, `USER_APPROVED`, `ADMIN`. | kept (SPEC §8.1) |
 | D3 | Polkit uses `auth_admin` only — never `auth_admin_keep`. | kept (SPEC §8.4) |
 | D4 | The model is a config value chosen by benchmark. Expected default Qwen3.5-9B; Qwen2.5-Coder-7B is the control baseline. | kept |
-| D5 | Ollama is the default backend (CUDA 12 runner still supports Pascal); llama.cpp second, for LoRA. | kept |
-| D6 | Tool calls use schema-constrained JSON output (Ollama `format`), not free-form function calling. | kept |
+| D5 | **llama.cpp (`llama-server`) is the only inference backend** — built and packaged by us (CUDA 12 incl. Pascal sm_61, Vulkan, CPU), so every knob (quant, GPU layers, context, KV-cache type, flash attention, batch, threads, LoRA) is ours to tune. No Ollama. | changed 2026-09-24 |
+| D6 | Tool calls use schema-constrained JSON output (llama.cpp JSON schema / GBNF grammar), not free-form function calling. | kept |
 | D7 | Thinking mode off by default; opt-in for multi-step diagnosis. | kept |
 | D8 | LoRA base model is not decided until after the baseline benchmark. | kept |
 | D9 | Private GitHub repo. Develop on the Windows PC (WSL2 for builds, Hyper-V VM for ISO tests); validate hardware on the Mint box. | amended |
@@ -68,10 +68,11 @@ throughput, and edge cases (`sudo -i`, `su`, `tmux`, `ssh`, nested shells).
 Build environment: Ubuntu 24.04 (matches Mint 22.x's base) with `squashfs-tools`, `xorriso`,
 `debootstrap`, `devscripts`, `sbuild`/`pbuilder`, `reprepro` (or `aptly`), `qemu-system-x86`, `ovmf`.
 
-Pascal constraints (Sept 2026): CUDA 13 dropped Pascal; Ollama still ships a CUDA 12 runner. Driver
-570+ required, **580 branch is the last for Pascal** → the distro pins it on Pascal machines. No
-prebuilt Pascal llama.cpp for Linux (build against CUDA 12 or use Vulkan). Pin Ollama versions. DDR3
-(~20 GB/s) makes CPU-offloaded MoE models slow on prompt ingestion.
+Pascal constraints (Sept 2026): CUDA 13 dropped Pascal. Driver 570+ required, **580 branch is the
+last for Pascal** → the distro pins it on Pascal machines. No prebuilt Pascal llama.cpp for Linux,
+so we build it: CUDA 12 toolkit with sm_61 plus modern archs, and a Vulkan build as fallback. Pin a
+tested llama.cpp release in our repo. DDR3 (~20 GB/s) makes CPU-offloaded MoE models slow on
+prompt ingestion.
 
 ---
 
@@ -86,8 +87,9 @@ prebuilt Pascal llama.cpp for Linux (build against CUDA 12 or use Vulkan). Pin O
 | Qwen2.5-Coder-7B | Dense, standard attention | ~4.7 GB | **Control baseline**; safest LoRA path |
 | Qwen3.6-35B-A3B | MoE, 3B active | ~20 GB | Experimental "deep think" profile via expert offload to RAM |
 
-Notes: no coder-specific Qwen below 30B in the 3.5/3.6/3.8 generations; Qwen3.5 needs Ollama ≥
-0.17.4; hybrid attention needs much less KV cache at long context; Qwen3.5 on Pascal is unmeasured.
+Notes: no coder-specific Qwen below 30B in the 3.5/3.6/3.8 generations; Qwen3.5 needs a llama.cpp
+build that supports its architecture (pin one we've tested); hybrid attention needs much less KV
+cache at long context; Qwen3.5 on Pascal is unmeasured.
 Trust our eval, not leaderboards. Verify each model's license before the distro downloads it by default.
 
 ### Bakeoff matrix (M0)
@@ -121,7 +123,7 @@ Each milestone has an exit test. Nothing moves forward on a red exit test.
 | **Terminal relay** | Relay + OSC 133 hooks in Mint's default terminal: latency, throughput, correctness; compare with a VTE patch. | vim/htop/less/ssh/tmux/`sudo -i` behave identically; per-command output captured; send-to-prompt works; echo-off capture suppressed; keystroke latency not noticeable. |
 | **Desktop surface** | Cinnamon applet + docked GTK sidebar + global hotkey talking to a stub daemon over session D-Bus. | Sidebar docks with struts, survives workspace/monitor changes; hotkey opens it focused; applet reflects daemon state. |
 | **Firefox** | Signed WebExtension (sidebar + context menu) + native messaging host + policy install. | Fresh profile gets the extension automatically; a selection reaches the stub daemon; oversize input is truncated with notice. |
-| **Streaming** | Ollama tokens into the sidebar while the desktop and terminals are busy. | No visible stutter in terminals or the desktop during generation. |
+| **Streaming** | `llama-server` tokens (our CUDA 12 build, on the 1080 Ti) into the sidebar while the desktop and terminals are busy. | No visible stutter in terminals or the desktop during generation. |
 | **Sandbox** | bwrap profile per D1. | `sudo`, `pkexec`, `su`, D-Bus `systemctl`, writing `/dev/sda`, opening `/dev/ttyUSB0`, reaching the daemon socket — all fail. |
 | **Admin mechanism** | D-Bus-activated root service + polkit action on Mint. | Cinnamon auth dialog appears per request; no cached auth; denial is clean. |
 | **Model bakeoff** | §3 above. | `docs/benchmarks.md` written. |
@@ -142,8 +144,8 @@ Exit: a branded ISO installs in a VM and receives an update from our repository 
 
 ### M2 — Assistant core on the desktop
 
-- `cinminai-daemon`: session D-Bus API, `InferenceBackend` + `OllamaBackend`, conversation, session state, supervisor/OOM ladder.
-- `cinminai-ollama` pinned package and service.
+- `cinminai-daemon`: session D-Bus API, `InferenceBackend` + `LlamaCppBackend`, conversation, session state, supervisor/OOM ladder.
+- `cinminai-llama`: pinned llama.cpp build (CUDA 12 / Vulkan / CPU backends) and its service.
 - `cinminai-sidebar` (chat, streaming, status header), `cinminai-applet`, hotkey.
 - First-run notice (SPEC §5.6).
 
@@ -213,7 +215,7 @@ Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
 | Firefox extension signing / policy changes | Unlisted AMO signing; keep the extension small; pin tested Firefox behaviour in ISO tests |
 | Prompt injection from web pages or terminal output | Untrusted content is data only; lanes and approvals are enforced outside the model |
 | Small model misusing tools | Constrained JSON, few tools, eval-driven prompt tuning |
-| Pascal dropped by inference backends or drivers | Pin Ollama and the 580 driver branch; CUDA 12 / Vulkan fallback |
+| Pascal dropped by inference backends or drivers | We build llama.cpp ourselves (CUDA 12 toolkit keeps sm_61); pin the 580 driver branch; Vulkan fallback |
 | Qwen3.5 slow on Pascal | Bakeoff includes Qwen2.5-Coder-7B as a standard-attention fallback |
 | LoRA tooling immature for hybrid architecture | D8 |
 | Sandbox gaps (D-Bus, `/dev`, setuid, user namespaces) | Security tests against the real profile |

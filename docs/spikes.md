@@ -9,7 +9,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Terminal relay (vs. VTE patch) | Done 2026-09-24 | **GO** — relay is the baseline; VTE patch not needed for M1 |
 | Desktop surface (applet, sidebar, hotkey) | Done 2026-09-24 | **GO** — dock + struts + Cinnamon keybinding + CJS applet over session D-Bus |
 | Firefox (extension + native messaging) | Not started | — |
-| Streaming (Ollama → sidebar) | Not started | — |
+| Streaming (llama-server → sidebar) | Not started | — |
 | Sandbox (bwrap) | Not started | — |
 | Admin mechanism (D-Bus + polkit) | Not started | — |
 | Model bakeoff | Not started | — |

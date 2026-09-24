@@ -17,4 +17,4 @@ It never approves one. The user owns the computer, and the user owns the button.
 
 - Base: Linux Mint Cinnamon 22.x (Ubuntu 24.04), x86-64
 - NVIDIA optional; tuned for Pascal (GTX 1070 / 1080 Ti) through modern RTX, with CPU fallback
-- Model runs locally (Ollama); nothing leaves the machine unless you use a web feature
+- Model runs locally (llama.cpp, tuned per machine); nothing leaves the machine unless you use a web feature
