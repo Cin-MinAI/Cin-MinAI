@@ -27,3 +27,4 @@ training/lora/output/
 # OS
 .DS_Store
 Thumbs.db
+spikes/*/out/

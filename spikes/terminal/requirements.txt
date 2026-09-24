@@ -1,0 +1,2 @@
+textual>=3
+pyte>=0.8.2

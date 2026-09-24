@@ -61,7 +61,10 @@ the classifier labels a command.
 | Machine | Role | Specs | Notes |
 |---------|------|-------|-------|
 | Dev PC (Windows 10) | development, "modern" profile | Ryzen 9 3900X, RTX 4070 12 GB, driver 591 | Work in WSL2 Ubuntu (not installed yet: `wsl --install`) |
-| Mint box | Pascal target, integration tests | i7-4790K (4c/8t, AVX2), GTX 1080 Ti 11 GB, 32 GB DDR3 | Installer, polkit, USB/PCI, benchmarks |
+| Mint box (`mint@192.168.5.70`) | Pascal target, integration tests | i7-4790K (4c/8t, AVX2), GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Installer, polkit, USB/PCI, benchmarks |
+
+Stock Mint 22.3 ships Python 3.12 **without** `python3-venv` or pip. The installer must not
+assume them: use a user-space `uv` binary (as the spikes do) or require `python3-venv` via apt.
 
 Pascal constraints (as of Sept 2026):
 
