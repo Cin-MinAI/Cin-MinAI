@@ -9,7 +9,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Terminal relay (vs. VTE patch) | Done 2026-09-24 | **GO** — relay is the baseline; VTE patch not needed for M1 |
 | Desktop surface (applet, sidebar, hotkey) | Done 2026-09-24 | **GO** — dock + struts + Cinnamon keybinding + CJS applet over session D-Bus |
 | Firefox (extension + native messaging) | Not started | — |
-| Streaming (llama-server → sidebar) | Not started | — |
+| Streaming (llama-server → sidebar) | Done 2026-09-24 | **GO** — no desktop or terminal impact while the 1080 Ti generates |
 | Sandbox (bwrap) | Not started | — |
 | Admin mechanism (D-Bus + polkit) | Not started | — |
 | Model bakeoff | Not started | — |
@@ -269,3 +269,48 @@ attempts to break it.
 
 **GO: Stage 1 (GTK dock + struts) is good enough for M1** (SPEC §5.1). The Cinnamon patch
 (Stage 2) is only needed for multi-monitor polish or Wayland; revisit after M1.
+
+---
+
+## Streaming
+
+Code: `spikes/desktop/daemon.py` (now with a real backend), `spikes/desktop/sidebar.py` (Stop
+button, error display), `spikes/streaming/check.py`. Backend: the existing `qwen14b.service` on the
+Mint box (llama.cpp b10603 CUDA, Qwen3-14B Q4_K_M, 16K ctx, q8_0 KV; see PLAN §3), untouched.
+
+The daemon reads `[inference] url / api_key / model` from `~/.config/cinminai/config.toml`,
+streams `/v1/chat/completions` (SSE) on a worker thread and hands each chunk to the GLib main loop
+(`idle_add`) → one `Token` D-Bus signal per chunk. Multi-turn history; `Cancel` closes the HTTP
+stream (llama-server stops generating); errors → `Error` signal + `error` state.
+
+### Result: 12/12 checks on the Mint box
+
+| Measure | Idle | While generating into the visible sidebar |
+|---------|------|------------------------------------------|
+| Compositor frames (animated window) | 59.8 fps, p99 16.7 ms, 0 hitches >50 ms | 59.6 fps, p99 16.8 ms, 0–1 hitches |
+| Shell keystroke echo | p99 0.44 ms | p99 0.11 ms (CPU clocks up under load) |
+| GPU | 1–4 % | 99 %, VRAM 10.8 GiB of 11 |
+
+- Generation 28 tok/s, prompt 280–310 tok/s; first token 0.1 s warm, 2.2–2.5 s waking from idle
+  unload; token gaps p50 36 ms, p99 37 ms, max 38 ms (smooth).
+- Stop → idle in 23 ms; llama-server's `requests_processing` back to 0.
+- Server unreachable → `error` state and "Connection refused" in the sidebar within a second.
+- Follow-up question uses the previous turn.
+
+### Findings
+
+1. **The 1080 Ti drives the desktop and runs the model at 99 % without visible cost**: Pascal's
+   compute preemption keeps compositing at 60 fps. The real constraint is VRAM (≈300 MB left at
+   16K), not GPU time.
+2. **A long model name widened the sidebar off-screen** (its header label didn't wrap and GTK
+   grew the window past 380). Labels in the dock must wrap/ellipsize; now checked.
+3. **`xrandr` resolution tests change the user's saved scale.** Cinnamon re-derives the scale when
+   the mode returns and saves it (3× → 2× on the Mint box). Use `org.cinnamon.Muffin.DisplayConfig`
+   for automated display tests; the `--xrandr` option now carries a warning.
+4. Thread + `GLib.idle_add` is enough for streaming in the daemon; no async HTTP library needed.
+5. Not covered: waking the model while the user is typing elsewhere (the 2.2 s wake is visible as
+   "thinking"; a "loading model" state would be clearer), and several clients streaming at once.
+
+### Decision
+
+**GO.** llama-server (our CUDA build) → daemon → D-Bus → sidebar is the M1 streaming path.

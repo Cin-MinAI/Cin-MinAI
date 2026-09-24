@@ -130,7 +130,9 @@ class Sidebar(Gtk.Application):
         self.click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         self.click.connect("pressed", self.on_click)
 
-        self.status = Gtk.Label(xalign=0, name="status")
+        # Wraps, so a long model name can't make the sidebar wider than WIDTH (it would run off
+        # the screen edge).
+        self.status = Gtk.Label(xalign=0, name="status", wrap=True, wrap_mode=2)  # Pango WORD_CHAR
         self.ctx_label = Gtk.Label(xalign=0, name="context", ellipsize=3)
         self.chat = Gtk.TextView(name="chat", editable=False, cursor_visible=False,
                                  wrap_mode=Gtk.WrapMode.WORD_CHAR)
@@ -153,9 +155,17 @@ class Sidebar(Gtk.Application):
         box.pack_start(self.ctx_label, False, False, 0)
         box.pack_start(Gtk.Separator(), False, False, 0)
         box.pack_start(scroll, True, True, 0)
-        box.pack_start(self.entry, False, False, 6)
+        self.stop = Gtk.Button.new_from_icon_name("media-playback-stop-symbolic", Gtk.IconSize.BUTTON)
+        self.stop.set_tooltip_text("Stop the answer")
+        self.stop.connect("clicked", lambda b: self.proxy and self.proxy.call(
+            "Cancel", None, Gio.DBusCallFlags.NONE, -1, None, None))
+        inputs = Gtk.Box(spacing=4)
+        inputs.pack_start(self.entry, True, True, 0)
+        inputs.pack_end(self.stop, False, False, 0)
+        box.pack_start(inputs, False, False, 6)
         win.add(box)
         box.show_all()
+        self.stop.hide()
         self.win = win
 
         # A resolution change arrives as a burst: size, monitors, then (from Cinnamon, a moment
@@ -281,8 +291,10 @@ class Sidebar(Gtk.Application):
         model = p.get_cached_property("Model")
         aware = p.get_cached_property("Awareness")
         sees = ", ".join(k for k, v in (aware.unpack() if aware else {}).items() if v) or "nothing"
-        self.status.set_text(f"● {state.unpack() if state else '?'}   {model.unpack() if model else '?'}"
+        state = state.unpack() if state else "?"
+        self.status.set_text(f"● {state}   {model.unpack() if model else '?'}"
                              f"   ADMIN: LOCKED\nSees: {sees}")
+        self.stop.set_visible(state == "thinking")
 
     def append(self, text: str) -> None:
         buf = self.chat.get_buffer()
@@ -293,13 +305,24 @@ class Sidebar(Gtk.Application):
         text = entry.get_text().strip()
         if not text or not self.proxy:
             return
+        def asked(proxy, result) -> None:
+            try:
+                proxy.call_finish(result)
+            except GLib.Error as e:  # e.g. still answering the previous question
+                Gio.DBusError.strip_remote_error(e)
+                self.append(f"\n[{e.message}]\n")
+                entry.set_text(text)
+                return
+            self.append(f"\nYou: {text}\nAssistant: ")
+
         entry.set_text("")
-        self.append(f"\nYou: {text}\nAssistant: ")
-        self.proxy.call("Ask", GLib.Variant("(s)", (text,)), Gio.DBusCallFlags.NONE, -1, None, None)
+        self.proxy.call("Ask", GLib.Variant("(s)", (text,)), Gio.DBusCallFlags.NONE, -1, None, asked)
 
     def on_signal(self, proxy, sender, signal, params) -> None:
         if signal == "Token":
             self.append(params.unpack()[1])
+        elif signal == "Error":
+            self.append(f"[could not reach the model: {params.unpack()[1]}]")
         elif signal == "Done":
             self.append("\n")
 

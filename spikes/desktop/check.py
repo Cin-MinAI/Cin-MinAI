@@ -6,6 +6,11 @@
 Drives the real X server: reads the work area / active window / geometry, types with XTest
 (hotkey and text), and saves screenshots for a human to look at. --xrandr MODE also switches the
 monitor to MODE and back to check that the sidebar follows (the screen will flicker).
+
+WARNING: --xrandr bypasses Cinnamon's display manager; when the mode comes back Cinnamon picks a
+scale again and *saves* it to ~/.config/cinnamon-monitors.xml (it changed 3x to 2x on the Mint box).
+Use it only on a test machine, or restore the scale in System Settings → Display afterwards.
+A proper test would go through org.cinnamon.Muffin.DisplayConfig.
 """
 
 from __future__ import annotations
