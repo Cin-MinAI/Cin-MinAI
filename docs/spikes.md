@@ -7,7 +7,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Terminal emulation (pyte) | Done 2026-09-24 | **GO** — pyte reused inside the terminal relay |
 | ISO remaster | Done 2026-09-24 | **GO** — remaster + own signed repo works (UEFI + BIOS) |
 | Terminal relay (vs. VTE patch) | Done 2026-09-24 | **GO** — relay is the baseline; VTE patch not needed for M1 |
-| Desktop surface (applet, sidebar, hotkey) | Not started | — |
+| Desktop surface (applet, sidebar, hotkey) | Done 2026-09-24 | **GO** — dock + struts + Cinnamon keybinding + CJS applet over session D-Bus |
 | Firefox (extension + native messaging) | Not started | — |
 | Streaming (Ollama → sidebar) | Not started | — |
 | Sandbox (bwrap) | Not started | — |
@@ -211,3 +211,61 @@ per-cell knowledge of what the terminal drew (no second emulator); not worth the
 **GO: the relay is the terminal integration for M1** (PLAN D13), with findings 1–3 and 5 as M1
 work items. The VTE patch is dropped from M1; revisit only if pyte's emulation proves wrong in
 practice.
+
+---
+
+## Desktop surface
+
+Code: `spikes/desktop/`: `daemon.py` (stub `org.cinminai.Assistant1`: State/Model/Awareness
+properties, `Ask` streaming fake tokens as signals, D-Bus activated), `sidebar.py` (GTK 3 docked
+sidebar, single-instance GApplication, `--toggle|--show|--hide`), `applet/cinminai@cinminai`
+(CJS panel applet), `install.sh` / `uninstall.sh` (user-level, reversible), `check.py`.
+Only what Mint ships: PyGObject/GTK 3, libX11/libXtst through ctypes, CJS.
+
+### Result: 27/27 checks on the Mint box (Cinnamon 6.6.9, X11, 4K at 3× scaling) + hands-on use
+
+Checks drive the real X server (XTest keys and mouse clicks, xprop/xwininfo, screenshots) and read
+the applet's live icon/tooltip through Cinnamon's `org.Cinnamon.Eval`.
+
+| Area | Checks |
+|------|--------|
+| Daemon | D-Bus activated on first call; the applet does *not* auto-start it |
+| Sidebar docking | right edge, full height above the panel; work area shrinks by its width (3840 → 2700 px); maximized windows stop at it; on all workspaces; Escape / ✕ / hotkey hide it and give the space back |
+| Resolution change | 4K@3× → 1920×1080@1× → back: re-docks with correct width, height and strut each time |
+| Focus | opens focused (show / hotkey); a click back into the Ask field refocuses it; second prompt after that works |
+| Hotkey | `Super+A` from another window opens it focused; typed text reaches the daemon; again hides it |
+| Applet | icon + tooltip follow idle, thinking (while streaming), approval, error, off, and the daemon dying |
+
+Hands-on (user): "clean in and out in every way I tried" — terminals, Firefox alongside, minimize,
+attempts to break it.
+
+### Findings
+
+1. **Window type: DOCK, plus focus on click.** Muffin keeps normal windows out of all struts,
+   including their own (the sidebar got pushed left of its own strip), and applies
+   focus-stealing prevention to them. Dock windows are exempt from both, but Muffin doesn't focus
+   a dock when clicked: typing then went to IBus's fallback pop-up and the toggle misjudged focus
+   (user-reported). Fix: a capture-phase click gesture requests focus with the event time;
+   hotkey/show use the X server time.
+2. **Cinnamon custom keybindings** (`keybindings.js`) are read only when `custom-list` changes,
+   and only entries whose name contains `custom` are cleaned up. Write the binding first, then
+   list it as `custom-…`. The package will ship the default via a gsettings override/first-login
+   script instead.
+3. **Panels set to (intelli)hide reserve no space**, so the work area includes them and a
+   full-height sidebar hides the panel for good. The sidebar reads `org.cinnamon panels-enabled/
+   panels-height` and stops above/below them.
+4. **Resolution changes arrive in a burst**, and Cinnamon changes the scale factor a moment after
+   the mode. Re-dock on monitor geometry/workarea/scale-factor notifications, debounced (150 ms).
+5. **Context for the hotkey:** the focused window's class/title is captured before the sidebar
+   takes focus. Mapping a gnome-terminal *window* to its relay needs more (one
+   `gnome-terminal-server` process owns every window): M1 idea — pick the relay with the most
+   recent input, or have the hooks tag the terminal title.
+6. **`org.Cinnamon.Eval`** makes applet state testable in CI-style checks; keep using it.
+7. Not covered: multiple monitors (one available), Wayland (Mint 22 is X11 by default; Cinnamon's
+   Wayland session is experimental — struts and XTest won't carry over), fullscreen video vs. a
+   visible sidebar.
+
+### Decision
+
+**GO: Stage 1 (GTK dock + struts) is good enough for M1** (SPEC §5.1). The Cinnamon patch
+(Stage 2) is only needed for multi-monitor polish or Wayland; revisit after M1.

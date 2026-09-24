@@ -28,7 +28,7 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D14 | Firefox integration via a Mozilla-signed WebExtension, force-installed by enterprise policy, talking to the daemon through native messaging. Replaces the original bookmarklet / `qwen://` scheme. | new |
 | D15 | IPC: session D-Bus (`org.cinminai.Assistant1`) for desktop clients; a D-Bus-activated system service (`org.cinminai.Admin1`) with polkit checks for admin actions, replacing a `pkexec` helper. The sandbox mounts neither bus nor the daemon's sockets. | new |
 | D16 | Python 3 from the base system with Debian-packaged dependencies. No venv/pip at runtime. GTK 3 / XApp for UI, matching Mint's own tools. | new |
-| D17 | The distro must be rebranded; it can't ship as "Linux Mint". Working name Cin-minAI until the public name is chosen. | new |
+| D17 | The distro must be rebranded; it can't ship as "Linux Mint". Name: **Cin-MinAI OS** (short: Cin-MinAI), decided 2026-09-24. Technical ids keep the `cinminai` prefix. | decided |
 | D18 | Model weights are not on the standard ISO; first-boot setup downloads and benchmarks them. | new |
 | D19 | Nothing is captured from a terminal while its echo is off, and every terminal shows whether the assistant can see it. | new (SPEC §6.3) |
 
@@ -63,7 +63,7 @@ throughput, and edge cases (`sudo -i`, `su`, `tmux`, `ssh`, nested shells).
 | Machine | Role | Specs | Notes |
 |---------|------|-------|-------|
 | Dev PC (Windows 10 Pro) | development, package + ISO builds, VM tests, "modern" GPU profile | Ryzen 9 3900X, RTX 4070 12 GB, driver 591 | Virtualization enabled 2026-09-24. WSL2 Ubuntu 24.04 for builds (install pending). Hyper-V VMs to boot and install ISOs (no GPU in VM). |
-| Mint box (`mint@192.168.5.70`) | Pascal target, hardware tests, benchmarks | i7-4790K, GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Currently a normal Mint install. Real-hardware installs of our ISO need a spare disk or a dual-boot partition (open question). |
+| Mint box (`mint@192.168.5.70`) | Pascal target, hardware tests, benchmarks | i7-4790K, GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Currently a normal Mint install. Real-hardware installs: a dedicated 120 GB SATA SSD, installed alongside the existing Mint (dual boot) once we reach MVP. |
 
 Build environment: Ubuntu 24.04 (matches Mint 22.x's base) with `squashfs-tools`, `xorriso`,
 `debootstrap`, `devscripts`, `sbuild`/`pbuilder`, `reprepro` (or `aptly`), `qemu-system-x86`, `ovmf`.
@@ -224,12 +224,10 @@ Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
 
 ## 6. Open questions
 
-- **Public name** of the distro (D17). Rename packages, D-Bus names, and paths together, before M1 publishes anything.
 - **Base series:** stay on Mint 22.x (Ubuntu 24.04, supported to 2029) for v0.1, or wait for Mint 23
   (Ubuntu 26.04)? Current plan: 22.x, rebase later.
 - **Apt repository hosting:** GitHub Pages / releases, a VPS, or object storage. Needed by M1.
-- **Real-hardware testing:** spare disk or dual-boot partition on the Mint box, or a separate test machine.
-- **Default terminal:** keep Mint's default, or ship a different one if the VTE-patch route wins in M0.
+- ~~Default terminal~~: keep Mint's default (VTE patch dropped after the M0 relay spike).
 - **Live-session assistant:** CPU-only small model in the live session, or assistant off until installed?
 - **License** for our own code (GPL-compatible, since we patch GPL packages). Decide before M1.
 

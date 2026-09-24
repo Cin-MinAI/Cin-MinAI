@@ -112,8 +112,8 @@ artwork, `/etc/os-release` (`ID=cinminai`, `ID_LIKE="linuxmint ubuntu debian"`),
 installer slideshow, and welcome screen, while crediting Mint and Ubuntu. Review both projects'
 trademark guidance before any public release.
 
-Working name: **Cin-minAI**. Package prefix `cinminai-`, D-Bus prefix `org.cinminai.`, Python
-package `cin_minai`. The final public name is an open question (PLAN §6); rename all together.
+Name: **Cin-MinAI OS** (short: Cin-MinAI; decided 2026-09-24, PLAN D17). Package prefix `cinminai-`,
+D-Bus prefix `org.cinminai.`, Python package `cin_minai`, `ID=cinminai`.
 
 ### 3.3 Build strategy (staged)
 

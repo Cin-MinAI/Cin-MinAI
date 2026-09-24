@@ -1,0 +1,7 @@
+{
+    "uuid": "cinminai@cinminai",
+    "name": "Cin-MinAI Assistant",
+    "description": "Assistant status, awareness switches, and the sidebar (M0 spike)",
+    "icon": "user-available-symbolic",
+    "max-instances": 1
+}
