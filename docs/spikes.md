@@ -5,7 +5,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Spike | Status | Verdict |
 |-------|--------|---------|
 | Terminal emulation (pyte) | Done 2026-09-24 | **GO** — pyte reused inside the terminal relay |
-| ISO remaster | UEFI done 2026-09-24; BIOS pending | UEFI: **pass** |
+| ISO remaster | Done 2026-09-24 | **GO** — remaster + own signed repo works (UEFI + BIOS) |
 | Terminal relay (vs. VTE patch) | Not started | — |
 | Desktop surface (applet, sidebar, hotkey) | Not started | — |
 | Firefox (extension + native messaging) | Not started | — |
@@ -104,15 +104,15 @@ Scripts: `spikes/iso-remaster/`: `make-repo.sh VERSION` (signed reprepro repo, s
 Built in WSL Ubuntu 24.04. Output `cinminai-spike-22.3-amd64.iso`, sha256 `a4093dc5…6c59`.
 Manifest diff vs. upstream: exactly our three packages added.
 
-### Result so far (2026-09-24)
+### Result (2026-09-24): all checks pass
 
-| Check | UEFI (Hyper-V Gen2, Secure Boot, MS UEFI CA template) | BIOS (QEMU) |
+| Check | UEFI (Hyper-V Gen2, Secure Boot, MS UEFI CA template) | BIOS (Hyper-V Gen1) |
 |-------|------|------|
-| ISO boots to live desktop | pass (upstream signed shim/GRUB unchanged) | pending |
-| Packages present in live session | pass | pending |
-| Installs (ubiquity, erase disk) | pass | pending |
-| Installed system has packages + repo source + key | pass (`cinminai-hello 0.1`) | pending |
-| Upgrade 0.1 → 0.2 from our repo via `apt upgrade` | pass (signature verified, all 3 upgraded) | pending |
+| ISO boots to live desktop | pass (upstream signed shim/GRUB unchanged) | pass, with "compatibility mode" (see finding 4) |
+| Packages present in live session | pass | pass |
+| Installs (ubiquity, erase disk) | pass | pass |
+| Installed system has packages + repo source + key | pass (`cinminai-hello 0.1`) | pass |
+| Upgrade 0.1 → 0.2 from our repo via `apt upgrade` | pass (signature verified, all 3 upgraded) | pass |
 
 ### Findings
 
@@ -125,3 +125,17 @@ Manifest diff vs. upstream: exactly our three packages added.
    Automated boot tests later: serial console / automated install, not keystrokes.
 3. **apt i386 notice:** the repo line lacked `arch=amd64`; fixed in `make-repo.sh` (takes effect
    from the next package version).
+4. **Hyper-V Gen1 needs `nomodeset`.** Normal boot ends in failed `gpu-manager` + `lightdm`;
+   the unmodified upstream Mint 22.3 ISO fails identically, so it's Mint vs. Gen1 video, not the
+   remaster. "Compatibility mode" boots; the installed system needs `nomodeset` in
+   `GRUB_CMDLINE_LINUX_DEFAULT`. Not a concern for real hardware; revisit only if we ship VM images.
+5. **No KVM in WSL2 on this PC** (Windows 10 + AMD: no nested virtualization for WSL), so
+   `vm.sh` can't run here; BIOS was tested with a Hyper-V Gen1 VM instead of QEMU. `vm.sh` stays
+   for Linux build hosts / CI.
+
+### Decision
+
+**GO on Stage 1 (PLAN D11).** Scripted remaster of the pinned Mint ISO plus our signed apt repo
+gives a bootable (UEFI Secure Boot and BIOS), installable, updateable system. Carry into M1:
+real repo hosting + key management, `arch=amd64` in the source line, and an automated boot/install
+test (Hyper-V can't script guest input — use an automated install and serial log instead).
