@@ -6,7 +6,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 |-------|--------|---------|
 | Terminal emulation (pyte) | Done 2026-09-24 | **GO** — pyte reused inside the terminal relay |
 | ISO remaster | Done 2026-09-24 | **GO** — remaster + own signed repo works (UEFI + BIOS) |
-| Terminal relay (vs. VTE patch) | Not started | — |
+| Terminal relay (vs. VTE patch) | Done 2026-09-24 | **GO** — relay is the baseline; VTE patch not needed for M1 |
 | Desktop surface (applet, sidebar, hotkey) | Not started | — |
 | Firefox (extension + native messaging) | Not started | — |
 | Streaming (Ollama → sidebar) | Not started | — |
@@ -139,3 +139,75 @@ Manifest diff vs. upstream: exactly our three packages added.
 gives a bootable (UEFI Secure Boot and BIOS), installable, updateable system. Carry into M1:
 real repo hosting + key management, `arch=amd64` in the source line, and an automated boot/install
 test (Hyper-V can't script guest input — use an automated install and serial log instead).
+
+---
+
+## Terminal relay
+
+Code: `spikes/relay/`: `relay.py` (pty relay), `analyzer.py` (child process: markers, pyte,
+segmentation, control socket), `emulator.py` (terminal-spike `AltScreen` + scrollback capture),
+`hooks.bash` (OSC 133 A/B/C/D, OSC 7, private OSC 7717 for command text and `ai on|off`),
+`relayctl.py` (stand-in for the daemon: `status`, `history`, `screen`, `send`), `check.py`.
+
+Design: the relay loop only copies bytes and never waits on analysis. A copy of the output goes
+to the analyzer over a non-blocking pipe (framed). If the analyzer falls behind, the relay drops
+data and records a gap, but still forwards the OSC markers so command boundaries survive; if a
+single read is large, the analyzer scans it for markers and emulates only the last 64 KB.
+If the analyzer dies, the relay keeps passing bytes through. Send-to-prompt writes a bracketed
+paste into the pty (readline inserts it, never runs it); refused unless the shell is in the
+foreground at its prompt and sharing is on and no password prompt is up.
+
+### Result: 36/36 automated checks (WSL Ubuntu 24.04, pyte 0.8.0); 21/22 on the Mint box (pyte 0.8.2, the miss is the vim check — vim isn't installed there)
+
+| Area | Checks |
+|------|--------|
+| Identity (same keys → same screen, plain vs. relay) | basic/colours, vim, less, htop, tmux, python REPL, Ctrl-C, Ctrl-Z/jobs/kill, resize (`tput` sees 120×40) |
+| Segmentation | command text + output + exit code, stderr, repeated command (ignoredups) from screen, space-prefixed command stays private, cwd (OSC 7), 3000-line output kept past the screen, multi-line command, full-screen program flagged with no redraw noise |
+| Privacy | password prompt detected (`read -s`, Mint-style sudo pwfeedback), send refused there, typed secret never captured, `ai off` records nothing and drops the ◆ indicator |
+| Control | send puts text at the prompt without running it; refused while a program runs; nested relay execs the shell instead; relay survives the analyzer dying; exit status passed through |
+| Latency (keystroke echo, first byte) | WSL/3900X: +0.16 ms median (0.15 → 0.31), p99 0.53 ms. Mint/4790K: +0.44 ms median (0.31 → 0.75), p99 0.83 ms |
+| Throughput (`cat` 97 MB) | WSL: 10 → 7 MB/s; Mint: 24 → 24 MB/s (harness-bound). Byte-exact; gaps recorded; segmentation recovers after the flood |
+
+Manual on the Mint desktop (gnome-terminal 3.52 / VTE 0.76): normal use, `less`, editors,
+resize, Ctrl-C — no difference noticed. `sudo -i`, `ssh localhost`, `ai off`, send-to-prompt
+checked via relayctl over SSH.
+
+### Findings
+
+1. **Mint's sudo defeats the simple echo-off rule.** Mint ships `/etc/sudoers.d/0pwfeedback`:
+   sudo reads the password in character mode to print `*`, so "echo off + canonical" missed it.
+   Ubuntu's `use_pty` also puts the terminal in full raw mode while sudo relays a command.
+   Rule now: echo off + canonical, **or** echo off + character mode + ISIG on + a password program
+   (`sudo`, `su`, `ssh`, `passwd`, `pkexec`, `gpg`, …) in the foreground. Verified on real sudo.
+2. **Nested sessions are opaque.** `sudo -i` and `ssh` show up as one long command (the whole
+   root/remote session is captured as its output); our hooks don't run there. Remote password
+   prompts inside ssh can't be detected locally (the remote tty's echo state isn't visible).
+   M1: ship the hooks system-wide (`/etc/bash.bashrc`) so root shells emit markers; decide
+   whether ssh/root sessions are captured at all by default (leaning: not, with an opt-in).
+3. **Nesting guard by env var is not enough for the distro.** `sudo -i` strips
+   `CINMINAI_RELAY`, and Ubuntu's sudo already gives the root shell its own pty. With system-wide
+   startup the root shell would start a second relay. M1: start the relay only when the shell's
+   parent is a terminal emulator (not sudo/su/sshd/tmux/another relay).
+4. **Command text:** `history 1` from PS0 is exact but can't tell ignoredups repeats from
+   hidden (ignorespace) commands; the screen line between OSC 133 B and C settles it (leading
+   space → hidden). Both sources are kept per command (`cmd`, `screen_cmd`).
+5. **Analyzer failure is silent.** Started with a Python lacking pyte, the analyzer died and the
+   terminal kept working with nothing recorded — correct behaviour, but the user can't tell.
+   M1: the ◆ indicator should reflect whether anything is actually listening.
+6. **Throughput:** the Python relay loop costs ~30% on a pure flood on the 3900X; not noticeable
+   on the Mint box. If it matters, the relay loop is ~150 lines and a C/Rust rewrite is cheap;
+   the analyzer can stay Python.
+
+### VTE patch (desk evaluation, not built)
+
+A VTE patch would only cover VTE terminals (gnome-terminal, Mint's default), gives nothing in
+other emulators, TTYs or ssh-launched shells, and means carrying a fork of a security-sensitive
+library through every VTE update. The relay already delivers command segmentation, clean text,
+cwd and send-to-prompt with no measurable feel difference. The one thing a patch adds is exact
+per-cell knowledge of what the terminal drew (no second emulator); not worth the fork for M1.
+
+### Decision
+
+**GO: the relay is the terminal integration for M1** (PLAN D13), with findings 1–3 and 5 as M1
+work items. The VTE patch is dropped from M1; revisit only if pyte's emulation proves wrong in
+practice.
