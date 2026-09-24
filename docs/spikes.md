@@ -5,7 +5,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Spike | Status | Verdict |
 |-------|--------|---------|
 | Terminal emulation (pyte) | Done 2026-09-24 | **GO** — pyte reused inside the terminal relay |
-| ISO remaster | Not started | — |
+| ISO remaster | UEFI done 2026-09-24; BIOS pending | UEFI: **pass** |
 | Terminal relay (vs. VTE patch) | Not started | — |
 | Desktop surface (applet, sidebar, hotkey) | Not started | — |
 | Firefox (extension + native messaging) | Not started | — |
@@ -94,3 +94,34 @@ interfaces. Throughput work in M1, in order of cost:
    the log used for compiler-context extraction, SPEC §11.4).
 2. If still too slow: spike **libvterm** (C, used by Neovim; `libvterm0` is in the Ubuntu
    repos) via ctypes as a drop-in emulator.
+
+---
+
+## ISO remaster
+
+Scripts: `spikes/iso-remaster/`: `make-repo.sh VERSION` (signed reprepro repo, spike key),
+`build-iso.sh` (Mint 22.3 ISO → our ISO with `cinminai-desktop` baked in), `vm.sh` (QEMU/KVM in WSL).
+Built in WSL Ubuntu 24.04. Output `cinminai-spike-22.3-amd64.iso`, sha256 `a4093dc5…6c59`.
+Manifest diff vs. upstream: exactly our three packages added.
+
+### Result so far (2026-09-24)
+
+| Check | UEFI (Hyper-V Gen2, Secure Boot, MS UEFI CA template) | BIOS (QEMU) |
+|-------|------|------|
+| ISO boots to live desktop | pass (upstream signed shim/GRUB unchanged) | pending |
+| Packages present in live session | pass | pending |
+| Installs (ubiquity, erase disk) | pass | pending |
+| Installed system has packages + repo source + key | pass (`cinminai-hello 0.1`) | pending |
+| Upgrade 0.1 → 0.2 from our repo via `apt upgrade` | pass (signature verified, all 3 upgraded) | pending |
+
+### Findings
+
+1. **Test repo hosting.** A VM on Hyper-V "Default Switch" can't reach WSL; the repo was copied to
+   Windows and served on the Default Switch host address (172.20.208.1:80), with
+   `cinminai-repo.invalid` mapped in the guest's `/etc/hosts`. Needed an inbound firewall allow
+   rule, and disabling stale Public-profile *Block* rules for `powershell.exe` (Block beats Allow).
+2. **Hyper-V `Msvm_Keyboard.TypeText` garbles text on Linux guests**, so no scripted guest input
+   that way. Screenshots via `GetVirtualSystemThumbnailImage` work (RGB565, 4 trailing bytes).
+   Automated boot tests later: serial console / automated install, not keystrokes.
+3. **apt i386 notice:** the repo line lacked `arch=amd64`; fixed in `make-repo.sh` (takes effect
+   from the next package version).

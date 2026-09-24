@@ -45,7 +45,7 @@ build_pkg() {  # name, then files are staged by the caller in $root
 root=$(mktemp -d)
 install -Dm644 "$WORK/cinminai-archive-keyring.gpg" "$root/usr/share/keyrings/cinminai-archive-keyring.gpg"
 install -d "$root/etc/apt/sources.list.d"
-echo "deb [signed-by=/usr/share/keyrings/cinminai-archive-keyring.gpg] $REPO_URL $REPO_SUITE $REPO_COMPONENT" \
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cinminai-archive-keyring.gpg] $REPO_URL $REPO_SUITE $REPO_COMPONENT" \
     > "$root/etc/apt/sources.list.d/cinminai.list"
 install -d "$root/DEBIAN"
 echo /etc/apt/sources.list.d/cinminai.list > "$root/DEBIAN/conffiles"

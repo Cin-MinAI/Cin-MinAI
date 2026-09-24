@@ -92,11 +92,12 @@ rmdir "$rootfs/mnt/cinminai-repo"
 
 # --- 4. repack --------------------------------------------------------------------
 log "manifest + size"
-# Keep upstream's manifest format ("name<TAB>version").
-chroot "$rootfs" dpkg-query -W --showformat='${Package}\t${Version}\n' > "$b/iso/filesystem.manifest"
+# Keep upstream's manifest format ("name[:arch]<TAB>version", as ${binary:Package} prints it).
+chroot "$rootfs" dpkg-query -W --showformat='${binary:Package}\t${Version}\n' > "$b/iso/filesystem.manifest"
 du -sx --block-size=1 "$rootfs" | cut -f1 > "$b/iso/filesystem.size"
-diff <(xorriso -osirrox on -indev "$iso_in" -extract /casper/filesystem.manifest /dev/stdout 2>/dev/null) \
-     "$b/iso/filesystem.manifest" | tee "$b/manifest.diff" || true
+xorriso -osirrox on -indev "$iso_in" -extract /casper/filesystem.manifest "$b/manifest.upstream" >/dev/null 2>&1
+chmod u+w "$b/manifest.upstream"
+diff "$b/manifest.upstream" "$b/iso/filesystem.manifest" | tee "$b/manifest.diff" || true
 
 log "squashfs ($comp, block $bsize)"
 mksquashfs "$rootfs" "$b/iso/filesystem.squashfs" -comp "$comp" -b "$bsize" -noappend -no-progress \
