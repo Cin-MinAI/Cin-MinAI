@@ -1,8 +1,9 @@
-# Cin-minAI
+# Cin-MinAI OS
 
 A Linux Mint Cinnamon–derived distribution with a local AI assistant built into the operating
-system: a desktop sidebar, panel applet, and hotkey; awareness of your real terminals and of
-Firefox; Linux and hardware knowledge; and a human-controlled boundary for anything privileged or
+system: a desktop sidebar, panel applet, and hotkey; awareness of your real terminals, of
+Firefox, and of LibreOffice documents; Linux and hardware knowledge; and a human-controlled
+boundary for anything privileged or
 hardware-writing.
 
 **Status:** M0 spikes — see [docs/PLAN.md](docs/PLAN.md). Design: [docs/SPEC.md](docs/SPEC.md).

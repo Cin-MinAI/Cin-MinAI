@@ -31,6 +31,8 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D17 | The distro must be rebranded; it can't ship as "Linux Mint". Name: **Cin-MinAI OS** (short: Cin-MinAI), decided 2026-09-24. Technical ids keep the `cinminai` prefix. | decided |
 | D18 | Model weights are not on the standard ISO; first-boot setup downloads and benchmarks them. | new |
 | D19 | Nothing is captured from a terminal while its echo is off, and every terminal shows whether the assistant can see it. | new (SPEC §6.3) |
+| D20 | LibreOffice integration through a Python-UNO extension with a fixed, schema-checked document toolkit; reads only shared documents; every edit previewed, approved, and one Ctrl+Z to undo. | new 2026-09-24 (SPEC §7.6–7.10) |
+| D21 | **The product is the installable ISO; the Mint box is only a shared test machine.** It runs other projects: spikes there stay user-level, reversible, and are removed when done; no changes to its services (incl. `qwen14b.service`), drivers, boot setup, or desktop settings. Nothing we build may depend on that machine's state — everything ships as packages. Full-system tests install the ISO onto a dedicated, physically separate 120 GB SATA SSD (third boot drive, chosen in the firmware boot menu); the installer and its bootloader touch only that disk. | new 2026-09-24 |
 
 ### D1 — Sandbox details
 
@@ -63,7 +65,7 @@ throughput, and edge cases (`sudo -i`, `su`, `tmux`, `ssh`, nested shells).
 | Machine | Role | Specs | Notes |
 |---------|------|-------|-------|
 | Dev PC (Windows 10 Pro) | development, package + ISO builds, VM tests, "modern" GPU profile | Ryzen 9 3900X, RTX 4070 12 GB, driver 591 | Virtualization enabled 2026-09-24. WSL2 Ubuntu 24.04 for builds (install pending). Hyper-V VMs to boot and install ISOs (no GPU in VM). |
-| Mint box (`mint@192.168.5.70`) | Pascal target, hardware tests, benchmarks | i7-4790K, GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Currently a normal Mint install. Real-hardware installs: a dedicated 120 GB SATA SSD, installed alongside the existing Mint (dual boot) once we reach MVP. |
+| Mint box (`mint@192.168.5.70`) | **Test machine only** (D21): Pascal live runs, hardware tests, benchmarks | i7-4790K, GTX 1080 Ti 11 GB, 32 GB DDR3, Z97X-UD5H; Mint 22.3, kernel 7.0, driver 580.178 | Shared with other projects; already has 2 boot drives, physically separate. Full install test at MVP: our ISO onto a dedicated 120 GB SATA SSD as a third, separate boot drive (pick it in the firmware boot menu; installer and GRUB go to that SSD only). |
 
 Build environment: Ubuntu 24.04 (matches Mint 22.x's base) with `squashfs-tools`, `xorriso`,
 `debootstrap`, `devscripts`, `sbuild`/`pbuilder`, `reprepro` (or `aptly`), `qemu-system-x86`, `ovmf`.
@@ -147,11 +149,13 @@ Each milestone has an exit test. Nothing moves forward on a red exit test.
 | **Streaming** | `llama-server` tokens (our CUDA 12 build, on the 1080 Ti) into the sidebar while the desktop and terminals are busy. | No visible stutter in terminals or the desktop during generation. |
 | **Sandbox** | bwrap profile per D1. | `sudo`, `pkexec`, `su`, D-Bus `systemctl`, writing `/dev/sda`, opening `/dev/ttyUSB0`, reaching the daemon socket — all fail. |
 | **Admin mechanism** | D-Bus-activated root service + polkit action on Mint. | Cinnamon auth dialog appears per request; no cached auth; denial is clean. |
+| **LibreOffice** | Python-UNO extension ↔ daemon over D-Bus; toolkit per SPEC §7.7. | Installs with `unopkg --shared` (user-level for the spike, removed after); one read + one edit tool each for Writer, Calc, Impress; preview → Apply → a single Ctrl+Z undoes it; Qwen picks the right tool with valid arguments in ≥ 90 % of 30 scripted requests. |
 | **Model bakeoff** | §3 above. | `docs/benchmarks.md` written. |
 
-Exit: go/no-go per spike in `docs/spikes.md`. Suggested order: ISO remaster → terminal relay →
-desktop surface → sandbox → admin → Firefox → streaming → bakeoff (bakeoff can run in parallel on
-the Mint box at any time).
+Exit: go/no-go per spike in `docs/spikes.md`. Done (2026-09-24): terminal emulation, ISO remaster,
+terminal relay, desktop surface, streaming. Remaining order: sandbox → admin → Firefox →
+LibreOffice → bakeoff (bakeoff can run in parallel on the Mint box at any time). Spikes on the Mint
+box follow D21 and are cleaned up when M0 closes.
 
 ### M1 — Distro skeleton
 
@@ -199,14 +203,18 @@ Exit: all security tests green on the Mint box and in the VM.
 - Hardware providers: USB, PCI, serial, from sysfs + `usb.ids` / `pci.ids`; udev-driven cache.
 - MCU flash/erase actions in the `USER_APPROVED` lane.
 
-Exit: fresh install on the Mint box's hardware ends with a working GPU profile chosen by measurement; a fresh VM ends with a working CPU profile.
+Exit: fresh install onto the test SSD in the Mint box (D21) ends with a working GPU profile chosen by measurement; a fresh VM ends with a working CPU profile.
 
-### M6 — Firefox + web
+### M6 — Firefox, LibreOffice + web
 
 - `cinminai-firefox`: signed extension, sidebar, context menu, native messaging host, policy.
+- `cinminai-libreoffice`: shared extension, full SPEC §7.7 toolkit, preview/Apply cards in the
+  sidebar, undo contexts, headless document generation in the sandbox.
 - `SearchProvider` (DuckDuckGo, then SearXNG), page fetch, LOCAL/WEB indicator, open sources in Firefox.
 
-Exit: a selection in Firefox lands in the terminal-attached conversation; `/web` works and fails gracefully offline.
+Exit: a selection in Firefox lands in the terminal-attached conversation; `/web` works and fails
+gracefully offline; in a fresh install, a Calc range can be asked about and an approved edit is
+undone with one Ctrl+Z.
 
 ### M7 — Deeper fork → v0.1
 

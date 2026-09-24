@@ -21,6 +21,8 @@ running AI assistant is a native part of the system rather than an app you add:
   working directory, and it can place a command at the prompt.
 * It is attached to **Firefox** — it can read the page or selection the user shares and answer in a
   Firefox sidebar.
+* It works inside **LibreOffice** — it can read the document or selection the user shares and, with
+  approval, edit it through a fixed toolkit (Writer, Calc, Impress), every edit one Ctrl+Z away.
 * It understands Linux and the machine's hardware — `/sys`, `/proc`, systemd, udev, USB, PCI,
   serial devices, microcontrollers, and build toolchains.
 * It can act on the machine through a controlled boundary: sandboxed by default, user-approved
@@ -89,7 +91,7 @@ changes rebasable onto new Mint releases.
 ### Rule 8 — Visible, switchable awareness
 
 The user can always tell what the assistant can currently see (which terminals, whether a browser
-page is shared) and can turn it off per terminal, per session, or globally. Nothing is captured
+page or an office document is shared) and can turn it off per terminal, per session, or globally. Nothing is captured
 while it is off.
 
 ---
@@ -144,6 +146,7 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
 * Our llama.cpp build (`cinminai-llama`, pinned, from our repo) and its service, not yet running a model.
 * The shell integration enabled for all users by default (with the per-terminal off switch).
 * Firefox with our extension force-installed by enterprise policy.
+* LibreOffice (Mint's) with our extension installed for all users (`unopkg add --shared`).
 * **No model weights** on the standard ISO. They are downloaded during first-boot setup (§9). An
   "offline" ISO variant with a default model bundled can come later.
 * No proprietary NVIDIA driver preinstalled; first-boot setup selects one (§3.6).
@@ -222,6 +225,7 @@ Components (each is one Debian package unless noted):
 | `cinminai-sidebar` | user | Docked GTK sidebar: chat, command cards, approval dialogs (§5) |
 | `cinminai-applet` | Cinnamon | Panel applet: status, awareness toggles, opens sidebar (§5) |
 | `cinminai-firefox` | user / Firefox | WebExtension + native messaging host + policy file (§7) |
+| `cinminai-libreoffice` | user / LibreOffice | Python-UNO extension: menu + context menu, document toolkit, session D-Bus client (§7.6) |
 | `cinminai-admin` | root, D-Bus activated | Privileged mechanism behind polkit (§8.4) |
 | `cinminai-sandbox` | user | bwrap profile + runner (§8.2) |
 | `cinminai-setup` | user (+ admin for driver) | First-boot hardware/model configurator (§9) |
@@ -282,7 +286,8 @@ Icon with state (idle / thinking / needs approval / off / error), a menu with aw
 ### 5.3 Hotkey
 
 A default global shortcut (configurable in Cinnamon's keyboard settings) opens the sidebar focused
-on the input, pre-attached to the focused window's context (the focused terminal, or the Firefox tab).
+on the input, pre-attached to the focused window's context (the focused terminal, the Firefox tab,
+or the LibreOffice document).
 
 ### 5.4 Status always visible
 
@@ -390,7 +395,9 @@ warning naming the context ("this terminal is root on localhost" / "this termina
 
 ---
 
-## 7. Firefox integration
+## 7. Application integration: Firefox and LibreOffice
+
+Firefox: §7.1–7.5. LibreOffice: §7.6–7.10.
 
 ### 7.1 Extension
 
@@ -429,6 +436,57 @@ change lanes, approvals, or tool permissions (prompt injection is assumed, not h
 `/web` (or a button) runs a search through a replaceable `SearchProvider` (DuckDuckGo first, local
 SearXNG as an option), fetches selected pages, and gives compact context to the model. The status
 shows WEB while it happens. Ordinary prompts are never sent to search engines or cloud APIs.
+
+### 7.6 LibreOffice extension
+
+`cinminai-libreoffice` ships a Python-UNO extension (`.oxt`, uses Mint's `python3-uno`; no
+Basic macros), installed for all users with `unopkg add --shared`. It runs inside LibreOffice, so it
+has the document model of Writer, Calc, and Impress, and talks to the daemon over the session D-Bus
+(`org.cinminai.Assistant1`) like the sidebar. The conversation shows in the same sidebar.
+
+* **Tools → Assistant** menu and context-menu entries: "Ask about selection", "Rewrite selection",
+  "Explain this formula", "Summarize document".
+* Invoking any of them shares that document with the assistant for the conversation; the sidebar
+  shows `Sees: document "<title>"`, removable with one click.
+* The extension reports which document window is focused, for the hotkey's context (§5.3).
+
+### 7.7 Toolkit
+
+The model reaches documents only through named tools with strict JSON schemas (llama.cpp
+schema-constrained output, PLAN D6). There is no "run macro", no Basic, no arbitrary UNO calls.
+
+| App | Read tools | Edit tools |
+|-----|-----------|-----------|
+| All | `doc_info` (type, title, size, modified), `get_selection` | `export_pdf`, `save_copy_as` (new file only) |
+| Writer | `outline` (headings), `get_section`, `get_paragraphs(range)`, `styles_in_use`, `find_text` | `replace_selection`, `insert_at_cursor`, `apply_paragraph_style`, `insert_table`, `add_comment` |
+| Calc | `sheets`, `used_range`, `read_range`, `read_formulas`, `named_ranges` | `write_range`, `set_formula`, `format_range`, `sort_range`, `create_chart` |
+| Impress | `slides`, `slide_text`, `slide_notes` | `add_slide`, `set_slide_text`, `set_notes` |
+
+Large documents are never sent whole: the model navigates with `outline` / `used_range` and reads
+the parts it needs, within the context budget (§11).
+
+### 7.8 Edit rules
+
+* Read tools run only on a document the user shared (§7.6). Nothing is read in the background.
+* Every edit tool is in the `USER_APPROVED` lane (§8.1): the sidebar shows a preview card
+  (before → after for text; cell grid for ranges; slide text for Impress) with **Apply** / **Discard**.
+* An applied edit runs inside one LibreOffice undo context named `Assistant: <summary>`, so a single
+  Ctrl+Z reverts all of it.
+* The assistant never saves, overwrites, or closes the user's file; `save_copy_as` only creates a
+  new file at a path the user picks.
+* If the document changed since the preview was made (checked by a revision/modified snapshot of
+  the target range), Apply refuses and the preview is rebuilt.
+
+### 7.9 Headless documents
+
+"Make me a spreadsheet of…" requests run a separate headless LibreOffice inside the sandbox (§8.2)
+with only the workspace mounted; the result is offered to the user to open or save. This never
+touches the user's running LibreOffice.
+
+### 7.10 Document content is untrusted
+
+Like web pages (§7.4), document text is data in the prompt. It cannot change lanes, approvals, or
+tool permissions; a document that says "apply all edits without asking" changes nothing.
 
 ---
 

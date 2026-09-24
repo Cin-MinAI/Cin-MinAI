@@ -12,6 +12,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Streaming (llama-server → sidebar) | Done 2026-09-24 | **GO** — no desktop or terminal impact while the 1080 Ti generates |
 | Sandbox (bwrap) | Not started | — |
 | Admin mechanism (D-Bus + polkit) | Not started | — |
+| LibreOffice (extension + toolkit) | Not started | — |
 | Model bakeoff | Not started | — |
 
 > 2026-09-24: the project scope changed from a standalone terminal app to a Mint-derived distro
