@@ -40,7 +40,13 @@ Every assistant command in the `SANDBOXED` lane runs under `bwrap` with `--new-s
 no-new-privs, read-only system binds, read-write workspace only, `$HOME` not mounted, minimal
 `/dev`, and **no** system bus, session bus, or daemon sockets (so `systemctl restart …` cannot
 raise a real polkit dialog and sandboxed code cannot ask the daemon for approval). Network on by
-default for builds, toggleable per workspace. The security tests (SPEC §16.1) run against this profile.
+default for builds, toggleable per workspace — **always through a private network namespace
+(`pasta`, from the `passt` package), never the host's**: the M0 spike showed that with the host
+network namespace, sandboxed code can connect to the X server through its abstract socket (Mint
+allows any process of the user) and to every service on 127.0.0.1. `cinminai-sandbox` depends on
+`bubblewrap` and `passt`, and relies on Mint's `kernel.apparmor_restrict_unprivileged_userns=0`
+(stock Ubuntu 24.04 sets 1; if that changes, ship AppArmor profiles for bwrap/pasta). The security
+tests (SPEC §16.1) run against this profile (`spikes/sandbox/check.py`).
 
 ### D11 — Why remaster first
 

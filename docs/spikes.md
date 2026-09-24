@@ -10,7 +10,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Desktop surface (applet, sidebar, hotkey) | Done 2026-09-24 | **GO** — dock + struts + Cinnamon keybinding + CJS applet over session D-Bus |
 | Firefox (extension + native messaging) | Not started | — |
 | Streaming (llama-server → sidebar) | Done 2026-09-24 | **GO** — no desktop or terminal impact while the 1080 Ti generates |
-| Sandbox (bwrap) | Not started | — |
+| Sandbox (bwrap) | Done 2026-09-24 | **GO** — bwrap + pasta private network; host network namespace rejected (X server reachable) |
 | Admin mechanism (D-Bus + polkit) | Not started | — |
 | LibreOffice (extension + toolkit) | Not started | — |
 | Model bakeoff | Not started | — |
@@ -315,3 +315,68 @@ stream (llama-server stops generating); errors → `Error` signal + `error` stat
 ### Decision
 
 **GO.** llama-server (our CUDA build) → daemon → D-Bus → sidebar is the M1 streaming path.
+
+---
+
+## Sandbox
+
+Code: `spikes/sandbox/sandbox.py` (runner: `sandbox.py --workspace DIR [--net pasta|none|host]
+[--limits] [--timeout S] -- CMD`), `spikes/sandbox/check.py` (SPEC §16.1 + indirect paths +
+function; `--stress` for limits). bubblewrap 0.9.0 on both machines; passt 2024-02-20.
+
+Profile: `--new-session --die-with-parent --unshare-all --cap-drop ALL`, same uid/gid as the user,
+`/usr` `/etc` `/var` `/sys` read-only, fresh `/tmp` `/var/tmp` `/run` `/home` `/root` `/mnt` …,
+`--dev` minimal `/dev`, `--proc`, workspace bound read-write, `--clearenv` + PATH/HOME/USER/LANG/TERM,
+own `resolv.conf`; network: `pasta --config-net -T none -U none --no-map-gw --dns-forward`.
+
+### Result: 50/50 in WSL (with `--stress`), 50/50 on the Mint box (pasta unpacked user-level)
+
+| SPEC §16.1 — the AI path cannot … | Result (host and pasta modes) |
+|---|---|
+| acquire sudo / su / pkexec | all fail; `setuid(0)` → EINVAL (root isn't mapped); NoNewPrivs 1, CapEff/CapBnd 0 |
+| reach the system or session D-Bus | sockets absent (`/run` is fresh); `systemctl restart` / `busctl` / `gdbus` fail fast, no polkit prompt |
+| talk to the daemon's approval API | `$XDG_RUNTIME_DIR` sockets absent |
+| rewrite the admin mechanism or polkit policy | read-only / permission denied |
+| write raw block devices | no block devices in `/dev` |
+| open serial ports or debug probes | no ttyUSB/ACM/S, hidraw, `/dev/bus/usb`, gpiochip |
+| flash firmware | efivars permission denied; no mtd, mem, port, nvram |
+| write PCI configuration | permission denied (25 devices on the Mint box) |
+| modify protected system files | read-only / permission denied |
+| read $HOME outside the workspace | `$HOME` is an empty tmpfs; `.ssh`, `.config`, … invisible; `/mnt/c` (WSL) invisible |
+
+| Indirect path | host netns | pasta | none |
+|---|---|---|---|
+| X server (abstract socket) | **ACCEPTED on the Mint box** (58 abstract sockets visible) | unreachable (0 visible) | unreachable |
+| host 127.0.0.1 services | **reachable** | unreachable | unreachable |
+| TIOCSTI into the launching terminal | blocked | blocked | — |
+| host processes | invisible (pid ns) | invisible | — |
+| leaked env (bus, DISPLAY, ssh-agent, daemon) | none | none | — |
+
+Function: workspace read/write (files owned by the user on the host), https for builds (host and
+pasta), network off in `none`, git, C build + run, `/proc` `/sys` dpkg, `lspci`, `lsusb` (via
+sysfs), `lsblk`. Lifecycle: timeout kills the whole tree incl. background jobs; `$HOME` and system
+dirs refused as workspaces. Limits (WSL `--stress`, systemd `--user` scope): fork bomb stopped by
+`TasksMax=256`, 3 GiB allocation killed at `MemoryMax=2G`.
+
+### Findings
+
+1. **The host network namespace breaks the boundary.** Abstract unix sockets are per network
+   namespace; with the host's, sandboxed code reached the X server, which on Mint accepts any
+   process of the user (`xhost: SI:localuser:mint`) → keylogging, input injection, screenshots.
+   Also every 127.0.0.1 service (llama-server, CUPS, …). Fix: pasta private namespace
+   (`--no-map-gw`, no port forwards), verified on the Mint desktop.
+2. **`/etc/resolv.conf` is a symlink into `/run`** (systemd-resolved) or `/mnt/wsl` — both hidden,
+   so DNS broke. The sandbox gets its own copy; under pasta, `--dns-forward` to the host resolver.
+3. **pasta's own user namespace makes the user uid 0** (capability-less) unless bwrap maps back
+   with `--uid/--gid`; done.
+4. **bwrap's minimal `/dev` is a writable tmpfs**: `open("/dev/sda", "w")` silently creates a plain
+   file. Harmless (no mknod), but tests must open without O_CREAT.
+5. **User namespaces:** Mint 22 ships `kernel.apparmor_restrict_unprivileged_userns=0`; stock
+   Ubuntu 24.04 restricts them. Our distro inherits Mint's setting; watch it on rebases.
+6. Not covered: seccomp filtering (the namespaces already block the paths above), GPU inside the
+   sandbox (no `/dev/nvidia*`, deliberately), pasta throughput for large downloads.
+
+### Decision
+
+**GO: bwrap + pasta is the `SANDBOXED` lane** (PLAN D1 updated). `cinminai-sandbox` depends on
+`bubblewrap` and `passt`; host networking is test-only.

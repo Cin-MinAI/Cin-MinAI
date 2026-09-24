@@ -517,7 +517,15 @@ Every assistant-initiated command in the `SANDBOXED` lane runs under `bwrap` wit
 * **Neither** the system D-Bus socket **nor** the session bus socket **nor** the daemon's own
   sockets are mounted → sandboxed code cannot trigger polkit, cannot talk to desktop services, and
   cannot ask our daemon to approve anything.
-* Network allowed by default for builds; toggleable per workspace.
+* Network allowed by default for builds; toggleable per workspace. Always a **private network
+  namespace** with user-mode networking (`pasta`): internet works, but the host's loopback
+  services (e.g. llama-server, CUPS) and abstract unix sockets (e.g. the X server, which would
+  allow keylogging and input injection) are unreachable. The host network namespace is never used.
+* The sandbox gets its own `/etc/resolv.conf` (the host's links into `/run`, which is hidden).
+* Optional resource limits through a `systemd --user` scope (memory, tasks, CPU weight); a
+  timeout kills every process in the sandbox.
+* The user namespace maps only the user's own uid: "root" does not exist inside, so setuid
+  binaries and `setuid(0)` fail outright.
 
 Workspaces: a project the user opens with the assistant, or `~/.local/share/cinminai/workspaces/`.
 
