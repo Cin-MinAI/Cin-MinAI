@@ -346,6 +346,16 @@ tracker) without a terminal, and every permission it has was granted on screen.
   decided after M1: Cinnamon on Debian arm64 (keeps our desktop code) vs. a native Raspberry Pi OS
   (Wayland/labwc) panel plugin + sidebar; either way the guide needs a Pi knowledge-base/labels
   variant (Mint's tools don't exist there — `extract_labels.py` re-run on the Pi).
+  **Leaning (2026-09-25): native Pi OS**, not a Cinnamon swap — keep the Pi's own ecosystem
+  (firmware, configuration tools, camera, GPIO support). Our core (daemon, guide, tools, sandbox,
+  admin, LibreOffice/Firefox) is desktop-independent; only the surface (panel applet, docked sidebar,
+  hotkey) is Cinnamon-specific, so the Pi needs a **second surface** (Pi OS panel plugin + a Wayland
+  sidebar via layer-shell) — work that also prepares Mint for a future Cinnamon Wayland session.
+  **Different audience:** people getting into AI who already know PCs (maybe cloud AI), not Windows
+  migrants. The pitch changes from "use your computer" to **"talk to any piece of hardware"**: with
+  SPI/I2C/UART/GPIO on the board, a local model helps read a datasheet, wire a sensor, and get the
+  first bytes over the bus (SPEC §13), with hardware writes still behind the human's button (§8.5).
+  Needs its own knowledge base and corpus variant ("new to Linux and electronics").
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
