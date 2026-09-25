@@ -1,0 +1,357 @@
+{
+ "source": "Linux Mint 22.3",
+ "labels": {
+  "software_manager": {
+   "en": "Software Manager",
+   "es": "Gestor de software",
+   "pt": "Gerenciador de Aplicativos",
+   "fr": "Logithèque",
+   "de": "Anwendungsverwaltung",
+   "ja": "ソフトウェアマネージャー"
+  },
+  "update_manager": {
+   "en": "Update Manager",
+   "es": "Gestor de actualizaciones",
+   "pt": "Gerenciador de Atualizações",
+   "fr": "Gestionnaire de mise à jour",
+   "de": "Aktualisierungsverwaltung",
+   "ja": "アップデートマネージャー"
+  },
+  "driver_manager": {
+   "en": "Driver Manager",
+   "es": "Gestor de controladores",
+   "pt": "Gerenciador de Drivers",
+   "fr": "Gestionnaire de pilotes",
+   "de": "Treiberverwaltung",
+   "ja": "ドライバーマネージャー"
+  },
+  "system_settings": {
+   "en": "System Settings",
+   "es": "Configuración del sistema",
+   "pt": "Configurações do sistema",
+   "fr": "Paramètres du système",
+   "de": "Systemeinstellungen",
+   "ja": "システムの設定"
+  },
+  "display": {
+   "en": "Display",
+   "es": "Visualización",
+   "pt": "Monitor",
+   "fr": "Affichage",
+   "de": "Bildschirm",
+   "ja": "ディスプレイ"
+  },
+  "network": {
+   "en": "Network",
+   "es": "Red",
+   "pt": "Rede",
+   "fr": "Réseau",
+   "de": "Netzwerk",
+   "ja": "ネットワーク"
+  },
+  "sound": {
+   "en": "Sound",
+   "es": "Sonido",
+   "pt": "Som",
+   "fr": "Son",
+   "de": "Klang",
+   "ja": "サウンド"
+  },
+  "printers": {
+   "en": "Printers"
+  },
+  "users": {
+   "en": "Users and Groups",
+   "es": "Usuarios y grupos",
+   "pt": "Usuários e Grupos",
+   "fr": "Utilisateurs et groupes",
+   "de": "Benutzer und Gruppen",
+   "ja": "ユーザーとグループ"
+  },
+  "account": {
+   "en": "Account details",
+   "es": "Detalles de la cuenta",
+   "pt": "Detalhes da Conta",
+   "fr": "Détails du compte",
+   "de": "Kontodetails",
+   "ja": "アカウントの詳細"
+  },
+  "files": {
+   "en": "Files",
+   "es": "Archivos",
+   "pt": "Arquivos",
+   "fr": "Fichiers",
+   "de": "Dateien",
+   "ja": "ファイル"
+  },
+  "firefox": {
+   "en": "Firefox Web Browser",
+   "es": "Navegador web Firefox",
+   "pt": "Navegador Web Firefox",
+   "fr": "Navigateur Web Firefox",
+   "ja": "Firefox ウェブ・ブラウザ"
+  },
+  "writer": {
+   "en": "LibreOffice Writer"
+  },
+  "calc": {
+   "en": "LibreOffice Calc"
+  },
+  "impress": {
+   "en": "LibreOffice Impress"
+  },
+  "backup_tool": {
+   "en": "Backup Tool",
+   "es": "Herramienta de copia de seguridad",
+   "pt": "Ferramenta para cópia de segurança",
+   "fr": "Outil de sauvegarde",
+   "de": "Datensicherungswerkzeug",
+   "ja": "バックアップツール"
+  },
+  "timeshift": {
+   "en": "Timeshift"
+  },
+  "screenshot": {
+   "en": "Screenshot",
+   "es": "Captura de pantalla",
+   "pt": "Captura de tela",
+   "fr": "Capture d’écran",
+   "de": "Bildschirmfoto",
+   "ja": "スクリーンショット"
+  },
+  "terminal": {
+   "en": "Terminal",
+   "es": "Terminal",
+   "pt": "Terminal",
+   "fr": "Terminal",
+   "de": "Terminal",
+   "ja": "端末"
+  },
+  "power": {
+   "en": "Power Management",
+   "es": "Gestión de energía",
+   "pt": "Gerenciamento de Energia",
+   "fr": "Gestion de l’alimentation",
+   "de": "Energieverwaltung",
+   "ja": "電源管理"
+  },
+  "backgrounds": {
+   "en": "Backgrounds",
+   "es": "Fondos",
+   "pt": "Planos de Fundo",
+   "fr": "Fonds d’écran",
+   "de": "Hintergrundbilder",
+   "ja": "背景"
+  },
+  "keyboard": {
+   "en": "Keyboard",
+   "es": "Teclado",
+   "pt": "Teclado",
+   "fr": "Clavier",
+   "de": "Tastatur",
+   "ja": "キーボード"
+  },
+  "mouse": {
+   "en": "Mouse and Touchpad",
+   "es": "Ratón y panel táctil",
+   "pt": "Mouse e Touchpad",
+   "fr": "Souris et pavé tactile",
+   "de": "Maus und Touchpad",
+   "ja": "マウスとタッチパッド"
+  },
+  "themes": {
+   "en": "Themes",
+   "es": "Temas",
+   "pt": "Temas",
+   "fr": "Thèmes",
+   "de": "Themen",
+   "ja": "テーマ"
+  },
+  "languages": {
+   "en": "Languages",
+   "es": "Idiomas",
+   "pt": "Idiomas",
+   "fr": "Langues",
+   "de": "Sprachen",
+   "ja": "言語"
+  },
+  "input_method": {
+   "en": "Input method",
+   "es": "Método de entrada",
+   "pt": "Método de entrada",
+   "fr": "Méthode de saisie",
+   "de": "Eingabemethode",
+   "ja": "入力方法"
+  },
+  "firewall": {
+   "en": "Firewall Configuration",
+   "es": "Configuración del cortafuegos",
+   "pt": "Configuração do Firewall",
+   "fr": "Configuration du pare-feu",
+   "de": "Firewall-Konfiguration",
+   "ja": "ファイアウォール設定ツール"
+  },
+  "system_monitor": {
+   "en": "System Monitor"
+  },
+  "disks": {
+   "en": "Disks"
+  },
+  "disk_usage": {
+   "en": "Disk Usage Analyzer"
+  },
+  "welcome": {
+   "en": "Welcome Screen",
+   "es": "Pantalla de bienvenida",
+   "pt": "Tela de Boas-Vindas",
+   "fr": "Écran d'accueil",
+   "de": "Willkommensbildschirm",
+   "ja": "ようこそ画面"
+  },
+  "system_info": {
+   "en": "System Information",
+   "es": "Información del sistema",
+   "pt": "Informações do Sistema",
+   "fr": "Renseignements sur le système",
+   "de": "Systeminformationen",
+   "ja": "システム情報"
+  },
+  "bluetooth": {
+   "en": "Bluetooth Manager",
+   "es": "Gestor de conexiones Bluetooth",
+   "pt": "Gerenciador de Bluetooth",
+   "fr": "Gestionnaire Bluetooth",
+   "de": "Bluetooth Manager",
+   "ja": "Bluetooth マネージャー"
+  },
+  "document_viewer": {
+   "en": "Document Viewer",
+   "es": "Visor de documentos",
+   "pt": "Visualizador de documentos",
+   "fr": "Visionneur de documents",
+   "de": "Dokumentenbetrachter",
+   "ja": "文書ビューアー"
+  },
+  "image_viewer": {
+   "en": "Image Viewer",
+   "es": "Visor de imágenes",
+   "pt": "Visualizador de imagens",
+   "fr": "Visionneur d’images",
+   "de": "Bildbetrachter",
+   "ja": "画像ビューアー"
+  },
+  "video_player": {
+   "en": "Celluloid"
+  },
+  "email": {
+   "en": "Thunderbird Mail",
+   "es": "Cliente de correo Thunderbird",
+   "pt": "Cliente de E-mail Thunderbird",
+   "fr": "Messagerie Thunderbird",
+   "de": "Thunderbird-E-Mail und -Nachrichten",
+   "ja": "Thunderbird電子メールクライアント"
+  },
+  "web_apps": {
+   "en": "Web Apps",
+   "es": "Aplicaciones web",
+   "pt": "Aplicativos Web",
+   "fr": "Applications web",
+   "de": "Webapps",
+   "ja": "ウェブアプリ"
+  },
+  "startup_apps": {
+   "en": "Startup Applications",
+   "es": "Aplicaciones al inicio",
+   "pt": "Aplicativos da Inicialização",
+   "fr": "Applications lancées au démarrage",
+   "de": "Startprogramme",
+   "ja": "自動開始させるアプリ"
+  },
+  "date_time": {
+   "en": "Date & Time",
+   "es": "Fecha y hora",
+   "pt": "Data e Hora",
+   "fr": "Date et heure",
+   "de": "Datum & Zeit",
+   "ja": "日付と時刻"
+  },
+  "accessibility": {
+   "en": "Accessibility",
+   "es": "Accesibilidad",
+   "pt": "Acessibilidade",
+   "fr": "Accessibilité",
+   "de": "Barrierefreiheit",
+   "ja": "ユーザー補助"
+  },
+  "privacy": {
+   "en": "Privacy",
+   "es": "Privacidad",
+   "pt": "Privacidade",
+   "fr": "Protection des renseignements personnels",
+   "de": "Datenschutz",
+   "ja": "個人情報"
+  },
+  "screensaver": {
+   "en": "Screensaver",
+   "es": "Salvapantallas",
+   "pt": "Proteção de Tela",
+   "fr": "Économiseur d’écran",
+   "de": "Bildschirmschoner",
+   "ja": "スクリーンセーバー"
+  },
+  "notifications": {
+   "en": "Notifications",
+   "es": "Notificaciones",
+   "pt": "Notificações",
+   "de": "Meldungen",
+   "ja": "通知"
+  },
+  "preferred_apps": {
+   "en": "Preferred Applications",
+   "es": "Aplicaciones preferidas",
+   "pt": "Aplicativos Preferenciais",
+   "fr": "Applications par défaut",
+   "de": "Bevorzugte Anwendungen",
+   "ja": "お気に入りのアプリ"
+  },
+  "night_light": {
+   "en": "Night Light",
+   "es": "Luz nocturna",
+   "pt": "Luz noturna",
+   "fr": "Mode nuit",
+   "de": "Nachtmodus",
+   "ja": "夜間モード"
+  },
+  "fonts": {
+   "en": "Font Selection",
+   "es": "Selección de las tipografías",
+   "pt": "Seleção de fonte",
+   "fr": "Choix des polices",
+   "de": "Schriftauswahl",
+   "ja": "フォントの選択"
+  },
+  "panel": {
+   "en": "Panel",
+   "pt": "Painel",
+   "fr": "Panneau",
+   "de": "Leiste",
+   "ja": "パネル"
+  },
+  "software_sources": {
+   "en": "Software Sources",
+   "es": "Fuentes de software",
+   "pt": "Fontes de Aplicativos",
+   "fr": "Sources de logiciels",
+   "de": "Anwendungspaketquellen",
+   "ja": "ソフトウェアソース"
+  },
+  "change_background": {
+   "en": "Change Desktop Background",
+   "es": "Cambiar el fondo del escritorio",
+   "pt": "Alterar plano de fundo",
+   "fr": "Modifier l'arrière-plan du bureau",
+   "de": "Hintergrund des Schreibtisches ändern",
+   "ja": "背景を変更"
+  }
+ }
+}

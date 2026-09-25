@@ -138,6 +138,9 @@ model (optional download, 8 GB+). Guide track, in order:
    transition questions, computer lessons for a beginner, LibreOffice toolkit tasks (reuse the 30
    from the LibreOffice spike), simple system help with read-only tools, and off-topic requests it
    must decline politely (history, civics, maths lessons…).
+   **Written 2026-09-25:** `training/eval/guide/` — 75 tasks / 150 items (15 tasks in all six
+   languages), mechanical scoring against Mint's own localized names; reference Qwen3-14B 86 %
+   (Japanese 67 %). See its README.
 2. **Candidates** (Apache-2.0): Qwen3.5-2B and -4B, Gemma 4 E2B and E4B, Granite 4.2 3B; Qwen2.5-1.5B
    as the old baseline. Measured under a **6 GB budget** (enforced in software: total VRAM incl. the
    §4.2 reserve), on the CPU (live-USB case), and on the Vulkan build (AMD path).

@@ -49,7 +49,8 @@ Architecture in one breath:
 
 M0 spikes, all **GO**: terminal emulation, ISO remaster, terminal relay, desktop surface, streaming,
 sandbox, admin mechanism, LibreOffice, Firefox. **Remaining: the model bakeoff** (two tracks: guide
-and big), then M1 (distro skeleton). Spike code lives in `spikes/` and is throwaway.
+and big), then M1 (distro skeleton). The guide eval is written (`training/eval/guide/`, copy on the
+Mint box in `~/cin-minai/eval-guide`; reference Qwen3-14B 86 %). Spike code lives in `spikes/` and is throwaway.
 
 ## Machines
 
