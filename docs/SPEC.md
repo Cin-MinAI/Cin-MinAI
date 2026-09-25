@@ -13,6 +13,31 @@ A Linux Mint–derived distribution with a local AI assistant built into the ope
 
 ## 1. Product goal
 
+### Vision
+
+AI will change how people use computers the way the internet did: first how they find and process
+information, then the computer itself. The next generation of operating systems won't be driven
+mainly by keyboards and menus, and people won't rent most of their software as cloud services
+(SaaS): they will describe what they need and have it built, and they will want a simple, trustworthy
+system underneath to talk to their computer, run what they make, and keep it all on their own machine.
+
+Cin-MinAI is a step toward that, taken responsibly:
+
+* **The assistant is the interface**, across the whole desktop, not an app. Mouse and keyboard stay
+  as the fallback; voice and hands-free control come next (§10.6).
+* **Local and owned**: the model runs on the user's own hardware and works offline; nothing leaves
+  the machine unless the user asks. No subscription stands between a person and their computer.
+* **The human keeps the button** (§8): the AI may explain, prepare, and propose; the person approves
+  anything that changes the system.
+* **User-built software** (later, PLAN M9): what people ask the assistant to build runs sandboxed,
+  can be kept and updated like any program, and touches the system only with approval.
+* **Built in the open, under the community's oversight.** A system this close to people's
+  computers and data deserves scrutiny from the people it is built for. Linux has that built in:
+  open source, public design documents and decisions, reproducible builds, signed packages, and the
+  freedom to inspect, change, or fork. We publish our code, this specification and the decisions
+  log, our eval tasks and results (including the failures), and the licences of every model we
+  ship, and we keep the assistant's actions visible and auditable on the machine (§8.4, §12).
+
 **Audience:** people who know Windows and are new to Linux (decided 2026-09-25, PLAN D22). Every
 everyday task — asking, approving, undoing, sharing a document, turning awareness off — works from
 the desktop with the mouse and familiar keys (Ctrl+Z, Esc); a terminal is never required. The

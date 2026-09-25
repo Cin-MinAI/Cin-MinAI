@@ -18,6 +18,10 @@ it is the backup if the lead's setup on the dev PC breaks.
 
 ## What we are building
 
+**Vision** (SPEC §1, PLAN D26): AI becomes how people use their computer, as the internet changed it
+before; people will build their own software instead of renting SaaS. We build the local, owned,
+human-approved version of that, **in the open, under the oversight of the community it's for**.
+
 **Cin-MinAI OS**: a Linux Mint 22.3 (Cinnamon) derived distribution, shipped as an installable ISO,
 with an **OS-wide local AI assistant**. The model runs on the user's own GPU (llama.cpp); nothing
 goes to the cloud unless the user asks for a web search.

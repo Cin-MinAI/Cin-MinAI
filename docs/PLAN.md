@@ -4,7 +4,7 @@ Living plan for the Cin-minAI distribution. The design is in [SPEC.md](SPEC.md);
 like §6.2 point there. This document records decisions and milestones and **overrides the spec where
 they differ**.
 
-Last updated: 2026-09-24 (rewritten for the distro scope)
+Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built software)
 
 ---
 
@@ -37,6 +37,7 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D23 | **A small "guide" model ships on the ISO** (with its transition knowledge base): the assistant works offline from the live USB through install and after. Larger models are optional downloads. Supersedes D18. | new 2026-09-25 (SPEC §10.6) |
 | D24 | **Hardware ethos: plan for a 6 GB GPU floor, NVIDIA and AMD** (CUDA and Vulkan builds); 8 GB is the common case. Minimum requirements are about affordable hardware (storage, RAM, PCIe lanes), never new-card purchases. No 6 GB card on hand: enforce a 6 GB budget in software on the 1080 Ti/4070 for tests. | new 2026-09-25 (SPEC §10.1) |
 | D25 | **v1 languages: English, Spanish, Portuguese, French, German, Japanese** — top web languages, leaving out ones under sanctions or that will build their own. Applies to the guide model, knowledge base, UI text, and later voice. Japanese also needs a CJK font and a Japanese input method (IBus + Mozc) on the ISO. | confirmed 2026-09-25 (Japanese added by the user) |
+| D26 | **Vision and community oversight** (SPEC §1 Vision): AI becomes the way people use their computer; we build the local, owned, human-approved version of that **in the open** — code, spec, decisions, eval tasks and results, model licences all public, reviewable and forkable by the community it's built for. When the repo goes public is an open question (§6). | new 2026-09-25 |
 
 ### D1 — Sandbox details
 
@@ -268,6 +269,20 @@ Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
 - Decide LoRA base (D8); confirm training and llama.cpp `--lora` support for that architecture.
 - Dataset targeted at measured failures; train off-box; A/B via `LlamaCppBackend`.
 
+### M9 — User-built software (after v0.1)
+
+The vision's next step (SPEC §1): people describe a small program, the assistant builds it, and the
+OS runs it safely.
+- Build and run in the sandbox (D1); a "keep this" step turns it into a user package with a name,
+  icon, and menu entry, updatable and removable like any program.
+- Anything it needs outside the sandbox (files, network, devices, admin) is declared and approved
+  by the person, per app, and visible afterwards.
+- Share and review: an app can be exported with its source so others (and the community) can read
+  it before running it.
+
+Exit: a non-programmer builds, keeps, updates, and removes a small app (e.g. a household budget
+tracker) without a terminal, and every permission it has was granted on screen.
+
 ---
 
 ## 5. Risks
@@ -299,6 +314,9 @@ Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
 - ~~Default terminal~~: keep Mint's default (VTE patch dropped after the M0 relay spike).
 - **Live-session assistant:** CPU-only small model in the live session, or assistant off until installed?
 - **License** for our own code (GPL-compatible, since we patch GPL packages). Decide before M1.
+- **Going public (D26):** when to open the repository and invite review — at M1 with the licence
+  decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
+  place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
 
 ---
 
