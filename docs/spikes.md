@@ -12,7 +12,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Streaming (llama-server → sidebar) | Done 2026-09-24 | **GO** — no desktop or terminal impact while the 1080 Ti generates |
 | Sandbox (bwrap) | Done 2026-09-24 | **GO** — bwrap + pasta private network; host network namespace rejected (X server reachable) |
 | Admin mechanism (D-Bus + polkit) | Done 2026-09-24 | **GO** — D-Bus-activated root mechanism, per-request auth_admin, verified with the real Cinnamon dialog |
-| LibreOffice (extension + toolkit) | Not started | — |
+| LibreOffice (extension + toolkit) | Done 2026-09-25 | **GO** — extension + D-Bus toolkit, one-step undo in all 3 apps, Qwen3-14B 93 % on 30 requests |
 | Model bakeoff | Not started | — |
 
 > 2026-09-24: the project scope changed from a standalone terminal app to a Mint-derived distro
@@ -433,3 +433,61 @@ the audit log.
 
 **GO: this is the `ADMIN` lane** (SPEC §8.4). M4 turns the spike into `cinminai-admin` with the
 remaining verbs and the in-sidebar approval card.
+
+---
+
+## LibreOffice
+
+Code: `spikes/libreoffice/`: `extension/` (Python-UNO `.oxt`: `cinminai_lo.py` = ProtocolHandler +
+startup Job + D-Bus service `org.cinminai.LibreOffice1` on its own GLib thread; `pythonpath/
+cinminai_tools.py` = the toolkit; `Addons.xcu` = the **Assistant** menu), `build_oxt.py`, `lo.py`
+(headless LibreOffice with a throwaway profile + sample docs), `check_tools.py`, `check_ext.py`,
+`assist.py` (schemas, prompt, constrained call), `eval.py`, `lo_assist.py` (hands-on stand-in for the
+sidebar), `live.sh`. LibreOffice 24.2.7, `python3-uno`, on the Mint box; user profile never touched.
+
+### Result
+
+- **Toolkit 34/34** against real Writer/Calc/Impress: doc_info, outline, get_selection,
+  get_paragraphs, read_range (sheet-qualified, case-insensitive), used_range, slide_text;
+  replace_selection, write_range, set_formula, set_slide_text — each preview → apply → **one named
+  undo step** ("Assistant: …") → redo; stale previews, wrong doc types, bad ranges, huge ranges,
+  missing slides refused.
+- **Extension 15/15**, driven over D-Bus: installs with `unopkg`; service runs inside LibreOffice
+  (started by the `onFirstVisibleTask` Job in the GUI); unshared documents refused; sharing only from
+  the menu (no D-Bus method), per document; "Explain formula" shares; forged snapshot refused; bad
+  arguments → clean error, LibreOffice unharmed.
+- **Model eval (Qwen3-14B Q4_K_M, JSON-schema constrained): 28/30 = 93 % first try** (target ≥ 90 %),
+  median 1.2 s per request. First run was 24/30 (80 %); see findings 4–5 for what changed and why.
+  Remaining misses are model limits: "make it shorter" only fixed spelling; a header + six formulas
+  in one instruction wrote only the header.
+- **Hands-on (user, Mint desktop, separate LibreOffice profile):** Writer spelling fix previewed,
+  approved, undone with Ctrl+Z; Calc `=AVERAGE(B2:B7)` into B9 and "which month was warmest" →
+  "June, 22.4 °C" (2.1 s); Impress bullet added. "Everything seems to work as planned."
+
+### Findings
+
+1. **LibreOffice's API undo is uneven.** Writer text edits are recorded; Calc `setFormulaArray()` is
+   *not* (write cell by cell with `setFormula()`, which is); Impress/Draw API text changes are not
+   recorded at all (register our own `XUndoAction`). All three now give one named, redoable step.
+2. **Python extension layout:** `pythonpath/` must sit next to the component `.py` (not at the `.oxt`
+   root) to be importable.
+3. **Threads:** the D-Bus service runs on its own thread with its own `GLib.MainContext`
+   (LibreOffice's GTK main loop is never used); UNO calls from that thread work.
+4. **Tool design beats prompt tweaking.** The model copied the *read* shape (`"values": [[339.0]]`)
+   into writes — numbers instead of formulas, repeated rows. Fixed by the tool surface, not the
+   prompt: a dedicated `set_formula(cell, formula)`, `write_range` takes `cells` (strings), and small
+   sheets (≤ 200 cells) go into the context whole. Example-heavy descriptions made it worse.
+5. Scorer corrections (2 cases where the model's answer was right) and "read first if the data
+   isn't in the context" were the other changes; a retry with the tool's error message is built in
+   (the daemon will do the same) but was not needed in the final run.
+6. **GPU memory (see SPEC §4.2):** extra 4K LibreOffice windows grew Xorg to 1.44–1.64 GB; the
+   idle-unloaded model then crash-looped on reload (99 restarts; recovered at 8K by Codex), and with
+   the model loaded, *other apps' windows rendered garbage*. Design rules added to SPEC §4.2.
+7. `lo_assist.py` works on the most recently shared document; the product sidebar should show
+   which document it sees and prefer the focused window (§5.3). Several shared documents at once is
+   supported by the extension already.
+
+### Decision
+
+**GO** (PLAN D20). M6 builds the full SPEC §7.7 toolkit on this extension, with the preview/Apply
+card in the sidebar instead of the terminal.

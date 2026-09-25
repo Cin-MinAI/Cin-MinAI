@@ -33,6 +33,7 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D19 | Nothing is captured from a terminal while its echo is off, and every terminal shows whether the assistant can see it. | new (SPEC §6.3) |
 | D20 | LibreOffice integration through a Python-UNO extension with a fixed, schema-checked document toolkit; reads only shared documents; every edit previewed, approved, and one Ctrl+Z to undo. | new 2026-09-24 (SPEC §7.6–7.10) |
 | D21 | **The product is the installable ISO; the Mint box is only a shared test machine.** It runs other projects: spikes there stay user-level, reversible, and are removed when done; no changes to its services (incl. `qwen14b.service`), drivers, boot setup, or desktop settings. Nothing we build may depend on that machine's state — everything ships as packages. Full-system tests install the ISO onto a dedicated, physically separate 120 GB SATA SSD (third boot drive, chosen in the firmware boot menu); the installer and its bootloader touch only that disk. | new 2026-09-24 |
+| D22 | **Audience: Windows users new to Linux.** Everyday use needs no terminal; mouse + familiar keys; plain-language dialogs; the assistant bridges from Windows concepts. Spike tools (e.g. `lo_assist.py`) are for testing only. | new 2026-09-25 (SPEC §1) |
 
 ### D1 — Sandbox details
 

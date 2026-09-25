@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<description xmlns="http://openoffice.org/extensions/description/2006"
+             xmlns:xlink="http://www.w3.org/1999/xlink">
+  <identifier value="org.cinminai.libreoffice"/>
+  <version value="0.1"/>
+  <display-name><name lang="en">Cin-MinAI Assistant</name></display-name>
+  <publisher><name lang="en" xlink:href="https://github.com/Brickmii/Cin-MinAI">Cin-MinAI</name></publisher>
+  <dependencies>
+    <OpenOffice.org-minimal-version value="4.0" xmlns:d="http://openoffice.org/extensions/description/2006" d:name="LibreOffice"/>
+  </dependencies>
+</description>

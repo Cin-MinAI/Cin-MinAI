@@ -13,6 +13,12 @@ A Linux Mint–derived distribution with a local AI assistant built into the ope
 
 ## 1. Product goal
 
+**Audience:** people who know Windows and are new to Linux (decided 2026-09-25, PLAN D22). Every
+everyday task — asking, approving, undoing, sharing a document, turning awareness off — works from
+the desktop with the mouse and familiar keys (Ctrl+Z, Esc); a terminal is never required. The
+assistant explains Linux in Windows terms when that helps ("like Task Manager", "like Windows
+Update"), and dialogs say what will happen in plain words, not package or unit names alone.
+
 Ship an installable desktop operating system, forked from Linux Mint Cinnamon, in which a locally
 running AI assistant is a native part of the system rather than an app you add:
 
@@ -267,6 +273,10 @@ desktop grew; every reload then failed and the service restarted 99 times. Rules
 * **Idle unload is a choice, not a default, on tight cards**: if the full profile needs more than
   85 % of VRAM, keep the model resident (or accept that the reload may come back reduced).
 * Nothing else of ours may take GPU memory by surprise (the sidebar and extensions stay on the CPU).
+* **Running the card dry breaks more than the model:** with the model loaded and ~0.7 GB free, the
+  X server could not get memory for window buffers and *other applications* rendered garbage
+  (LibreOffice Writer text, Impress thumbnails and panels; LibreOffice itself used no GPU). The
+  reserve protects the whole desktop, not just our reload.
 
 ---
 
