@@ -340,6 +340,12 @@ tracker) without a terminal, and every permission it has was granted on screen.
 - **License** for our own code (GPL-compatible, since we patch GPL packages). Decide before M1.
 - **Offline updates (D28):** security updates for a computer that never goes online — an update
   bundle on a USB stick made on another computer? Or accept "go online for 10 minutes a month"?
+- **Raspberry Pi 5 / ARM (idea, 2026-09-25):** Ian has a Pi 5 16 GB with an NVMe HAT. First a
+  measurement spike when a second NVMe is available: llama.cpp CPU build on ARM, guide candidates
+  through `bench/run.py --pin` + the guide eval, an ARM column in `docs/benchmarks.md`. A port is
+  decided after M1: Cinnamon on Debian arm64 (keeps our desktop code) vs. a native Raspberry Pi OS
+  (Wayland/labwc) panel plugin + sidebar; either way the guide needs a Pi knowledge-base/labels
+  variant (Mint's tools don't exist there — `extract_labels.py` re-run on the Pi).
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
