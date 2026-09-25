@@ -11,7 +11,7 @@ keybindings, and Nemo. Update this file with every OS release (D31).
 
 Fields: id; windows = what the user knows from Windows (drives question generation); card = the help
 text, `{key}` = a Mint name from labels.json in the user's language; must = label keys the reply has to
-use; steps = the reply should be numbered steps; langs = languages where every name is translated
+use (an inner list = any one of these names); steps = the reply should be numbered steps; langs = languages where every name is translated
 (default: all six).
 """
 
@@ -139,7 +139,7 @@ TOPICS = [
              "and don't type your password when you don't know why it's asked. If you want to check files or "
              "USB sticks from other computers, ClamAV can be installed from {software_manager}; it's your "
              "choice.",
-     "must": ["update_manager"], "steps": False},
+     "must": [["update_manager", "software_manager"]], "steps": False},
     {"id": "firewall", "windows": "Windows Defender Firewall",
      "card": "Firewall: open {firewall} from the Menu to see whether the firewall is on and to switch it on. "
              "For a home computer, on with the default settings is enough.",
@@ -178,7 +178,7 @@ TOPICS = [
     {"id": "wallpaper", "windows": "Personalize > Background to change the desktop wallpaper",
      "card": "Wallpaper: right-click an empty spot on the desktop and choose {change_background}. That opens "
              "{backgrounds}. Click a picture to use it; use the + button to add your own pictures folder.",
-     "must": ["backgrounds"], "steps": True},
+     "must": [["backgrounds", "change_background"]], "steps": True},
     {"id": "dark_mode", "windows": "dark mode in Windows Settings",
      "card": "Dark mode: open {themes} in {system_settings} and choose the Dark style (or a dark colour).",
      "must": ["themes"], "steps": False},

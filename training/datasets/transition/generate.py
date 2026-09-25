@@ -111,7 +111,8 @@ Message k is written by person k:
 - They use the Windows words they know, not Linux words.
 - Each message is only the person's question — no answer, no greeting from the assistant.
 - The messages must differ in wording, length, and what exactly is asked.
-- Write natural {language}, the way a native speaker would type it."""
+- Every message must be written in {language}, not in English (unless {language} is English): \
+natural {language}, the way a native speaker would type it."""
 
 PERSONAS = [
     "an older person who types slowly, all lowercase, no punctuation",
@@ -136,7 +137,16 @@ def questions(t: Teacher, topic: dict, lang: str, n: int, seed: int) -> list[str
                                                                      windows=topic["windows"],
                                                                      personas=personas)}],
                  schema=schema, temperature=0.9, max_tokens=1200, seed=seed)
-    return [q.strip() for q in json.loads(raw) if q.strip()]
+    return [q for q in (clean_question(x) for x in json.loads(raw)) if q]
+
+
+# The teacher sometimes copies the persona numbering into the message ("[ user5 ] …", "Person 3: …").
+WHO = r"(?:user|person|persona|message|ユーザー|人物)"
+LABEL = re.compile(rf"^\s*(?:[\[(（【]\s*{WHO}?\s*\d+\s*[\])）】]|{WHO}\s*\d+\s*[:：.\-–]|\d+\s*[.)]\s)\s*", re.I)
+
+
+def clean_question(q: str) -> str:
+    return LABEL.sub("", q.strip()).strip()
 
 
 def example(t: Teacher, topic: dict, lang: str, q: str, seed: int) -> tuple[dict | None, list[str]]:
@@ -147,7 +157,8 @@ def example(t: Teacher, topic: dict, lang: str, q: str, seed: int) -> tuple[dict
     call = t.chat([{"role": "system", "content": system}, {"role": "user", "content": q}],
                   schema=only_lookup, temperature=0.2, max_tokens=120, seed=seed)
     card = resolve(topic["card"], lang)
-    it = {"lang": lang, "must": [[label(k, lang)] for k in topic["must"]], "must_not": NO_CMD,
+    must = [[label(k, lang) for k in (m if isinstance(m, list) else [m])] for m in topic["must"]]
+    it = {"lang": lang, "must": must, "must_not": NO_CMD,
           "steps": 2 if topic["steps"] else 0}
     messages = [{"role": "system", "content": system}, {"role": "user", "content": q},
                 {"role": "assistant", "content": call},
@@ -193,6 +204,9 @@ def main() -> None:
                     continue
                 for q in qs:
                     stats["questions"] += 1
+                    if R.language(q) not in (lang, "?"):  # teacher wrote the question in another language
+                        stats["wrong_language_questions"] = stats.get("wrong_language_questions", 0) + 1
+                        continue
                     worst = max((similar(q, e) for e in evalq), default=0)
                     if worst >= o.contam:
                         stats["contaminated"] += 1

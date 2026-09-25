@@ -1,0 +1,45 @@
+{
+ "teacher": "Qwen3-14B-Q4_K_M",
+ "started": "2026-09-25T15:00:26",
+ "per": 5,
+ "seed": 1,
+ "contam_threshold": 0.5,
+ "questions": 289,
+ "contaminated": 3,
+ "duplicates": 1,
+ "accepted": 208,
+ "rejected": 77,
+ "retried_ok": 8,
+ "reject_reasons": {
+  "language en": 40,
+  "no numbered steps": 5,
+  "missing name/fact": 42
+ },
+ "by_lang": {
+  "en": {
+   "accepted": 42,
+   "rejected": 7
+  },
+  "es": {
+   "accepted": 29,
+   "rejected": 16
+  },
+  "pt": {
+   "accepted": 38,
+   "rejected": 8
+  },
+  "fr": {
+   "accepted": 40,
+   "rejected": 8
+  },
+  "de": {
+   "accepted": 39,
+   "rejected": 11
+  },
+  "ja": {
+   "accepted": 20,
+   "rejected": 27
+  }
+ },
+ "finished": "2026-09-25T16:07:57"
+}
