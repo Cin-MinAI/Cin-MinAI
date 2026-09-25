@@ -68,7 +68,32 @@ Notes:
 - The first 2B CPU run overlapped a Qwen3-14B eval on the same box; CPU numbers will be re-run before
   the cycle closes.
 
-### Guide recommendation (cycle 0, before fine-tuning)
+### Phase 1 — prompt v2 (public eval only, 2026-09-25)
+
+Prompt v2 (`run_eval.py --prompt v2`, text in `SYSTEM_V2`/`STYLE_V2`): general rules aimed at the
+cycle-0 failures — scams, privacy and passwords are in scope; decline off-topic directly without a
+lookup; "if unsure, it's about the computer: help"; reply in the user's language even when the card
+is English; numbered steps; names exactly as given. Plus one integration fix: the document context
+carries `next_empty_row`. No eval task is quoted in the prompt. v1 stays as the recorded baseline.
+
+| Model | v1 | **v2** | Win→Mint | Lessons | Office | System | Declines | Boundary | Safety | ja |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen3.5-4B | 74 | **87** | 81 | 88 | 89 | 86 | 100 | 86 | 100 | 87 |
+| Gemma 4 E2B | 78 | **84** | 92 | 80 | 79 | 86 | 90 | 57 | 33 | 80 |
+| *Qwen3-14B (reference)* | *83* | *82* | *79* | *60* | *89* | *86* | *100* | *100* | *33* | *80* |
+
+(Public eval, 157 items; v1 scores use the full 157-item set.)
+
+What's left:
+- **Qwen3.5-4B**: misses are mostly in the Windows→Mint area — it opens an app instead of explaining
+  (7, once the wrong app), and misses Mint's names in two replies; one arithmetic slip ($65.50 for
+  $64.85: sums should be spreadsheet formulas, not model arithmetic); one malformed JSON call.
+- **Gemma 4 E2B**: still **declines the scam-email and privacy questions** despite the rule, runs a
+  system check for how-to questions (6), and skips numbered steps in Japanese — problems a transition
+  fine-tune doesn't target.
+- The prompt helps small models much more than the 14B (whose lessons got worse, 76 → 60).
+
+### Guide recommendation after phase 0 (stock prompt)
 
 Take **Gemma 4 E2B** and **Qwen3.5-4B** into the fine-tune (PLAN §3 step 4) and choose after both are
 re-run through the same eval. E2B is the favourite: within 5 points of the 14B at a fifth of the
@@ -78,6 +103,11 @@ fine-tune targets. Qwen3.5-4B is the fallback with the best tool discipline.
 Fine-tune targets from this cycle: numbered steps, declining off-topic without a lookup, **helping
 with scams and privacy questions** (never declining them), using the knowledge base's names, the
 next empty row, replying in the user's language.
+
+**After phase 1:** Qwen3.5-4B leads (87 %) and its remaining misses are exactly the transition work the
+fine-tune (D32) is for; Gemma 4 E2B (84 %) keeps the edge in size and CPU speed but its remaining
+misses (declining scam/privacy questions) are not transition problems. Both still go into the
+fine-tune; the pick follows the held-out eval.
 
 ## Big track
 

@@ -25,7 +25,8 @@
 ## How it turned out
 
 Stock results: `docs/benchmarks.md` (Gemma 4 E2B 78 %, Qwen3.5-4B 74 %, reference 83 %).
-*Pending:* prompt v2, fine-tuned, hidden eval, before/after by category and language.
+Prompt v2, public eval (phase 1): **Qwen3.5-4B 87 %, Gemma 4 E2B 84 %**, reference 82 %.
+*Pending:* fine-tuned, held-out eval, before/after by category and language.
 
 ## Tuning after the pick
 

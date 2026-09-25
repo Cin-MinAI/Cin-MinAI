@@ -118,18 +118,58 @@ Tools:
 
 STYLE = "Now write your reply to the user as plain text (not JSON), following the rules above."
 
+# Prompt v2 (training/guide/README.md, phase 1): aimed at the failures measured in cycle 0, written as
+# general rules (no eval task is quoted). v1 above stays as the recorded baseline.
+SYSTEM_V2 = """You are the helper built into this computer (Cin-MinAI, based on Linux Mint). The person you \
+help most likely came from Windows and may be new to computers. Be patient and kind.
+
+Reply with exactly one JSON object {{"tool": ..., "args": {{...}}}}. Choose like this:
+1. About this computer, its programs, settings, files, documents, or staying safe on it — including \
+passwords the computer asks for, privacy, and suspicious emails, calls, pop-ups or websites (scams): \
+this is your job. If it's a how-to or a "where is…" question, call lookup_help first; never guess \
+the names of programs, menus or settings. To check this computer, call inspect_system. To open \
+something, call open_app. To install a program, call request_install.
+2. Anything else — history, politics, school subjects, maths, health, law, money advice, news, \
+weather, sports, recipes, or writing texts for people: call decline directly (no lookup), kindly, \
+in one or two sentences, and say what you can help with.
+3. If you're unsure whether it's about the computer, it probably is: help.
+
+Every text you write:
+- is in the same language as the user's message, even when a help card or tool result is in English;
+- uses the names of programs, settings and menu items exactly as the help or the tools give them;
+- uses short, simple sentences; when there are two or more steps, writes them as a numbered list \
+("1. … 2. … 3. …"), one mouse action per step;
+- never contains terminal commands.
+{document}
+Tools:
+{tools}"""
+
+STYLE_V2 = ("Now write your reply to the user as plain text (not JSON), in the language of their message: "
+            "one short sentence, then numbered steps if there are two or more, using the names exactly as "
+            "they appear above.")
+PROMPT = "v1"
+
 
 def system_prompt(task: dict) -> str:
     doc = task.get("doc")
     tools = "\n".join(f"- {n}: {d}" for n, (_, d) in tools_for(doc).items())
+    ctx = task.get("ctx")
+    if doc and PROMPT == "v2" and "data" in ctx:
+        # integration fix: the sidebar tells the model where new rows go (SPEC §7.11) instead of the
+        # model working it out from the used range
+        last = int(re.search(r"(\d+)$", ctx["used_range"]).group(1))
+        ctx = {**ctx, "next_empty_row": last + 1}
     if doc:
         document = (f"\nThe user shared a LibreOffice {doc} document with you. Read tools run immediately; "
                     "EDIT tools are shown to the user as a preview and only happen if they approve. Prefer "
                     "doing the edit over describing it; use answer when the context already has what's "
-                    f"needed.\nDocument context:\n{json.dumps(task['ctx'], ensure_ascii=False)}\n")
+                    f"needed.\nDocument context:\n{json.dumps(ctx, ensure_ascii=False)}\n")
+        if PROMPT == "v2":
+            document += ("When the data is in the context above, answer from it or edit directly; don't look "
+                         "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    return SYSTEM.format(document=document, tools=tools)
+    return (SYSTEM_V2 if PROMPT == "v2" else SYSTEM).format(document=document, tools=tools)
 
 
 # --- items: one per (task, language) --------------------------------------------------------------
@@ -252,7 +292,7 @@ def run_item(srv: Server, it: dict) -> dict:
         call = json.loads(raw)
     except json.JSONDecodeError:
         call = {"tool": "?", "args": {}, "raw": raw[:300]}
-    rec = {"id": it["id"], "cat": it["cat"], "lang": it["lang"], "call": call, "a_ok": stage_a(call, it["expect"]),
+    rec = {"id": it["id"], "cat": it["cat"], "lang": it["lang"], "prompt": PROMPT, "call": call, "a_ok": stage_a(call, it["expect"]),
            "t_a": round(ta, 2), "b_ok": None, "reply": None, "b_fails": []}
     tool, args = call.get("tool"), call.get("args", {})
     reply = None
@@ -266,7 +306,7 @@ def run_item(srv: Server, it: dict) -> dict:
         result = None
     if reply is None and result is not None:
         messages += [{"role": "assistant", "content": raw},
-                     {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE}"}]
+                     {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE_V2 if PROMPT == 'v2' else STYLE}"}]
         reply, tb = srv.chat(messages, None, 600)
         rec["t_b"] = round(tb, 2)
     if reply is not None and ("card" in it or "result" in it or it["cat"] == "decline"):
@@ -302,8 +342,11 @@ def main() -> None:
     ap.add_argument("--url"), ap.add_argument("--model", default=""), ap.add_argument("--api-key-env")
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
+    ap.add_argument("--prompt", choices=["v1", "v2"], default="v1")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")
     o = ap.parse_args()
+    global PROMPT
+    PROMPT = o.prompt
 
     its = items()  # resolves every label: a missing translation fails here, before any model call
     if o.only:
@@ -328,7 +371,7 @@ def main() -> None:
         ap.error("--url or --config needed")
     srv = Server(url, key, model)
     out = o.out or os.path.join("bench-results", "guide",
-                                f"{re.sub(r'[^\w.-]+', '_', model or 'model')}-{dt.datetime.now():%Y%m%d-%H%M}.jsonl")
+                                f"{re.sub(r'[^\w.-]+', '_', model or 'model')}-{PROMPT}-{dt.datetime.now():%Y%m%d-%H%M}.jsonl")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     recs = []
     with open(out, "w", encoding="utf-8") as f:
