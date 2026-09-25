@@ -8,7 +8,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | ISO remaster | Done 2026-09-24 | **GO** — remaster + own signed repo works (UEFI + BIOS) |
 | Terminal relay (vs. VTE patch) | Done 2026-09-24 | **GO** — relay is the baseline; VTE patch not needed for M1 |
 | Desktop surface (applet, sidebar, hotkey) | Done 2026-09-24 | **GO** — dock + struts + Cinnamon keybinding + CJS applet over session D-Bus |
-| Firefox (extension + native messaging) | Not started | — |
+| Firefox (extension + native messaging) | Done 2026-09-25 | **GO** — AMO-signed extension, force-installed by policy from our repo, native host → daemon; upgrades on restart |
 | Streaming (llama-server → sidebar) | Done 2026-09-24 | **GO** — no desktop or terminal impact while the 1080 Ti generates |
 | Sandbox (bwrap) | Done 2026-09-24 | **GO** — bwrap + pasta private network; host network namespace rejected (X server reachable) |
 | Admin mechanism (D-Bus + polkit) | Done 2026-09-24 | **GO** — D-Bus-activated root mechanism, per-request auth_admin, verified with the real Cinnamon dialog |
@@ -491,3 +491,62 @@ sidebar), `live.sh`. LibreOffice 24.2.7, `python3-uno`, on the Mint box; user pr
 
 **GO** (PLAN D20). M6 builds the full SPEC §7.7 toolkit on this extension, with the preview/Apply
 card in the sidebar instead of the terminal.
+
+## Firefox
+
+Code: `spikes/firefox/`: `extension/` (MV3 WebExtension `assistant@cinminai.org`: sidebar, context
+menu "Ask Cin-MinAI about “…”" / "… about this page", page text capped at 12,000 chars in the
+extension), `host/cinminai-firefox-host` (native messaging host: Firefox framing on stdio ↔
+`AskAbout` on the daemon's session D-Bus, caps text again), `check_host.py`, `live.sh` (throwaway
+profile on the Mint desktop), `amo_fetch.py`, `build-deb.sh` (package for test B). The spike daemon
+(`spikes/desktop/daemon.py`) gained `AskAbout`: page text goes to the model as quoted, untrusted data
+(SPEC §7.4). Firefox 156 on the Mint box.
+
+### Result
+
+- **Signing:** signed **unlisted** on AMO (self-distributed) as 0.1.0, then 0.1.1; release Firefox
+  installs both with no warnings. Key only in WSL `~/.config/cinminai/amo.env` (mode 600).
+- **Host checks 8/8** on the Mint box (Qwen3-14B via the daemon): status; selection + question →
+  streamed answer; web text quoted as untrusted data; prompt injection in page text noted (info);
+  oversize text capped with a note to the model; Stop ends the answer (< 2 s); garbage input → error,
+  host keeps working; host exits when Firefox closes the connection.
+- **Hands-on (user, Mint desktop, throwaway profile):** ask about a selection and a page, Stop and
+  resume — "model great". One bug: the ✕ on the shared-text box didn't hide it (our CSS overrode
+  `[hidden]`); fixed in 0.1.1 and confirmed.
+- **Test B, as the ISO will ship it** (VM `cinminai-uefi`, installed from our ISO; user's normal
+  Firefox profile): `apt install cinminai-firefox-spike` from our signed repo →
+  - extension present on first start with **no prompt**, listed in `about:policies`, **not
+    removable** in `about:addons`; sidebar → host → daemon (stub replies, no model in the VM) works;
+  - `apt upgrade` 0.1.0 → 0.1.1: Firefox keeps 0.1.0 while running and has **0.1.1 after a restart**;
+  - `apt purge`: the extension **stays installed**, now removable (finding 3); removing it by hand
+    sticks across restarts.
+
+### Findings
+
+1. **Policy force-install from a `file://` URL works** (`/etc/firefox/policies/policies.json`,
+   `ExtensionSettings` → `force_installed`). Mint 22.3 ships no policy file of its own, but Firefox
+   reads only **one** `policies.json`: the product must own it as the single place for all our
+   Firefox policies (one package, one conffile), and anything else we want in it goes there too.
+2. **Updates ride on the install URL.** The package ships the xpi under a versioned path
+   (`/usr/share/cinminai/firefox/assistant-VERSION.xpi`); a new `install_url` is what makes Firefox
+   reinstall, at its next start. No AMO update server or `update_url` needed. The sidebar should say
+   "restart Firefox to finish updating" when the daemon sees the package changed.
+3. **Package removal orphans the extension**: with the policy file gone it becomes an ordinary
+   user-removable add-on whose host no longer exists. Fix (M1): the extension removes itself with
+   `browser.management.uninstallSelf()` when `connectNative` reports the host as missing ("No such
+   native application") — a permanent condition, not a transient one — so nothing is left behind on
+   purge. Rejected: leaving a `blocked` policy behind after removal (a file `apt purge` should delete).
+4. **AMO signing from this PC:** `web-ext sign` uploads fine, but its status polling fails with "JWT
+   iat is invalid" because the Windows clock (and WSL) runs ~30 s fast. `amo_fetch.py` stamps tokens
+   with AMO's own time (its `Date` header). Real fix: sync the clock; for releases, sign in CI.
+5. **Native messaging needs no D-Bus policy work**: Firefox runs the host as the user, in the session,
+   so it reaches the session-bus daemon directly; the manifest's `allowed_extensions` limits it to our
+   id. Size caps sit in both the extension and the host.
+6. Not covered: Firefox as a snap/flatpak (Mint ships a deb; snap Firefox reads policies and native
+   hosts from other paths), several Firefox profiles at once, "Send to assistant" into a terminal
+   conversation (§7.3, needs the real sidebar).
+
+### Decision
+
+**GO** (PLAN D14, confirmed). M6 builds `cinminai-firefox` on this: policy + versioned xpi + host, with the
+self-removal fix and the product daemon in place of the spike one.

@@ -440,6 +440,10 @@ signed by Mozilla (unlisted/self-distributed signing — release Firefox refuses
 * A Firefox sidebar panel showing the same assistant conversation (or a browser-scoped one).
 * Context menu: "Ask about selection", "Ask about this page", "Send to assistant".
 * The page is shared only on user action. There is no background reading of pages.
+* Packaging (M0 spike): `cinminai-firefox` owns `/etc/firefox/policies/policies.json` (Firefox reads
+  only one, so all our Firefox policies live there) and ships the xpi under a versioned path; a new
+  `install_url` makes Firefox update the extension at its next start. If the package is removed, the
+  extension removes itself (`management.uninstallSelf()`) once the native host is reported missing.
 
 ### 7.2 Native messaging
 

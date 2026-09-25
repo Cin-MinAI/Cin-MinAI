@@ -25,7 +25,7 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D11 | Build in stages: (1) scripted remaster of the official Mint ISO plus our apt repo; (2) fork Mint packages where extension points aren't enough; (3) from-scratch build only if (1) stops being maintainable. | new |
 | D12 | The AI surface is OS-wide: a `systemd --user` daemon, a Cinnamon applet, a docked sidebar, and a global hotkey. No standalone terminal app. | new |
 | D13 | Terminal attach via a PTY relay + OSC 133 shell hooks (works with any terminal, TTYs, SSH). A patch to the default VTE terminal is evaluated in M0 as a complement, not a replacement. | new, pending spike |
-| D14 | Firefox integration via a Mozilla-signed WebExtension, force-installed by enterprise policy, talking to the daemon through native messaging. Replaces the original bookmarklet / `qwen://` scheme. | new |
+| D14 | Firefox integration via a Mozilla-signed WebExtension, force-installed by enterprise policy, talking to the daemon through native messaging. Replaces the original bookmarklet / `qwen://` scheme. | new; confirmed by the M0 spike 2026-09-25 |
 | D15 | IPC: session D-Bus (`org.cinminai.Assistant1`) for desktop clients; a D-Bus-activated system service (`org.cinminai.Admin1`) with polkit checks for admin actions, replacing a `pkexec` helper. The sandbox mounts neither bus nor the daemon's sockets. | new |
 | D16 | Python 3 from the base system with Debian-packaged dependencies. No venv/pip at runtime. GTK 3 / XApp for UI, matching Mint's own tools. | new |
 | D17 | The distro must be rebranded; it can't ship as "Linux Mint". Name: **Cin-MinAI OS** (short: Cin-MinAI), decided 2026-09-24. Technical ids keep the `cinminai` prefix. | decided |
@@ -186,9 +186,9 @@ Each milestone has an exit test. Nothing moves forward on a red exit test.
 | **LibreOffice** | Python-UNO extension ↔ daemon over D-Bus; toolkit per SPEC §7.7. | Installs with `unopkg --shared` (user-level for the spike, removed after); one read + one edit tool each for Writer, Calc, Impress; preview → Apply → a single Ctrl+Z undoes it; Qwen picks the right tool with valid arguments in ≥ 90 % of 30 scripted requests. |
 | **Model bakeoff** | §3 above. | `docs/benchmarks.md` written. |
 
-Exit: go/no-go per spike in `docs/spikes.md`. Done (2026-09-24): terminal emulation, ISO remaster,
-terminal relay, desktop surface, streaming. Remaining order: sandbox → admin → Firefox →
-LibreOffice → bakeoff (bakeoff can run in parallel on the Mint box at any time). Spikes on the Mint
+Exit: go/no-go per spike in `docs/spikes.md`. Done (2026-09-24/25): terminal emulation, ISO remaster,
+terminal relay, desktop surface, streaming, sandbox, admin, LibreOffice, Firefox. Remaining: model
+bakeoff (both tracks, incl. the guide model). Spikes on the Mint
 box follow D21 and are cleaned up when M0 closes.
 
 ### M1 — Distro skeleton
