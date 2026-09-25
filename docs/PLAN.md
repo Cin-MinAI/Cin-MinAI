@@ -29,11 +29,14 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D15 | IPC: session D-Bus (`org.cinminai.Assistant1`) for desktop clients; a D-Bus-activated system service (`org.cinminai.Admin1`) with polkit checks for admin actions, replacing a `pkexec` helper. The sandbox mounts neither bus nor the daemon's sockets. | new |
 | D16 | Python 3 from the base system with Debian-packaged dependencies. No venv/pip at runtime. GTK 3 / XApp for UI, matching Mint's own tools. | new |
 | D17 | The distro must be rebranded; it can't ship as "Linux Mint". Name: **Cin-MinAI OS** (short: Cin-MinAI), decided 2026-09-24. Technical ids keep the `cinminai` prefix. | decided |
-| D18 | Model weights are not on the standard ISO; first-boot setup downloads and benchmarks them. | new |
+| D18 | Model weights are not on the standard ISO; first-boot setup downloads and benchmarks them. | **superseded by D23** (2026-09-25) |
 | D19 | Nothing is captured from a terminal while its echo is off, and every terminal shows whether the assistant can see it. | new (SPEC §6.3) |
 | D20 | LibreOffice integration through a Python-UNO extension with a fixed, schema-checked document toolkit; reads only shared documents; every edit previewed, approved, and one Ctrl+Z to undo. | new 2026-09-24 (SPEC §7.6–7.10) |
 | D21 | **The product is the installable ISO; the Mint box is only a shared test machine.** It runs other projects: spikes there stay user-level, reversible, and are removed when done; no changes to its services (incl. `qwen14b.service`), drivers, boot setup, or desktop settings. Nothing we build may depend on that machine's state — everything ships as packages. Full-system tests install the ISO onto a dedicated, physically separate 120 GB SATA SSD (third boot drive, chosen in the firmware boot menu); the installer and its bootloader touch only that disk. | new 2026-09-24 |
 | D22 | **Audience: Windows users new to Linux.** Everyday use needs no terminal; mouse + familiar keys; plain-language dialogs; the assistant bridges from Windows concepts. Spike tools (e.g. `lo_assist.py`) are for testing only. | new 2026-09-25 (SPEC §1) |
+| D23 | **A small "guide" model ships on the ISO** (with its transition knowledge base): the assistant works offline from the live USB through install and after. Larger models are optional downloads. Supersedes D18. | new 2026-09-25 (SPEC §10.6) |
+| D24 | **Hardware ethos: plan for a 6 GB GPU floor, NVIDIA and AMD** (CUDA and Vulkan builds); 8 GB is the common case. Minimum requirements are about affordable hardware (storage, RAM, PCIe lanes), never new-card purchases. No 6 GB card on hand: enforce a 6 GB budget in software on the 1080 Ti/4070 for tests. | new 2026-09-25 (SPEC §10.1) |
+| D25 | **v1 languages (proposed, to confirm): English, Spanish, Portuguese, French, German** — top web languages, leaving out ones under sanctions or that will build their own. Applies to the guide model, knowledge base, UI text, and later voice. | proposed 2026-09-25 |
 
 ### D1 — Sandbox details
 
@@ -125,6 +128,24 @@ Carry into the product: the CUDA 12.0 + gcc-12 + sm_61 recipe (add `sm_75;86;89`
 and `GGML_NATIVE=OFF` + runtime-selected CPU variants for a distributable build — this build is
 `GGML_NATIVE=ON`), q8_0 KV cache, idle unload. The VRAM margin at 16K is the main open question
 the bakeoff must answer for the 14B vs. the 9B.
+
+### Guide model track (D23–D25)
+
+Two tracks in the bakeoff: the **guide** (small, ships on the ISO, 6 GB floor) and the **big**
+model (optional download, 8 GB+). Guide track, in order:
+
+1. **Guide eval first** (~100 tasks, in each v1 language where it applies): Windows → Linux
+   transition questions, computer lessons for a beginner, LibreOffice toolkit tasks (reuse the 30
+   from the LibreOffice spike), simple system help with read-only tools, and off-topic requests it
+   must decline politely (history, civics, maths lessons…).
+2. **Candidates** (Apache-2.0): Qwen3.5-2B and -4B, Gemma 4 E2B and E4B, Granite 4.2 3B; Qwen2.5-1.5B
+   as the old baseline. Measured under a **6 GB budget** (enforced in software: total VRAM incl. the
+   §4.2 reserve), on the CPU (live-USB case), and on the Vulkan build (AMD path).
+3. **Transition knowledge base** (retrieval, shipped on the ISO) — the facts come from here, not
+   from the weights.
+4. **Fine-tune the winner** (LoRA on the RTX 4070; data drafted with the big model, reviewed), then
+   quantize, re-run the eval, and ship. Replaces "M8 — LoRA later" for the guide.
+5. **Voice** (later milestone): whisper.cpp + Kokoro/Piper on the CPU, wake word, AT-SPI control.
 
 ### Bakeoff matrix (M0)
 

@@ -153,8 +153,9 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
 * The shell integration enabled for all users by default (with the per-terminal off switch).
 * Firefox with our extension force-installed by enterprise policy.
 * LibreOffice (Mint's) with our extension installed for all users (`unopkg add --shared`).
-* **No model weights** on the standard ISO. They are downloaded during first-boot setup (§9). An
-  "offline" ISO variant with a default model bundled can come later.
+* **The guide model** (§10.6) and its knowledge base, so the assistant works with no internet at
+  all — in the live session, during installation, and after. Larger models are an optional download
+  in first-boot setup (§9) when there is a connection.
 * No proprietary NVIDIA driver preinstalled; first-boot setup selects one (§3.6).
 
 ### 3.5 Installer and first boot
@@ -676,12 +677,19 @@ The model is a configuration value chosen by benchmark (PLAN §3). The expected 
 Qwen3.5-9B; Qwen2.5-Coder-7B is the control baseline. Deployment context is chosen by memory and
 benchmark — never the model's maximum on small cards.
 
+**Hardware ethos (PLAN D24):** plan for a **6 GB graphics card, NVIDIA or AMD**, as the floor;
+8 GB is the common case. Minimum requirements are about ordinary, affordable hardware (storage size
+and speed, RAM, PCIe lanes), never "buy a new card".
+
 | Class | Typical GPU | VRAM | Starting profile |
 |-------|-------------|-----:|------------------|
-| Legacy | GTX 1070 | 8 GB | small model / 9B Q4 after validation, 4–8K |
-| Legacy+ | GTX 1080 Ti | 11 GB | 9B Q4–Q6, 8–16K |
-| Modern | RTX, 12 GB+ | 12+ GB | benchmark-driven |
-| CPU | none usable | RAM | smallest profile |
+| Floor | GTX 1060 6GB, RX 5600 XT, RTX 2060 | 6 GB | the guide model (§10.6), 8K |
+| Common | GTX 1070/1080, RTX 3050/3060 8GB, RX 6600/7600 | 8 GB | guide model, or a 9B Q4 after validation, 8K |
+| Legacy+ | GTX 1080 Ti | 11 GB | 9B–14B Q4, 8–16K (reserve per §4.2) |
+| Modern | RTX 12 GB+, RX 16 GB+ | 12+ GB | benchmark-driven |
+| CPU | none usable | RAM | the guide model on the CPU (slower) |
+
+NVIDIA uses the CUDA 12 build; AMD (and Intel) use the Vulkan build (§3.6).
 
 ### 10.2 Backend abstraction
 
@@ -735,6 +743,33 @@ search_web(query)          request_user_action(argv)  request_admin_action(verb,
 ```
 
 Keep the tool set small; a 9B model misuses large tool sets.
+
+### 10.6 The guide model (built in, offline)
+
+A small model ships on the ISO (PLAN D23) so the assistant works without internet from the first
+boot of the live USB, through installation, and after.
+
+* **Who it's for:** (1) people who can barely use a computer, and (2) people who don't want cloud
+  services or internet connections. Both come from Windows (SPEC §1).
+* **What it does:** computer lessons (step by step, with the mouse, in Windows terms first), the
+  Windows → Linux transition ("where is Control Panel?", "how do I install a program?"), working in
+  LibreOffice through the toolkit (§7.7: spreadsheets, writing a paper), and simple system help
+  through the read-only tools. **What it doesn't:** general knowledge — history, civics, maths
+  lessons, and so on; it says so politely and, when online, points to the bigger model or the web.
+* **Built as small model + knowledge + tools**, not a small model alone: a curated, shipped
+  transition knowledge base (Windows concept → Mint equivalent → mouse steps) it looks things up in
+  instead of guessing; the tools to check the real machine; and a fine-tune for behaviour (assume a
+  Windows user, explain simply, stay in scope, call tools correctly), not for facts.
+* **Size:** fits a **6 GB card** (NVIDIA or AMD) with the §4.2 desktop reserve and an 8K context, and
+  runs usably on the CPU (the live USB has no proprietary driver). Candidates (Apache-2.0, Sept
+  2026): Qwen3.5-2B/4B (vision: can explain a screenshot), Gemma 4 E2B/E4B (possibly audio input),
+  Granite 4.2 3B; chosen by the guide eval (PLAN §3).
+* **Languages (v1, proposed):** English, Spanish, Portuguese, French, German — for the model, the
+  knowledge base, and later voice. To be confirmed (PLAN D25).
+* **Voice (later milestone):** speech-to-text (whisper.cpp, MIT) and text-to-speech (Kokoro-82M,
+  Apache-2.0, or Piper) on the CPU so the GPU stays with the model; wake word; hands-free control of
+  the desktop through the accessibility layer (AT-SPI) plus our tools — the whole system usable
+  without mouse and keyboard. Check each language's voice coverage before committing.
 
 ---
 
