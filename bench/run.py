@@ -43,6 +43,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ngl", default="all", help="GPU layers: integer, auto, or all")
     p.add_argument("--port", type=int, default=18080)
     p.add_argument("--threads", type=int, default=max(1, (os.cpu_count() or 4) // 2))
+    p.add_argument("--pin", action="store_true",
+                   help="pin one compute thread per physical core (--cpu-mask/--cpu-strict); threads = cores")
+    p.add_argument("--poll", type=int, help="llama-server --poll level (0 = don't busy-wait on the GPU)")
     p.add_argument("--budget-gb", type=float)
     p.add_argument("--json-calls", type=int, default=50)
     p.add_argument("--schema-source", type=pathlib.Path, default=DEFAULT_SCHEMA_SOURCE)
@@ -400,6 +403,22 @@ def wait_healthy(base_url: str, process: subprocess.Popen, timeout: float) -> No
     raise TimeoutError(f"health check timed out: {last_error}")
 
 
+def physical_core_mask() -> tuple[str, int]:
+    """Hex CPU mask with the first logical CPU of each physical core (from sysfs), and the core count.
+
+    SMT siblings share a core's execution units, so for llama.cpp's compute threads one thread per
+    physical core is usually fastest; letting the scheduler place them can put two on one core."""
+    first: dict[tuple[str, str], int] = {}
+    for d in sorted(pathlib.Path("/sys/devices/system/cpu").glob("cpu[0-9]*"), key=lambda p: int(p.name[3:])):
+        topo = d / "topology"
+        if not (topo / "core_id").exists():
+            continue
+        key = ((topo / "physical_package_id").read_text().strip(), (topo / "core_id").read_text().strip())
+        first.setdefault(key, int(d.name[3:]))
+    mask = sum(1 << cpu for cpu in first.values())
+    return hex(mask), len(first)
+
+
 def machine_name() -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "-", platform.node() or "unknown")
 
@@ -471,6 +490,12 @@ def main() -> int:
         ]
         if args.build == "cpu":
             command += ["--device", "none"]
+        if args.pin:
+            mask, cores = physical_core_mask()
+            command += ["--cpu-mask", mask, "--cpu-strict", "1", "--cpu-mask-batch", mask, "--cpu-strict-batch", "1"]
+            command[command.index("--threads") + 1] = command[command.index("--threads-batch") + 1] = str(cores)
+        if args.poll is not None:
+            command += ["--poll", str(args.poll)]
         result["command"] = command
         log_dir = args.results_root / machine_name() / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)

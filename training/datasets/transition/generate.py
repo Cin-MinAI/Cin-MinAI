@@ -29,6 +29,7 @@ import re
 import sys
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
@@ -173,12 +174,22 @@ def example(t: Teacher, topic: dict, lang: str, q: str, seed: int) -> tuple[dict
     return None, fails
 
 
+def safe_example(t: Teacher, topic: dict, lang: str, q: str, seed: int) -> tuple[dict | None, list[str]]:
+    """One failed request (timeout, server hiccup) becomes a rejection, not the end of an overnight run."""
+    try:
+        return example(t, topic, lang, q, seed)
+    except Exception as e:
+        return None, [f"error {type(e).__name__}"]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True), ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True), ap.add_argument("--topics"), ap.add_argument("--langs")
     ap.add_argument("--per", type=int, default=5), ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--contam", type=float, default=0.5, help="drop questions this similar to an eval task")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="parallel teacher requests (match llama-server --parallel)")
     o = ap.parse_args()
     random.seed(o.seed)
     t = Teacher(o.url, o.model)
@@ -188,7 +199,7 @@ def main() -> None:
     os.makedirs(o.out, exist_ok=True)
     stats = {"teacher": o.model, "started": dt.datetime.now().isoformat(timespec="seconds"), "per": o.per,
              "seed": o.seed, "contam_threshold": o.contam, "questions": 0, "contaminated": 0, "duplicates": 0,
-             "accepted": 0, "rejected": 0, "retried_ok": 0, "reject_reasons": {}, "by_lang": {}}
+             "workers": o.workers, "accepted": 0, "rejected": 0, "retried_ok": 0, "reject_reasons": {}, "by_lang": {}}
     kept: list[str] = []
     with open(os.path.join(o.out, "examples.jsonl"), "a", encoding="utf-8") as fx, \
          open(os.path.join(o.out, "rejects.jsonl"), "a", encoding="utf-8") as fr:
@@ -202,6 +213,7 @@ def main() -> None:
                 except Exception as e:  # a failed batch is logged, not fatal
                     fr.write(json.dumps({"topic": topic["id"], "lang": lang, "error": repr(e)}) + "\n")
                     continue
+                todo = []
                 for q in qs:
                     stats["questions"] += 1
                     if R.language(q) not in (lang, "?"):  # teacher wrote the question in another language
@@ -213,10 +225,15 @@ def main() -> None:
                         fr.write(json.dumps({"topic": topic["id"], "lang": lang, "q": q, "reason": "contaminated",
                                              "similarity": round(worst, 2)}, ensure_ascii=False) + "\n")
                         continue
-                    if any(similar(q, k) >= 0.8 for k in kept):
+                    if any(similar(q, k) >= 0.8 for k in kept + [x for x, _ in todo]):
                         stats["duplicates"] += 1
                         continue
-                    ex, fails = example(t, topic, lang, q, seed)
+                    todo.append((q, worst))
+                # filtering above is sequential; the teacher calls run in parallel (--workers), and results
+                # are written in question order
+                with ThreadPoolExecutor(max_workers=o.workers) as pool:
+                    results = list(pool.map(lambda qw: safe_example(t, topic, lang, qw[0], seed), todo))
+                for (q, worst), (ex, fails) in zip(todo, results):
                     bl = stats["by_lang"].setdefault(lang, {"accepted": 0, "rejected": 0})
                     if ex:
                         ex["meta"].update({"teacher": o.model, "max_eval_similarity": round(worst, 2)})
