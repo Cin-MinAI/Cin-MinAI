@@ -768,8 +768,9 @@ boot of the live USB, through installation, and after.
   runs usably on the CPU (the live USB has no proprietary driver). Candidates (Apache-2.0, Sept
   2026): Qwen3.5-2B/4B (vision: can explain a screenshot), Gemma 4 E2B/E4B (possibly audio input),
   Granite 4.2 3B; chosen by the guide eval (PLAN §3).
-* **Languages (v1, proposed):** English, Spanish, Portuguese, French, German — for the model, the
-  knowledge base, and later voice. To be confirmed (PLAN D25).
+* **Languages (v1):** English, Spanish, Portuguese, French, German, Japanese — for the model, the
+  knowledge base, and later voice (PLAN D25). Japanese is the only non-Latin script: the guide eval
+  checks it separately (small models vary most there), and the ISO needs a CJK font and IBus + Mozc.
 * **Voice (later milestone):** speech-to-text (whisper.cpp, MIT) and text-to-speech (Kokoro-82M,
   Apache-2.0, or Piper) on the CPU so the GPU stays with the model; wake word; hands-free control of
   the desktop through the accessibility layer (AT-SPI) plus our tools — the whole system usable

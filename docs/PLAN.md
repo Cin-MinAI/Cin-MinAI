@@ -36,7 +36,7 @@ Last updated: 2026-09-24 (rewritten for the distro scope)
 | D22 | **Audience: Windows users new to Linux.** Everyday use needs no terminal; mouse + familiar keys; plain-language dialogs; the assistant bridges from Windows concepts. Spike tools (e.g. `lo_assist.py`) are for testing only. | new 2026-09-25 (SPEC §1) |
 | D23 | **A small "guide" model ships on the ISO** (with its transition knowledge base): the assistant works offline from the live USB through install and after. Larger models are optional downloads. Supersedes D18. | new 2026-09-25 (SPEC §10.6) |
 | D24 | **Hardware ethos: plan for a 6 GB GPU floor, NVIDIA and AMD** (CUDA and Vulkan builds); 8 GB is the common case. Minimum requirements are about affordable hardware (storage, RAM, PCIe lanes), never new-card purchases. No 6 GB card on hand: enforce a 6 GB budget in software on the 1080 Ti/4070 for tests. | new 2026-09-25 (SPEC §10.1) |
-| D25 | **v1 languages (proposed, to confirm): English, Spanish, Portuguese, French, German** — top web languages, leaving out ones under sanctions or that will build their own. Applies to the guide model, knowledge base, UI text, and later voice. | proposed 2026-09-25 |
+| D25 | **v1 languages: English, Spanish, Portuguese, French, German, Japanese** — top web languages, leaving out ones under sanctions or that will build their own. Applies to the guide model, knowledge base, UI text, and later voice. Japanese also needs a CJK font and a Japanese input method (IBus + Mozc) on the ISO. | confirmed 2026-09-25 (Japanese added by the user) |
 
 ### D1 — Sandbox details
 
