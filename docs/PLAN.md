@@ -390,6 +390,17 @@ CLOUD indicator, disconnect, and confirm the local model takes over with nothing
   defeating anti-theft on someone else's vehicle is not. **Later pack: a scanner** (SocketCAN, CAN
   HAT or USB adapter, ISO-TP/UDS/OBD-II; DTCs and live data free, clearing/relearn/flashing behind a
   checklist — stable battery voltage, backup, correct module; no emissions-defeat work).
+  **Division of labour (Ian's compromise):** the **local model does the hands-on, checkable work** —
+  connect, run the tools (flashrom, sigrok, can-utils), read-twice-and-compare dumps, collect
+  measurements, package a diagnostic bundle. **Diagnosis and analysis are the human's, or a cloud
+  model's if the user connects one (D35)**. Rule: *don't rely on it unless you know you can rely on
+  it* — analysis is labelled as advice with its basis shown; hardware writes never follow from
+  analysis alone (backup + checklist + human button, §8.5); works offline (collect now, analyse
+  later); a bundle sent to the cloud shows its contents, redacts identifiers (VIN, immobilizer data)
+  by default, and asks first; trust is measured on a set of known-fault boards per module family.
+  Language/tool core for a first release: C, Python, Bash, reading ARM + one ECU assembly family,
+  the bus protocols, S19/HEX/BIN, flashrom/sigrok/OpenOCD; further languages come as packs
+  (FPGA: Verilog/VHDL + Yosys/nextpnr; retro/learning: BASIC/MMBasic, Forth; …).
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
