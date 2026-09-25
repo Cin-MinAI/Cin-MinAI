@@ -11,8 +11,10 @@ it is the backup if the lead's setup on the dev PC breaks.
   types into VMs. Ask him when a rule below says so or when something is his to decide.
 - **Claude Code** (lead): architecture, specs, spike verdicts, reviews.
 - **Codex** (junior, on the Mint box): tasks the lead hands over (see "Your current task"). **If the
-  lead is unavailable**, you and Ian carry on from this file plus `docs/` in the GitHub repo
-  (`git@github.com:Brickmii/Cin-MinAI.git`, private): same rules, same decision log.
+  lead is unavailable**, you and Ian carry on from this file plus `docs/`: same rules, same decision
+  log. The Mint box has **no GitHub or Google credentials, by design** (Ian keeps the footprint
+  minimal); the lead keeps a read-only copy of `docs/` + this file in `~/cin-minai/repo-docs/`
+  (see its `VERSION`). The repo itself is `git@github.com:Brickmii/Cin-MinAI.git` (private).
 - Hand-offs between lead and Codex go through `~/cin-minai/notes/` on the Mint box (dated Markdown
   notes, both directions).
 
@@ -61,7 +63,7 @@ Mint box in `~/cin-minai/eval-guide`; reference Qwen3-14B 86 %). Spike code live
 | Machine | Use | Notes |
 |---|---|---|
 | Dev PC (Windows 10) | development, builds, VM tests (the lead works here) | Ryzen 9 3900X, RTX 4070 12 GB. WSL `Ubuntu-24.04` (user `brickmii`, sudo needs Ian's password), ~930 GB free. Build work area `~/cinminai-build` (ISO, signed spike repo, key in `~/cinminai-build/gnupg`). Hyper-V VMs `cinminai-uefi` / `cinminai-bios` (files in `C:\Users\Ian\cinminai-vm`). |
-| Mint box `mint@192.168.5.70` | **test machine only**; Codex works here | i7-4790K, GTX 1080 Ti 11 GB (Pascal: driver must stay ≤ 580.x), 32 GB DDR3, Mint 22.3, 4K display at 3× scaling. ~110 GB free. No passwordless sudo. |
+| Mint box `mint@192.168.5.70` | **test machine only**; Codex works here | i7-4790K, GTX 1080 Ti 11 GB (Pascal: driver must stay ≤ 580.x), 32 GB DDR3, Mint 22.3, 4K display at 3× scaling. No passwordless sudo. Vulkan build deps (`libvulkan-dev glslc spirv-headers`) installed 2026-09-25 with Ian's approval. |
 
 ## Hard rules
 
