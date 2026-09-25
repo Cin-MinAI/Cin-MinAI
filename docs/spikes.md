@@ -13,7 +13,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Sandbox (bwrap) | Done 2026-09-24 | **GO** — bwrap + pasta private network; host network namespace rejected (X server reachable) |
 | Admin mechanism (D-Bus + polkit) | Done 2026-09-24 | **GO** — D-Bus-activated root mechanism, per-request auth_admin, verified with the real Cinnamon dialog |
 | LibreOffice (extension + toolkit) | Done 2026-09-25 | **GO** — extension + D-Bus toolkit, one-step undo in all 3 apps, Qwen3-14B 93 % on 30 requests |
-| Model bakeoff | Not started | — |
+| Model bakeoff | Guide track done 2026-09-25; big track + RTX 4070 to run | Guide: **Gemma 4 E2B** and **Qwen3.5-4B** go to fine-tuning (docs/benchmarks.md, cycle 0) |
 
 > 2026-09-24: the project scope changed from a standalone terminal app to a Mint-derived distro
 > (PLAN D10). The terminal spike below was run for the old app design. Its findings still apply
