@@ -790,7 +790,13 @@ boot of the live USB, through installation, and after.
   instead of guessing; the tools to check the real machine; and a fine-tune for behaviour (assume a
   Windows user, explain simply, stay in scope, call tools correctly), not for facts.
 * **Size:** fits a **6 GB card** (NVIDIA or AMD) with the §4.2 desktop reserve and an 8K context, and
-  runs usably on the CPU (the live USB has no proprietary driver). Candidates (Apache-2.0, Sept
+  runs usably on the CPU (the live USB has no proprietary driver).
+* **Live USB = supported, reduced, "install recommended"** (PLAN D27): the guide answers from the USB
+  so people can try it and get through installation, and it says plainly that the installed system
+  is faster and better. On the CPU it keeps prompts short (~1K tokens: small system prompt, a few
+  help-card snippets, trimmed history) — reading 4K tokens took 87 s on an i7-4790K (M0 smoke test,
+  Qwen3.5-2B), while generating ran at 12 tok/s, fast enough to read along. Likewise offline works;
+  online adds web search and model downloads. Candidates (Apache-2.0, Sept
   2026): Qwen3.5-2B/4B (vision: can explain a screenshot), Gemma 4 E2B/E4B (possibly audio input),
   Granite 4.2 3B; chosen by the guide eval (PLAN §3).
 * **Languages (v1):** English, Spanish, Portuguese, French, German, Japanese — for the model, the

@@ -38,6 +38,7 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D24 | **Hardware ethos: plan for a 6 GB GPU floor, NVIDIA and AMD** (CUDA and Vulkan builds); 8 GB is the common case. Minimum requirements are about affordable hardware (storage, RAM, PCIe lanes), never new-card purchases. No 6 GB card on hand: enforce a 6 GB budget in software on the 1080 Ti/4070 for tests. | new 2026-09-25 (SPEC §10.1) |
 | D25 | **v1 languages: English, Spanish, Portuguese, French, German, Japanese** — top web languages, leaving out ones under sanctions or that will build their own. Applies to the guide model, knowledge base, UI text, and later voice. Japanese also needs a CJK font and a Japanese input method (IBus + Mozc) on the ISO. | confirmed 2026-09-25 (Japanese added by the user) |
 | D26 | **Vision and community oversight** (SPEC §1 Vision): AI becomes the way people use their computer; we build the local, owned, human-approved version of that **in the open** — code, spec, decisions, eval tasks and results, model licences all public, reviewable and forkable by the community it's built for. When the repo goes public is an open question (§6). | new 2026-09-25 |
+| D27 | **Works everywhere, best installed and online.** The live USB runs the guide (CPU, or GPU if a free driver can) as a supported but reduced mode, and it recommends installing, as Mint does; no internet needed, but the web makes it better. We don't tune the product for running from USB. On CPU the guide keeps prompts short (~1K tokens: small system prompt, a few help-card snippets, trimmed history): the M0 smoke test took 87 s to read 4K tokens on the i7-4790K. | new 2026-09-25 |
 
 ### D1 — Sandbox details
 
@@ -312,7 +313,7 @@ tracker) without a terminal, and every permission it has was granted on screen.
   (Ubuntu 26.04)? Current plan: 22.x, rebase later.
 - **Apt repository hosting:** GitHub Pages / releases, a VPS, or object storage. Needed by M1.
 - ~~Default terminal~~: keep Mint's default (VTE patch dropped after the M0 relay spike).
-- **Live-session assistant:** CPU-only small model in the live session, or assistant off until installed?
+- ~~Live-session assistant~~: decided — D23 + D27 (guide runs in the live session, reduced; install recommended).
 - **License** for our own code (GPL-compatible, since we patch GPL packages). Decide before M1.
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
