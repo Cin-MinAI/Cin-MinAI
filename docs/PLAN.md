@@ -380,7 +380,9 @@ CLOUD indicator, disconnect, and confirm the local model takes over with nothing
   board-level module repair** — diagnosing failed PCBs such as PCMs and TCMs, where the user finds the
   value: photo of the board → the (vision-capable) guide reads chip markings and finds datasheets →
   known failure points for the module family → guided measurements at test points → **back up the
-  EEPROM/serial flash over the Pi's SPI/I2C** (`flashrom` linux_spi, `i2c-tools`; dump checksummed)
+  EEPROM/serial flash over the Pi's SPI/I2C** (`flashrom` linux_spi, `i2c-tools`) with the console-modding
+  scene's NAND discipline (JRunner and friends): **read at least twice, dumps must match bit for bit,
+  keep the verified original, then write, then read back and compare again** —
   before any rework → repair → verify against the backup. Instruments: USB logic analyzer (sigrok /
   PulseView), Pi camera or USB microscope. Guardrails: in-circuit reads can back-power the board;
   3.3 V vs 5 V logic; bench supply with a current limit; chip writes only after a verified backup and
