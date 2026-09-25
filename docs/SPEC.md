@@ -246,6 +246,28 @@ extension in JavaScript. The admin mechanism is deliberately tiny and dependency
 * systemd restarts the daemon with a rate limit; no endless restart loops.
 * Model OOM: stop generation → unload → reduce context → retry once → offer a smaller profile.
 
+### 4.2 GPU memory is shared with the desktop
+
+Measured on the Mint box (GTX 1080 Ti 11 GB, one 4K display, 2026-09-25): the desktop's share of
+VRAM is not fixed. Xorg used ~1.0 GB at idle, **1.44 GB after a few extra 4K windows** (three
+LibreOffice documents plus terminals), and did not give it back when they closed. Qwen3-14B Q4_K_M
+needs ~9.1 GB at 8K and ~9.8 GB at 16K context. With the idle unload, the model was unloaded when the
+desktop grew; every reload then failed and the service restarted 99 times. Rules:
+
+* **Budget at load time, not only at setup.** Before starting `llama-server`, the supervisor reads
+  free VRAM (NVML / `nvidia-smi`) and picks the largest profile that fits with the reserve below.
+* **Keep a desktop reserve**: ≥ 1.5 GB free after loading on 4K / multi-monitor, ≥ 0.8 GB at
+  1080p. First-boot setup chooses the default model/context with this reserve (§9); it is re-checked
+  on every load.
+* **Step down, never crash-loop.** A load that fails for memory goes down the ladder: context
+  (16K → 8K → 4K) → partial GPU offload (fewer `-ngl` layers) → the smaller model → CPU. At most one
+  attempt per step; systemd's restart is only for crashes, with a hard limit.
+* **Say so.** The sidebar header and applet show a reduced profile in words ("Qwen3-14B, 8K context —
+  GPU memory is busy"), and offer "try full size again" once memory frees up.
+* **Idle unload is a choice, not a default, on tight cards**: if the full profile needs more than
+  85 % of VRAM, keep the model resident (or accept that the reload may come back reduced).
+* Nothing else of ours may take GPU memory by surprise (the sidebar and extensions stay on the CPU).
+
 ---
 
 ## 5. Desktop surface
@@ -630,7 +652,8 @@ extra_args = []                  # any other llama-server flag, for hand tuning
 Every `llama-server` option is reachable from this file; the daemon restarts the server when it
 changes.
 
-Rules: never decide from GPU name alone; unsupported hardware is never fatal if CPU mode works;
+Rules: never decide from GPU name alone; keep the desktop VRAM reserve of §4.2 (measured with the
+user's real display setup, not assumed); unsupported hardware is never fatal if CPU mode works;
 never promise a tokens-per-second rate — measure it.
 
 ---

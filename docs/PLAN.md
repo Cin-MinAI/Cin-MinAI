@@ -113,6 +113,11 @@ Trust our eval, not leaderboards. Verify each model's license before the distro 
 - Measured: ~25–29 tok/s generation, ~509 tok/s prompt (pp512); wake from idle to first token
   2.5 s. VRAM: 9.9 GiB peak at 4K context; **10.9 of 11.0 GiB used at 16K** incl. the desktop —
   only ~300 MB left for the desktop, Firefox, and the sidebar.
+- **2026-09-25, that margin ran out in practice:** during the LibreOffice spike three extra 4K
+  windows grew Xorg to 1.44 GB (it stayed there); the idle-unloaded model then failed every reload
+  (`failed to allocate compute buffers`) and systemd restarted it 99 times. Recovered by Codex with the
+  reversible `QWEN_CONTEXT_SIZE=8192` override: llama-server 9,138 MiB, Xorg 1,120 MiB, 485 MiB free.
+  Design rules now in SPEC §4.2 (load-time budget, desktop reserve, step-down ladder, visible status).
 - Also there: a GTK chat GUI with context compression (`gui/qwen_gui.py`) and an Aider workflow.
 
 Carry into the product: the CUDA 12.0 + gcc-12 + sm_61 recipe (add `sm_75;86;89` for Turing–Ada,
@@ -132,7 +137,8 @@ Run on the 1080 Ti; repeat on the 4070.
 | Qwen2.5-Coder-7B | Q5_K_M | 8K, 16K |
 | Qwen3.6-35B-A3B (RAM offload) | Q4_K_M | 8K |
 
-Measure: prompt and generation tok/s, peak VRAM and RAM, time-to-first-token on a 4K-token build
+Measure: prompt and generation tok/s, peak VRAM and RAM, **free VRAM left for the desktop (SPEC §4.2
+reserve: ≥ 1.5 GB at 4K) with a realistic desktop open (browser, office documents, terminals)**, time-to-first-token on a 4K-token build
 log, valid JSON tool-call rate over 50 attempts, score on ~20 Linux diagnosis tasks (seed of the
 SPEC §14.1 suite). Output: `bench-results/` (git-ignored) plus `docs/benchmarks.md`, which drives the
 profiles in first-boot setup.
@@ -245,6 +251,7 @@ Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
 |------|------------|
 | Forked Mint packages fall behind upstream | Fork as little as possible; patch series in `forks/`; automated upstream watch; Stage 1 works without forks |
 | Remastering breaks on a new Mint ISO | Pinned inputs; CI boot tests; Stage 3 is the fallback |
+| Desktop takes the model's VRAM (4K, many windows; seen 2026-09-25) | SPEC §4.2: load-time budget, desktop reserve, step-down ladder instead of restart loops, "reduced" status; bakeoff measures 14B vs 9B with the reserve |
 | Relay adds latency or breaks edge cases | M0 spike with explicit edge-case list; pass-through mode; per-terminal off switch; VTE patch as complement |
 | Users see terminal capture as spyware | Visible per-terminal indicator, one-command off switch, echo-off rule, local-only storage, first-run notice (D19) |
 | Firefox extension signing / policy changes | Unlisted AMO signing; keep the extension small; pin tested Firefox behaviour in ISO tests |
