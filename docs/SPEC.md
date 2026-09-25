@@ -50,6 +50,18 @@ for most of our audience. He needs: a computer that can be **really offline** an
 help with his **checkbook** in a spreadsheet he owns (§7.11); **large, plain, patient** answers;
 help telling **scams** from real messages (§10.6); and no accounts, sign-ins, or subscriptions.
 
+**Design persona — the everyday user** (Ian, 2026-09-25): sits down at a PC or tablet to browse,
+watch, chat — and looks up an hour later. Never opens a settings page if it can be avoided. For them
+the assistant is **invisible until it's useful and never costs them time**: no pop-ups or nagging
+(it speaks when asked, or when something is actually wrong — a full disk, a security update);
+**fast beats clever** (a 2-second answer to "why is the sound on the monitor?" over a thorough one in
+20); defaults that just work, so the assistant is rarely needed. Anything like a screen-time summary
+exists only as an option they switch on themselves (Rule 9).
+
+The three personas span the range: the **careful newcomer** (needs a hand to trust it), the
+**everyday user** (wants it to just be there), and — for a possible Pi variant — the **tinkerer**
+(opens it up; PLAN §6). A design that works for all three is the goal.
+
 Ship an installable desktop operating system, forked from Linux Mint Cinnamon, in which a locally
 running AI assistant is a native part of the system rather than an app you add:
 
