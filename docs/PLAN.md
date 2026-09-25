@@ -375,6 +375,19 @@ CLOUD indicator, disconnect, and confirm the local model takes over with nothing
   mistakes cost nothing; before anything touches pins or buses, checks for what destroys hardware
   (voltage levels, pin conflicts, current limits: "that module is 5 V, use a level shifter"), with
   writes still behind the approval button (§8.5); knowledge of cheap sensor modules and clone boards.
+  **Tinkerer version, as Ian sees it** (mechanic by trade): a streamlined, compact image with IDEs
+  and a **hardware- and language-specific focus**, organised as **domain packs**. **First pack:
+  board-level module repair** — diagnosing failed PCBs such as PCMs and TCMs, where the user finds the
+  value: photo of the board → the (vision-capable) guide reads chip markings and finds datasheets →
+  known failure points for the module family → guided measurements at test points → **back up the
+  EEPROM/serial flash over the Pi's SPI/I2C** (`flashrom` linux_spi, `i2c-tools`; dump checksummed)
+  before any rework → repair → verify against the backup. Instruments: USB logic analyzer (sigrok /
+  PulseView), Pi camera or USB microscope. Guardrails: in-circuit reads can back-power the board;
+  3.3 V vs 5 V logic; bench supply with a current limit; chip writes only after a verified backup and
+  the human's button (§8.5); immobilizer data moved between the owner's own modules is repair work,
+  defeating anti-theft on someone else's vehicle is not. **Later pack: a scanner** (SocketCAN, CAN
+  HAT or USB adapter, ISO-TP/UDS/OBD-II; DTCs and live data free, clearing/relearn/flashing behind a
+  checklist — stable battery voltage, backup, correct module; no emissions-defeat work).
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
