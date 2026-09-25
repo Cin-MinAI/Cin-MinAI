@@ -40,6 +40,10 @@ LABELS = {  # our key -> .desktop file
     "night_light": "cinnamon-settings-nightlight", "fonts": "cinnamon-settings-fonts",
     "panel": "cinnamon-settings-panel", "software_sources": "mintsources",
     "text_editor": "org.x.editor",
+    "drawing": "com.github.maoschanz.drawing", "pix": "pix", "notes": "sticky", "onboard": "onboard",
+    "archive_manager": "org.gnome.FileRoller", "warpinator": "org.x.Warpinator",
+    "character_map": "gucharmap", "document_scanner": "simple-scan", "calculator": "org.gnome.Calculator",
+    "music_player": "org.gnome.Rhythmbox3",
 }
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",

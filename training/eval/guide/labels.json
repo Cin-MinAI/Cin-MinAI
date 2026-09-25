@@ -353,6 +353,81 @@
    "de": "Textbearbeitung",
    "ja": "テキストエディター"
   },
+  "drawing": {
+   "en": "Drawing",
+   "es": "Dibujo",
+   "pt": "Drawing",
+   "fr": "Dessin",
+   "de": "Zeichnung",
+   "ja": "Drawing"
+  },
+  "pix": {
+   "en": "Pix",
+   "es": "Pix",
+   "pt": "Pix",
+   "fr": "Pix",
+   "de": "Pix",
+   "ja": "Pix"
+  },
+  "notes": {
+   "en": "Notes",
+   "es": "Notas",
+   "pt": "Notas",
+   "fr": "Notes",
+   "de": "Notizen",
+   "ja": "メモ"
+  },
+  "onboard": {
+   "en": "Onboard",
+   "es": "Onboard",
+   "pt": "Onboard",
+   "fr": "Onboard",
+   "de": "Onboard",
+   "ja": "Onboard"
+  },
+  "archive_manager": {
+   "en": "Archive Manager",
+   "es": "Gestor de archivadores",
+   "pt": "Gerenciador de compactação",
+   "fr": "Gestionnaire d’archives",
+   "de": "Archivverwaltung",
+   "ja": "アーカイブマネージャー"
+  },
+  "warpinator": {
+   "en": "Warpinator",
+   "es": "Warpinator",
+   "pt": "Warpinator",
+   "fr": "Warpinator",
+   "de": "Warpinator",
+   "ja": "Warpinator"
+  },
+  "character_map": {
+   "en": "Character Map",
+   "es": "Mapa de caracteres",
+   "pt": "Mapa de caracteres",
+   "fr": "Table de caractères",
+   "de": "Zeichentabelle",
+   "ja": "文字マップ"
+  },
+  "document_scanner": {
+   "en": "Document Scanner",
+   "es": "Escáner de documentos",
+   "pt": "Digitalizador de documentos",
+   "fr": "Numériseur de documents",
+   "de": "Dokument-Scanner",
+   "ja": "ドキュメントスキャナー"
+  },
+  "calculator": {
+   "en": "Calculator",
+   "es": "Calculadora",
+   "pt": "Calculadora",
+   "fr": "Calculatrice",
+   "de": "Taschenrechner",
+   "ja": "電卓"
+  },
+  "music_player": {
+   "en": "Rhythmbox"
+  },
   "change_background": {
    "en": "Change Desktop Background",
    "es": "Cambiar el fondo del escritorio",
