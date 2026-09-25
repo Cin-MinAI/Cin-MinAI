@@ -220,6 +220,7 @@ def main() -> None:
                             stats["reject_reasons"][key] = stats["reject_reasons"].get(key, 0) + 1
                         fr.write(json.dumps({"topic": topic["id"], "lang": lang, "q": q, "reason": fails},
                                             ensure_ascii=False) + "\n")
+                        fr.flush()
                 print(f"{time.strftime('%H:%M:%S')} {topic['id']:<18} {lang}  accepted {stats['accepted']}  "
                       f"rejected {stats['rejected']}  contaminated {stats['contaminated']}", flush=True)
     stats["finished"] = dt.datetime.now().isoformat(timespec="seconds")

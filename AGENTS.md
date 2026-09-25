@@ -58,6 +58,12 @@ sandbox, admin mechanism, LibreOffice, Firefox. **Remaining: the model bakeoff**
 and big), then M1 (distro skeleton). The guide eval is written (`training/eval/guide/`, copy on the
 Mint box in `~/cin-minai/eval-guide`; reference Qwen3-14B 86 %). Spike code lives in `spikes/` and is throwaway.
 
+## Credits
+
+The project credits every contributor plainly, none preferred (README "credits"): Ian leads; the
+initial plan was made with Gemini; Claude and Codex/ChatGPT build it, each where it works best.
+When you report work, say what you did so it can be credited.
+
 ## Machines
 
 | Machine | Use | Notes |

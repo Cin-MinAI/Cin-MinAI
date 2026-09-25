@@ -34,6 +34,13 @@ Prompt v2, public eval (phase 1): **Qwen3.5-4B 87 %, Gemma 4 E2B 84 %**, referen
 decontamination, review sample and rejection rate); LoRA settings, tool versions, loss, time;
 export and quantization.
 
+## Who did the work
+
+Directed by Ian McClenathan. Eval, knowledge base, corpus tooling and training scripts: Claude
+(Anthropic); bakeoff harness and model inventory: Codex (OpenAI); initial plan: Gemini (Google) —
+see README "credits". The training corpus itself comes only from local open-weight teacher models
+(named above), never from these assistants.
+
 ## Known limits
 
 - Vulkan/AMD not measured on AMD hardware (community beta).
