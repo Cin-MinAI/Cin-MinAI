@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Cin-MinAI Assistant",
+  "version": "0.1.1",
+  "description": "The Cin-MinAI OS assistant in Firefox: ask about a selection or a page; answers come from the local model on this computer.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "assistant@cinminai.org",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "permissions": ["nativeMessaging", "menus", "activeTab", "scripting"],
+  "background": { "scripts": ["background.js"] },
+  "sidebar_action": {
+    "default_title": "Cin-MinAI Assistant",
+    "default_panel": "sidebar.html",
+    "default_icon": "icon.svg",
+    "open_at_install": false
+  },
+  "icons": { "48": "icon.svg", "96": "icon.svg" }
+}

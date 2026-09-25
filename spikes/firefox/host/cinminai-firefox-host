@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+"""Native messaging host for the Cin-MinAI Firefox extension (M0 spike, SPEC §7.2).
+
+Firefox starts this when the extension connects (manifest org.cinminai.assistant.json). It speaks
+Firefox's framing on stdin/stdout (4-byte native-endian length + UTF-8 JSON) and relays to the
+assistant daemon on the session bus (org.cinminai.Assistant1):
+
+  extension → host: {"type": "ask", "question", "context": {kind, title, url, text, truncated, total} | null}
+                    {"type": "cancel"}  {"type": "status"}
+  host → extension: {"type": "token", "id", "text"}  {"type": "done", "id"}  {"type": "error", "message"}
+                    {"type": "status", "state", "model"}
+
+Page text is capped here too (MAX_CONTEXT), in case the extension didn't. Exits when Firefox
+closes stdin.
+"""
+
+import json
+import os
+import struct
+import sys
+import threading
+import time
+
+from gi.repository import Gio, GLib
+
+DEST, PATH, IFACE = "org.cinminai.Assistant1", "/org/cinminai/Assistant1", "org.cinminai.Assistant1"
+MAX_CONTEXT = 12000
+MAX_QUESTION = 4000
+out_lock = threading.Lock()
+DEBUG = bool(os.environ.get("CINMINAI_HOST_DEBUG"))  # log to stderr (Firefox keeps it out of the channel)
+T0 = time.monotonic()
+
+
+def debug(what: str) -> None:
+    if DEBUG:
+        sys.stderr.write(f"[host +{time.monotonic() - T0:7.3f}] {what}\n")
+        sys.stderr.flush()
+
+
+def send(msg: dict) -> None:
+    debug(f"-> firefox {msg.get('type')}")
+    data = json.dumps(msg).encode()
+    with out_lock:
+        sys.stdout.buffer.write(struct.pack("=I", len(data)) + data)
+        sys.stdout.buffer.flush()
+
+
+def read_message():
+    raw = sys.stdin.buffer.read(4)
+    if len(raw) < 4:
+        return None
+    (n,) = struct.unpack("=I", raw)
+    if n > 8 * 1024 * 1024:
+        return {"type": "invalid", "reason": f"message too large ({n} bytes)"}
+    body = sys.stdin.buffer.read(n)
+    try:
+        return json.loads(body)
+    except ValueError:
+        return {"type": "invalid", "reason": "not JSON"}
+
+
+class Host:
+    def __init__(self, loop: GLib.MainLoop) -> None:
+        self.loop = loop
+        self.proxy = Gio.DBusProxy.new_for_bus_sync(Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, None,
+                                                    DEST, PATH, IFACE, None)  # activates the daemon
+        self.proxy.connect("g-signal", self.on_signal)
+        self.proxy.connect("g-properties-changed", lambda *a: self.status())
+
+    def status(self) -> None:
+        state = self.proxy.get_cached_property("State")
+        model = self.proxy.get_cached_property("Model")
+        send({"type": "status", "state": state.unpack() if state else "offline",
+              "model": model.unpack() if model else ""})
+
+    def on_signal(self, proxy, sender, signal, params) -> None:
+        debug(f"<- dbus {signal}")
+        args = params.unpack()
+        if signal == "Token":
+            send({"type": "token", "id": args[0], "text": args[1]})
+        elif signal == "Done":
+            send({"type": "done", "id": args[0]})
+        elif signal == "Error":
+            send({"type": "error", "id": args[0], "message": args[1]})
+
+    def handle(self, msg: dict) -> bool:
+        debug(f"<- firefox {msg.get('type')}")
+        kind = msg.get("type")
+        if kind == "ask":
+            question = str(msg.get("question", ""))[:MAX_QUESTION]
+            c = msg.get("context") or {}
+            text = str(c.get("text", ""))
+            truncated = bool(c.get("truncated")) or len(text) > MAX_CONTEXT
+            args = (question, str(c.get("kind", "")), str(c.get("title", ""))[:300],
+                    str(c.get("url", ""))[:2000], text[:MAX_CONTEXT], truncated)
+            try:
+                self.proxy.call_sync("AskAbout", GLib.Variant("(sssssb)", args), Gio.DBusCallFlags.NONE, 10000, None)
+            except GLib.Error as e:
+                Gio.DBusError.strip_remote_error(e)
+                send({"type": "error", "message": e.message})
+        elif kind == "cancel":
+            self.proxy.call_sync("Cancel", None, Gio.DBusCallFlags.NONE, 5000, None)
+        elif kind == "status":
+            self.status()
+        else:
+            send({"type": "error", "message": f"unknown request {msg.get('reason') or kind!r}"})
+        return False
+
+
+def main() -> int:
+    loop = GLib.MainLoop()
+    try:
+        host = Host(loop)
+    except GLib.Error as e:
+        send({"type": "status", "state": "offline", "model": "", "error": e.message})
+        return 1
+
+    def reader() -> None:
+        while (msg := read_message()) is not None:
+            GLib.idle_add(host.handle, msg)
+        GLib.idle_add(loop.quit)  # Firefox closed the connection
+
+    threading.Thread(target=reader, daemon=True).start()
+    host.status()
+    loop.run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
