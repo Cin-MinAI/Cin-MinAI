@@ -59,8 +59,9 @@ What the failures are (read by hand, not only counted):
 
 Notes:
 - **Vulkan on Pascal is not an AMD measurement.** NVIDIA's Vulkan path on a 1080 Ti reads prompts
-  ~7× slower than CUDA; AMD cards run Vulkan natively and may do much better. No AMD card on hand
-  (D24): an AMD 6–8 GB card is a gap to close before the guide choice is final.
+  ~7× slower than CUDA; AMD cards run Vulkan natively and may do much better. **Vulkan/AMD is a
+  community beta:** we have no AMD card and won't run a second machine or swap drivers. AMD owners:
+  run `bench/run.py --build vulkan` and `training/eval/guide/run_eval.py` and send the results.
 - **CPU (live USB, D27):** writing speed is readable for E2B (9 tok/s) but reading a 4K prompt takes
   ~2 minutes, so the CPU path keeps prompts to ~1K tokens. Gemma 4 E2B needs ~4.5 GiB RAM there —
   fine on 8 GB, not on 4 GB (minimum requirements, D24).

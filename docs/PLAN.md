@@ -153,7 +153,9 @@ model (optional download, 8 GB+). Guide track, in order:
 3. **Transition knowledge base** (retrieval, shipped on the ISO) — the facts come from here, not
    from the weights.
 4. **Fine-tune the winner** (LoRA on the RTX 4070; data drafted with the big model, reviewed), then
-   quantize, re-run the eval, and ship. Replaces "M8 — LoRA later" for the guide.
+   quantize, re-run the eval, and ship. **Cycle 0 (2026-09-25):** Gemma 4 E2B and Qwen3.5-4B both go
+   through the fine-tune; plan, phases and the model card in `training/guide/`. Vulkan/AMD is a
+   community beta (no AMD hardware here). Replaces "M8 — LoRA later" for the guide.
 5. **Voice** (later milestone): whisper.cpp + Kokoro/Piper on the CPU, wake word, AT-SPI control.
 
 ### Bakeoff matrix (M0)

@@ -28,3 +28,6 @@ training/lora/output/
 .DS_Store
 Thumbs.db
 spikes/*/out/
+
+# Hidden eval: published only when its model cycle closes (training/guide/README.md, phase 1)
+training/eval/guide-hidden/
