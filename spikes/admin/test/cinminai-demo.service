@@ -1,0 +1,9 @@
+[Unit]
+Description=Cin-MinAI admin spike: harmless demo service (safe to restart/enable/disable)
+
+[Service]
+ExecStart=/bin/sleep infinity
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target

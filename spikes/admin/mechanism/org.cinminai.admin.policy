@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Cin-MinAI admin mechanism (M0 spike, SPEC §8.4).
+     Every action is auth_admin — never auth_admin_keep: each request asks for the password. -->
+<policyconfig>
+  <vendor>Cin-MinAI</vendor>
+  <icon_name>dialog-password</icon_name>
+
+  <action id="org.cinminai.admin.restart-service">
+    <description>Restart a system service for the assistant</description>
+    <message>The assistant asks to restart the service $(unit)</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+  </action>
+
+  <action id="org.cinminai.admin.set-service-enabled">
+    <description>Enable or disable a system service for the assistant</description>
+    <message>The assistant asks to set $(unit) enabled=$(enabled)</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+  </action>
+
+  <action id="org.cinminai.admin.install-package">
+    <description>Install a software package for the assistant</description>
+    <message>The assistant asks to install the package $(package)</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+  </action>
+
+  <action id="org.cinminai.admin.remove-package">
+    <description>Remove a software package for the assistant</description>
+    <message>The assistant asks to remove the package $(package)</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+  </action>
+
+  <action id="org.cinminai.admin.write-file">
+    <description>Write a system configuration file for the assistant</description>
+    <message>The assistant asks to write $(path) ($(size) bytes, mode $(mode))</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+  </action>
+</policyconfig>

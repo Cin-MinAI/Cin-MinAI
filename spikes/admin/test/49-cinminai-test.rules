@@ -1,0 +1,12 @@
+// TEST ONLY — installed by `install.sh --test` in WSL, never on a real system.
+// Answers org.cinminai.admin.* from /run/cinminai-polkit-test: "yes", "no", or anything else
+// (falls through to the policy's auth_admin). Logs every check so tests can count them.
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.cinminai.admin.") != 0) return;
+    var d = "";
+    try { d = polkit.spawn(["/bin/cat", "/run/cinminai-polkit-test"]).trim(); } catch (e) {}
+    // Count checks in a file (Ubuntu runs polkitd --no-debug, which drops polkit.log output).
+    try { polkit.spawn(["/bin/sh", "-c", "echo " + action.id + " >> /run/cinminai-polkit-count"]); } catch (e) {}
+    if (d == "yes") return polkit.Result.YES;
+    if (d == "no") return polkit.Result.NO;
+});

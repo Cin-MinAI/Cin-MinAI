@@ -11,7 +11,7 @@ Go/no-go record for each M0 spike in [PLAN.md](PLAN.md#m0--spikes-1-week-throwaw
 | Firefox (extension + native messaging) | Not started | — |
 | Streaming (llama-server → sidebar) | Done 2026-09-24 | **GO** — no desktop or terminal impact while the 1080 Ti generates |
 | Sandbox (bwrap) | Done 2026-09-24 | **GO** — bwrap + pasta private network; host network namespace rejected (X server reachable) |
-| Admin mechanism (D-Bus + polkit) | Not started | — |
+| Admin mechanism (D-Bus + polkit) | Done 2026-09-24 | **GO** — D-Bus-activated root mechanism, per-request auth_admin, verified with the real Cinnamon dialog |
 | LibreOffice (extension + toolkit) | Not started | — |
 | Model bakeoff | Not started | — |
 
@@ -380,3 +380,56 @@ dirs refused as workspaces. Limits (WSL `--stress`, systemd `--user` scope): for
 
 **GO: bwrap + pasta is the `SANDBOXED` lane** (PLAN D1 updated). `cinminai-sandbox` depends on
 `bubblewrap` and `passt`; host networking is test-only.
+
+---
+
+## Admin mechanism
+
+Code: `spikes/admin/`: `mechanism/cinminai-admin` (root, system bus `org.cinminai.Admin1`, D-Bus
+activated through `cinminai-admin.service`, exits after 60 s idle), D-Bus policy, polkit policy
+(`org.cinminai.admin.*`), `client/cinminai-admin-demo` (stands in for the daemon after in-sidebar
+approval), `test/` (demo service; test-only polkit rule), `install.sh`/`uninstall.sh` (WSL),
+`build-deb.sh` (→ `cinminai-admin-spike` in the spike repo), `check.py`.
+
+Verbs in the spike: `RestartService`, `SetServiceEnabled`, `InstallPackage`, `RemovePackage`,
+`WriteFile` (load/unload module and `run_argv` follow the same pattern). Per request:
+validate → polkit `CheckAuthorization` (caller as subject, verb's own action, details naming the
+target, interactive only if the caller allowed it) → fixed argv, no shell → append-only audit.
+
+### Result: 20/20 automated checks in WSL + live test in the VM installed from our ISO
+
+WSL (test polkit rule answers yes/no/nothing): policy is `auth_admin` for all 5 actions, never
+`*_keep`; D-Bus activation starts it as root; authorized requests really run, denied ones leave the
+system untouched; **3 requests → 3 polkit checks** (no caching); **23 unsafe requests rejected
+before polkit** (shell injection, `../`, protected units — dbus, polkit, systemd-*, display
+manager, itself — protected packages, writes outside `/etc` or into sudoers/shadow/passwd/polkit/
+pam/systemd/apt/cron/profile, symlinked targets, setuid modes, >1 MiB); atomic write with backup;
+enable/disable; real `apt-get install`/`remove` (package `hello`) and a clean error for a missing
+package; concurrent requests; unreachable from the sandbox; audit log with caller uid/pid/exe,
+decision and result, `chattr +a`; idle exit.
+
+VM (`cinminai-uefi`, installed from our ISO; package installed with `apt` from our signed repo):
+the real Cinnamon polkit dialog for each request — two restarts, two separate password prompts;
+Cancel → `Dismissed`, service untouched; `dbus.service` → `Rejected` with no dialog; all four in
+the audit log.
+
+### Findings
+
+1. **Backup names need sub-second uniqueness**: two writes in one second collided and the second,
+   already approved, failed. Fixed (microseconds + random suffix). Rule: nothing that can fail
+   after approval should depend on timing.
+2. **polkit only offers `auth_admin` to active local sessions**: from a non-graphical session (WSL
+   shell, SSH) every request is simply denied — correct for us, and why the dialog test needs the VM.
+3. **Ubuntu runs `polkitd --no-debug`**, which drops `polkit.log()` from rules; test rules count
+   through a file instead.
+4. **The audit log fits Ubuntu's convention** (`root:adm 0640`, like `/var/log/syslog`) plus
+   `chattr +a`; `logrotate` will need `copytruncate` off and a `chattr -a/+a` wrapper.
+5. `apt` through the mechanism works non-interactively; the in-sidebar dialog should show apt's
+   simulated plan (`apt-get -s`, which the daemon can run unprivileged) before asking — M4 work.
+6. Not covered: wrong-password lockout behaviour, `run_argv` with the destructive dialog,
+   load/unload module, several users on one machine.
+
+### Decision
+
+**GO: this is the `ADMIN` lane** (SPEC §8.4). M4 turns the spike into `cinminai-admin` with the
+remaining verbs and the in-sidebar approval card.

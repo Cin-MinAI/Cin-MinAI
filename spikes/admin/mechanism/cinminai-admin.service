@@ -1,0 +1,17 @@
+[Unit]
+Description=Cin-MinAI admin mechanism (polkit-checked, D-Bus activated)
+
+[Service]
+Type=dbus
+BusName=org.cinminai.Admin1
+ExecStart=/usr/libexec/cinminai/cinminai-admin
+# Hardening that doesn't get in the way of its verbs (systemctl, apt, writing /etc).
+PrivateTmp=yes
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no

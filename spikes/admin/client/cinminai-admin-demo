@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+"""Ask the admin mechanism for one action, as the daemon will after in-sidebar approval (spike).
+
+    cinminai-admin-demo restart UNIT | enable UNIT | disable UNIT | install PKG | remove PKG
+    cinminai-admin-demo write PATH [--mode 644] < content
+    Options: --no-interactive (don't let polkit show a password dialog)
+
+Exit 0 on success, 1 on failure, 2 when not authorized / cancelled, 3 when rejected.
+"""
+
+import sys
+
+from gi.repository import Gio, GLib
+
+DEST, PATH, IFACE = "org.cinminai.Admin1", "/org/cinminai/Admin1", "org.cinminai.Admin1"
+
+
+def main(argv: list[str]) -> int:
+    interactive = "--no-interactive" not in argv
+    argv = [a for a in argv if a != "--no-interactive"]
+    mode = 0o644
+    if "--mode" in argv:
+        i = argv.index("--mode")
+        mode = int(argv[i + 1], 8)
+        del argv[i:i + 2]
+    if len(argv) != 2:
+        print(__doc__, file=sys.stderr)
+        return 1
+    verb, target = argv
+    method, params = {
+        "restart": ("RestartService", GLib.Variant("(s)", (target,))),
+        "enable": ("SetServiceEnabled", GLib.Variant("(sb)", (target, True))),
+        "disable": ("SetServiceEnabled", GLib.Variant("(sb)", (target, False))),
+        "install": ("InstallPackage", GLib.Variant("(s)", (target,))),
+        "remove": ("RemovePackage", GLib.Variant("(s)", (target,))),
+        "write": ("WriteFile", None),
+    }.get(verb, (None, None))
+    if method is None:
+        print(__doc__, file=sys.stderr)
+        return 1
+    if verb == "write":
+        params = GLib.Variant("(sayu)", (target, sys.stdin.buffer.read(), mode))
+    flags = Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION if interactive else Gio.DBusCallFlags.NONE
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+    try:
+        # No timeout: the user may take a while at the password dialog.
+        reply = bus.call_sync(DEST, PATH, IFACE, method, params, None, flags, GLib.MAXINT, None)
+    except GLib.Error as e:
+        remote = Gio.DBusError.get_remote_error(e) or ""
+        Gio.DBusError.strip_remote_error(e)
+        print(f"{remote.rsplit('.', 1)[-1] or 'Error'}: {e.message}", file=sys.stderr)
+        if remote.endswith((".NotAuthorized", ".Dismissed")):
+            return 2
+        return 3 if remote.endswith(".Rejected") else 1
+    out = reply.unpack()
+    print("OK" + (f": {out[0].strip()[-300:]}" if out and out[0] else ""))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
