@@ -66,3 +66,12 @@ T21, T22) were added afterwards and are scored from the bakeoff on.
 
 The small guide candidates are expected to score lower before fine-tuning; this run is the ceiling
 to compare them with, and the misses above are the first fine-tune targets.
+
+## Scorer changes
+
+- **2026-09-25, language detector:** "do", "das", "e", "o" removed from the Portuguese word list
+  (they are also English/German/Spanish words: "How **do** I…" scored as Portuguese), common question
+  words added for every language, and a tie between languages no longer picks the first one: a reply
+  passes if its language is among the tied leaders. Found while filtering the transition corpus. All
+  model comparisons from here on (stock vs. tuned, public and held-out) are re-run with this scorer.
+

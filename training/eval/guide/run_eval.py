@@ -240,26 +240,44 @@ def stage_a(call: dict, expect: list) -> bool:
     return False
 
 
-STOP = {  # distinctive function words; es/pt share many, so their lists avoid the shared ones
-    "en": "the and you your to is it this that click open with for of on in".split(),
+STOP = {  # distinctive function words; words shared between two of these languages are left out
+    # (2026-09-25: "do"/"das"/"e"/"o" removed from pt — English "do", German "das" — and the common
+    # question words added, found while filtering the transition corpus's short questions)
+    "en": ("the and you your to is it this that click open with for of on in how my what where can "
+           "please need").split(),
     "es": ("el los las lo y con tu tus sus usted puede puedo haga clic está del una por pero también muy hay "
-           "son al ayudarte hacer").split(),
-    "pt": ("você não pode posso clique está uma também muito do da dos das em ao pelo e o os com seu sua "
-           "são ou mas ajudar fazer isso").split(),
-    "fr": "le les vous pour sur cliquez est une des dans pas avec votre et du au".split(),
-    "de": "der die das und sie ist zu auf klicken mit den ein eine nicht ihr ihre im".split(),
+           "son al ayudarte hacer mi qué cómo dónde hago quiero necesito ordenador").split(),
+    "pt": ("você não pode posso clique está uma também muito da dos em ao pelo os com seu sua "
+           "são ou mas ajudar fazer isso meu minha faço pra onde quero preciso").split(),
+    "fr": ("le les vous pour sur cliquez est une des dans pas avec votre et du au je mon ma comment où "
+           "faire veux ordinateur").split(),
+    "de": ("der die das und sie ist zu auf klicken mit den ein eine nicht ihr ihre im ich wie wo mein meine "
+           "kann mach mache").split(),
 }
 
 
-def language(text: str) -> str:
+def language_scores(text: str) -> dict:
+    """Function-word counts per language ({"ja": 1} for Japanese script)."""
     letters = [c for c in text if c.isalpha()]
     if letters and sum("぀" <= c <= "ヿ" or "一" <= c <= "鿿" for c in letters) / len(letters) > 0.2:
-        return "ja"
+        return {"ja": 1}
     words = re.findall(r"[a-zà-ÿ]+", text.lower())
     scores = {lang: sum(w in set(sw) for w in words) for lang, sw in STOP.items()}
     scores["es"] += 3 * sum(c in "ñ¿¡" for c in text)   # letters only one of the two uses
     scores["pt"] += 3 * sum(c in "ãõ" for c in text)
-    return max(scores, key=scores.get) if any(scores.values()) else "?"
+    return scores
+
+
+def language_candidates(text: str) -> set:
+    """The languages tied for the best score ({"?"} if no evidence at all)."""
+    scores = language_scores(text)
+    top = max(scores.values())
+    return {"?"} if not top else {k for k, v in scores.items() if v == top}
+
+
+def language(text: str) -> str:
+    c = language_candidates(text)
+    return next(iter(c)) if len(c) == 1 else "?"  # a tie: don't guess
 
 
 STEP = re.compile(r"^\s*(?:\*\*)?(?:[0-9０-９]+[.)．、:]|[①-⑩])", re.M)
@@ -267,9 +285,8 @@ STEP = re.compile(r"^\s*(?:\*\*)?(?:[0-9０-９]+[.)．、:]|[①-⑩])", re.M)
 
 def stage_b(it: dict, text: str) -> list[str]:
     fails = []
-    got = language(text)
-    if got != it["lang"]:
-        fails.append(f"language {got}")
+    if it["lang"] not in language_candidates(text):  # a tie that includes the right language passes
+        fails.append(f"language {language(text)}")
     low = text.lower()
     for group in it["must"]:
         if not any(re.search(a[1:], text, re.I) if a.startswith("~") else a.lower() in low for a in group):

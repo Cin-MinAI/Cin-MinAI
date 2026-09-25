@@ -137,7 +137,7 @@ def questions(t: Teacher, topic: dict, lang: str, n: int, seed: int) -> list[str
     raw = t.chat([{"role": "user", "content": QUESTION_PROMPT.format(n=n, language=LANG_NAMES[lang],
                                                                      windows=topic["windows"],
                                                                      personas=personas)}],
-                 schema=schema, temperature=0.9, max_tokens=1200, seed=seed)
+                 schema=schema, temperature=0.7, max_tokens=1200, seed=seed)
     return [q for q in (clean_question(x) for x in json.loads(raw)) if q]
 
 
@@ -146,8 +146,38 @@ WHO = r"(?:user|person|persona|message|ユーザー|人物)"
 LABEL = re.compile(rf"^\s*(?:[\[(（【]\s*{WHO}?\s*\d+\s*[\])）】]|{WHO}\s*\d+\s*[:：.\-–]|\d+\s*[.)]\s)\s*", re.I)
 
 
+PREFIX = re.compile(r"^\s*(?:text|user|message|question|pregunta|frage|question|pergunta)\s*[:：]\s*", re.I)
+
+
 def clean_question(q: str) -> str:
-    return LABEL.sub("", q.strip()).strip()
+    q = LABEL.sub("", q.strip()).strip()
+    q = PREFIX.sub("", q).strip()
+    return re.sub(r"\*\*(.+?)\*\*", r"", q).strip()
+
+
+JUNK = re.compile(r"%[sd]|\{\}|^\W*$|^[\[\]{}(),.:;\s\d]+$|^(errors?|fmt|text|group\d*|user\d*|strconv|subtitle:.*)$",
+                  re.I)
+
+
+def valid_question(q: str, lang: str) -> bool:
+    """Reject what the teacher emits when it derails under the list format (seen in the cycle-0 run:
+    'fmt', '%s,%s', 'errors', 'sdfsdf', '[', 'user1', 'subtitle: …'): too short, placeholders, no real
+    words, or a language that isn't confidently the requested one."""
+    if JUNK.search(q.strip()):
+        return False
+    if lang == "ja":
+        kana = sum("぀" <= c <= "ヿ" for c in q)
+        return len(q) >= 6 and kana >= 2 and R.language(q) == "ja"
+    words = re.findall(r"[^\W\d_]{2,}", q)
+    if len(q) < 12 or len(words) < 3:
+        return False
+    if any(len(w) > 4 and not re.search(r"[aeiouyàâäéèêëïîôöùûüáíóúãõ]", w, re.I) for w in words):
+        return False  # keyboard mash like 'sdfsdf'
+    scores = R.language_scores(q)  # reject only when another language clearly wins (by 2+ words):
+    if "ja" in scores:
+        return False  # Japanese script under a non-Japanese language
+    other = max((v for k, v in scores.items() if k != lang), default=0)  # short questions and ones
+    return other - scores.get(lang, 0) < 2  # with English product names ("Fax and Scan") stay
 
 
 def example(t: Teacher, topic: dict, lang: str, q: str, seed: int) -> tuple[dict | None, list[str]]:
@@ -216,8 +246,10 @@ def main() -> None:
                 todo = []
                 for q in qs:
                     stats["questions"] += 1
-                    if R.language(q) not in (lang, "?"):  # teacher wrote the question in another language
-                        stats["wrong_language_questions"] = stats.get("wrong_language_questions", 0) + 1
+                    if not valid_question(q, lang):  # junk, or written in another language
+                        stats["invalid_questions"] = stats.get("invalid_questions", 0) + 1
+                        fr.write(json.dumps({"topic": topic["id"], "lang": lang, "q": q, "reason": "invalid question"},
+                                            ensure_ascii=False) + "\n")
                         continue
                     worst = max((similar(q, e) for e in evalq), default=0)
                     if worst >= o.contam:
