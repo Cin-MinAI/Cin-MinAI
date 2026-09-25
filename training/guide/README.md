@@ -7,6 +7,14 @@ as each phase finishes; nothing in it is written ahead of a measurement.
 
 Order follows SPEC §14.2: stock → benchmark → prompt/tools → benchmark → data → LoRA → compare.
 
+**What the fine-tune is for (PLAN D32): making the move from Windows to Linux easier — nothing else.**
+Everything else the eval measures (declining off-topic requests, scam and privacy help, office
+tools, the next empty row, system checks) is fixed in what we build around the model: the prompt,
+the knowledge base, the tools, and checks in the daemon. A good base model should need only a small
+tune. The **transition corpus is published** (`training/datasets/transition/`) with the scripts that
+make it — anyone can rebuild the same guide, roughly — and it's **updated with every OS release**
+(D31), as Mint's programs and names change.
+
 ## Phase 0 — stock baseline ✓ (2026-09-25)
 
 Guide eval (157 items) + speed/memory on the 1080 Ti (CUDA, Vulkan) and CPU: Gemma 4 E2B 78 %,
@@ -24,22 +32,26 @@ Qwen3.5-4B 74 %, reference Qwen3-14B 83 %. Details: `docs/benchmarks.md`.
    decline off-topic without a lookup, the next empty row, reply in the user's language). Re-run both
    candidates on the public eval; report the gain from the prompt alone.
 
-## Phase 2 — training data (published with its scripts)
+## Phase 2 — the transition corpus (published with its scripts)
 
 - **Source: local open models only** — Qwen3-14B and Qwen3.5-9B (Apache-2.0) as teachers through
   llama-server, never a proprietary API, so the data's licence is clean and anyone can regenerate it.
   The lead writes the generator, the scenario lists, and the checks, and reviews samples.
-- **Scenarios**: Windows→Mint topics and lessons from the knowledge base, LibreOffice operations
-  (incl. the checkbook), read-only system checks, off-topic requests, scams and privacy, approvals —
-  in all six languages (D25), phrased the way beginners actually ask (typos, vague wording).
+- **Scenarios — transition only**: "where is X from Windows?", "how do I do Y that I did on
+  Windows?", beginner lessons with Windows habits (Ctrl+Alt+Del, .exe files, C: drive, Control
+  Panel, the Start menu, Notepad, Snipping Tool, Outlook, Windows Update, antivirus…), answered with
+  Mint's own names in the user's language (`labels.json`), numbered mouse steps, and the knowledge
+  base's facts — in all six languages (D25), phrased the way beginners actually ask (typos, vague
+  wording, Windows words). Not in the corpus: office tools, declines, system checks (integration).
 - **Format = runtime format**: system prompt v2 + question → the stage-A JSON call → tool result →
   the reply. The model learns exactly what the product will ask of it.
 - **Filters**: the eval's own mechanical checks (schema, language, Mint names from `labels.json`,
   facts from the card, numbered steps, length, no terminal commands); duplicates removed;
   **decontamination**: any question too close to a public or hidden eval task (word n-gram overlap)
   is dropped, and the count is reported.
-- Target ~3,000 examples, balanced by category and language; a random 5 % read by the lead before
-  training, with the rejection rate reported.
+- Target ~2,000 examples, balanced by topic and language; a random 5 % read by the lead before
+  training, with the rejection rate reported. Stored as JSONL in `training/datasets/transition/`
+  with a datasheet (sources, teacher models and versions, filters, counts, known gaps).
 
 ## Phase 3 — LoRA training (RTX 4070, WSL, dev PC)
 
@@ -58,8 +70,8 @@ not keep) with the pinned llama.cpp (`v0.5.0`, `7fe450e`). Record SHA-256 of eve
 
 Public eval + hidden eval + speed/memory (CUDA and CPU; Vulkan is a community beta, below) for
 stock, prompt v2, and fine-tuned, both candidates. **The D31 gate**: ship only if the tuned model
-beats the stock one overall and on the hidden eval, and loses nowhere critical — safety, declines,
-boundary, and the careful-newcomer tasks (D28). Then write `MODEL_CARD.md` and the release note.
+beats the stock one on transition and lessons (public and held-out), and loses nowhere else —
+safety, declines, boundary, office, and the careful-newcomer tasks (D28) must not get worse. Then write `MODEL_CARD.md` and the release note.
 
 ## Limits we state up front
 
