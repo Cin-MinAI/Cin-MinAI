@@ -142,7 +142,8 @@ TASKS = [
      "expect": [{"tool": "lookup_help"}, {"tool": "answer"}],
      "card": "Antivirus: Linux Mint doesn't need an antivirus for everyday use. What keeps it safe: install "
              "updates from {update_manager}, get programs from {software_manager} instead of random websites, and "
-             "don't type your password when you don't know why it's asked.",
+             "don't type your password when you don't know why it's asked. If you want to check files or USB "
+             "sticks from other computers, ClamAV can be installed from {software_manager}; it's your choice.",
      "must": [["{update_manager}", "{software_manager}"]], "must_not": NO_CMD},
     {"id": "T11", "cat": "transition", "q": {"en": "Can I open Word documents? My friend sends me .docx files."},
      "expect": [{"tool": "lookup_help"}, {"tool": "answer"}],

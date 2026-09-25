@@ -131,6 +131,14 @@ The user can always tell what the assistant can currently see (which terminals, 
 page or an office document is shared) and can turn it off per terminal, per session, or globally. Nothing is captured
 while it is off.
 
+### Rule 9 — Suggest and offer; the user decides
+
+Beyond what the system needs to work, we **recommend, explain, and offer — we don't decide** (PLAN
+D30). Choices such as offline mode, the firewall, a virus scanner, bigger models, or voice are
+presented with a plain recommendation and its reason, and the person picks; the other choices,
+including tools from other projects, stay open and work. "Recommended" may be marked, never
+silently pre-applied, and every choice can be changed later.
+
 ---
 
 ## 3. Distribution
@@ -730,6 +738,8 @@ touching the wider home directory is `USER_APPROVED`.
 
 0. **Online or offline?** "Keep this computer offline" (§12.4) skips every download: the guide model
    on the ISO is used as is, and larger models stay an option for later.
+   **Protection choices** (Rule 9), each with a one-line reason: firewall on (recommended), virus
+   checking with ClamAV (offered, §12.5), security-update reminders (recommended).
 
 1. Detect CPU, RAM, GPU(s), driver, VRAM, disk space (`lscpu`, `/proc/meminfo`, `lspci -nn`,
    `nvidia-smi` when present, `/sys`).
@@ -1002,6 +1012,26 @@ offline."** For people who don't trust online services (PLAN D28).
   components made (in offline mode: none), with the date.
 * Online users get the same honesty: the assistant can list what connects (updates, Firefox, email)
   when asked. Offline updates from a USB stick are an open question (PLAN §6).
+
+### 12.5 Virus checking (optional, PLAN D30)
+
+Linux Mint ships no antivirus, and on Linux the everyday threats are scams, phishing, and fake
+"your computer is infected" pages rather than viruses (the assistant's scam help, §10.6, and
+updates, §3.7.1, cover those). A scanner is still useful for **files that came from elsewhere** —
+USB sticks and attachments from Windows friends — so we don't pass their viruses on.
+
+* **ClamAV is offered, not installed**: at first boot (§9 step 0), when asked ("do I need an
+  antivirus?"), or when a USB stick with Windows programs is plugged in (once, dismissible). Its
+  packages and a virus database ship **on the ISO as an offline repository**, so the offline user
+  can say yes without internet.
+* Once chosen: right-click → **"Check for viruses"** on a file, folder, or USB stick, in the §3.7.1
+  style window with §5.7 sights and sounds ("Checked 214 files ✓ nothing found"); its database
+  updates with the regular updates (no extra connections; in offline mode, with "Go online to
+  install updates").
+* **Any other scanner the user prefers** is equally fine: we don't block, replace, or disparage it,
+  and the assistant helps install whichever one they choose from Software Manager.
+* The assistant answers "do I need an antivirus?" honestly: not the way Windows does; here is what
+  actually protects you; you can check any file or stick yourself if you want to.
 
 ---
 
