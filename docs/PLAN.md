@@ -356,6 +356,12 @@ tracker) without a terminal, and every permission it has was granted on screen.
   SPI/I2C/UART/GPIO on the board, a local model helps read a datasheet, wire a sensor, and get the
   first bytes over the bus (SPEC §13), with hardware writes still behind the human's button (§8.5).
   Needs its own knowledge base and corpus variant ("new to Linux and electronics").
+  **Persona — the tinkerer** (from Ian's hardware-modding background): not much money, loves to dig
+  in, happy to break a few eggs. Design consequence: **low friction on software, firm guardrails on
+  physics** — terminal first-class, free sandboxed experiments, one-click snapshots so software
+  mistakes cost nothing; before anything touches pins or buses, checks for what destroys hardware
+  (voltage levels, pin conflicts, current limits: "that module is 5 V, use a level shifter"), with
+  writes still behind the approval button (§8.5); knowledge of cheap sensor modules and clone boards.
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
