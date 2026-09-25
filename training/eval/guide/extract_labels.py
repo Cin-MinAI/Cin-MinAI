@@ -39,6 +39,7 @@ LABELS = {  # our key -> .desktop file
     "notifications": "cinnamon-settings-notifications", "preferred_apps": "cinnamon-settings-default",
     "night_light": "cinnamon-settings-nightlight", "fonts": "cinnamon-settings-fonts",
     "panel": "cinnamon-settings-panel", "software_sources": "mintsources",
+    "text_editor": "org.x.editor",
 }
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",

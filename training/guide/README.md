@@ -14,11 +14,12 @@ Qwen3.5-4B 74 %, reference Qwen3-14B 83 %. Details: `docs/benchmarks.md`.
 
 ## Phase 1 — a hidden eval, then prompt and knowledge base (no training)
 
-1. **Hidden eval** (`training/eval/guide-hidden/`, kept out of the public repo until the cycle closes,
-   then published and replaced next cycle): ~50 new tasks in the same categories and languages,
-   written without looking at any model's output, never used for prompt tuning or training data.
-   The public eval has been seen while fixing scorer bugs and will be seen while tuning the prompt;
-   the hidden one is what the final claim rests on.
+1. **Held-out eval** (`training/eval/guide-hidden/`, **committed like everything else**): 45 tasks / 95 items
+   in the same categories and languages, written before any tuning (the git history is the proof),
+   and **used only once, for the final score** — never for prompt tuning, never shown to the data
+   generator, and checked against the training data (decontamination report). The public eval has
+   been seen while fixing scorer bugs and will be seen while tuning the prompt; the held-out one is
+   what the final claim rests on. A new held-out set is written for each cycle.
 2. **Prompt v2** aimed at the measured failures (numbered steps, scams and privacy are in scope,
    decline off-topic without a lookup, the next empty row, reply in the user's language). Re-run both
    candidates on the public eval; report the gain from the prompt alone.

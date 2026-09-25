@@ -345,6 +345,14 @@
    "de": "Anwendungspaketquellen",
    "ja": "ソフトウェアソース"
   },
+  "text_editor": {
+   "en": "Text Editor",
+   "es": "Editor de texto",
+   "pt": "Editor de texto",
+   "fr": "Éditeur de texte",
+   "de": "Textbearbeitung",
+   "ja": "テキストエディター"
+  },
   "change_background": {
    "en": "Change Desktop Background",
    "es": "Cambiar el fondo del escritorio",

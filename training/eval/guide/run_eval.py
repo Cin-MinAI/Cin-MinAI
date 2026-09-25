@@ -28,7 +28,15 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from tasks import BRANDS, TASKS  # noqa: E402
+import importlib.util  # noqa: E402
+
+TASKS_FILE = os.path.join(HERE, "tasks.py")
+if "--tasks" in sys.argv:  # e.g. the hidden eval (training/eval/guide-hidden/tasks.py)
+    TASKS_FILE = os.path.abspath(sys.argv[sys.argv.index("--tasks") + 1])
+_spec = importlib.util.spec_from_file_location("guide_tasks", TASKS_FILE)
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+TASKS, BRANDS = _mod.TASKS, _mod.BRANDS
 
 LABELS = json.load(open(os.path.join(HERE, "labels.json"), encoding="utf-8"))["labels"]
 LANGS = ["en", "es", "pt", "fr", "de", "ja"]
@@ -293,6 +301,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url"), ap.add_argument("--model", default=""), ap.add_argument("--api-key-env")
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
+    ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")
     o = ap.parse_args()
 
