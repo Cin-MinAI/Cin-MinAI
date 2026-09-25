@@ -39,6 +39,7 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D25 | **v1 languages: English, Spanish, Portuguese, French, German, Japanese** — top web languages, leaving out ones under sanctions or that will build their own. Applies to the guide model, knowledge base, UI text, and later voice. Japanese also needs a CJK font and a Japanese input method (IBus + Mozc) on the ISO. | confirmed 2026-09-25 (Japanese added by the user) |
 | D26 | **Vision and community oversight** (SPEC §1 Vision): AI becomes the way people use their computer; we build the local, owned, human-approved version of that **in the open** — code, spec, decisions, eval tasks and results, model licences all public, reviewable and forkable by the community it's built for. When the repo goes public is an open question (§6). | new 2026-09-25 |
 | D27 | **Works everywhere, best installed and online.** The live USB runs the guide (CPU, or GPU if a free driver can) as a supported but reduced mode, and it recommends installing, as Mint does; no internet needed, but the web makes it better. We don't tune the product for running from USB. On CPU the guide keeps prompts short (~1K tokens: small system prompt, a few help-card snippets, trimmed history): the M0 smoke test took 87 s to read 4K tokens on the i7-4790K. | new 2026-09-25 |
+| D28 | **Design persona: the careful newcomer** — an older person trying AI/Linux, distrustful of anything online, still keeps a checkbook (SPEC §1). Requirements: real system-wide offline mode with one "go online for updates" button and a "what has this computer sent?" page (§12.4, M5); a checkbook register template worked by the assistant, local file + USB backup reminder (§7.11, M6, toolkit `append_rows`); scam help and the promise "Cin-MinAI never calls, emails, or asks for money or passwords" (§10.6, guide knowledge base). | new 2026-09-25 |
 
 ### D1 — Sandbox details
 
@@ -315,6 +316,8 @@ tracker) without a terminal, and every permission it has was granted on screen.
 - ~~Default terminal~~: keep Mint's default (VTE patch dropped after the M0 relay spike).
 - ~~Live-session assistant~~: decided — D23 + D27 (guide runs in the live session, reduced; install recommended).
 - **License** for our own code (GPL-compatible, since we patch GPL packages). Decide before M1.
+- **Offline updates (D28):** security updates for a computer that never goes online — an update
+  bundle on a USB stick made on another computer? Or accept "go online for 10 minutes a month"?
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.

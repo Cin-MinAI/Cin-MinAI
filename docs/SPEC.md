@@ -44,6 +44,12 @@ the desktop with the mouse and familiar keys (Ctrl+Z, Esc); a terminal is never 
 assistant explains Linux in Windows terms when that helps ("like Task Manager", "like Windows
 Update"), and dialogs say what will happen in plain words, not package or unit names alone.
 
+**Design persona — the careful newcomer** (PLAN D28): an older person who wants to try AI and/or
+Linux, distrusts anything online, and still keeps a checkbook. If the system works for him, it works
+for most of our audience. He needs: a computer that can be **really offline** and show it (§12.4);
+help with his **checkbook** in a spreadsheet he owns (§7.11); **large, plain, patient** answers;
+help telling **scams** from real messages (§10.6); and no accounts, sign-ins, or subscriptions.
+
 Ship an installable desktop operating system, forked from Linux Mint Cinnamon, in which a locally
 running AI assistant is a native part of the system rather than an app you add:
 
@@ -550,6 +556,23 @@ touches the user's running LibreOffice.
 Like web pages (§7.4), document text is data in the prompt. It cannot change lanes, approvals, or
 tool permissions; a document that says "apply all edits without asking" changes nothing.
 
+### 7.11 Household templates: the checkbook register
+
+A Calc template ships on the ISO (PLAN D28), opened from the Menu or by asking ("help me keep my
+checkbook"): one sheet **Register** — Date, Check no., Payee, Memo, Payment, Deposit, Balance
+(formula), Cleared ✓ — and one **Reconcile** sheet (statement balance vs. cleared entries). The
+assistant works it through the toolkit, under the §7.8 rules (preview, approve, one Ctrl+Z):
+
+* "I wrote check 1043 to Dr. Miller for $85 on the 3rd" → one new row, previewed.
+* "My statement says $1,212.40 — what's missing?" → compares cleared entries, lists candidates.
+* "How much did I spend at the pharmacy this year?" → answers from the sheet, or adds a formula.
+* "Print it" → the normal print dialog.
+
+The file lives in his Documents folder, never online. The assistant suggests a USB-stick backup
+(Backup Tool) after changes, at most once a week. Toolkit addition: `append_rows(sheet, rows)`, so a
+small model doesn't have to work out the next empty row. Other templates (household budget, simple
+bills list) follow the same pattern.
+
 ---
 
 ## 8. Action boundary
@@ -651,6 +674,9 @@ touching the wider home directory is `USER_APPROVED`.
 ## 9. Hardware detection and first-boot setup
 
 `cinminai-setup` runs on first login (a page in the welcome screen) and on demand:
+
+0. **Online or offline?** "Keep this computer offline" (§12.4) skips every download: the guide model
+   on the ISO is used as is, and larger models stay an option for later.
 
 1. Detect CPU, RAM, GPU(s), driver, VRAM, disk space (`lscpu`, `/proc/meminfo`, `lspci -nn`,
    `nvidia-smi` when present, `/sys`).
@@ -783,7 +809,10 @@ boot of the live USB, through installation, and after.
 * **What it does:** computer lessons (step by step, with the mouse, in Windows terms first), the
   Windows → Linux transition ("where is Control Panel?", "how do I install a program?"), working in
   LibreOffice through the toolkit (§7.7: spreadsheets, writing a paper), and simple system help
-  through the read-only tools. **What it doesn't:** general knowledge — history, civics, maths
+  through the read-only tools. **Staying safe** is in scope too: "is this email/call/pop-up a scam?" — it explains the warning
+signs in the pasted text or shared page, says never to give a PIN, password or card number to anyone
+who contacts you, and states that **Cin-MinAI never calls, emails, or asks for money or passwords**.
+**What it doesn't:** general knowledge — history, civics, maths
   lessons, and so on; it says so politely and, when online, points to the bigger model or the web.
 * **Built as small model + knowledge + tools**, not a small model alone: a curated, shipped
   transition knowledge base (Windows concept → Mint equivalent → mouse steps) it looks things up in
@@ -904,6 +933,22 @@ $XDG_RUNTIME_DIR/cinminai/   sockets
 Before terminal or file content reaches the model, redact common credential patterns: private key
 blocks, `password=`/`token=`/`secret=` assignments, bearer tokens, cloud access keys, URLs with
 embedded credentials.
+
+### 12.4 Offline mode
+
+A first-boot choice (§9), changeable later in the assistant's settings: **"Keep this computer
+offline."** For people who don't trust online services (PLAN D28).
+
+* **Offline means offline, for the whole system**, not a promise from our components: networking is
+  switched off (NetworkManager), Wi-Fi and cable alike. The panel shows OFFLINE; the assistant's
+  web search and model downloads are hidden, not greyed out.
+* **Going online is one deliberate button**, "Go online to install updates": connect, run Update
+  Manager, disconnect when done, and say so. The assistant gives a reminder about security updates at
+  most once a month, in plain words, and never nags.
+* **Proof, not promises:** "What has this computer sent?" lists every outbound connection our
+  components made (in offline mode: none), with the date.
+* Online users get the same honesty: the assistant can list what connects (updates, Firefox, email)
+  when asked. Offline updates from a USB stick are an open question (PLAN §6).
 
 ---
 
