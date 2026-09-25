@@ -459,6 +459,11 @@ You are responsible for actions you approve.
 
 A shorter version stays available under Help/About. The same notice appears in the installer.
 
+**"Why Cin-MinAI exists"** (`docs/WHY.md`, shipped as `/usr/share/doc/cinminai/WHY`): a short page
+with the project's reasoning, reachable from the welcome screen and Help/About. Offered, never
+pushed (Rule 9): it opens only when someone clicks it, and it begins "These are just words. You
+don't have to believe them."
+
 ### 5.7 Sights and sounds (PLAN D29)
 
 People should be able to **feel** what the system is doing, not just read it. A small, consistent
