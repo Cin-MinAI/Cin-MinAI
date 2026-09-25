@@ -214,6 +214,37 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
   users would otherwise be held back. Track this with automation (§15).
 * Distro upgrades (e.g. 22.x → 23) are handled like Mint's, with our repo switched to the new series.
 
+#### 3.7.1 The update experience (PLAN D29)
+
+Updating should **feel** safe, because it is — and the person should be able to watch it be safe.
+A Cin-MinAI update window (Update Manager stays available for experts) runs the same apt update
+through the admin mechanism (§8.4) and shows each real step as it happens:
+
+```text
+ ◉ Taking a safety snapshot (Timeshift)                  ✓ you can go back if anything goes wrong
+ ◉ Connecting to the update servers                      Linux Mint · Ubuntu · Cin-MinAI
+ ◉ Checking the updates are genuine                      ✓ signed by Linux Mint's key (A1B2 … )
+ ◉ Downloading 7 updates (2 security)                    ████████░░  38 MB
+ ◉ Checking every file's fingerprint                     ✓ 7 of 7 match the signed list
+ ◉ Installing                                            libssl3 … firefox … (plain-language names)
+ ◉ Checking the system afterwards                        ✓ everything started · restart not needed
+ ◉ Disconnecting (offline mode)                          ✓ offline again
+```
+
+* **Only real checks, never theatre.** Every ✓ is the result of a check apt, gpg, or our code
+  actually ran — repository signatures (InRelease, gpgv), package SHA-256 against the signed index,
+  the post-install state. A failed check stops the update, says so in plain words ("this update
+  could not be proven genuine, so nothing was installed"), and plays the warning sound.
+* **Plain names:** each package line has a one-line explanation from its description ("security fix
+  for secure websites"); "Details" shows the technical log for those who want it.
+* **Honest reminders** (at most once a month when updates wait; offline mode §12.4 adds "go online
+  for about 10 minutes"): "Security updates fix weaknesses that criminals look for. It's been 34 days
+  since the last one." Updates close known holes in the programs themselves; that's different from
+  an antivirus's list of known threats, and the assistant explains it that way when asked.
+* **Sights and sounds** follow §5.7: a calm start tone, a soft tick for each verified step, a
+  completion chime, a distinct warning tone; optional spoken narration ("Checking the updates are
+  genuine… they are.") once voice ships (§10.6).
+
 ### 3.8 Legal
 
 * Ubuntu, Mint, and our code: follow their licenses (mostly GPL). Publish source for everything we
@@ -387,6 +418,28 @@ You are responsible for actions you approve.
 ```
 
 A shorter version stays available under Help/About. The same notice appears in the installer.
+
+### 5.7 Sights and sounds (PLAN D29)
+
+People should be able to **feel** what the system is doing, not just read it. A small, consistent
+vocabulary of sounds and visuals, used everywhere (assistant, approvals, updates, offline mode):
+
+| Moment | Sight | Sound |
+|---|---|---|
+| Assistant starts listening/working | gentle pulse on the applet | soft rising tone |
+| Something needs your approval | the card lifts, the button is highlighted | two-note "your turn" |
+| A step checked and passed | ✓ appears, green | soft tick |
+| Finished | summary with ✓ | completion chime |
+| Stopped for safety / failed check | amber panel, plain explanation | distinct low warning tone (never alarming) |
+| Going online / back offline | panel badge changes ONLINE ↔ OFFLINE | short connect / disconnect tones |
+
+* **Every sound has a visual equivalent and every visual a spoken/screen-reader one** (Orca,
+  AT-SPI), so hearing and sight each work alone. Sounds follow the system volume and a single
+  "Sounds" switch; nothing plays when the system is muted.
+* Sounds are **our own or CC0**, short (< 1 s), soft, and part of the freedesktop sound theme so
+  other apps can use them. Colours never carry meaning alone (✓/!, words).
+* Spoken narration (voice milestone, §10.6) reads the same step texts; it's optional and off by
+  default except where the person turned voice on.
 
 ---
 

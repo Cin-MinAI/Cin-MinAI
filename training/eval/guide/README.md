@@ -1,12 +1,12 @@
 # Guide eval
 
 Chooses the built-in guide model (PLAN D23, §3 "Guide model track"; SPEC §10.6) and later measures
-its fine-tune. **81 tasks, 156 items**: every task in English, 15 of them also in Spanish, Portuguese
+its fine-tune. **82 tasks, 157 items**: every task in English, 15 of them also in Spanish, Portuguese
 (Brazil), French, German and Japanese (PLAN D25), so each language is compared on the same tasks.
 
 | Category | Tasks | What it checks |
 |---|---|---|
-| transition | 21 | Windows → Mint questions: looks it up, then answers with Mint's real names |
+| transition | 22 | Windows → Mint questions: looks it up, then answers with Mint's real names |
 | lesson | 10 | beginner computer lessons: numbered mouse steps |
 | office | 18 | LibreOffice toolkit with a shared document (same tools as `spikes/libreoffice`), incl. 3 checkbook tasks (SPEC §7.11) |
 | system | 12 | read-only system checks, reply grounded in the result |
@@ -50,8 +50,8 @@ language. Temperature 0, thinking off (`enable_thinking: false`). Stdlib only, P
 
 ## Reference: Qwen3-14B Q4_K_M (big model, Mint box, 2026-09-25)
 
-Run on the first 75 tasks / 150 items; the 6 careful-newcomer tasks (PLAN D28: O16–O18, B06, B07,
-T21) were added afterwards and are scored from the bakeoff on.
+Run on the first 75 tasks / 150 items; the 7 tasks added since (PLAN D28–D29: O16–O18, B06, B07,
+T21, T22) were added afterwards and are scored from the bakeoff on.
 
 **129/150 = 86 %** (stage A 142/150). By language: en 89 %, es 87 %, pt 87 %, de 87 %, fr 80 %,
 **ja 67 %**. Typical misses, all the behaviour the guide's fine-tune must fix:

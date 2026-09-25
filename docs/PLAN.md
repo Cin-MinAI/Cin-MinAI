@@ -40,6 +40,7 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D26 | **Vision and community oversight** (SPEC §1 Vision): AI becomes the way people use their computer; we build the local, owned, human-approved version of that **in the open** — code, spec, decisions, eval tasks and results, model licences all public, reviewable and forkable by the community it's built for. When the repo goes public is an open question (§6). | new 2026-09-25 |
 | D27 | **Works everywhere, best installed and online.** The live USB runs the guide (CPU, or GPU if a free driver can) as a supported but reduced mode, and it recommends installing, as Mint does; no internet needed, but the web makes it better. We don't tune the product for running from USB. On CPU the guide keeps prompts short (~1K tokens: small system prompt, a few help-card snippets, trimmed history): the M0 smoke test took 87 s to read 4K tokens on the i7-4790K. | new 2026-09-25 |
 | D28 | **Design persona: the careful newcomer** — an older person trying AI/Linux, distrustful of anything online, still keeps a checkbook (SPEC §1). Requirements: real system-wide offline mode with one "go online for updates" button and a "what has this computer sent?" page (§12.4, M5); a checkbook register template worked by the assistant, local file + USB backup reminder (§7.11, M6, toolkit `append_rows`); scam help and the promise "Cin-MinAI never calls, emails, or asks for money or passwords" (§10.6, guide knowledge base). | new 2026-09-25 |
+| D29 | **Updates you can watch; sights and sounds throughout.** A Cin-MinAI update window shows each real step — safety snapshot, signature check, per-file fingerprint check, install, post-check, (re)disconnect — with only genuine checks, plain-language package names, honest monthly reminders ("updates fix weaknesses criminals look for"), and a shared vocabulary of sounds + visuals (SPEC §3.7.1, §5.7), each with an accessible equivalent. | new 2026-09-25 |
 
 ### D1 — Sandbox details
 
@@ -242,8 +243,11 @@ Exit: all security tests green on the Mint box and in the VM.
   Pascal 580 pin, model download, benchmark + fallback ladder, config file.
 - Hardware providers: USB, PCI, serial, from sysfs + `usb.ids` / `pci.ids`; udev-driven cache.
 - MCU flash/erase actions in the `USER_APPROVED` lane.
+- Update window (SPEC §3.7.1): apt through the admin mechanism with `APT::Status-Fd`, signature and
+  hash results surfaced per step, Timeshift snapshot first, offline-mode connect/disconnect,
+  reminders; the §5.7 sound set and visual states (shared with the sidebar and approval cards).
 
-Exit: fresh install onto the test SSD in the Mint box (D21) ends with a working GPU profile chosen by measurement; a fresh VM ends with a working CPU profile.
+Exit: fresh install onto the test SSD in the Mint box (D21) ends with a working GPU profile chosen by measurement; a fresh VM ends with a working CPU profile; an update in offline mode connects, shows every check passing, and disconnects; a tampered package (test repo) stops the update with the warning shown and heard.
 
 ### M6 — Firefox, LibreOffice + web
 
