@@ -60,7 +60,13 @@ exists only as an option they switch on themselves (Rule 9).
 
 The three personas span the range: the **careful newcomer** (needs a hand to trust it), the
 **everyday user** (wants it to just be there), and — for a possible Pi variant — the **tinkerer**
-(opens it up; PLAN §6). A design that works for all three is the goal.
+(opens it up; PLAN §6). **The MVP is for the first two** (PLAN D34); the tinkerer and a Pi OS port
+reach out to developers afterwards. A design that doesn't fail any of the three is the goal.
+
+**Beyond the product:** Cin-MinAI is also meant to **start and influence community-developed AI
+projects** — more of them, the odd ones, and the established ones that don't mind the odd. Its
+reusable parts (eval, corpus pipeline, label extraction, benchmark harness, the public model cycle)
+are built to be taken and used on their own.
 
 Ship an installable desktop operating system, forked from Linux Mint Cinnamon, in which a locally
 running AI assistant is a native part of the system rather than an app you add:
