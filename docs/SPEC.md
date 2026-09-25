@@ -222,6 +222,15 @@ instead of remastering Mint's ISO. Only if Stage 1 stops being maintainable.
   users would otherwise be held back. Track this with automation (§15).
 * Distro upgrades (e.g. 22.x → 23) are handled like Mint's, with our repo switched to the new series.
 
+#### 3.7.0 Two schedules (PLAN D31)
+
+* **Security updates — continuous.** Whenever Ubuntu, Mint, or we publish a fix; offered through the
+  §3.7.1 window with honest reminders. Never held back for a release.
+* **Releases — twice a year**, following Mint's point releases (a new base series every two years
+  with Mint). Each release brings the desktop changes **and the model cycle** (§10.7): the result of
+  that half-year's public model review. Features and models arrive together, with release notes in
+  plain words.
+
 #### 3.7.1 The update experience (PLAN D29)
 
 Updating should **feel** safe, because it is — and the person should be able to watch it be safe.
@@ -898,6 +907,27 @@ who contacts you, and states that **Cin-MinAI never calls, emails, or asks for m
   Apache-2.0, or Piper) on the CPU so the GPU stays with the model; wake word; hands-free control of
   the desktop through the accessibility layer (AT-SPI) plus our tools — the whole system usable
   without mouse and keyboard. Check each language's voice coverage before committing.
+
+### 10.7 The model cycle (PLAN D31)
+
+Models improve fast, but a guide that changes behaviour every month is not what our users want.
+**Twice a year, with each release, we review the models in public** and ship what wins:
+
+1. **Candidates**: new open-weight models since the last cycle, proposed by us and by the community
+   (anyone can nominate one), filtered by licence (Apache-2.0/MIT-compatible) and by what fits the
+   hardware floor (D24).
+2. **The same bakeoff, published**: the guide eval (`training/eval/guide/`), the big-model suite
+   (§14.1), speed and memory on the reference cards (CUDA, Vulkan, CPU), with every result — the
+   losers and the failures included — in the release's `docs/benchmarks.md`.
+3. **Fine-tune and re-check** the winners (knowledge base, behaviour), re-run the eval, and only
+   ship a model that beats the current one where it matters and loses nowhere critical (safety,
+   declines, the careful-newcomer tasks).
+4. **Release notes** say which models "made it into Cin-MinAI this cycle" and why, in plain words.
+
+On the user's machine the new model is **offered, not forced** (Rule 9): "a better guide is
+available — faster, better at Japanese; download 1.3 GB?", with the old one kept for a switch back.
+Offline users get it with the next ISO or an update stick. A model never changes silently between
+releases; security fixes to the runtime (llama.cpp) are ordinary security updates.
 
 ---
 
