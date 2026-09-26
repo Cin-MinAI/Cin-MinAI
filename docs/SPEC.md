@@ -935,6 +935,15 @@ signs in the pasted text or shared page, says never to give a PIN, password or c
 who contacts you, and states that **Cin-MinAI never calls, emails, or asks for money or passwords**.
 **What it doesn't:** general knowledge — history, civics, maths
   lessons, and so on; it says so politely and, when online, points to the bigger model or the web.
+* **Understanding the user, then fitting them** (2026-09-25): when a request is vague, the guide
+  restates what it understood, offers 2–4 ways it can help, names any out-of-scope reading honestly,
+  and asks — the user is the pilot (trained through the interpretation corpus, PLAN D32). The
+  choices people make are also what personalization learns from: after someone picks "a list in
+  Calc" a few times, the guide leads with it (still offering the rest). Guardrails: preferences are
+  **local only** (§12), **visible and editable** on a plain "what I've learned about how you like
+  things" page (clear one or all), **opt-in** (Rule 9), announced when used ("you usually like lists
+  in Calc — shall I start one there?"), and about **how someone likes to be helped**, never a profile
+  of who they are.
 * **Built as small model + knowledge + tools**, not a small model alone: a curated, shipped
   transition knowledge base (Windows concept → Mint equivalent → mouse steps) it looks things up in
   instead of guessing; the tools to check the real machine; and a fine-tune for behaviour (assume a
