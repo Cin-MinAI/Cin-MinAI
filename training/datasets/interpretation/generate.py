@@ -81,8 +81,14 @@ the answer tool. The text, in the user's language:
 you, the helper built into this computer, can help — \
 for example looking up how to do it, opening a program, making a list or a table, checking something \
 on the computer. Use these program names exactly where they fit: {names}.
-{scope}3. End with one question that lets the user choose an option or tells you the one detail you need.
-Short, simple sentences. No terminal commands. Write the whole text in {language}."""
+{scope}3. End with one question the user answers themselves ("Which would you like?", or the one detail \
+you need) — never offer to choose for them.
+Short, simple sentences. No terminal commands. Write the whole text in {language}. {native}"""
+
+# The same instruction in the target language holds the teacher better than an English one alone.
+NATIVE = {"en": "", "es": "Escribe toda la respuesta en español.", "pt": "Escreva toda a resposta em português do Brasil.",
+          "fr": "Écris toute la réponse en français.", "de": "Schreib die ganze Antwort auf Deutsch.",
+          "ja": "返答はすべて日本語で書いてください。"}
 
 SCOPE = ("   If (and only if) they also want {out}, say honestly in one sentence that this isn't something you do, and "
          "that the web or a bigger model can help with it if they connect one — then keep your options "
@@ -121,7 +127,7 @@ def example(t, theme, lang, q, seed):
     out_schema = {"type": "object", "additionalProperties": False, "required": ["asks_out_of_scope", "text"],
                   "properties": {"asks_out_of_scope": {"type": "boolean"}, "text": {"type": "string"}}}
     rules = REPLY_RULES.format(names=names, scope=SCOPE.format(out=out) if out else "",
-                               language=T.LANG_NAMES[lang])
+                               language=T.LANG_NAMES[lang], native=NATIVE[lang])
     fails = []
     for attempt, temp in enumerate((0.3, 0.7)):
         raw = t.chat([{"role": "system", "content": system + "\n\n" + rules + ASKS.format(out=out or "-")},
