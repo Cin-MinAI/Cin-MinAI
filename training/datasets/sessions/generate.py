@@ -199,7 +199,8 @@ def user_message(t, lang, persona, thread, kind, what, msgs, seed, evalq) -> str
               f"Windows. Persona: {persona}; right now they {thread}.\n\nThe conversation so far:\n"
               f"{history_text(msgs)}\n\nWrite their NEXT message: {ASK[kind].format(what=what)}. It should fit "
               f"naturally after the conversation so far (a new need is fine). Use Windows words where they "
-              f"would. Only the words they type — no labels, no quotes, no description of them. Write it in "
+              f"would. They are talking to the computer's assistant, not to a family member — don't address it as grandma, "
+              f"mum, etc. Only the words they type — no labels, no quotes, no description of them. Write it in "
               f"{T.LANG_NAMES[lang]}. {I.NATIVE[lang]}")
     schema = {"type": "object", "additionalProperties": False, "required": ["message"],
               "properties": {"message": {"type": "string", "minLength": 2, "maxLength": 300}}}
@@ -210,8 +211,10 @@ def user_message(t, lang, persona, thread, kind, what, msgs, seed, evalq) -> str
         except Exception:
             continue
         ok = T.valid_question(q, lang) if kind not in ("chat", "follow") else (len(q) >= 2 and not T.TRACES.search(q))
+        if kind == "chat" and (re.search(r"[?？]", q) or len(q.split()) > 20):
+            ok = False  # small talk, not a new question (seen: a security question answered as chat)
         earlier = [m["content"] for m in msgs[1:] if m["role"] == "user" and not m["content"].startswith("Result of ")]
-        if ok and any(T.similar(q, e) >= 0.6 for e in earlier):
+        if ok and any(T.similar(q, e) >= 0.6 or contained(q, e) >= 0.7 for e in earlier):
             ok = False  # the teacher copied an earlier message: the planned answer wouldn't match it
         if ok and max((T.similar(q, e) for e in evalq), default=0) < 0.5:
             return q
@@ -240,7 +243,30 @@ WALK_GUIDE = ("\n\nThis reply walks the person through it piece by piece: give o
               "from the help card above (one action), then ask them to do it and tell you what they see. No "
               "numbered list, no other steps, nothing that isn't in the card. If they report a problem the card "
               "doesn't cover, say honestly that the help doesn't cover it and offer to check the computer or look "
-              "up more — never invent buttons, menus, or options.")
+              "up more — never invent buttons, menus, or options. Format: one sentence with the single step, then "
+              "one short question such as 'What do you see now?' — the reply must end with that question.")
+
+
+QUOTED = re.compile(r'"([^"\n]{2,40})"|“([^”\n]{2,40})”|„([^“”\n]{2,40})[“”]|«\s?([^»\n]{2,40}?)\s?»|「([^」\n]{1,40})」|『([^』\n]{1,40})』|\'([^\'\n]{2,40})\'')
+ALL_LABELS: dict = {}
+
+
+def labels_in(lang: str) -> str:
+    if lang not in ALL_LABELS:
+        ALL_LABELS[lang] = " | ".join(v for row in R.LABELS.values() for v in (row.get(lang), row.get("en")) if v)
+    return ALL_LABELS[lang]
+
+
+def invented_names(reply: str, lang: str, sources: list[str]) -> list[str]:
+    """Quoted UI names in the reply that appear in none of the sources (card, result, Mint's labels, the
+    user's messages): the way invented buttons and menus show up ("Add Device", "Restart Wi-Fi")."""
+    pool = (" ".join(sources) + " " + labels_in(lang)).lower()
+    bad = []
+    for m in QUOTED.finditer(reply):
+        name = next(g for g in m.groups() if g).strip(" .:,!?。、")
+        if name and name.lower() not in pool and not re.fullmatch(r"[\d\s%.,]+", name):
+            bad.append(name)
+    return bad
 
 
 def one_step(text: str, lang: str) -> list[str]:
@@ -269,6 +295,16 @@ def offers(text: str, lang: str) -> int:
     return sum(1 for line in text.splitlines() if R.STEP.match(line) and re.search(OFFER[lang], line, re.I))
 
 
+def contained(a: str, b: str) -> float:
+    """Share of the shorter message's 3-grams that also appear in the longer one (a longer copy of an
+    earlier message has low Jaccard similarity but high containment)."""
+    ga, gb = (T.cjk_grams(a), T.cjk_grams(b)) if R.language(a) == "ja" else (T.grams(a), T.grams(b))
+    if not ga or not gb:
+        return 0.0
+    small, big = (ga, gb) if len(ga) <= len(gb) else (gb, ga)
+    return len(small & big) / len(small)
+
+
 def forced(tool: str) -> dict:
     return {"anyOf": [s for s in R.schema(None)["anyOf"] if s["properties"]["tool"]["const"] == tool]}
 
@@ -289,6 +325,9 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                 reply = t.chat(gen + [{"role": "assistant", "content": call}, res], temperature=0.2, max_tokens=600, seed=s)
                 fails = R.stage_b({"lang": lang, "must": must, "must_not": T.NO_CMD + WRONG_ANY,
                                    "steps": 2 if KB[topic]["steps"] else 0}, reply)
+                bad = invented_names(reply, lang, [card] + [m["content"] for m in ctx if m["role"] == "user" and not m["content"].startswith("Result of ")])
+                if bad:
+                    fails.append("invented names: " + ", ".join(bad[:3]))
                 out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
             elif kind == "system":
                 call = json.dumps({"tool": "inspect_system", "args": {"topic": topic}})
@@ -298,6 +337,9 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                 reply = t.chat(gen + [{"role": "assistant", "content": call}, res], temperature=0.2, max_tokens=500, seed=s)
                 fails = R.stage_b({"lang": lang, "must": [result_facts(result)],
                                    "must_not": T.NO_CMD + WRONG_ANY + WRONG_SYSTEM}, reply)
+                bad = invented_names(reply, lang, [json.dumps(result, ensure_ascii=False)] + [m["content"] for m in ctx if m["role"] == "user" and not m["content"].startswith("Result of ")])
+                if bad:
+                    fails.append("invented names: " + ", ".join(bad[:3]))
                 out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
             elif kind == "report":
                 call = json.dumps({"tool": "inspect_system", "args": {"topic": topic}})
@@ -311,6 +353,9 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                                    "must_not": T.NO_CMD + WRONG_ANY + WRONG_SYSTEM}, reply)
                 if R.STEP.findall(reply):
                     fails.append("report gives instructions")
+                bad = invented_names(reply, lang, [json.dumps(result, ensure_ascii=False)] + [m["content"] for m in ctx if m["role"] == "user" and not m["content"].startswith("Result of ")])
+                if bad:
+                    fails.append("invented names: " + ", ".join(bad[:3]))
                 if not re.search(r"[?？]\s*$", reply.strip()):
                     fails.append("doesn't end with a question")
                 out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
@@ -322,12 +367,19 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                 res_gen = {"role": "user", "content": res["content"] + WALK_GUIDE}
                 reply = t.chat(wgen + [{"role": "assistant", "content": call}, res_gen], temperature=0.2, max_tokens=250, seed=s)
                 fails = one_step(reply, lang)
+                bad = invented_names(reply, lang, [card] + [m["content"] for m in ctx if m["role"] == "user" and not m["content"].startswith("Result of ")])
+                if bad:
+                    fails.append("invented names: " + ", ".join(bad[:3]))
                 out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
             elif kind == "walk_next":
                 wgen = [{"role": "system", "content": system + GEN_GUIDE + WALK_GUIDE}] + ctx[1:-1] + \
                        [{"role": "user", "content": ctx[-1]["content"] + "\n\n(" + WALK_GUIDE.strip() + ")"}]
                 reply = t.chat(wgen, temperature=0.2, max_tokens=250, seed=s)
                 fails = one_step(reply, lang)
+                cards = [m["content"] for m in ctx if m["role"] == "user" and m["content"].startswith("Result of ")]
+                bad = invented_names(reply, lang, cards + [m["content"] for m in ctx if m["role"] == "user" and not m["content"].startswith("Result of ")])
+                if bad:
+                    fails.append("invented names: " + ", ".join(bad[:3]))
                 out = [{"role": "assistant", "content": reply}]
             elif kind == "vague":
                 rules =I.REPLY_RULES.format(names=", ".join(filter(None, (T.label(k, lang) for k in
@@ -433,7 +485,16 @@ def session(t, sid, lang, rnd, evalq, stats) -> dict | None:
         reply = assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd)
         if reply is None:
             stats["turn_fail_assistant"][kind] = stats["turn_fail_assistant"].get(kind, 0) + 1
-            break
+            # one fallback with a sturdier turn type instead of throwing the session away
+            fb = rnd.choice([k for k in ("report", "decline") if k != kind])
+            topic = rnd.choice(list(SYSTEM)) if fb == "report" else None
+            what = SYSTEM[topic] if fb == "report" else rnd.choice(OFF_TOPIC)
+            q = user_message(t, lang, persona, thread, fb, what, msgs, seed + 7, evalq)
+            reply = assistant_turns(t, lang, fb, topic, q, msgs, seed + 7, rnd) if q else None
+            if reply is None:
+                break
+            stats["fallback_turns"] = stats.get("fallback_turns", 0) + 1
+            kind = fb
         msgs += [{"role": "user", "content": q}] + reply
         done.append(kind)
     if len(done) < 3:

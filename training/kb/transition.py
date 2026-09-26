@@ -287,7 +287,7 @@ TOPICS = [
              "the computer doesn't connect to the internet at all.",
      "must": [], "steps": False},
     {"id": "offline_mode", "windows": "keeping the computer completely off the internet",
-     "card": "Offline mode: open the assistant's settings and switch on Keep this computer offline. Wi-Fi and "
+     "card": "Offline mode: click the gear button at the top of the assistant's sidebar and switch on Keep this computer offline. Wi-Fi and "
              "cable are both switched off and the panel shows OFFLINE. For security updates, click Go online to "
              "install updates; it connects, installs them, and disconnects again.",
      "must": [], "steps": True},
