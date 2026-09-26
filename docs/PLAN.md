@@ -405,6 +405,14 @@ CLOUD indicator, disconnect, and confirm the local model takes over with nothing
   Language/tool core for a first release: C, Python, Bash, reading ARM + one ECU assembly family,
   the bus protocols, S19/HEX/BIN, flashrom/sigrok/OpenOCD; further languages come as packs
   (FPGA: Verilog/VHDL + Yosys/nextpnr; retro/learning: BASIC/MMBasic, Forth; …).
+- **Sister project, not the OS (idea, 2026-09-25): a home cluster on old server GPUs.** The OS has no
+  plans for multi-agent clusters — it's for end users (D34). Separately: build a user-owned "cloud"
+  from retired datacenter cards (e.g. used V100 16/32 GB, NVLink on SXM2) — the mining-era idea again
+  — exposing the same OpenAI-compatible endpoint as llama-server, so the OS can use it as a D35
+  backend while the data stays at home. That project is where multi-agent clusters, model routing,
+  llama.cpp RPC across machines, and home-networked AI get explored. Cautions: Volta likely needs the
+  same pinned CUDA 12 toolchain/driver path as Pascal; ~250–300 W per card, SXM2 carrier boards or
+  adapters, heat and noise.
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way. Also a
