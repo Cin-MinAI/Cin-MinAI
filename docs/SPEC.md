@@ -1043,6 +1043,34 @@ Keep state outside the model and inject only what is relevant:
 }
 ```
 
+### 11.5.1 Long sessions: one conversation, continuity underneath (PLAN D40)
+
+The goal is a **Jarvis-like experience**: one continuous conversation that feels like it remembers.
+The model never carries the whole session — the system does, and hands the model only what matters
+now (the guide has ~8K tokens on a GPU, ~1K on the CPU, D27). No limits is not a promise we make;
+an **effective context length we measure and keep improving** is (D33).
+
+* **Session notebook** (the state above, extended): goal, decisions, what was tried, open items,
+  relevant machine facts. The model sees the notebook + the last few turns.
+* **Rolling compaction, never silent:** older turns fold into the notebook; the user is told ("I've
+  summarized our earlier conversation — here's what I kept") and can see or correct it. The full
+  transcript stays on disk, local only (§12).
+* **Recall on demand:** when something from far back matters, search the stored transcript and bring
+  in just that piece (keyword search first; no extra model needed).
+* **Threads underneath, one conversation on screen:** when the topic clearly changes, the system
+  starts a new internal thread (short contexts keep the model sharp); the user just sees one
+  conversation.
+* **Cheap to continue:** a stable prompt front (system prompt + notebook first, new turns last) so
+  llama-server reuses its cache; the cache is saved to disk on idle unload and restored on resume,
+  so picking up takes seconds, not minutes (matters most on the CPU).
+* **Staying on course:** in long tasks the guide re-anchors now and then ("we're still getting your
+  printer working — next is the driver"), which also catches drift.
+* **On open: offer a rundown of last session.** "Want a quick rundown of where we left off?" — yes:
+  a short, plain summary from the notebook; no: straight in. If someone always says no, ask once
+  whether to stop asking (Rule 9, D39). "Start fresh" is always one click.
+* **Measured:** long-session eval tasks — a fact given at turn 3 used correctly at turn 30; a
+  compaction that keeps what matters; a rundown that is accurate.
+
 ### 11.6 Hardware state cache
 
 CPU, GPU, USB controllers, PCI devices, storage, network adapters, and bound drivers are cached and
