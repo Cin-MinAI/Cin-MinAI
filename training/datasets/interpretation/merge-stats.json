@@ -1,0 +1,54 @@
+{
+ "kind": "interpretation",
+ "sources": [
+  "interp",
+  "interp-topup",
+  "interp-topup2"
+ ],
+ "kept": 695,
+ "dropped": {
+  "reply fails current checks": 159,
+  "reply echoes the question": 2,
+  "invalid question": 1,
+  "near-duplicate": 3
+ },
+ "by_language": {
+  "en": 94,
+  "es": 119,
+  "fr": 93,
+  "de": 173,
+  "ja": 70,
+  "pt": 146
+ },
+ "by_theme": {
+  "gifts for family this year (a list, a budget, keeping track)": 23,
+  "getting photos from this computer to a family member": 29,
+  "the computer feels slow or strange lately": 19,
+  "keeping track of monthly bills and expenses": 18,
+  "a newsletter or flyer for a club or church group": 22,
+  "a letter that needs to be written and printed": 20,
+  "a file they worked on and now can't find": 37,
+  "making things on the screen easier to see": 22,
+  "video calls with grandchildren": 19,
+  "making sure nothing important gets lost": 32,
+  "learning to use the computer better": 27,
+  "organising lots of pictures": 27,
+  "listening to music or the radio on the computer": 27,
+  "collecting family recipes in one place": 21,
+  "an invitation for a birthday or party": 15,
+  "papers for taxes or the bank that need scanning": 17,
+  "remembering appointments and dates": 27,
+  "passwords for websites, too many to remember": 36,
+  "a document that needs to look nicer": 26,
+  "the internet or Wi-Fi acting up": 32,
+  "a slideshow of photos for a family event": 26,
+  "keeping the computer safe": 22,
+  "a list of phone numbers and addresses": 28,
+  "setting the computer up for a grandchild to use": 29,
+  "a trip that needs planning": 23,
+  "an old printer or scanner to get working": 29,
+  "the computer making noise or getting hot": 26,
+  "writing down family history": 16
+ },
+ "max_eval_similarity": 0.25
+}
