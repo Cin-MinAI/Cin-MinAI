@@ -44,6 +44,14 @@ Cin-MinAI is a step toward that, taken responsibly:
   community for granted — so security work is public too: reproducible builds and signed packages,
   a published vulnerability policy, security findings and fixes explained, and time taken for
   public discussion when an obstacle needs many people pushing.
+* **Keep knowledge and hardware in circulation** (Ian, 2026-09-25). Repair know-how, datasheets and
+  forum wisdom disappear as sites close and a throwaway culture moves on; parts vanish the same way.
+  We don't just collect what's being lost — we **give it to a model to digest and redistribute as
+  needed**: an open, versioned knowledge base, a published corpus, and local models that keep
+  working offline when the original source is gone. The source stays attached (every card says
+  where its knowledge came from and who contributed it, and respects that source's licence), and
+  the model is measured on redistributing it correctly, not on sounding knowledgeable (§14.1). Old
+  hardware kept useful is the same idea in silicon.
 * **Familiarity is a feature** (PLAN D38): the layout people already know stays where it is from
   release to release; changes are rare, explained, and reversible — never a redesign for its own
   sake.
