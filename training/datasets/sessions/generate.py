@@ -49,7 +49,15 @@ sys.argv = _saved
 KB = {t["id"]: t for t in T.KB.TOPICS}
 SAFETY = ["scam_email", "scam_phone", "scam_popup", "privacy_assistant", "offline_mode", "updates_why"]
 TRANSITION = [t for t in KB if t not in SAFETY]
-MIX = {"clear": 0.33, "vague": 0.20, "decline": 0.15, "system": 0.15, "safety": 0.10, "chat": 0.07}
+MIXES = {
+    "v1": {"clear": 0.33, "vague": 0.20, "decline": 0.15, "system": 0.15, "safety": 0.10, "chat": 0.07},
+    # Ian, 2026-09-26: fewer full-solution turns (where the teacher invents), more "journalistic" ones —
+    # report what's there, or walk through piece by piece, sometimes without a conclusion.
+    "journal": {"clear": 0.15, "system": 0.05, "report": 0.18, "walk": 0.20, "vague": 0.15, "decline": 0.12,
+                "safety": 0.08, "chat": 0.07},
+    "jtest": {"walk": 0.4, "report": 0.4, "decline": 0.1, "chat": 0.1},  # smoke tests of the new turns
+}
+MIX = MIXES["v1"]
 
 THREADS = [
     "just switched from Windows and is setting up the new computer", "wants to get family photos organised",
@@ -180,6 +188,9 @@ ASK = {
     "system": "a question about {what} on this computer",
     "safety": "a question about {what}",
     "chat": "a short message: {what}",
+    "report": "a question about {what} on this computer",
+    "follow": "a short reply after doing the step the assistant just gave ({what}): usually it worked and they "
+              "say what they see now; sometimes they ask where exactly to click, using only what the step said",
 }
 
 
@@ -198,7 +209,10 @@ def user_message(t, lang, persona, thread, kind, what, msgs, seed, evalq) -> str
                                                    temperature=0.8, max_tokens=250, seed=seed + k))["message"])
         except Exception:
             continue
-        ok = T.valid_question(q, lang) if kind != "chat" else (len(q) >= 2 and not T.TRACES.search(q))
+        ok = T.valid_question(q, lang) if kind not in ("chat", "follow") else (len(q) >= 2 and not T.TRACES.search(q))
+        earlier = [m["content"] for m in msgs[1:] if m["role"] == "user" and not m["content"].startswith("Result of ")]
+        if ok and any(T.similar(q, e) >= 0.6 for e in earlier):
+            ok = False  # the teacher copied an earlier message: the planned answer wouldn't match it
         if ok and max((T.similar(q, e) for e in evalq), default=0) < 0.5:
             return q
     return None
@@ -217,6 +231,31 @@ GEN_GUIDE = ("\n\nWhen you reply after a tool result: use only the names, menus,
 WRONG_ANY = [r"\bterminal\b|端末|comandos?\b", r"top[- ]left|arriba a la izquierda|superior izquierd|oben links|en haut à gauche|canto superior "
              r"esquerdo|左上", r"Cin-Min(?!AI)|CinMin(?!AI)"]
 WRONG_SYSTEM = [r"Settings app|Printers (?:&|and) Scanners|Control Panel|\bC:? drive\b|Device Manager"]
+
+
+REPORT_GUIDE = ("\n\nThis reply is a report: describe in plain words only what the result shows (the "
+                "real names and numbers), without telling the person what to do, and end by asking what "
+                "they would like to do next. No numbered list.")
+WALK_GUIDE = ("\n\nThis reply walks the person through it piece by piece: give only the NEXT single step "
+              "from the help card above (one action), then ask them to do it and tell you what they see. No "
+              "numbered list, no other steps, nothing that isn't in the card. If they report a problem the card "
+              "doesn't cover, say honestly that the help doesn't cover it and offer to check the computer or look "
+              "up more — never invent buttons, menus, or options.")
+
+
+def one_step(text: str, lang: str) -> list[str]:
+    fails = []
+    if lang not in R.language_candidates(text) or T.mixed_language(text, lang):
+        fails.append("language")
+    if len(R.STEP.findall(text)) > 1:
+        fails.append("more than one step")
+    if not re.search(r"[?？]\s*$", text.strip()):
+        fails.append("doesn't end with a question")
+    if len(text) > (260 if lang == "ja" else 90 * 6):
+        fails.append("too long for one step")
+    if any(re.search(w, text, re.I) for w in WRONG_ANY):
+        fails.append("wrong fact or terminal")
+    return fails
 
 
 # A vague turn must be answered with offers ("I can ..."), not instructions — the smoke test showed
@@ -260,6 +299,36 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                 fails = R.stage_b({"lang": lang, "must": [result_facts(result)],
                                    "must_not": T.NO_CMD + WRONG_ANY + WRONG_SYSTEM}, reply)
                 out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
+            elif kind == "report":
+                call = json.dumps({"tool": "inspect_system", "args": {"topic": topic}})
+                result = system_result(topic, lang, rnd)
+                res = {"role": "user", "content": f"Result of inspect_system:\n{json.dumps(result, ensure_ascii=False)}"
+                                                  f"\n\n{R.STYLE_V2}"}
+                rgen = [{"role": "system", "content": system + GEN_GUIDE + REPORT_GUIDE}] + ctx[1:]
+                res_gen = {"role": "user", "content": res["content"] + REPORT_GUIDE}
+                reply = t.chat(rgen + [{"role": "assistant", "content": call}, res_gen], temperature=0.2, max_tokens=300, seed=s)
+                fails = R.stage_b({"lang": lang, "must": [result_facts(result)],
+                                   "must_not": T.NO_CMD + WRONG_ANY + WRONG_SYSTEM}, reply)
+                if R.STEP.findall(reply):
+                    fails.append("report gives instructions")
+                if not re.search(r"[?？]\s*$", reply.strip()):
+                    fails.append("doesn't end with a question")
+                out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
+            elif kind == "walk_first":
+                call = t.chat(ctx, schema=forced("lookup_help"), temperature=0.2, max_tokens=120, seed=s)
+                card = T.resolve(KB[topic]["card"], lang)
+                res = {"role": "user", "content": f"Result of lookup_help:\n{card}\n\n{R.STYLE_V2}"}
+                wgen = [{"role": "system", "content": system + GEN_GUIDE + WALK_GUIDE}] + ctx[1:]
+                res_gen = {"role": "user", "content": res["content"] + WALK_GUIDE}
+                reply = t.chat(wgen + [{"role": "assistant", "content": call}, res_gen], temperature=0.2, max_tokens=250, seed=s)
+                fails = one_step(reply, lang)
+                out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
+            elif kind == "walk_next":
+                wgen = [{"role": "system", "content": system + GEN_GUIDE + WALK_GUIDE}] + ctx[1:-1] + \
+                       [{"role": "user", "content": ctx[-1]["content"] + "\n\n(" + WALK_GUIDE.strip() + ")"}]
+                reply = t.chat(wgen, temperature=0.2, max_tokens=250, seed=s)
+                fails = one_step(reply, lang)
+                out = [{"role": "assistant", "content": reply}]
             elif kind == "vague":
                 rules =I.REPLY_RULES.format(names=", ".join(filter(None, (T.label(k, lang) for k in
                                              ["files", "writer", "calc", "system_settings", "software_manager"]))),
@@ -317,7 +386,27 @@ def session(t, sid, lang, rnd, evalq, stats) -> dict | None:
     done = []
     for i, kind in enumerate(kinds):
         seed = rnd.randrange(1 << 30)
-        if kind == "clear":
+        if kind == "walk":
+            steps = [x for x in TRANSITION if KB[x]["steps"] and lang in KB[x].get("langs", T.KB.ALL)]
+            topic = rnd.choice(steps)
+            q = user_message(t, lang, persona, thread, "clear", KB[topic]["windows"], msgs, seed, evalq)
+            first = assistant_turns(t, lang, "walk_first", topic, q, msgs, seed, rnd) if q else None
+            if first is None:
+                stats["turn_fail_assistant"]["walk"] = stats["turn_fail_assistant"].get("walk", 0) + 1
+                break
+            msgs += [{"role": "user", "content": q}] + first
+            for j in range(rnd.choice([1, 2, 3])):  # sometimes stops before the end — no conclusion needed
+                f = user_message(t, lang, persona, thread, "follow", KB[topic]["windows"], msgs, seed + 100 + j, evalq)
+                nxt = assistant_turns(t, lang, "walk_next", topic, f, msgs, seed + 200 + j, rnd) if f else None
+                if nxt is None:
+                    break
+                msgs += [{"role": "user", "content": f}] + nxt
+            done.append("walk")
+            continue
+        if kind == "report":
+            topic = rnd.choice(list(SYSTEM))
+            what = SYSTEM[topic]
+        elif kind == "clear":
             topic = shared if ("vague" in kinds and rnd.random() < 0.5) else rnd.choice(TRANSITION)
             what = KB[topic]["windows"]
         elif kind == "vague":
@@ -358,7 +447,10 @@ def main() -> None:
     ap.add_argument("--url", required=True), ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True), ap.add_argument("--sessions", type=int, default=100)
     ap.add_argument("--seed", type=int, default=81)
+    ap.add_argument("--mix", choices=list(MIXES), default="v1")
     o = ap.parse_args()
+    global MIX
+    MIX = MIXES[o.mix]
     rnd = random.Random(o.seed)
     t = T.Teacher(o.url, o.model)
     evalq = T.eval_questions()
@@ -367,7 +459,7 @@ def main() -> None:
     spec.loader.exec_module(v)
     evalq += [q for task in v.TASKS for q in task["q"].values()]
     os.makedirs(o.out, exist_ok=True)
-    stats = {"teacher": o.model, "started": dt.datetime.now().isoformat(timespec="seconds"), "mix": MIX,
+    stats = {"teacher": o.model, "started": dt.datetime.now().isoformat(timespec="seconds"), "mix_name": o.mix, "mix": MIX,
              "sessions_ok": 0, "sessions_dropped": 0, "turn_fail_user": 0, "turn_fail_assistant": {},
              "turn_types": {}, "by_lang": {}}
     langs = T.KB.ALL
