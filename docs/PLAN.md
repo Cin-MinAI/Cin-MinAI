@@ -343,6 +343,7 @@ CLOUD indicator, disconnect, and confirm the local model takes over with nothing
 | Sandbox gaps (D-Bus, `/dev`, setuid, user namespaces) | Security tests against the real profile |
 | Trademark / licensing | Rebrand (D17); review Mint, Ubuntu, Mozilla, and model licenses before public release |
 | Scope creep (FPGA/MCU modes, LSP, own terminal) | Held to after v0.1 (SPEC §17) |
+| **Development capacity, not money, is the bottleneck if it takes off** (Ian, 2026-09-25) | Docs as onboarding (decisions with evidence); contribution lanes (packages, core, surfaces, domain packs, KB topics, languages); no-code paths (HELP-WANTED); AI-assisted workflow documented (`AGENTS.md`, notes); before going public: CI running the checks, a CONTRIBUTING guide incl. how decisions are made, maintainers per lane; money goes to maintainers, review time, and security audits first |
 
 ---
 
