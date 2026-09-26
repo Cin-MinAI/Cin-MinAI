@@ -15,7 +15,8 @@ sending the JSON results. See `docs/benchmarks.md`.
 **Older gaming laptops — the MVP's real hardware (PLAN D37).** GTX 1050 Ti / 1650 (4 GB),
 GTX 1060 / RTX 2060 (6 GB), usually with Intel hybrid graphics. We only have desktop cards (GTX 1080 Ti,
 RTX 4070). *Wanted:* guide benchmarks on these laptops (`bench/run.py --build cuda --budget-gb 6`, and
-at 4 GB), plus how hybrid-graphics switching, thermals, and battery behave under Linux Mint.
+on 8 GB, our target), plus how hybrid-graphics switching, thermals, and battery behave under Linux
+Mint. 4 GB cards are below our 6 GB minimum; results are still welcome, but we don't promise support.
 
 **Everyday laptops with integrated graphics only.** *Wanted:* CPU-only and Vulkan-on-iGPU results from
 ordinary 3–6-year-old laptops, so we know what "works everywhere" really means.
