@@ -326,7 +326,7 @@ def run_item(srv: Server, it: dict) -> dict:
                      {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE_V2 if PROMPT == 'v2' else STYLE}"}]
         reply, tb = srv.chat(messages, None, 600)
         rec["t_b"] = round(tb, 2)
-    if reply is not None and ("card" in it or "result" in it or it["cat"] == "decline"):
+    if reply is not None and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret")):
         rec["reply"] = reply
         rec["b_fails"] = stage_b(it, reply)
         rec["b_ok"] = not rec["b_fails"]

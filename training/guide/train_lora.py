@@ -25,37 +25,45 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 
-def encode(tok, messages: list[dict], max_len: int) -> dict | None:
-    """input_ids + labels with -100 everywhere except the assistant turns.
+def encode_turn(tok, messages: list[dict], max_len: int) -> dict | None:
+    """One training sequence whose LAST message is an assistant turn; loss on that turn only.
 
-    Template-independent: render the whole conversation once with the model's own chat template, find
-    each assistant message's text in it (in order), and train on the tokens inside those spans plus
-    the one token that closes the turn (end-of-turn marker). Returns None if a reply can't be found
-    (the template changed it) or the example is too long."""
-    text = tok.apply_chat_template(messages, tokenize=False, chat_template_kwargs={"enable_thinking": False})
-    spans, pos = [], 0
-    for m in messages:
-        if m["role"] != "assistant":
-            continue
-        start = text.find(m["content"], pos)
-        if start < 0:
-            return None
-        spans.append((start, start + len(m["content"])))
-        pos = start + len(m["content"])
+    Rendered exactly as at run time: the conversation up to and including this turn, thinking off.
+    Many chat templates format the last assistant turn differently from earlier ones (Qwen3.5 puts an
+    empty thinking block in front of the last one only). Training every turn in the last position is
+    what makes it match inference — cycle 0's first run trained the tool call only as an *earlier*
+    turn, so the model never saw a lookup call where it actually has to produce one, and it answered
+    everything with the interpretation pattern (16 % on the eval, from 87 %).
+
+    Template-independent: find the turn's text in the rendering, train on the tokens inside it plus
+    the one token that closes the turn. None if the text can't be found or it's too long."""
+    text = tok.apply_chat_template(messages, tokenize=False, enable_thinking=False)
+    content = messages[-1]["content"]
+    start = text.rfind(content)
+    if start < 0:
+        return None
+    end = start + len(content)
     enc = tok(text, add_special_tokens=False, return_offsets_mapping=True)
     ids, offs = enc["input_ids"], enc["offset_mapping"]
     if len(ids) > max_len:
         return None
     labels = [-100] * len(ids)
-    for s, e in spans:
-        last = None
-        for k, (a, b) in enumerate(offs):
-            if a >= s and b <= e and b > a:
-                labels[k] = ids[k]
-                last = k
-        if last is not None and last + 1 < len(ids):  # the end-of-turn token
-            labels[last + 1] = ids[last + 1]
+    last = None
+    for k, (a, b) in enumerate(offs):
+        if a >= start and b <= end and b > a:
+            labels[k] = ids[k]
+            last = k
+    if last is None:
+        return None
+    if last + 1 < len(ids):  # the end-of-turn token
+        labels[last + 1] = ids[last + 1]
     return {"input_ids": ids, "labels": labels}
+
+
+def encode(tok, messages: list[dict], max_len: int) -> list[dict]:
+    """One sequence per assistant turn, each with that turn in the last position."""
+    return [e for i, m in enumerate(messages) if m["role"] == "assistant"
+            for e in [encode_turn(tok, messages[:i + 1], max_len)] if e]
 
 
 def main() -> None:
@@ -82,12 +90,12 @@ def main() -> None:
         rows = rows[:o.limit]
     data, skipped = [], 0
     for r in rows:
-        e = encode(tok, r["messages"], o.max_len)
-        if e:
-            data.append(e)
-        else:
-            skipped += 1
-    print(f"{len(data)} examples, {skipped} skipped (too long or template not prefix-stable)", flush=True)
+        seqs = encode(tok, r["messages"], o.max_len)
+        want = sum(m["role"] == "assistant" for m in r["messages"])
+        skipped += want - len(seqs)
+        data += seqs
+    print(f"{len(rows)} examples -> {len(data)} training sequences (one per assistant turn), "
+          f"{skipped} turns skipped (too long or not found)", flush=True)
 
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
                              bnb_4bit_compute_dtype=torch.bfloat16)
@@ -129,7 +137,8 @@ def main() -> None:
     model.save_pretrained(os.path.join(o.out, "adapter"))
     import peft
     import transformers
-    json.dump({"base": os.path.abspath(o.base), "data": os.path.abspath(o.data), "examples": len(data),
+    json.dump({"base": os.path.abspath(o.base), "data": os.path.abspath(o.data), "source_examples": len(rows),
+               "examples": len(data), "encoding": "one sequence per assistant turn, in last-turn position",
                "skipped": skipped, "epochs": o.epochs, "steps": steps, "lr": o.lr, "rank": o.rank,
                "alpha": o.alpha, "dropout": 0.05, "target_modules": o.targets, "max_len": o.max_len,
                "grad_accum": o.accum, "batch": 1, "quant": "nf4 double-quant, bf16 compute", "seed": o.seed,
