@@ -817,6 +817,9 @@ the installed system **against its own known-good record** instead of guessing w
 * **Keeping the USB current:** the guide now and then suggests "plug in your install USB to update
   your recovery backup"; it verifies the USB's share, shows what it will write, and **writes only
   after the user approves** (Rule 9, the human's button).
+* **No network, ever, anywhere in this loop:** the record, the timeline, the refresh, and recovery
+  itself are all local — the machine, a USB stick in the user's hand, and a printed code. No account,
+  server, or connection is needed, and none is offered as a shortcut.
 * **Repairs:** a fixed set — boot repair, Timeshift rollback, freeing disk space, falling back to the
   safe graphics driver, package repair; each shown as a plan in plain words, snapshot/backup first,
   then the human's button. Files on the broken system (logs, configs) are untrusted input (§7.10).
