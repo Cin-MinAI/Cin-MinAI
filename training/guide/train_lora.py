@@ -66,6 +66,10 @@ def main() -> None:
     ap.add_argument("--rank", type=int, default=16), ap.add_argument("--alpha", type=int, default=32)
     ap.add_argument("--max-len", type=int, default=2048), ap.add_argument("--accum", type=int, default=8)
     ap.add_argument("--seed", type=int, default=1), ap.add_argument("--limit", type=int)
+    ap.add_argument("--targets", default="all-linear",
+                    help="LoRA target modules, comma-separated, or all-linear. Qwen3.5: only the standard "
+                         "attention/MLP projections — llama.cpp can't convert adapters on its linear-attention "
+                         "projections (head reordering)")
     o = ap.parse_args()
     random.seed(o.seed)
     torch.manual_seed(o.seed)
@@ -91,7 +95,8 @@ def main() -> None:
                                                  device_map={"": 0})
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     model = get_peft_model(model, LoraConfig(r=o.rank, lora_alpha=o.alpha, lora_dropout=0.05,
-                                             target_modules="all-linear", task_type="CAUSAL_LM"))
+                                             target_modules=o.targets if o.targets == "all-linear"
+                                             else o.targets.split(","), task_type="CAUSAL_LM"))
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=o.lr, weight_decay=0.0)
     steps = int(len(data) * o.epochs / o.accum)
@@ -126,7 +131,7 @@ def main() -> None:
     import transformers
     json.dump({"base": os.path.abspath(o.base), "data": os.path.abspath(o.data), "examples": len(data),
                "skipped": skipped, "epochs": o.epochs, "steps": steps, "lr": o.lr, "rank": o.rank,
-               "alpha": o.alpha, "dropout": 0.05, "target_modules": "all-linear", "max_len": o.max_len,
+               "alpha": o.alpha, "dropout": 0.05, "target_modules": o.targets, "max_len": o.max_len,
                "grad_accum": o.accum, "batch": 1, "quant": "nf4 double-quant, bf16 compute", "seed": o.seed,
                "trainable_params": trainable, "train_seconds": round(time.time() - t0),
                "gpu": torch.cuda.get_device_name(0), "peak_vram_gib": round(torch.cuda.max_memory_allocated() / 2**30, 2),

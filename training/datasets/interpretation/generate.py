@@ -112,6 +112,8 @@ def checks(lang: str, text: str) -> list[str]:
     for pat in T.NO_CMD:
         if re.search(pat, text, re.I):
             fails.append(f"contains /{pat}/")
+    if T.mixed_language(text, lang):
+        fails.append("a line in another language")
     size = len(text) if lang == "ja" else len(text.split())
     if size > (450 if lang == "ja" else 170):
         fails.append(f"too long ({size})")

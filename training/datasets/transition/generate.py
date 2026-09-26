@@ -170,7 +170,27 @@ GLUED = re.compile(r"\[\s*\d+\s*[.:\]]|\s\d+\.\s.*\s\d+\.\s")  # "[ 2. …", "1.
 
 
 TRACES = re.compile(r"\[\s*user|\buser\s*\d|\bpersona\b|\bpersonne\b|\bpessoa\b|\bperson \d|mensaje k|message k|"
-                    r"<br>|palabras en negrita|debe ser natural|respeta el estilo|（[^）]{0,20}人）", re.I)
+                    r"<br>|palabras en negrita|debe ser natural|respeta el estilo|（[^）]{0,20}人）|"
+                    r"向けのメッセージ|が特徴|様子が伝わ|人向け|^\s*label\s*\d", re.I)  # Japanese teacher notes too
+
+
+def mixed_language(text: str, lang: str) -> bool:
+    """True if a non-English reply has a line in English (seen: "It sounds like you want to…" opening a
+    Portuguese reply, "Which would you like?" closing a Japanese one). Program names don't count."""
+    if lang == "en":
+        return False
+    for line in (x.strip() for x in text.splitlines()):
+        if len(line) < 12:
+            continue
+        if lang == "ja":
+            letters = [c for c in line if c.isalpha()]
+            if letters and sum(c.isascii() for c in letters) / len(letters) > 0.7:
+                return True
+        else:
+            sc = R.language_scores(line)
+            if sc.get("en", 0) >= 2 and sc["en"] > sc.get(lang, 0):
+                return True
+    return False
 
 
 def valid_question(q: str, lang: str) -> bool:
