@@ -60,9 +60,18 @@ def encode_turn(tok, messages: list[dict], max_len: int) -> dict | None:
     return {"input_ids": ids, "labels": labels}
 
 
-def encode(tok, messages: list[dict], max_len: int) -> list[dict]:
-    """One sequence per assistant turn, each with that turn in the last position."""
-    return [e for i, m in enumerate(messages) if m["role"] == "assistant"
+def encode(tok, messages: list[dict], max_len: int, turns: str = "all") -> list[dict]:
+    """One sequence per assistant turn, each with that turn in the last position.
+
+    turns="replies": only the turns that follow a tool result (the reply), never a first action — so
+    tuning shapes how the guide answers without moving which tool it picks (cycle-0 sweep: training
+    first actions made declines and system checks collapse into lookup_help)."""
+    def wanted(i: int) -> bool:
+        if messages[i]["role"] != "assistant":
+            return False
+        return turns == "all" or (i > 0 and messages[i - 1]["role"] == "user"
+                                  and messages[i - 1]["content"].startswith("Result of "))
+    return [e for i in range(len(messages)) if wanted(i)
             for e in [encode_turn(tok, messages[:i + 1], max_len)] if e]
 
 
@@ -74,6 +83,8 @@ def main() -> None:
     ap.add_argument("--rank", type=int, default=16), ap.add_argument("--alpha", type=int, default=32)
     ap.add_argument("--max-len", type=int, default=2048), ap.add_argument("--accum", type=int, default=8)
     ap.add_argument("--seed", type=int, default=1), ap.add_argument("--limit", type=int)
+    ap.add_argument("--turns", choices=["all", "replies"], default="all",
+                    help="replies: train only the turns after a tool result, never first actions")
     ap.add_argument("--targets", default="all-linear",
                     help="LoRA target modules, comma-separated, or all-linear. Qwen3.5: only the standard "
                          "attention/MLP projections — llama.cpp can't convert adapters on its linear-attention "
@@ -90,8 +101,9 @@ def main() -> None:
         rows = rows[:o.limit]
     data, skipped = [], 0
     for r in rows:
-        seqs = encode(tok, r["messages"], o.max_len)
-        want = sum(m["role"] == "assistant" for m in r["messages"])
+        seqs = encode(tok, r["messages"], o.max_len, o.turns)
+        want = sum(m["role"] == "assistant" and (o.turns == "all" or i > 0 and r["messages"][i - 1]["content"]
+                   .startswith("Result of ")) for i, m in enumerate(r["messages"]))
         skipped += want - len(seqs)
         data += seqs
     print(f"{len(rows)} examples -> {len(data)} training sequences (one per assistant turn), "
@@ -138,7 +150,7 @@ def main() -> None:
     import peft
     import transformers
     json.dump({"base": os.path.abspath(o.base), "data": os.path.abspath(o.data), "source_examples": len(rows),
-               "examples": len(data), "encoding": "one sequence per assistant turn, in last-turn position",
+               "examples": len(data), "encoding": "one sequence per assistant turn, in last-turn position", "turns": o.turns,
                "skipped": skipped, "epochs": o.epochs, "steps": steps, "lr": o.lr, "rank": o.rank,
                "alpha": o.alpha, "dropout": 0.05, "target_modules": o.targets, "max_len": o.max_len,
                "grad_accum": o.accum, "batch": 1, "quant": "nf4 double-quant, bf16 compute", "seed": o.seed,
