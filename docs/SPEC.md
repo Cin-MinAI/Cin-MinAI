@@ -44,6 +44,8 @@ Cin-MinAI is a step toward that, taken responsibly:
   community for granted — so security work is public too: reproducible builds and signed packages,
   a published vulnerability policy, security findings and fixes explained, and time taken for
   public discussion when an obstacle needs many people pushing.
+* **Small enough to be big** (Ian, 2026-09-26): first a capable helper for newcomers that runs on
+  the hardware people already own — then bigger. Doing the small thing well is how this grows.
 * **Keep knowledge and hardware in circulation** (Ian, 2026-09-25). Repair know-how, datasheets and
   forum wisdom disappear as sites close and a throwaway culture moves on; parts vanish the same way.
   We don't just collect what's being lost — we **give it to a model to digest and redistribute as

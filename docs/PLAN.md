@@ -448,6 +448,14 @@ record is detected; a lost USB is recovered with the printed code.
   llama.cpp RPC across machines, and home-networked AI get explored. Cautions: Volta likely needs the
   same pinned CUDA 12 toolchain/driver path as Pascal; ~250–300 W per card, SXM2 carrier boards or
   adapters, heat and noise.
+- **Post-MVP: vision (2026-09-26).** First the MVP — a capable helper for newcomers — then bigger.
+  Order of preference for "what's on my screen / in this picture": (1) **AT-SPI** for our own desktop
+  (exact labels and error texts, instant, no image tokens; the same layer voice will use), (2) **OCR**
+  (Tesseract, CPU) for text in images, (3) the **vision model** (both finalists can see; llama.cpp
+  `mmproj`) for what truly needs seeing — hardware, boards, chips, cables. Measure before relying on
+  it: add vision tasks to the guide eval (real Mint error dialogs as screenshots, a few photos),
+  check encoder memory within the 6 GB budget and per-image time (~15–30 s on CPU). Only what the
+  user shares on purpose is seen; no background screen watching.
 - **Post-MVP review list: Microsoft's open-source work on Linux (2026-09-26)** — to review with
   scrutiny after the MVP; licences re-verified first. *Models:* Phi small models (MIT) and BitNet +
   bitnet.cpp (MIT, efficient 1.58-bit CPU inference) — model-cycle nominations, and **strong Pi / ARM
