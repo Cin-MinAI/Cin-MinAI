@@ -7,6 +7,7 @@ boundary for anything privileged or hardware-writing.
 
 **Status:** M0 spikes — see [docs/PLAN.md](docs/PLAN.md). Design: [docs/SPEC.md](docs/SPEC.md).
 Spike results: [docs/spikes.md](docs/spikes.md).
+What we can't do alone and would love help with: [docs/HELP-WANTED.md](docs/HELP-WANTED.md).
 
 ## Core rule
 
