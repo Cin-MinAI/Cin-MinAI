@@ -448,6 +448,14 @@ record is detected; a lost USB is recovered with the printed code.
   micro-sweep method) so the result is measured, not hoped for. Fits D34 (equip people to build their
   own) and the old-hardware ethos (D37). First step when it comes up: time a micro run on the 1080 Ti
   vs the 4070 with the same recipe.
+  **Ricer-style tuning** (Ian): take the hand-me-downs, mod them, get speed nobody expects. Per-card
+  tuning profiles shared like maps (quant, KV-cache type, context, flash attention, thread pinning,
+  slots, partial offload), each backed by a reproducible `bench/run.py` result; tricks like
+  speculative decoding with a small draft model, bandwidth-matched quants, and power limiting
+  (Pascal often keeps most of its speed at 70–80 % power — cooler, quieter); a "sleeper" leaderboard
+  of tokens/s per dollar and per watt on old cards. Software-side tuning is free game; anything that
+  writes to the hardware (power limits, fans, memory clocks) goes through approval (§8.5) with a
+  one-click revert.
 - **Sister project, not the OS (idea, 2026-09-25): a home cluster on old server GPUs.** The OS has no
   plans for multi-agent clusters — it's for end users (D34). Separately: build a user-owned "cloud"
   from retired datacenter cards (e.g. used V100 16/32 GB, NVLink on SXM2) — the mining-era idea again
