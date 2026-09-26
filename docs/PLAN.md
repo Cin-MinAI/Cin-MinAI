@@ -333,6 +333,17 @@ OS runs it safely.
 Exit: a non-programmer builds, keeps, updates, and removes a small app (e.g. a household budget
 tracker) without a terminal, and every permission it has was granted on screen.
 
+### M10 — IDEs and cloud backends (after v0.1, D35)
+
+- IDE integration (the assistant in the editor people code in; which IDEs first is open).
+- Provider backends behind the same interface as `LlamaCppBackend`: OAuth sign-in (browser or device
+  flow) where offered, API key otherwise, stored with libsecret; per-provider connect/disconnect.
+- CLOUD indicator state; what's sent is shown on request, like "what has this computer sent?" (§12.4).
+- The guide and offline mode are unaffected: cloud never becomes a requirement.
+
+Exit: from a fresh install, connect one cloud provider with one sign-in, use it in an IDE, see the
+CLOUD indicator, disconnect, and confirm the local model takes over with nothing left in config files.
+
 ### M11 — AI recovery mode (after the MVP, D42)
 
 - Install record + signed change timeline (written by the admin mechanism on every approved change).
@@ -346,17 +357,6 @@ tracker) without a terminal, and every permission it has was granted on screen.
 Exit: on a test install, break it five ways (bad driver, full disk, broken package, bootloader,
 bad config) — recovery names what changed and fixes each with at most one approval; a tampered
 record is detected; a lost USB is recovered with the printed code.
-
-### M10 — IDEs and cloud backends (after v0.1, D35)
-
-- IDE integration (the assistant in the editor people code in; which IDEs first is open).
-- Provider backends behind the same interface as `LlamaCppBackend`: OAuth sign-in (browser or device
-  flow) where offered, API key otherwise, stored with libsecret; per-provider connect/disconnect.
-- CLOUD indicator state; what's sent is shown on request, like "what has this computer sent?" (§12.4).
-- The guide and offline mode are unaffected: cloud never becomes a requirement.
-
-Exit: from a fresh install, connect one cloud provider with one sign-in, use it in an IDE, see the
-CLOUD indicator, disconnect, and confirm the local model takes over with nothing left in config files.
 
 ---
 
