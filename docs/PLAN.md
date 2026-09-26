@@ -407,7 +407,9 @@ CLOUD indicator, disconnect, and confirm the local model takes over with nothing
   (FPGA: Verilog/VHDL + Yosys/nextpnr; retro/learning: BASIC/MMBasic, Forth; …).
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
-  place for discussion; secrets (AMO key, signing keys) stay out of the repo either way.
+  place for discussion; secrets (AMO key, signing keys) stay out of the repo either way. Also a
+  `SECURITY.md` (how to report, response times, fixes published with their reasons), reproducible
+  builds so anyone can check the ISO against the source, and the outside security review (D36).
 
 ---
 

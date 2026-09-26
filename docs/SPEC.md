@@ -37,6 +37,13 @@ Cin-MinAI is a step toward that, taken responsibly:
   freedom to inspect, change, or fork. We publish our code, this specification and the decisions
   log, our eval tasks and results (including the failures), and the licences of every model we
   ship, and we keep the assistant's actions visible and auditable on the machine (§8.4, §12).
+* **Taking the community for granted is a security compromise itself** (Ian, 2026-09-25). In the
+  digital world security is a community issue, more consequential than in the material one: it
+  holds because many independent people can check the code, the builds, and the decisions.
+  Transparency is the only way to keep a community project moving and honest without taking its
+  community for granted — so security work is public too: reproducible builds and signed packages,
+  a published vulnerability policy, security findings and fixes explained, and time taken for
+  public discussion when an obstacle needs many people pushing.
 * **Familiarity is a feature** (PLAN D38): the layout people already know stays where it is from
   release to release; changes are rare, explained, and reversible — never a redesign for its own
   sake.
