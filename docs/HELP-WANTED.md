@@ -17,6 +17,9 @@ GTX 1060 / RTX 2060 (6 GB), usually with Intel hybrid graphics. We only have des
 RTX 4070). *Wanted:* guide benchmarks on these laptops (`bench/run.py --build cuda --budget-gb 6`, and
 on 8 GB, our target), plus how hybrid-graphics switching, thermals, and battery behave under Linux
 Mint. 4 GB cards are below our 6 GB minimum; results are still welcome, but we don't promise support.
+If you're on smaller hardware, you're who the reusable parts are for: take the transition corpus,
+fine-tune a smaller model, score it with our eval (public and held-out), and publish it — we'll link
+good results.
 
 **Everyday laptops with integrated graphics only.** *Wanted:* CPU-only and Vulkan-on-iGPU results from
 ordinary 3–6-year-old laptops, so we know what "works everywhere" really means.
