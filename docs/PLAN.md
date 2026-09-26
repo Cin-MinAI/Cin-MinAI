@@ -167,6 +167,21 @@ model (optional download, 8 GB+). Guide track, in order:
    community beta (no AMD hardware here). Replaces "M8 — LoRA later" for the guide.
 5. **Voice** (later milestone): whisper.cpp + Kokoro/Piper on the CPU, wake word, AT-SPI control.
 
+### Model-cycle checklist (D31) — start ~6 weeks before each twice-yearly release
+
+1. **Candidates:** open-weight releases since the last cycle (any lab), community nominations;
+   licence (Apache-2.0/MIT-compatible) and hardware-floor filters (6 GB min, 8 GB target, D37).
+2. **Runtime:** llama.cpp support for the new architectures; pin a new tag; rebuild CUDA (Pascal
+   sm_61 still?), Vulkan, CPU; driver branch status for Pascal/Volta.
+3. **Mint changes:** new Mint point release → re-run `extract_labels.py`, re-verify every card in
+   `training/kb/transition.py` (names, menus, shortcuts), note renamed or replaced programs.
+4. **Corpus refresh:** regenerate/extend the transition and interpretation corpora for what changed;
+   write a new held-out eval for the cycle (committed before any tuning).
+5. **Bakeoff:** public + held-out eval, `bench/run.py` on CUDA/Vulkan/CPU, results incl. failures into
+   `docs/benchmarks.md`; community results from HELP-WANTED hardware.
+6. **Fine-tune, gate, ship:** D31 gate (better, no regressions on safety/declines/persona tasks),
+   model card, release note "what made it into Cin-MinAI this cycle and why".
+
 ### Optimization backlog (D33)
 
 Found while watching the Mint box; each to be measured before it's adopted (and the same knobs feed
