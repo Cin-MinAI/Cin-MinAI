@@ -19,6 +19,18 @@ at every natural stopping point; it's for Ian, Claude, and Codex alike.
   (`.venv`, `base/gemma-4-E2B-it`, `base/Qwen3.5-4B`); `training/guide/train_lora.py` smoke-tested.
 - Ian's `qwen14b.service` (port 8080) is untouched and not ours to start or stop.
 
+## Update 23:22 — the transition run finished; the interpretation run is going
+
+- Transition run finished at 22:44: 1,548 raw → **1,458 kept** after cleanup (junk questions,
+  persona labels and the teacher's own commentary removed; decontamination: 0 hits).
+- Now running (Mint box, `~/cin-minai/repo-train/`): **interpretation corpus** —
+  `training/datasets/interpretation/generate.py --out interp --per 4 --workers 2 --seed 31`, log
+  `interp.log`, ~50 % accepted, expected done ~02:30. Teacher runs the tuned profile
+  (`TEACHER_TUNE=1 ./teacherctl.sh start`: 2 slots, pinned threads, `--poll 0`; ~1.5 GB GPU free).
+- To resume after a cut: `TEACHER_TUNE=1 ./teacherctl.sh start`, then re-run the same command with
+  `--out interp` (it appends; duplicates and finished themes get removed at merge — the script has no
+  per-theme resume yet, so a restart repeats all themes; fine, the merge dedupes).
+
 ## What a power cut does
 
 - Mint box: the generator and teacher stop. Examples are written one at a time, so at most the one in

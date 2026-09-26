@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# teacherctl.sh start|stop — the corpus teacher server, tracked by a PID file (no pattern matching).
+# teacherctl.sh start|stop — the corpus teacher server, tracked by a PID file (no pattern matching:
+# `pkill -f` over ssh matches the ssh command itself). TEACHER_TUNE=1 ./teacherctl.sh start uses the
+# tuned profile in teacher.sh (PLAN D33).
 cd ~/cin-minai/repo-train
 case $1 in
-  start) setsid -f bash -c 'echo $$ > teacher.pid; exec ./teacher.sh' > teacher.log 2>&1 < /dev/null
+  start) export TEACHER_TUNE=${TEACHER_TUNE:-0}
+         setsid -f bash -c 'echo $$ > teacher.pid; exec ./teacher.sh' > teacher.log 2>&1 < /dev/null
          for i in $(seq 120); do curl -sf http://127.0.0.1:18091/health >/dev/null && break; sleep 1; done
          curl -s http://127.0.0.1:18091/health; echo
          nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader ;;

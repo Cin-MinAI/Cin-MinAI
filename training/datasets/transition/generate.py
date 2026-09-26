@@ -107,7 +107,8 @@ QUESTION_PROMPT = """You help build a help assistant for people who just moved f
 Many are older or new to computers.
 
 Write {n} messages that people might type into the assistant, in {language}, about: {windows}.
-Message k is written by person k:
+Write them the way these people would (one message each, in this order), but never mention who they
+are and never add labels, numbers, or brackets — only the words they would type:
 {personas}
 - They use the Windows words they know, not Linux words.
 - Each message is only the person's question — no answer, no greeting from the assistant.
@@ -149,8 +150,14 @@ LABEL = re.compile(rf"^\s*(?:[\[(（【]\s*{WHO}?\s*\d+\s*[\])）】]|{WHO}\s*\d
 PREFIX = re.compile(r"^\s*(?:text|user|message|question|pregunta|frage|question|pergunta)\s*[:：]\s*", re.I)
 
 
+HEAD = re.compile(r"^[^\[\]\n]{0,160}\]\s*(?:->|:)?\s*")  # "user1] …", "texte 1 – par une personne … ] : …"
+
+
 def clean_question(q: str) -> str:
-    q = LABEL.sub("", q.strip()).strip()
+    q = HEAD.sub("", q.strip()).strip()
+    q = LABEL.sub("", q).strip()
+    q = re.sub(r"\s*\]\s*$", "", q)  # stray closing bracket
+    q = HEAD.sub("", q).strip()  # a label half-removed above ("]: …")
     q = PREFIX.sub("", q).strip()
     return re.sub(r"\*\*(.+?)\*\*", r"", q).strip()
 
@@ -159,11 +166,23 @@ JUNK = re.compile(r"%[sd]|\{\}|^\W*$|^[\[\]{}(),.:;\s\d]+$|^(errors?|fmt|text|gr
                   re.I)
 
 
+GLUED = re.compile(r"\[\s*\d+\s*[.:\]]|\s\d+\.\s.*\s\d+\.\s")  # "[ 2. …", "1. … 2. …"
+
+
+TRACES = re.compile(r"\[\s*user|\buser\s*\d|\bpersona\b|\bpersonne\b|\bpessoa\b|\bperson \d|mensaje k|message k|"
+                    r"<br>|palabras en negrita|debe ser natural|respeta el estilo|（[^）]{0,20}人）", re.I)
+
+
 def valid_question(q: str, lang: str) -> bool:
     """Reject what the teacher emits when it derails under the list format (seen in the cycle-0 run:
     'fmt', '%s,%s', 'errors', 'sdfsdf', '[', 'user1', 'subtitle: …'): too short, placeholders, no real
     words, or a language that isn't confidently the requested one."""
-    if JUNK.search(q.strip()):
+    if JUNK.search(q.strip()) or GLUED.search(q) or re.search(r"(\S)(?:\s*\1){5,}", q):  # 6+ repeats: 😊😊😊…
+        return False
+    low = q.lower()
+    if any(p.lower()[:25] in low for p in PERSONAS):  # the persona description leaked into the message
+        return False
+    if TRACES.search(q):  # labels, persona words, or the teacher's own commentary left in the message
         return False
     if lang == "ja":
         kana = sum("぀" <= c <= "ヿ" for c in q)
