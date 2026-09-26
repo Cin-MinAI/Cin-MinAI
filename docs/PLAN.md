@@ -440,6 +440,14 @@ record is detected; a lost USB is recovered with the printed code.
   Language/tool core for a first release: C, Python, Bash, reading ARM + one ECU assembly family,
   the bus protocols, S19/HEX/BIN, flashrom/sigrok/OpenOCD; further languages come as packs
   (FPGA: Verilog/VHDL + Yosys/nextpnr; retro/learning: BASIC/MMBasic, Forth; …).
+- **Idea for the tinkerer / Pi era (2026-09-26): training on old cards — "not state of the art, but
+  state of functionality" (Ian).** Tooling so people can fine-tune small models on hardware they
+  already own: Pascal and older cards (FP32-only in practice — Pascal's FP16 runs at ~1/64 rate, no
+  bf16), pinned PyTorch/CUDA builds that still support them (as with the 580 driver pin), small
+  LoRA ranks and short runs sized to 8–11 GB, and our own corpus + eval + recipe (the cycle-0
+  micro-sweep method) so the result is measured, not hoped for. Fits D34 (equip people to build their
+  own) and the old-hardware ethos (D37). First step when it comes up: time a micro run on the 1080 Ti
+  vs the 4070 with the same recipe.
 - **Sister project, not the OS (idea, 2026-09-25): a home cluster on old server GPUs.** The OS has no
   plans for multi-agent clusters — it's for end users (D34). Separately: build a user-owned "cloud"
   from retired datacenter cards (e.g. used V100 16/32 GB, NVLink on SXM2) — the mining-era idea again
