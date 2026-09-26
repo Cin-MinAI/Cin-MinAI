@@ -266,6 +266,36 @@ TOPICS = [
      "card": "The taskbar is called the panel. Right-click an empty part of it and choose Panel settings; "
              "there you can change its height and where it sits.",
      "must": [], "steps": False},
+    # --- staying safe and private (SPEC §10.6, D28): used by the session corpus ---------------------
+    {"id": "scam_email", "windows": "an email from 'the bank' asking to confirm a PIN or password at a link",
+     "card": "Scams: banks never ask for your PIN, password or card number by email, text message or phone call. "
+             "Don't click the link or reply. If you're worried, call the number on the back of your card. "
+             "Cin-MinAI never calls, emails, or asks for money or passwords either.",
+     "must": [], "steps": False},
+    {"id": "scam_phone", "windows": "a phone call from 'Microsoft support' saying the computer has a virus",
+     "card": "Phone scams: Microsoft, banks, and Cin-MinAI never call you about viruses. Hang up. Never let a "
+             "caller connect to your computer, and never pay them or give them a password or card number.",
+     "must": [], "steps": False},
+    {"id": "scam_popup", "windows": "a web page saying the computer is infected and to call a number",
+     "card": "Fake virus warnings: a web page that says your computer is infected and gives a phone number is a "
+             "scam. Don't call. Close the page (Ctrl+W, or close {firefox}). Nothing on this computer tells you "
+             "to call a number.",
+     "must": [], "steps": False},
+    {"id": "privacy_assistant", "windows": "whether the AI assistant sends what they type to the internet",
+     "card": "Privacy: the assistant runs on this computer. What you type stays here; nothing is sent anywhere "
+             "unless you ask it to search the web, and the panel shows WEB when that happens. In offline mode "
+             "the computer doesn't connect to the internet at all.",
+     "must": [], "steps": False},
+    {"id": "offline_mode", "windows": "keeping the computer completely off the internet",
+     "card": "Offline mode: open the assistant's settings and switch on Keep this computer offline. Wi-Fi and "
+             "cable are both switched off and the panel shows OFFLINE. For security updates, click Go online to "
+             "install updates; it connects, installs them, and disconnects again.",
+     "must": [], "steps": True},
+    {"id": "updates_why", "windows": "whether updates matter, and whether they are like antivirus definitions",
+     "card": "Updates: security updates fix weaknesses in the programs themselves, the holes criminals look for. "
+             "That's different from an antivirus's list of known threats. {update_manager} checks that every "
+             "update is genuine (signed) before installing it, and you can watch each check happen.",
+     "must": ["update_manager"], "steps": False},
     {"id": "word_files", "windows": "opening .docx files from Word",
      "card": "Word files: double-click a .docx file and it opens in {writer}, which is already installed. To "
              "send one back as Word, use File > Save As and pick Word (.docx); click 'Use Word 2007-365!' if "
