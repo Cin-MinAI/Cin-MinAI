@@ -37,6 +37,12 @@ Cin-MinAI is a step toward that, taken responsibly:
   freedom to inspect, change, or fork. We publish our code, this specification and the decisions
   log, our eval tasks and results (including the failures), and the licences of every model we
   ship, and we keep the assistant's actions visible and auditable on the machine (§8.4, §12).
+* **Familiarity is a feature** (PLAN D38): the layout people already know stays where it is from
+  release to release; changes are rare, explained, and reversible — never a redesign for its own
+  sake.
+* **Built for the hardware people already own** (D37): older gaming laptops with 4–6 GB cards are
+  the MVP's real target. We're planning for a future where efficient models make old hardware
+  valuable again, the way mining once did for old GPUs — not proofing for it, planning.
 * **Plan for futures beyond our own preferences — that's what protects them.** We prefer local,
   offline, and owned, but we build so the system also serves people who choose differently: cloud
   models in an IDE (PLAN D35), another scanner (D30), another desktop or board (the Pi variant). A

@@ -12,13 +12,16 @@ path on a GTX 1080 Ti, which says little about AMD. *Wanted:* owners of 6–8 GB
 RX 6600, RX 7600) running `bench/run.py --build vulkan` and `training/eval/guide/run_eval.py`, and
 sending the JSON results. See `docs/benchmarks.md`.
 
-**Everyday laptops with integrated graphics.** Our main users (PLAN D34) mostly have laptops with
-Intel or AMD integrated graphics, not a 6 GB card. We've measured a desktop CPU (i7-4790K) but no
-integrated GPU. *Wanted:* results from ordinary 3–6-year-old laptops — CPU-only and Vulkan on the
-integrated GPU — so we know what "works everywhere" really means.
+**Older gaming laptops — the MVP's real hardware (PLAN D37).** GTX 1050 Ti / 1650 (4 GB),
+GTX 1060 / RTX 2060 (6 GB), usually with Intel hybrid graphics. We only have desktop cards (GTX 1080 Ti,
+RTX 4070). *Wanted:* guide benchmarks on these laptops (`bench/run.py --build cuda --budget-gb 6`, and
+at 4 GB), plus how hybrid-graphics switching, thermals, and battery behave under Linux Mint.
 
-**Raspberry Pi 5 and other ARM boards** (later, the tinkerer version). *Wanted:* guide benchmarks on
-ARM once the Pi spike is published.
+**Everyday laptops with integrated graphics only.** *Wanted:* CPU-only and Vulkan-on-iGPU results from
+ordinary 3–6-year-old laptops, so we know what "works everywhere" really means.
+
+**Raspberry Pi and other ARM boards** (later, the tinkerer version). We only have a Pi 5 with 16 GB.
+*Wanted:* guide benchmarks on the 4 GB and 8 GB Pi 5 (and Pi 4) once the Pi spike is published.
 
 ## Languages
 
