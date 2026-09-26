@@ -448,6 +448,16 @@ record is detected; a lost USB is recovered with the printed code.
   llama.cpp RPC across machines, and home-networked AI get explored. Cautions: Volta likely needs the
   same pinned CUDA 12 toolchain/driver path as Pascal; ~250–300 W per card, SXM2 carrier boards or
   adapters, heat and noise.
+- **Post-MVP review list: Microsoft's open-source work on Linux (2026-09-26)** — to review with
+  scrutiny after the MVP; licences re-verified first. *Models:* Phi small models (MIT) and BitNet +
+  bitnet.cpp (MIT, efficient 1.58-bit CPU inference) — model-cycle nominations, and **strong Pi / ARM
+  candidates** (CPU-first). *Integration:* Presidio (MIT, PII detection → §12.3 redaction and the
+  tinkerer's pre-upload redaction), MarkItDown (MIT, Office/PDF → text for the knowledge base and
+  shared documents), ONNX Runtime (MIT, only if a model runs better there). *Windows-familiar tools:*
+  Sysinternals for Linux — ProcMon, ProcDump, Sysmon (MIT; tinkerer version), PowerShell and .NET
+  (MIT). *Look (D38):* Cascadia Code (OFL), Fluent Emoji / Fluent UI System Icons (MIT; inspiration
+  and assets, not an imitation of Windows' trade dress). Credit note: LoRA itself came from
+  Microsoft Research.
 - **Going public (D26):** when to open the repository and invite review — at M1 with the licence
   decision, or with the first installable alpha. Needs the licence, a contribution guide, and a
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way. Also a
