@@ -790,6 +790,41 @@ touching the wider home directory is `USER_APPROVED`.
 
 ---
 
+### 8.7 AI recovery mode (post-MVP, PLAN D42)
+
+When the installed system won't work, the user boots the install USB and chooses **AI recovery**.
+The guide (on the ISO, CPU, fully offline — the network may be part of what's broken) diagnoses
+the installed system **against its own known-good record** instead of guessing what normal is.
+
+* **Install record** (system state only, never personal files): package list and versions, kernel,
+  graphics driver and branch (e.g. the Pascal 580 pin), bootloader, partition layout and fstab, the
+  hardware first-boot detected, fingerprints (hashes) of key system config files, the chosen model
+  profile.
+* **Change timeline:** every approved change through the admin mechanism (§8.4) — updates, driver
+  installs, config writes — appends a signed entry, so recovery can answer the first repair
+  question: *what changed since it last worked?*
+* **Sealed with a split key** so neither a bad fix nor malware can quietly rewrite the baseline:
+  proper secret sharing (**2-of-3**, not key "halves" — one share alone reveals nothing): a share on
+  the install USB (a small writable partition), a share held by the machine where it survives disk
+  trouble (TPM or the EFI partition, not the root disk), and a **printed recovery code** as the
+  third, so a lost or reflashed USB doesn't lock anyone out. Created in a short step at the end of
+  installation. If the user chose disk encryption (offered, Rule 9), the same shares can unlock it
+  — on an unencrypted disk the key authenticates the record and the owner's intent; it doesn't
+  stop someone with physical access, and we say so.
+* **An independent second reference:** Debian package checksums and the signed apt indexes let
+  recovery check every system file against what its package should contain, without trusting the
+  machine at all.
+* **Keeping the USB current:** the guide now and then suggests "plug in your install USB to update
+  your recovery backup"; it verifies the USB's share, shows what it will write, and **writes only
+  after the user approves** (Rule 9, the human's button).
+* **Repairs:** a fixed set — boot repair, Timeshift rollback, freeing disk space, falling back to the
+  safe graphics driver, package repair; each shown as a plan in plain words, snapshot/backup first,
+  then the human's button. Files on the broken system (logs, configs) are untrusted input (§7.10).
+
+Example: *"Since your last working start, two things changed: a new graphics driver on the 3rd and a
+boot setting on the 4th. The boot error matches the driver. I can switch back to the previous driver
+— one package and one setting; I'll snapshot first. Go ahead?"*
+
 ## 9. Hardware detection and first-boot setup
 
 `cinminai-setup` runs on first login (a page in the welcome screen) and on demand:

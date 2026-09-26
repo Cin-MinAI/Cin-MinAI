@@ -53,6 +53,7 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D39 | **The guide's fine-tune adds interpretation** (amends D32): besides the Windows transition, a corpus of vague requests answered by restating, offering 2–4 in-scope options, naming out-of-scope readings honestly, and asking — the user is the pilot. It's the basis for **personalization**: local, visible, editable, opt-in preferences about how the user likes to be helped (SPEC §10.6). | new 2026-09-25 |
 | D40 | **Long sessions: one continuous, Jarvis-like conversation.** Continuity comes from the system, not the model's context: session notebook, rolling compaction (announced, correctable), recall from the local transcript, internal threads, cache reuse and save/restore; an effective context length that's measured and optimized, not unlimited. On open, the guide offers a rundown of last session — yes gets one, no goes straight in (SPEC §11.5.1). | new 2026-09-26 |
 | D41 | **Cin-MinAI reviews models (and hardware) in public; the OS is one consumer of the reviews.** Nominations close **6 weeks before each release** (later ones roll to the next cycle). One published method for everyone (public + held-out eval, `bench/run.py`, reference hardware), so any review can be reproduced. **Every review is published**, including models that don't go into the OS and why. Hardware or models sent for review are **disclosed** in the review (what, by whom); a review unit buys a review, never a result; **no paid placement** — inclusion follows the D31 gate only. | new 2026-09-26 |
+| D42 | **AI recovery mode (post-MVP):** boot the install USB → the guide diagnoses the installed system against a **sealed install record + change timeline** ("what changed since it last worked?"), plus package checksums as an independent reference; key by 2-of-3 secret sharing (USB share, machine share in TPM/EFI, printed code); the guide suggests refreshing the USB backup and writes only on the user's approval; fixed repair set, plan + button, offline (SPEC §8.7). | new 2026-09-26 |
 
 ### D1 — Sandbox details
 
@@ -331,6 +332,20 @@ OS runs it safely.
 
 Exit: a non-programmer builds, keeps, updates, and removes a small app (e.g. a household budget
 tracker) without a terminal, and every permission it has was granted on screen.
+
+### M11 — AI recovery mode (after the MVP, D42)
+
+- Install record + signed change timeline (written by the admin mechanism on every approved change).
+- 2-of-3 secret sharing: USB share (writable partition on the install stick), machine share (TPM or
+  EFI partition), printed recovery code; created at the end of installation; optional link to disk
+  encryption if the user chose it.
+- Recovery boot entry on the ISO: guide on CPU, offline; verification of the record; package-checksum
+  scan; fixed repair actions with plan + approval + snapshot.
+- "Update your recovery backup" suggestion with approved write to the USB.
+
+Exit: on a test install, break it five ways (bad driver, full disk, broken package, bootloader,
+bad config) — recovery names what changed and fixes each with at most one approval; a tampered
+record is detected; a lost USB is recovered with the printed code.
 
 ### M10 — IDEs and cloud backends (after v0.1, D35)
 
