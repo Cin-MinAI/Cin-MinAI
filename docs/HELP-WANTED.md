@@ -53,6 +53,13 @@ asked after switching, and anything in our cards that's wrong for your version o
 common modules (PCMs, TCMs and others), safe ways to read chips in-circuit, and the mistakes that
 destroy boards. This comes from technicians, not from models.
 
+## Nominate a model for review
+
+We review open-weight models every cycle (PLAN D31, D41) — whether or not they end up in the OS — and
+publish every review. **Nominations close 6 weeks before each release.** Send the model's
+repository, licence, and why it might suit local use on 6–8 GB cards. Hardware sent for review is
+tested the same way and disclosed in the review; it never buys a result.
+
 ## How to send things
 
 Until the repository is public (PLAN §6, "Going public"): contact Ian (Brickmii). Afterwards:

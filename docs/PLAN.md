@@ -52,6 +52,7 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D38 | **Familiarity is a feature.** We don't move what users already know: the classic layout (panel at the bottom, menu bottom-left, the Windows 95/XP-era familiarity Cinnamon keeps) stays; layout changes between releases are rare, explained in plain words, and reversible. Redesigns that make users relearn take them for granted. **Aesthetics are ours** (we pay homage to Mint, but we're modders): colours, icons, wallpapers, the §5.7 sound set, boot splash and login screen get our own identity — *mod the skin, don't move the furniture* (SPEC §3.2, D17). | new 2026-09-25 |
 | D39 | **The guide's fine-tune adds interpretation** (amends D32): besides the Windows transition, a corpus of vague requests answered by restating, offering 2–4 in-scope options, naming out-of-scope readings honestly, and asking — the user is the pilot. It's the basis for **personalization**: local, visible, editable, opt-in preferences about how the user likes to be helped (SPEC §10.6). | new 2026-09-25 |
 | D40 | **Long sessions: one continuous, Jarvis-like conversation.** Continuity comes from the system, not the model's context: session notebook, rolling compaction (announced, correctable), recall from the local transcript, internal threads, cache reuse and save/restore; an effective context length that's measured and optimized, not unlimited. On open, the guide offers a rundown of last session — yes gets one, no goes straight in (SPEC §11.5.1). | new 2026-09-26 |
+| D41 | **Cin-MinAI reviews models (and hardware) in public; the OS is one consumer of the reviews.** Nominations close **6 weeks before each release** (later ones roll to the next cycle). One published method for everyone (public + held-out eval, `bench/run.py`, reference hardware), so any review can be reproduced. **Every review is published**, including models that don't go into the OS and why. Hardware or models sent for review are **disclosed** in the review (what, by whom); a review unit buys a review, never a result; **no paid placement** — inclusion follows the D31 gate only. | new 2026-09-26 |
 
 ### D1 — Sandbox details
 
@@ -168,6 +169,8 @@ model (optional download, 8 GB+). Guide track, in order:
 5. **Voice** (later milestone): whisper.cpp + Kokoro/Piper on the CPU, wake word, AT-SPI control.
 
 ### Model-cycle checklist (D31) — start ~6 weeks before each twice-yearly release
+
+(The same date is the public **nomination cutoff** for model reviews, D41.)
 
 1. **Candidates:** open-weight releases since the last cycle (any lab), community nominations;
    licence (Apache-2.0/MIT-compatible) and hardware-floor filters (6 GB min, 8 GB target, D37).
