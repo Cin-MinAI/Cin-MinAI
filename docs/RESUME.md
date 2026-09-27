@@ -47,6 +47,10 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   formulas always go right under the data; S04 "how much memory" → storage). Watch: L05 "difference between
   a file and a folder" is DECLINED (stock failed it too, differently). Held-out eval: next, Ian decides.
 
+- **Run GO (Gemma 4 E2B, HO recipe, 2026-09-27): 50 %** (stock Gemma 84 % re-scored). 64/111 replies after
+  a tool result written as JSON calls; declines 3/20 (answers off-topic). 5.5 h training with a 15 GB RAM
+  spill (Ian: let it run). Details in `docs/guide-model-journal.md`. Decision pending with Ian.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).

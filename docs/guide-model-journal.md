@@ -81,6 +81,16 @@ Scores are from our public guide eval (157 items, prompt v2, 1080 Ti) unless not
   inside the card's 12 GB. Ian's call: let it run on the established setup rather than change the
   training code mid-comparison. Possible fixes for next time, untested: keep the per-layer embeddings in
   system RAM; check whether the image/audio towers are loaded for text-only training.
+- **Run GO result: 50 % (stock Gemma 84 %) — HO's recipe doesn't transfer (measured).** Training
+  finished without a crash: 5 h 30 min, peak 20.5 GiB (on a 12 GB card). Two failures dominate:
+  **64 of 111 replies after a tool result came out as a JSON tool call** instead of plain text (stock
+  Gemma: 0) — so "no numbered steps" 41×; and **declines 3/20** — it *answers* off-topic questions
+  through the `answer` tool (e.g. why World War II started). Office held at 89 %, system 82 %.
+  Same data that took Qwen to 94 %. Likely reasons (not tested): most trained assistant messages in the
+  mix are JSON calls, and Gemma's template marks the last turn no differently from earlier ones, so
+  "assistant output = JSON" is the strongest pattern it can find; and `all-linear` trains 37.9 M
+  parameters on Gemma vs 21.2 M on Qwen — a stronger push at the same learning rate. Another case of
+  the lesson below: the same corpus is a different pattern to a different model.
 
 ## What training taught us (cycle 0, for future development)
 
