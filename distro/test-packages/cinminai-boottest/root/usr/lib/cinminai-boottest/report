@@ -1,0 +1,29 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Boot-test report (test ISO only): wait for the live desktop, write what we see to the first serial
+# port (Hyper-V: a named pipe read by distro/vm-boottest.ps1), then power off.
+out=/dev/ttyS0
+stty -F "$out" 115200 raw -echo 2>/dev/null
+say() { printf '%s\r\n' "$*" > "$out"; }
+say "CINMINAI-BOOTTEST BEGIN"
+i=0
+while [ "$i" -lt 300 ] && ! pgrep -x cinnamon >/dev/null; do sleep 1; i=$((i + 1)); done
+desktop=no; pgrep -x cinnamon >/dev/null && desktop=yes
+say "desktop_after_s $(cut -d' ' -f1 /proc/uptime)"
+sleep 20   # let the session settle before listing failures
+say "kernel $(uname -r)"
+say "release $(grep '^VERSION=' /etc/cinminai-release 2>/dev/null)"
+dpkg-query -W -f='package ${Package} ${Version}\n' 'cinminai-*' 2>/dev/null | while read -r l; do say "$l"; done
+if [ -d /sys/firmware/efi ]; then say "firmware uefi"; else say "firmware bios"; fi
+sb=$(od -An -t u1 /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c 2>/dev/null | awk '{print $NF}')
+say "secureboot ${sb:-unknown}"
+say "desktop $desktop"
+systemctl --failed --no-legend --plain 2>/dev/null | while read -r u _; do say "failed_unit $u"; done
+say "apt_source $(cat /etc/apt/sources.list.d/cinminai.list 2>/dev/null)"
+res=PASS
+[ "$desktop" = yes ] || res=FAIL
+dpkg-query -W cinminai-desktop >/dev/null 2>&1 || res=FAIL
+say "CINMINAI-BOOTTEST RESULT $res"
+say "CINMINAI-BOOTTEST END"
+sleep 3
+systemctl poweroff

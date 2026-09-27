@@ -11,6 +11,9 @@ export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$here" log -1 --format=%
 fpr=$("$here/signing-key.sh")
 export GNUPGHOME=$SIGNING_GNUPGHOME
 repo=$M1/repo
+# Rebuilt from scratch each time: the repo carries the current packages only (apt needs no history), and a
+# rebuilt package with the same version but new dates would otherwise be refused by reprepro.
+rm -rf "$repo/db" "$repo/dists" "$repo/pool"
 mkdir -p "$repo/conf"
 cat > "$repo/conf/distributions" <<EOF
 Origin: Cin-MinAI

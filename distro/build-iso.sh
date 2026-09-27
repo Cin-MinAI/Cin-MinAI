@@ -29,6 +29,12 @@ for fs in /mnt/c /; do
     (( free >= need_gb )) || { echo "only ${free} GB free on $fs (need ${need_gb}); free space first" >&2; exit 1; }
 done
 
+# BOOTTEST=1: the boot-test variant for distro/vm-boottest.ps1 — adds cinminai-boottest (test-packages/)
+# and a 5 s timeout to the live boot menu (upstream's waits for a key press). Separate name and folder;
+# never published.
+BOOTTEST=${BOOTTEST:-0}
+[[ $BOOTTEST == 1 ]] && OUT_ISO=${OUT_ISO%.iso}-boottest.iso
+
 up=$WORK/upstream
 b=$M1/build
 rootfs=$b/rootfs
@@ -91,6 +97,12 @@ aptopts=(-o Dir::Etc::sourcelist=/tmp/cinminai-build.list -o Dir::Etc::sourcepar
 chroot "$rootfs" apt-get "${aptopts[@]}" update
 chroot "$rootfs" env DEBIAN_FRONTEND=noninteractive SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
     apt-get "${aptopts[@]}" install -y --no-install-recommends "cinminai-desktop=$CINMINAI_VERSION"
+if [[ $BOOTTEST == 1 ]]; then
+    log "chroot: add the boot test (test variant only)"
+    cp "$M1/pkgs-test/$CINMINAI_VERSION"/cinminai-boottest_*.deb "$rootfs/tmp/boottest.deb"
+    chroot "$rootfs" dpkg -i /tmp/boottest.deb
+    rm -f "$rootfs/tmp/boottest.deb"
+fi
 
 log "chroot: clean up (build-only files, and logs and caches that differ between runs)"
 chroot "$rootfs" apt-get clean
@@ -128,20 +140,28 @@ mksquashfs "$rootfs" "$b/iso/filesystem.squashfs" -comp "$comp" -b "$bsize" -noa
     -processors "$(nproc)" 2>&1 | tail -3
 
 log "md5sum.txt"
-for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.size; do
+maps=(-map "$b/iso/filesystem.squashfs" /casper/filesystem.squashfs
+      -map "$b/iso/filesystem.manifest" /casper/filesystem.manifest
+      -map "$b/iso/filesystem.size" /casper/filesystem.size)
+if [[ $BOOTTEST == 1 ]]; then   # boot the first menu entry after 5 s (the config isn't signed; shim/GRUB are untouched)
+    xorriso -osirrox on -indev "$iso_in" -extract /boot/grub/grub.cfg "$b/iso/grub.cfg" >/dev/null 2>&1
+    chmod u+w "$b/iso/grub.cfg"
+    sed -i '1i set timeout=5' "$b/iso/grub.cfg"
+    maps+=(-map "$b/iso/grub.cfg" /boot/grub/grub.cfg)
+fi
+for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.size boot/grub/grub.cfg; do
+    [[ -f $b/iso/$(basename "$f") ]] || continue
     sum=$(md5sum "$b/iso/$(basename "$f")" | cut -d' ' -f1)
     sed -i "s#^[0-9a-f]\{32\}  \./$f\$#$sum  ./$f#" "$b/iso/md5sum.txt"
 done
 
 log "write ISO (upstream boot setup replayed; dates from SOURCE_DATE_EPOCH)"
 out=${OUTDIR:-$M1/out}
+[[ $BOOTTEST == 1 ]] && out=${OUTDIR:-$M1/out-test}
 mkdir -p "$out"
 rm -f "$out/$OUT_ISO"
 touch -d "@$SOURCE_DATE_EPOCH" "$b/iso"/*
-xorriso -indev "$iso_in" -outdev "$out/$OUT_ISO" \
-    -map "$b/iso/filesystem.squashfs" /casper/filesystem.squashfs \
-    -map "$b/iso/filesystem.manifest" /casper/filesystem.manifest \
-    -map "$b/iso/filesystem.size" /casper/filesystem.size \
+xorriso -indev "$iso_in" -outdev "$out/$OUT_ISO" "${maps[@]}" \
     -map "$b/iso/md5sum.txt" /md5sum.txt \
     -boot_image any replay 2>&1 | tail -2
 ( cd "$out" && sha256sum "$OUT_ISO" | tee "$OUT_ISO.sha256" )

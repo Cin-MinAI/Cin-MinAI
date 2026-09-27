@@ -4,16 +4,16 @@
 #
 #   ./build-packages.sh            (in WSL, as the normal user)
 #
-# Each package directory has `control` (with @VERSION@ etc.), an optional `conffiles`, and `root/`, the
-# files as installed. @PLACEHOLDERS@ in control and in root/ are filled from config.env. The archive key
+# Each package directory has `control` (with @VERSION@ etc.), an optional `conffiles`, an optional `links`
+# ("link-path target" per line: git on the Windows dev PC stores no symlinks), and `root/`, the files as
+# installed; files starting with #! are made executable. packages/ go to $M1/pkgs (the repo);
+# test-packages/ (the boot test) go to $M1/pkgs-test and never into the repository. @PLACEHOLDERS@ in control and in root/ are filled from config.env. The archive key
 # is exported from the signing keyring into cinminai-archive-keyring. Reproducible: file dates are the
 # last git commit's (SOURCE_DATE_EPOCH), owners root:root, fixed compression.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 source "$here/config.env"
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$here" log -1 --format=%ct)}
-out=$M1/pkgs/$CINMINAI_VERSION
-mkdir -p "$out"
 "$here/signing-key.sh" >/dev/null   # makes the development key on first use
 export GNUPGHOME=$SIGNING_GNUPGHOME
 
@@ -23,8 +23,10 @@ fill() {  # file: replace @PLACEHOLDERS@ in place
            -e "s#@REPO_COMPONENT@#$REPO_COMPONENT#g" "$1"
 }
 
-for dir in "$here"/packages/*/; do
+for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
     name=$(basename "$dir")
+    case $dir in */test-packages/*) out=$M1/pkgs-test/$CINMINAI_VERSION ;; *) out=$M1/pkgs/$CINMINAI_VERSION ;; esac
+    mkdir -p "$out"
     stage=$(mktemp -d)
     mkdir -p "$stage/DEBIAN"
     [[ -d $dir/root ]] && cp -a "$dir/root/." "$stage/"
@@ -42,6 +44,13 @@ for dir in "$here"/packages/*/; do
     sed -i "/^Architecture:/a Installed-Size: $kib" "$stage/DEBIAN/control"
     find "$stage" -type d -exec chmod 755 {} +
     find "$stage" -type f -exec chmod 644 {} +
+    find "$stage" -type f ! -path "$stage/DEBIAN/*" -exec sh -c 'head -c2 "$1" | grep -q "#!"' _ {} \; -exec chmod 755 {} \;
+    if [[ -f $dir/links ]]; then
+        grep -v '^#' "$dir/links" | while read -r link target; do
+            [[ -n $link ]] || continue
+            mkdir -p "$stage$(dirname "$link")"; ln -sfn "$target" "$stage$link"
+        done
+    fi
     find "$stage" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
     deb=$out/${name}_${CINMINAI_VERSION}_all.deb
     dpkg-deb -Zxz --root-owner-group --build "$stage" "$deb" >/dev/null

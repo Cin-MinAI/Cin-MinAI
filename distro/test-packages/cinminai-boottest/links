@@ -1,0 +1,2 @@
+# link-path  target   (created by build-packages.sh; git here stores no symlinks)
+/etc/systemd/system/graphical.target.wants/cinminai-boottest.service  ../cinminai-boottest.service

@@ -70,6 +70,13 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   80 GB): recovered (sparse VHDX, Ian freed space; 103 GB free); build-iso.sh now refuses below 20 GB free and cleans up.
   Next in M1: branding, the "Make your USB stick" guide, CI/boot test; then the Alpha milestone (D45).
 
+- **M1 automated boot test (2026-09-27): PASS.** `BOOTTEST=1 distro/build-iso.sh` makes a test-only ISO (adds
+  `cinminai-boottest` from `distro/test-packages/`, 5 s menu timeout); `distro/vm-boottest.ps1` boots it in a throwaway
+  Hyper-V Gen2 VM (UEFI, Secure Boot on, no disk, no network) and reads the report from COM1: desktop 24 s after
+  power-on, secure boot 1, all packages present, no failed units. The first run's cleanup failed because vmms was stopped
+  mid-test (Ian pressed Stop Service in Hyper-V Manager); the runner is now fault-tolerant. Leftover: orphaned vmwp for
+  the test VM (needs admin to end, or goes at reboot), then delete ~/cinminai-vm/cinminai-boottest.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).

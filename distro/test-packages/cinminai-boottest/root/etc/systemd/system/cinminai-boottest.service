@@ -1,0 +1,11 @@
+[Unit]
+Description=Cin-MinAI boot test report (test ISO only)
+After=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/cinminai-boottest/report
+TimeoutStartSec=900
+
+[Install]
+WantedBy=graphical.target

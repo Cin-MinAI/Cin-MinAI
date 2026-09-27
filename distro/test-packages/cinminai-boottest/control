@@ -1,0 +1,9 @@
+Package: cinminai-boottest
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Section: misc
+Priority: optional
+Description: Cin-MinAI automated boot test (TEST ISO ONLY, never published)
+ When the live desktop is up, writes a report to the first serial port and
+ powers the machine off. Only ever installed into the boot-test ISO variant.
