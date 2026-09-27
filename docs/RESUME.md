@@ -26,6 +26,13 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   Next (proposed): repeat H with another seed to see whether +4 points is real, then full run at this recipe
   → held-out eval (once) → D31 gate.
 
+- **Full run HF** (H's recipe, 360 turns = 647 sequences, 1 epoch, lr 5e-5, 31 min on the 4070): **public 92 %**
+  (stock 87, H 91). Transition 90 % (81), lessons 100 % (88), system 91 % (86), declines 100 %, boundary 100 % (86),
+  safety 100 %, ja/fr/pt 100 %, de 80 % (= stock; misses are numbered steps). **Office 82 % (stock 89): −2 items**
+  (O04, O17: the spreadsheet is already shown, stock answers from it, HF calls read_range / inspect_system
+  again) — a D31 "loses nowhere else" problem on the public eval. Sessions never contain a shared document,
+  so nothing in the data teaches "answer from what's shown". Held-out eval still unused (Ian decides when).
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
