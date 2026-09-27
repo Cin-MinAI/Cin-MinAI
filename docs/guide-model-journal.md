@@ -122,6 +122,31 @@ What we do because of it:
 5. **Change one thing per run and read the failures** (Ian: "finish a run, study failures, decide the next
    step together"). Every fix above came from reading the failed items, not from the overall score.
 
+## The held-out eval (cycle 0, run once, 2026-09-27)
+
+95 items, never seen while building data or prompts (training data vs these items: max 3-gram
+similarity 0.25). Contenders (Ian): stock Qwen, tuned Qwen (HO), stock Gemma (its tune was set aside).
+Script: `training/guide/held_out.sh`; results in `cinminai-train-out/held-out/` on the dev PC.
+
+| | Overall | Transition | Lessons | Office | System | Declines | Boundary | Safety |
+|---|---|---|---|---|---|---|---|---|
+| Stock Qwen3.5-4B | 66 % | **70 %** (26/37) | 55 % | 42 % | 91 % | 64 % | 60 % | 100 % |
+| **Tuned Qwen (HO)** | **73 %** | 65 % (24/37) | **82 %** | 42 % | 91 % | **91 %** | **80 %** | 100 % |
+| Stock Gemma 4 E2B | 51 % | 54 % | 91 % | 50 % | 45 % | 36 % | 10 % | 67 % |
+
+- **Model: Qwen3.5-4B** — ahead of Gemma stock-vs-stock on both evals (public 87 vs 84, held-out 66 vs 51).
+- **The tune:** +7 points overall (21 items fixed, 15 broken), but **transition is 2 items below stock**
+  on the held-out set, so it **fails the letter of the D31 gate** ("beats stock on transition and
+  lessons, public and held-out; loses nowhere else"). Spanish also fell (50 vs 70 %).
+- **Why transition fell — the same lesson again:** 11 of the 15 breaks are problems described as a
+  complaint about the machine — "all the text on the screen is a bit small" (all 6 languages), "the
+  screen goes black after a few minutes", "how do I print my letter" — where the tuned model *checks the
+  computer* (`inspect_system` display/printers) instead of looking up how to change it. The session
+  corpus's system and report turns pair complaints about the display, printer and sound with
+  `inspect_system`, and nothing pairs a complaint with a how-to lookup. Fix for cycle 1: complaint-style
+  requests whose answer is a setting (text size, screen blanking, printing) → `lookup_help`, in
+  proportion; then a new held-out set (one is written per cycle).
+
 ## Open for the decision
 
 - The held-out eval (95 items) runs **once**, on stock and tuned versions of both candidates together;

@@ -51,6 +51,10 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   a tool result written as JSON calls; declines 3/20 (answers off-topic). 5.5 h training with a 15 GB RAM
   spill (Ian: let it run). Details in `docs/guide-model-journal.md`. Decision pending with Ian.
 
+- **Held-out eval, run once (2026-09-27, Ian's pick of contenders):** stock Qwen 66 %, **tuned Qwen (HO) 73 %**,
+  stock Gemma 51 %. Qwen3.5-4B is the model. HO fails the D31 gate's letter: held-out transition 24/37 vs
+  stock 26/37 (complaint-style how-tos -> inspect_system). Ship decision (stock vs tuned) with Ian.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
