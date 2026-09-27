@@ -75,6 +75,36 @@ Scores are from our public guide eval (157 items, prompt v2, 1080 Ti) unless not
 - **2026-09-27:** run GO started — HO's recipe on Gemma (sessions preset h, 360 turns + 115 office
   examples, lr 5e-5, 1 epoch), stock Gemma re-evaluated first under the same scorer.
 
+## What training taught us (cycle 0, for future development)
+
+**A LoRA learns the corpus's patterns, not its facts.** Whatever is most consistent across the examples
+becomes a rule — including regularities nobody meant to put there. Same words in a different pattern
+give a different model. Measured on Qwen3.5-4B this cycle:
+
+| What changed | Result | What the model picked up |
+|---|---|---|
+| Same sessions, different *selection* of trained turns (G → H) | 72 % → 91 % | In G, prose replies after a lookup outnumbered numbered ones 41 to 28 → "after a lookup, write prose" |
+| One template detail: `<think></think>` only before the last turn | 87 % → 16 % | It never saw a lookup call in the position where it must produce one |
+| Single-behaviour corpora (sweep A–E) | declines 100 % → 0–10 % | "Every question is a lookup" |
+| Train only the replies after a tool (F) | answered the lasagna recipe | "Always answer" |
+| Our formulas always go right under the data | `=AVERAGE(B2:B8)` where B2:B7 was right | It infers the range from the target cell, not from the data |
+| Add examples where the data is already shown (HF → HO) | office 82 % → 89 % | "When the data is in the context, answer from it" |
+
+What we do because of it:
+
+1. **Check the corpus's shape, not only its content.** Correct names and no invented menus aren't
+   enough. Before training, count: how often each behaviour appears, in which position, and what always
+   co-occurs with what (the reply format after each tool, the tool after each kind of request). The count
+   that explained G took one short script — run it on every mix *before* training, not after a failed run.
+2. **Every behaviour the model must keep has to be in the data, in proportion.** There is no narrow
+   targeting: leave declines out and it stops declining.
+3. **Vary what shouldn't matter.** If the target cell, the language, the position in the conversation or
+   the phrasing is always the same, the model will treat it as part of the rule. Randomise it on purpose
+   (next: formulas in a cell the user names, not always right under the data).
+4. **Render training exactly as at run time**, template quirks included, and verify it token by token.
+5. **Change one thing per run and read the failures** (Ian: "finish a run, study failures, decide the next
+   step together"). Every fix above came from reading the failed items, not from the overall score.
+
 ## Open for the decision
 
 - The held-out eval (95 items) runs **once**, on stock and tuned versions of both candidates together;
