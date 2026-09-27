@@ -3,7 +3,23 @@
 Updated 2026-09-26 ~20:45, before an IDE/Claude restart. For Ian, Claude, and Codex alike. Read this
 first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `docs/SPEC.md`.
 
-## State right now
+## Update 2026-09-26 ~21:30 — step 1 done, run G measured
+
+- **Merge done** (`training/datasets/sessions/merge.py`, commit `1c44495`): 319 → **292 sessions**. New checks:
+  declines must refuse (35 cut: medical/voting/stock advice, "Yes, The Crown is based on…"); the exact
+  "What do you see now?" in ja/fr/pt walkthroughs **repaired** to the native phrase (56×, Ian's choice B);
+  repeated walkthrough steps cut (14). `WALK_GUIDE` fixed for future runs.
+- **Mix** (`training/guide/make_session_mix.py`): 160 turns to the journal shares, others kept as context
+  (`"train": false`, honoured by `train_lora.py`); reports that name the program to open picked first. 317 sequences.
+- **Run G** (Qwen3.5-4B, lr 5e-5, 1 epoch): **72 %** (stock 87 %). **The collapse is fixed:** declines 100 %,
+  system checks 91 % (stock 86 %), tool choice 141/157 (stock 142). **New loss: numbered steps** — 25 of the
+  failures are "no numbered steps": correct content written as prose. Cause: walkthrough and report turns are
+  trained "no numbered list" after the same lookup call, so the model learned prose after a lookup.
+  Vague set 0/19 (as stock) — it doesn't discriminate yet.
+- Reading of the sessions (for the next generation run): reports describe the problem but rarely say what it
+  means or offer the fix (only 81/381 name the program to open) — make them "what it means + offer the action".
+
+## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
 - **Nothing running** anywhere. The corpus teacher on the Mint box is stopped (GPU back to 1.7 GB).
