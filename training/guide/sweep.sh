@@ -37,8 +37,19 @@ evaluate() {  # name, [adapter file on the Mint box or ""]
 run() {  # name, n_transition, n_interpretation, lr, [extra train_lora.py args]
   local name=$1 nt=$2 ni=$3 lr=$4 extra=${5:-}
   log "run $name: transition $nt, interpretation $ni, lr $lr"
-  wslrun "cd ~/cinminai-train && .venv/bin/python /mnt/c/Users/Ian/Cin-minAI/training/guide/make_mix.py --transition $nt \
-    --interpretation $ni --seed 7 --out data/mix-$name.jsonl && .venv/bin/python /mnt/c/Users/Ian/Cin-minAI/training/guide/train_lora.py \
+  train "$name" "make_mix.py --transition $nt --interpretation $ni" "$lr" "$extra"
+}
+
+run_sessions() {  # name, trained turns, lr: balanced session mix (make_session_mix.py)
+  local name=$1 turns=$2 lr=$3
+  log "run $name: sessions, $turns trained turns, lr $lr"
+  train "$name" "make_session_mix.py --turns $turns" "$lr" ""
+}
+
+train() {  # name, mix command (script in training/guide + its args), lr, extra train_lora.py args
+  local name=$1 mix=$2 lr=$3 extra=$4
+  wslrun "cd ~/cinminai-train && .venv/bin/python /mnt/c/Users/Ian/Cin-minAI/training/guide/$mix \
+    --seed 7 --out data/mix-$name.jsonl && .venv/bin/python /mnt/c/Users/Ian/Cin-minAI/training/guide/train_lora.py \
     --base base/Qwen3.5-4B --data data/mix-$name.jsonl --out runs/sweep-$name --epochs 1 --lr $lr --targets $TARGETS $extra &&
     .venv/bin/python llama.cpp/convert_lora_to_gguf.py runs/sweep-$name/adapter --base base/Qwen3.5-4B \
     --outfile out/sweep-$name-lora.gguf --outtype f16 && cp out/sweep-$name-lora.gguf /mnt/c/Users/Ian/cinminai-train-out/sweep/ &&
@@ -48,6 +59,10 @@ run() {  # name, n_transition, n_interpretation, lr, [extra train_lora.py args]
 }
 
 log "sweep started"
+if [ "${1:-}" = G ]; then               # 2026-09-26: session corpus, balanced to the journal shares (~317 sequences)
+  run_sessions G 160 5e-5
+  log "SWEEP DONE"; exit 0
+fi
 if [ "${1:-}" = F ]; then               # 2026-09-26 step (a): reply-only tuning, one micro run
   run F 300 0 5e-5 "--turns replies"
   log "SWEEP DONE"; exit 0

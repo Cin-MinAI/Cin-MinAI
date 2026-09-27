@@ -244,7 +244,10 @@ WALK_GUIDE = ("\n\nThis reply walks the person through it piece by piece: give o
               "numbered list, no other steps, nothing that isn't in the card. If they report a problem the card "
               "doesn't cover, say honestly that the help doesn't cover it and offer to check the computer or look "
               "up more — never invent buttons, menus, or options. Format: one sentence with the single step, then "
-              "one short question such as 'What do you see now?' — the reply must end with that question.")
+              "one short question, in the person's language, asking what they see now — the reply must end "
+              "with that question.")
+# (was: "one short question such as 'What do you see now?'" — the teacher copied the English example
+# into Japanese, French and Portuguese replies; 2026-09-26 merge.)
 
 
 QUOTED = re.compile(r'"([^"\n]{2,40})"|“([^”\n]{2,40})”|„([^“”\n]{2,40})[“”]|«\s?([^»\n]{2,40}?)\s?»|「([^」\n]{1,40})」|『([^』\n]{1,40})』|\'([^\'\n]{2,40})\'')

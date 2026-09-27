@@ -1,0 +1,38 @@
+{
+ "kind": "sessions",
+ "sources": [
+  "journal-big-319.jsonl"
+ ],
+ "sessions_in": 319,
+ "kept": 292,
+ "cut": 21,
+ "dropped": {
+  "fewer than 2 good turns": 27
+ },
+ "first_bad_turn": {
+  "decline: decline doesn't refuse": 35,
+  "walk follow-up: repeats the previous step": 14
+ },
+ "repaired": {
+  "English 'What do you see now?' -> native": 56
+ },
+ "turn_types": {
+  "report": "393 (29%)",
+  "decline": "303 (22%)",
+  "walk": "250 (18%)",
+  "clear": "145 (11%)",
+  "safety": "116 (9%)",
+  "system": "71 (5%)",
+  "vague": "49 (4%)",
+  "chat": "29 (2%)"
+ },
+ "assistant_messages": 2729,
+ "by_language": {
+  "en": 59,
+  "es": 49,
+  "fr": 48,
+  "de": 55,
+  "pt": 42,
+  "ja": 39
+ }
+}

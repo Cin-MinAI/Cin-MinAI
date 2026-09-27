@@ -65,14 +65,19 @@ def encode(tok, messages: list[dict], max_len: int, turns: str = "all") -> list[
 
     turns="replies": only the turns that follow a tool result (the reply), never a first action — so
     tuning shapes how the guide answers without moving which tool it picks (cycle-0 sweep: training
-    first actions made declines and system checks collapse into lookup_help)."""
-    def wanted(i: int) -> bool:
-        if messages[i]["role"] != "assistant":
-            return False
-        return turns == "all" or (i > 0 and messages[i - 1]["role"] == "user"
-                                  and messages[i - 1]["content"].startswith("Result of "))
-    return [e for i in range(len(messages)) if wanted(i)
-            for e in [encode_turn(tok, messages[:i + 1], max_len)] if e]
+    first actions made declines and system checks collapse into lookup_help).
+    An assistant message marked "train": false is context only (session mixes, make_session_mix.py)."""
+    plain = [{"role": m["role"], "content": m["content"]} for m in messages]
+    return [e for i in range(len(messages)) if wanted(messages, i, turns)
+            for e in [encode_turn(tok, plain[:i + 1], max_len)] if e]
+
+
+def wanted(messages: list[dict], i: int, turns: str) -> bool:
+    m = messages[i]
+    if m["role"] != "assistant" or m.get("train") is False:
+        return False
+    return turns == "all" or (i > 0 and messages[i - 1]["role"] == "user"
+                              and messages[i - 1]["content"].startswith("Result of "))
 
 
 def main() -> None:
@@ -102,8 +107,7 @@ def main() -> None:
     data, skipped = [], 0
     for r in rows:
         seqs = encode(tok, r["messages"], o.max_len, o.turns)
-        want = sum(m["role"] == "assistant" and (o.turns == "all" or i > 0 and r["messages"][i - 1]["content"]
-                   .startswith("Result of ")) for i, m in enumerate(r["messages"]))
+        want = sum(wanted(r["messages"], i, o.turns) for i in range(len(r["messages"])))
         skipped += want - len(seqs)
         data += seqs
     print(f"{len(rows)} examples -> {len(data)} training sequences (one per assistant turn), "
