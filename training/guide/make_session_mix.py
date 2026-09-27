@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sample a balanced training mix from the session corpus (guide micro run G, cycle 0).
 
-    python3 make_session_mix.py --turns 160 --seed 7 --out mix.jsonl
+    python3 make_session_mix.py --turns 160 --seed 7 [--preset g|h] --out mix.jsonl
 
 The session corpus is skewed (reports 29 %, declines 22 %, vague 4 %: the generator's fallback turn
 type). We pick TURNS turns to the planned shares (the journal mix) and train only those: every other
@@ -21,8 +21,17 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SESSIONS = os.path.join(HERE, "..", "datasets", "sessions")
-SHARES = {"clear": 0.15, "system": 0.05, "report": 0.18, "walk": 0.20, "vague": 0.15, "decline": 0.12,
-          "safety": 0.08, "chat": 0.07}
+PRESETS = {
+    "g": {"clear": 0.15, "system": 0.05, "report": 0.18, "walk": 0.20, "vague": 0.15, "decline": 0.12,
+          "safety": 0.08, "chat": 0.07},
+    # run G (72 %) lost the numbered steps: after a lookup it saw mostly one-step walkthrough replies and
+    # list-free reports, so it wrote prose. H: twice the full numbered answers, and walkthroughs train only
+    # their follow-up steps (the first reply after the lookup is context), so lookup -> numbered list stays
+    # the default and step-by-step happens once the conversation is already a walkthrough.
+    "h": {"clear": 0.30, "system": 0.08, "report": 0.12, "walk": 0.12, "vague": 0.12, "decline": 0.10,
+          "safety": 0.08, "chat": 0.08},
+}
+FOLLOW_ONLY = {"g": False, "h": True}
 
 
 def load_merge():
@@ -42,8 +51,9 @@ def names_program(segs: list) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--turns", type=int, required=True), ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", required=True), ap.add_argument("--preset", choices=list(PRESETS), default="g")
     o = ap.parse_args()
+    shares, follow_only = PRESETS[o.preset], FOLLOW_ONLY[o.preset]
     M = load_merge()
     rnd = random.Random(o.seed)
     sessions = [json.loads(l) for l in open(os.path.join(SESSIONS, "corpus.jsonl"), encoding="utf-8")]
@@ -53,9 +63,11 @@ def main() -> None:
         ts = M.turns(s)
         split.append(ts)
         for ti, (kind, segs) in enumerate(ts):
+            if kind == "walk" and follow_only and len(segs) < 2:
+                continue  # nothing to train: a walkthrough without a follow-up
             pool[kind].append((si, ti, kind == "report" and names_program(segs)))
     picked, short = set(), {}
-    for kind, share in SHARES.items():
+    for kind, share in shares.items():
         want = round(o.turns * share)
         cands = pool[kind][:]
         rnd.shuffle(cands)
@@ -70,11 +82,13 @@ def main() -> None:
             continue
         msgs = [s["messages"][0]]
         for ti, (kind, segs) in enumerate(ts[:max(mine) + 1]):
-            for seg in segs:
-                for m in seg:
+            for j, seg in enumerate(segs):
+                for k, m in enumerate(seg):
                     if m["role"] == "assistant":
-                        m = dict(m) if ti in mine else dict(m, train=False)
-                        seqs += ti in mine
+                        # follow-only: the walkthrough's lookup call is trained, its first reply is context
+                        train = ti in mine and not (kind == "walk" and follow_only and j == 0 and k == len(seg) - 1)
+                        m = dict(m) if train else dict(m, train=False)
+                        seqs += train
                     msgs.append(m)
             if ti in mine:
                 kinds[kind] += 1
@@ -84,7 +98,7 @@ def main() -> None:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     total = sum(kinds.values())
-    print(json.dumps({"sessions": len(rows), "trained_turns": total, "training_sequences": seqs,
+    print(json.dumps({"preset": o.preset, "sessions": len(rows), "trained_turns": total, "training_sequences": seqs,
                       "shares": {k: f"{n} ({n / total:.0%})" for k, n in kinds.most_common()},
                       "reports_naming_the_program": sum(1 for si, ti, p in pool["report"] if p and (si, ti) in picked),
                       "short": short}, ensure_ascii=False))

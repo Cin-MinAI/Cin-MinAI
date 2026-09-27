@@ -40,10 +40,10 @@ run() {  # name, n_transition, n_interpretation, lr, [extra train_lora.py args]
   train "$name" "make_mix.py --transition $nt --interpretation $ni" "$lr" "$extra"
 }
 
-run_sessions() {  # name, trained turns, lr: balanced session mix (make_session_mix.py)
-  local name=$1 turns=$2 lr=$3
-  log "run $name: sessions, $turns trained turns, lr $lr"
-  train "$name" "make_session_mix.py --turns $turns" "$lr" ""
+run_sessions() {  # name, trained turns, lr, [preset]: balanced session mix (make_session_mix.py)
+  local name=$1 turns=$2 lr=$3 preset=${4:-g}
+  log "run $name: sessions, $turns trained turns, preset $preset, lr $lr"
+  train "$name" "make_session_mix.py --turns $turns --preset $preset" "$lr" ""
 }
 
 train() {  # name, mix command (script in training/guide + its args), lr, extra train_lora.py args
@@ -61,6 +61,10 @@ train() {  # name, mix command (script in training/guide + its args), lr, extra 
 log "sweep started"
 if [ "${1:-}" = G ]; then               # 2026-09-26: session corpus, balanced to the journal shares (~317 sequences)
   run_sessions G 160 5e-5
+  log "SWEEP DONE"; exit 0
+fi
+if [ "${1:-}" = H ]; then               # G lost numbered steps (72 %): clear 30 %, walkthroughs train follow-ups only
+  run_sessions H 160 5e-5 h
   log "SWEEP DONE"; exit 0
 fi
 if [ "${1:-}" = F ]; then               # 2026-09-26 step (a): reply-only tuning, one micro run
