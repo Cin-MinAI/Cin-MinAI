@@ -21,6 +21,11 @@ import random
 W, H = 3840, 2160
 BLUE, GREEN, CYAN, TEAL, PANEL = "#00A4EC", "#18D42C", "#34B5B8", "#106979", "#02141C"
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Brightness (Ian, 2026-09-27: "brighter like the concepts, but I like the simplicity"): one knob for the
+# glow of lines, dots and binary, the bloom at the centre and the heart of the background.
+GLOW = 1.8
+BLOOM = 1.6
+HEART = "#063447"
 
 
 class Svg:
@@ -42,21 +47,21 @@ def pts(p):
 
 def glow_line(svg, p, color, width, strength=1.0, core=True):
     """A glowing polyline: wide faint strokes under a bright thin core."""
-    for mult, op in ((9, 0.035), (5, 0.06), (2.6, 0.14)):
+    for mult, op in ((9, 0.035 * GLOW), (5, 0.06 * GLOW), (2.6, 0.14 * GLOW)):
         svg.add(f'<polyline points="{pts(p)}" fill="none" stroke="{color}" stroke-width="{width * mult:.1f}" '
                 f'stroke-linecap="round" stroke-linejoin="round" opacity="{op * strength:.3f}"/>')
     if core:
         svg.add(f'<polyline points="{pts(p)}" fill="none" stroke="{color}" stroke-width="{width:.1f}" '
-                f'stroke-linecap="round" stroke-linejoin="round" opacity="{min(1, 0.85 * strength):.3f}"/>')
+                f'stroke-linecap="round" stroke-linejoin="round" opacity="{min(1, 0.85 * strength * GLOW):.3f}"/>')
 
 
 def glow_dot(svg, x, y, r, color, strength=1.0):
-    for mult, op in ((6, 0.05), (3, 0.12)):
+    for mult, op in ((6, 0.05 * GLOW), (3, 0.12 * GLOW)):
         svg.add(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * mult:.1f}" fill="{color}" opacity="{op * strength:.3f}"/>')
     svg.add(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="{color}" opacity="{min(1, 0.9 * strength):.3f}"/>')
 
 
-def background(svg, cx, cy, inner=PANEL):
+def background(svg, cx, cy, inner=HEART):
     svg.defs.append(f'<radialGradient id="bg" cx="{cx / W:.3f}" cy="{cy / H:.3f}" r="0.75">'
                     f'<stop offset="0" stop-color="{inner}"/><stop offset="0.55" stop-color="#010A0F"/>'
                     f'<stop offset="1" stop-color="#000000"/></radialGradient>')
@@ -98,6 +103,7 @@ def binary_columns(svg, rnd, x0, x1, y_bottom, count, size_range, avoid=None):
             fade = (1 - k / n) * rnd.uniform(0.35, 0.9) * (1 - yy / (y_bottom * 1.3))
             if avoid and avoid(x, yy):
                 fade *= 0.15
+            fade = min(1.0, fade * GLOW * 0.8)
             if fade > 0.03:
                 binary_digit(svg, x, yy, size, rnd.random() < 0.5, color, fade)
 
@@ -129,9 +135,9 @@ def circuit_floor(seed=11):
 
     # glow at the vanishing point
     svg.defs.append(f'<radialGradient id="core" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="{CYAN}" '
-                    f'stop-opacity="0.55"/><stop offset="0.35" stop-color="{BLUE}" stop-opacity="0.18"/>'
+                    f'stop-opacity="{min(1, 0.55 * BLOOM):.2f}"/><stop offset="0.35" stop-color="{BLUE}" stop-opacity="{0.18 * BLOOM:.2f}"/>'
                     f'<stop offset="1" stop-color="{BLUE}" stop-opacity="0"/></radialGradient>')
-    svg.add(f'<ellipse cx="{vx}" cy="{vy}" rx="1400" ry="700" fill="url(#core)"/>')
+    svg.add(f'<ellipse cx="{vx}" cy="{vy}" rx="{1400 * BLOOM ** 0.5:.0f}" ry="{700 * BLOOM ** 0.5:.0f}" fill="url(#core)"/>')
     # towers: tall glass panels on both sides, fading with distance
     for side in (-1, 1):
         for k in range(14):
@@ -187,8 +193,8 @@ def data_stream(seed=23):
     vx, vy = W * 0.62, H * 0.5
     background(svg, vx, vy)
     svg.defs.append(f'<radialGradient id="core" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="{CYAN}" '
-                    f'stop-opacity="0.6"/><stop offset="1" stop-color="{BLUE}" stop-opacity="0"/></radialGradient>')
-    svg.add(f'<ellipse cx="{vx}" cy="{vy}" rx="1100" ry="420" fill="url(#core)"/>')
+                    f'stop-opacity="{min(1, 0.6 * BLOOM):.2f}"/><stop offset="1" stop-color="{BLUE}" stop-opacity="0"/></radialGradient>')
+    svg.add(f'<ellipse cx="{vx}" cy="{vy}" rx="{1100 * BLOOM ** 0.5:.0f}" ry="{420 * BLOOM ** 0.5:.0f}" fill="url(#core)"/>')
     # distant city: thin bright columns along the horizon
     for _ in range(160):
         x = rnd.uniform(W * 0.25, W)
