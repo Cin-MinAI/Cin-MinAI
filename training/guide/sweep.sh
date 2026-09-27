@@ -40,10 +40,10 @@ run() {  # name, n_transition, n_interpretation, lr, [extra train_lora.py args]
   train "$name" "make_mix.py --transition $nt --interpretation $ni" "$lr" "$extra"
 }
 
-run_sessions() {  # name, trained turns, lr, [preset]: balanced session mix (make_session_mix.py)
-  local name=$1 turns=$2 lr=$3 preset=${4:-g}
-  log "run $name: sessions, $turns trained turns, preset $preset, lr $lr"
-  train "$name" "make_session_mix.py --turns $turns --preset $preset" "$lr" ""
+run_sessions() {  # name, trained turns, lr, [preset], [office examples]: balanced session mix (make_session_mix.py)
+  local name=$1 turns=$2 lr=$3 preset=${4:-g} office=${5:-0}
+  log "run $name: sessions, $turns trained turns, preset $preset, office $office, lr $lr"
+  train "$name" "make_session_mix.py --turns $turns --preset $preset --office $office" "$lr" ""
 }
 
 train() {  # name, mix command (script in training/guide + its args), lr, extra train_lora.py args
@@ -69,6 +69,10 @@ if [ "${1:-}" = H ]; then               # G lost numbered steps (72 %): clear 30
 fi
 if [ "${1:-}" = HF ]; then              # full run at H's recipe: 360 turns = the most the corpus gives at these shares (chat runs out)
   run_sessions HF 360 5e-5 h
+  log "SWEEP DONE"; exit 0
+fi
+if [ "${1:-}" = HO ]; then              # HF + office examples (~15 % of sequences): HF lost 2 office items to stock
+  run_sessions HO 360 5e-5 h 115
   log "SWEEP DONE"; exit 0
 fi
 if [ "${1:-}" = F ]; then               # 2026-09-26 step (a): reply-only tuning, one micro run

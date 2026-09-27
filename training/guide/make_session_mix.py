@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sample a balanced training mix from the session corpus (guide micro run G, cycle 0).
 
-    python3 make_session_mix.py --turns 160 --seed 7 [--preset g|h] --out mix.jsonl
+    python3 make_session_mix.py --turns 160 --seed 7 [--preset g|h] [--office N] --out mix.jsonl
 
 The session corpus is skewed (reports 29 %, declines 22 %, vague 4 %: the generator's fallback turn
 type). We pick TURNS turns to the planned shares (the journal mix) and train only those: every other
@@ -21,6 +21,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SESSIONS = os.path.join(HERE, "..", "datasets", "sessions")
+OFFICE = os.path.join(HERE, "..", "datasets", "office")
 PRESETS = {
     "g": {"clear": 0.15, "system": 0.05, "report": 0.18, "walk": 0.20, "vague": 0.15, "decline": 0.12,
           "safety": 0.08, "chat": 0.07},
@@ -52,6 +53,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--turns", type=int, required=True), ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", required=True), ap.add_argument("--preset", choices=list(PRESETS), default="g")
+    ap.add_argument("--office", type=int, default=0,
+                    help="add N office examples (datasets/office/corpus.jsonl, a document shared; one call each)")
     o = ap.parse_args()
     shares, follow_only = PRESETS[o.preset], FOLLOW_ONLY[o.preset]
     M = load_merge()
@@ -93,15 +96,21 @@ def main() -> None:
             if ti in mine:
                 kinds[kind] += 1
         rows.append({"messages": msgs, "meta": dict(s["meta"], trained_turns=[ts[t][0] for t in mine])})
+    office = []
+    if o.office:
+        pool_o = [json.loads(l) for l in open(os.path.join(OFFICE, "corpus.jsonl"), encoding="utf-8")]
+        office = rnd.sample(pool_o, min(o.office, len(pool_o)))
+        rows += office
+        seqs += len(office)
     rnd.shuffle(rows)
     with open(o.out, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     total = sum(kinds.values())
-    print(json.dumps({"preset": o.preset, "sessions": len(rows), "trained_turns": total, "training_sequences": seqs,
+    print(json.dumps({"preset": o.preset, "sessions": len(rows) - len(office), "trained_turns": total, "training_sequences": seqs,
                       "shares": {k: f"{n} ({n / total:.0%})" for k, n in kinds.most_common()},
                       "reports_naming_the_program": sum(1 for si, ti, p in pool["report"] if p and (si, ti) in picked),
-                      "short": short}, ensure_ascii=False))
+                      "office_examples": len(office), "short": short}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
