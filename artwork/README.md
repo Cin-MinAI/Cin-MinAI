@@ -9,7 +9,7 @@ sorts it into the folders below and makes the sizes each part of the system need
 | Folder | What | Used for |
 |---|---|---|
 | `incoming/` | new work, unsorted | — |
-| `logo/` | the logo and wordmark: originals (SVG if possible) + exports | menu button, installer, welcome screen, about dialog, docs |
+| `logo/` | the logo: Ian's original + `logo.svg` (vector, **approved by Ian 2026-09-27**), built by `build_logo.py` | menu button, installer, welcome screen, about dialog, docs |
 | `wallpapers/` | desktop backgrounds (at least 3840×2160) | default and extra backgrounds |
 | `boot/` | boot splash (Plymouth), boot menu background | start-up and shut-down screens |
 | `installer/` | installer slideshow slides | while the system installs |
