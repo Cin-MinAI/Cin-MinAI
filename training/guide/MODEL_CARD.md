@@ -65,9 +65,8 @@ the stock model with prompt v2 stays one switch away.
     native phrase; the cause was our own prompt), no terminal, facts from the tool result, and
     **decontamination**: no training message within 0.5 (3-gram Jaccard) of any eval item; against the
     held-out set the closest is 0.25.
-  - The datasheet (`training/datasets/DATASHEET.md`) describes the earlier transition and
-    interpretation corpora; **a section for the session and office corpora is still owed** — until then
-    their generator docstrings and `merge-stats.json` files are the record.
+  - Full description, counts, checks and known gaps: `training/datasets/DATASHEET.md` ("Session
+    corpus", "Office corpus").
 - **Export:** `training/guide/merge_quantize.sh` — base → f16 GGUF → adapter merged with
   `llama-export-lora` → `llama-quantize` Q4_K_M (no importance matrix). All 128 adapter tensors
   verified merged from the weights.
