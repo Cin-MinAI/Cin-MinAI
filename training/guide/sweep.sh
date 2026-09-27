@@ -67,6 +67,10 @@ if [ "${1:-}" = H ]; then               # G lost numbered steps (72 %): clear 30
   run_sessions H 160 5e-5 h
   log "SWEEP DONE"; exit 0
 fi
+if [ "${1:-}" = HF ]; then              # full run at H's recipe: 360 turns = the most the corpus gives at these shares (chat runs out)
+  run_sessions HF 360 5e-5 h
+  log "SWEEP DONE"; exit 0
+fi
 if [ "${1:-}" = F ]; then               # 2026-09-26 step (a): reply-only tuning, one micro run
   run F 300 0 5e-5 "--turns replies"
   log "SWEEP DONE"; exit 0
