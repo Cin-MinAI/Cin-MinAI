@@ -86,6 +86,28 @@ When you're ready, double-click **Install** on the desktop. Installed, Cin-MinAI
 assistant answers in seconds, and your files and settings are kept. We recommend installing on an
 **SSD**; an **M.2 NVMe** drive is ideal.
 
+### We recommend: a clean install, one system per drive
+
+Give Cin-MinAI **a drive of its own** and let the installer erase that drive ("Erase disk and install").
+If you want to keep Windows, keep it on **its own, separate drive**. Don't split one drive between
+Windows and Cin-MinAI.
+
+Why: each system then has its own start-up files (its "bootloader") on its own drive, and neither can
+break the other. A Windows update can't stop Cin-MinAI from starting, a Cin-MinAI update can't touch
+Windows, and if one drive fails, the other system still works.
+
+How:
+1. **Before installing, switch the computer off and unplug the other drives** (or disconnect them in
+   the computer's setup screen). Then the installer can only see the drive meant for Cin-MinAI, and it
+   can't put its start-up files on your Windows drive by mistake. Plug them back in afterwards.
+2. In the installer, choose **Erase disk and install Cin-MinAI**, and check that the drive shown is the
+   one you meant (by its size and name).
+3. **To choose a system each time you start**, use the computer's boot-menu key from step 4 above and
+   pick the drive. Or set the one you use most as the first boot drive in the computer's setup screen.
+
+If you only have one drive and you're ready to leave Windows, installing on it is fine — the installer
+erases it and Cin-MinAI takes the whole drive. **Copy your files off first.**
+
 ## If something doesn't work
 
 - **The computer starts Windows as usual.** It didn't start from the stick: use "the easy way" in
