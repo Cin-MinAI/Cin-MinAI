@@ -464,6 +464,19 @@ record is detected; a lost USB is recovered with the printed code.
   llama.cpp RPC across machines, and home-networked AI get explored. Cautions: Volta likely needs the
   same pinned CUDA 12 toolchain/driver path as Pascal; ~250–300 W per card, SXM2 carrier boards or
   adapters, heat and noise.
+  **Scope, 2026-09-27 (Ian): the home AI platform — the developer/tinkerer full scope, "a real Jarvis
+  apparatus".** One inference box on the LAN (most VRAM affordable; small model always loaded, big ones
+  on demand with idle unload, as `qwen14b.service` already does), a thin router in front (model per
+  request, per-device API keys, logging), and everything else a client: Ian's AI Pi-hole design on the
+  Pi (asks the box to classify or explain; small fallback when it's off), phones, IDEs (M10), Home
+  Assistant, and Cin-MinAI desktops. LAN-only, behind the firewall; actions approved by a person, same
+  rule as the OS. Layers: Pi = edge device, Cin-MinAI = desktop, home platform = the shared brain.
+- **Sister-project idea (2026-09-27): home diagnostics and errands.** An assistant that finds an
+  appliance fault, orders the part, books the repair, or checks another insurer's rate — no markups,
+  no middlemen. It only works for the user if it's the user's: local, open, and **every purchase,
+  booking or switch approved by the owner** (D3/D30 at household scale). The hard part is access, not
+  intelligence: device data (Matter, Home Assistant), stores and quote sites that allow automation. A
+  person approving the last step also settles liability. After the MVP; fits the home platform above.
 - **Post-MVP: vision (2026-09-26).** First the MVP — a capable helper for newcomers — then bigger.
   Order of preference for "what's on my screen / in this picture": (1) **AT-SPI** for our own desktop
   (exact labels and error texts, instant, no image tokens; the same layer voice will use), (2) **OCR**
