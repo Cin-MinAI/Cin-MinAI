@@ -17,7 +17,7 @@ wslrun() { MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 -e bash -c "$1"; }
 if [ "${MODEL:-qwen}" = gemma ]; then
   BASE=gemma-4-E2B-it; EVAL_GGUF=gemma-4-E2B_q4_0-it.gguf; TARGETS=all-linear
 else
-  BASE=Qwen3.5-4B; EVAL_GGUF=Qwen3.5-4B-Q4_K_M.gguf; TARGETS=q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj
+  BASE=Qwen3.5-4B; EVAL_GGUF=${EVAL_GGUF:-Qwen3.5-4B-Q4_K_M.gguf}; TARGETS=q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj
 fi
 
 # eval code on the Mint box must match the repo
@@ -82,6 +82,10 @@ if [ "${1:-}" = HF ]; then              # full run at H's recipe: 360 turns = th
 fi
 if [ "${1:-}" = HO ]; then              # HF + office examples (~15 % of sequences): HF lost 2 office items to stock
   run_sessions HO 360 5e-5 h 115
+  log "SWEEP DONE"; exit 0
+fi
+if [ "${1:-}" = merged ]; then          # a merged, quantized guide file (merge_quantize.sh), no adapter: EVAL_GGUF=<file> ... merged NAME
+  evaluate "${2:?name}" ""
   log "SWEEP DONE"; exit 0
 fi
 if [ "${1:-}" = GO ]; then              # Gemma 4 E2B at HO's recipe (MODEL=gemma); stock Gemma first, same scorer

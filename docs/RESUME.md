@@ -58,6 +58,9 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
 - **D43 (Ian): cycle 0 ships the tuned Qwen3.5-4B (HO)** — accepts the 2-item held-out transition loss for the
   other gains. Next: MODEL_CARD.md, merge + quantize the tune (phase 4), release note; cycle 1 fixes listed in the journal.
 
+- **Shipped file made (phase 4):** `Qwen3.5-4B-guide-HO-Q4_K_M.gguf`, SHA-256 b9b132b0…e8c8e4, public 92 % merged
+  (`merge_quantize.sh`; copies in cinminai-train-out and Mint ~/cin-minai/models). Next: MODEL_CARD.md, release note.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).

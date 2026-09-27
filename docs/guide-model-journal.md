@@ -153,3 +153,17 @@ Script: `training/guide/held_out.sh`; results in `cinminai-train-out/held-out/` 
 safety, declines or careful-newcomer tasks) and trades a 2-item held-out transition loss for large gains
 elsewhere; the stricter training-README gate is noted as not met. Stock + prompt v2 stays one switch
 away. Next cycle: the complaint → lookup fix, Gemma's memory fix, a new held-out set.
+
+## The shipped file (phase 4, 2026-09-27)
+
+`Qwen3.5-4B-guide-HO-Q4_K_M.gguf` — 2,783,446,848 bytes, SHA-256
+`b9b132b05530879ae528dbd195161398b69768fa87b347ffd92a2b6f67e8c8e4`. Made by `training/guide/merge_quantize.sh`
+with the pinned llama.cpp (7fe450e): base → f16 GGUF → `llama-export-lora` (the HO adapter, scale 2.0 =
+alpha/rank) → `llama-quantize` Q4_K_M (26 s on the 3900X's 24 threads). All 128 adapter tensors merged:
+checked from the weights (merged − base correlates +0.04 to +0.05 with the adapter's delta in every layer
+tested — the delta is ~20× smaller than the quantization noise; the merge log itself lost lines). Public
+eval of the merged file, no adapter: **92 %** (adapter on top of the vendor Q4_K_M: 94 %) — transition 92,
+lessons 92, office 93, system 86, declines 100, boundary 86, safety 100: nowhere below stock. The 2 items
+are likely quantization (ours has no importance matrix; the vendor's file may) — worth an A/B next cycle
+(D33): the same pipeline on the stock base, and an imatrix quant.
+
