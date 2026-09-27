@@ -54,7 +54,10 @@ train() {  # name, mix command (script in training/guide + its args), lr, extra 
     .venv/bin/python llama.cpp/convert_lora_to_gguf.py runs/sweep-$name/adapter --base base/Qwen3.5-4B \
     --outfile out/sweep-$name-lora.gguf --outtype f16 && cp out/sweep-$name-lora.gguf /mnt/c/Users/Ian/cinminai-train-out/sweep/ &&
     cp runs/sweep-$name/run.json /mnt/c/Users/Ian/cinminai-train-out/sweep/run-$name.json" >> "$OUT/train-$name.log" 2>&1 \
-    || { log "run $name FAILED (see train-$name.log)"; return 1; }
+    || { log "run $name FAILED (see train-$name.log)"; wsl.exe --shutdown; return 1; }
+  # WSL keeps ~10 GB of file cache after training that Windows can't reclaim (2026-09-27: 1.2 GB free);
+  # nothing else uses WSL on this PC (Ian), and the eval runs on the Mint box — so stop it here.
+  wsl.exe --shutdown
   scp -q "$OUT/sweep-$name-lora.gguf" $MINT:cin-minai/adapters/ && evaluate "$name" "sweep-$name-lora.gguf"
 }
 
