@@ -19,6 +19,13 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
 - Reading of the sessions (for the next generation run): reports describe the problem but rarely say what it
   means or offer the fix (only 81/381 name the program to open) — make them "what it means + offer the action".
 
+- **Run H** (preset h: clear 30 %, walkthroughs train follow-ups only; 290 sequences, lr 5e-5, 1 epoch):
+  **91 % — first tune above stock (87 %).** Transition 92 % (stock 81), lessons 96 % (88), system 86 % (86),
+  declines 95 % (100: D01 de → lookup), office 86 % (89), ja/fr 100 %, **de 73 %** (stock 80: 3 of its 4 misses
+  are numbered steps). Per item vs stock: 14 fixed, 8 broken. Vague set still 0/19.
+  Next (proposed): repeat H with another seed to see whether +4 points is real, then full run at this recipe
+  → held-out eval (once) → D31 gate.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
