@@ -1,0 +1,43 @@
+{
+ "teacher": "Qwen3-14B-Q4_K_M",
+ "started": "2026-09-26T23:02:37",
+ "finished": "2026-09-27T00:33:01",
+ "seed": 91,
+ "kept": 252,
+ "dropped": {
+  "user message (set_body)": 1,
+  "assistant (ask_min)": 2,
+  "document": 9,
+  "user message (fix)": 6,
+  "user message (ask_count)": 2,
+  "assistant (ask_total)": 4,
+  "assistant (guard_offtopic)": 4
+ },
+ "by_intent": {
+  "calc/add_row": 17,
+  "calc/ask_count": 2,
+  "calc/ask_max": 9,
+  "calc/ask_min": 8,
+  "calc/ask_total": 2,
+  "calc/ask_value": 20,
+  "calc/formula_avg": 13,
+  "calc/formula_sum": 10,
+  "calc/guard_howto": 14,
+  "calc/guard_offtopic": 10,
+  "calc/read_nodata": 12,
+  "impress/ask_count": 7,
+  "impress/ask_slide": 11,
+  "impress/guard_howto": 2,
+  "impress/guard_offtopic": 7,
+  "impress/read_noslides": 8,
+  "impress/set_body": 10,
+  "impress/set_title": 9,
+  "writer/ask_paragraphs": 11,
+  "writer/ask_title": 10,
+  "writer/fix": 17,
+  "writer/guard_howto": 11,
+  "writer/guard_offtopic": 1,
+  "writer/rewrite": 8,
+  "writer/show_section": 23
+ }
+}

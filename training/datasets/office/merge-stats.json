@@ -1,0 +1,61 @@
+{
+ "kind": "office",
+ "sources": [
+  "office-a"
+ ],
+ "kept": 252,
+ "dropped": {},
+ "by_language": {
+  "en": 97,
+  "es": 35,
+  "pt": 30,
+  "de": 29,
+  "fr": 34,
+  "ja": 27
+ },
+ "by_document": {
+  "calc": 117,
+  "writer": 81,
+  "impress": 54
+ },
+ "by_intent": {
+  "calc/add_row": 17,
+  "calc/ask_count": 2,
+  "calc/ask_max": 9,
+  "calc/ask_min": 8,
+  "calc/ask_total": 2,
+  "calc/ask_value": 20,
+  "calc/formula_avg": 13,
+  "calc/formula_sum": 10,
+  "calc/guard_howto": 14,
+  "calc/guard_offtopic": 10,
+  "calc/read_nodata": 12,
+  "impress/ask_count": 7,
+  "impress/ask_slide": 11,
+  "impress/guard_howto": 2,
+  "impress/guard_offtopic": 7,
+  "impress/read_noslides": 8,
+  "impress/set_body": 10,
+  "impress/set_title": 9,
+  "writer/ask_paragraphs": 11,
+  "writer/ask_title": 10,
+  "writer/fix": 17,
+  "writer/guard_howto": 11,
+  "writer/guard_offtopic": 1,
+  "writer/rewrite": 8,
+  "writer/show_section": 23
+ },
+ "by_tool": {
+  "answer": 80,
+  "lookup_help": 27,
+  "replace_selection": 25,
+  "set_formula": 23,
+  "get_paragraphs": 23,
+  "set_slide_text": 19,
+  "decline": 18,
+  "write_range": 17,
+  "read_range": 12,
+  "slide_text": 8
+ },
+ "max_eval_similarity": 0.3
+}
