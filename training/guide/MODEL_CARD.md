@@ -102,10 +102,21 @@ the stock GGUF — the merged file was not run on it, to keep it one-shot):
 By language, tuned (stock): en 78 % (80), es 50 % (70), pt 80 % (60), fr 80 % (40), de 80 % (60),
 ja 50 % (40).
 
-**Speed and memory:** not yet re-measured for this file. It has the stock file's architecture and
-quant type (2.78 vs 2.74 GB), whose numbers on the 1080 Ti were 57 tokens/s generation and 3,062 MiB
-VRAM (CUDA), 5.2 tokens/s on the i7-4790K CPU (`docs/benchmarks.md`) — within the 6 GB-card budget.
-To confirm with `bench/run.py`.
+**Speed and memory** (`bench/run.py`, 2026-09-27, Mint box: GTX 1080 Ti, i7-4790K; 8K context, a
+4,006-token prompt, 128 generated tokens, 50 schema-constrained tool calls; stock file re-run the same
+day for comparison):
+
+| | Prompt tok/s | Generation tok/s | First token | Model VRAM (peak) | Free VRAM left | RAM (peak) | Valid JSON | 6 GB budget |
+|---|---|---|---|---|---|---|---|---|
+| **Shipped file, CUDA** | 1,449 | **66.1** | **2.8 s** | **3,032 MiB** | 6,431 MiB | 3.1 GB | 50/50 | ✓ (≤ 4,812 MiB) |
+| Stock file, CUDA | 1,424 | 65.2 | 2.8 s | 3,062 MiB | 6,401 MiB | 3.1 GB | 50/50 | ✓ |
+| Shipped file, Vulkan | 249 | 58.7 | 16.1 s | 2,871 MiB | 6,590 MiB | 3.6 GB | 50/50 | ✓ |
+| Shipped file, CPU only | 28 | 6.1 | 145 s | — | — | 5.6 GB | 50/50 | — |
+
+The tune costs nothing in speed or memory: same speed as the stock file within noise, 30 MiB less VRAM,
+and well inside the 6 GB-card budget (the model process peaks at 3.0 GiB; the budget is 4.7 GiB). On a
+CPU-only older PC it works but is slow for long prompts (2½ minutes to the first token with a 4K-token
+prompt; about 10 s per tool call).
 
 ## Known failures
 
