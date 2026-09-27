@@ -147,7 +147,9 @@ Script: `training/guide/held_out.sh`; results in `cinminai-train-out/held-out/` 
   requests whose answer is a setting (text size, screen blanking, printing) → `lookup_help`, in
   proportion; then a new held-out set (one is written per cycle).
 
-## Open for the decision
+## Decision (D43, Ian, 2026-09-27)
 
-- The held-out eval (95 items) runs **once**, on stock and tuned versions of both candidates together;
-  it decides the model and whether the tune ships (D31 gate).
+**Ship the tuned Qwen3.5-4B (run HO) as cycle 0's guide.** It passes the SPEC's gate (no loss on
+safety, declines or careful-newcomer tasks) and trades a 2-item held-out transition loss for large gains
+elsewhere; the stricter training-README gate is noted as not met. Stock + prompt v2 stays one switch
+away. Next cycle: the complaint → lookup fix, Gemma's memory fix, a new held-out set.

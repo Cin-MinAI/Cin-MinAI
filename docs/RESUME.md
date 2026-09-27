@@ -55,6 +55,9 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   stock Gemma 51 %. Qwen3.5-4B is the model. HO fails the D31 gate's letter: held-out transition 24/37 vs
   stock 26/37 (complaint-style how-tos -> inspect_system). Ship decision (stock vs tuned) with Ian.
 
+- **D43 (Ian): cycle 0 ships the tuned Qwen3.5-4B (HO)** — accepts the 2-item held-out transition loss for the
+  other gains. Next: MODEL_CARD.md, merge + quantize the tune (phase 4), release note; cycle 1 fixes listed in the journal.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
