@@ -1,6 +1,6 @@
 Welcome to Cin-MinAI!
 
 -Note from Ian, Designer
-First, thank you for trying Cin-MinAI. I truly hope it helps you become familiar with Linux based environments. Second, be aware this OS is equipped with an in house AI, tuned to assist this transition. When I first began my journey into Linux it was just terminal and Google. I was able to find my way through but it was not easy. However, on the other side of this journey is an OS that gives digital sovereignty to the user and a much more satisfying experience. This port was designed to ease that pain.
+First, thank you for trying Cin-MinAI. I truly hope it helps you become familiar with Linux based environments. Second, be aware this OS is equipped with a built-in AI assistant, tuned to assist this transition. When I first began my journey into Linux it was just terminal and Google. I was able to find my way through but it was not easy. However, on the other side of this journey is an OS that gives digital sovereignty to the user and a much more satisfying experience. This port was designed to ease that pain.
 
 Take care and change your world!
