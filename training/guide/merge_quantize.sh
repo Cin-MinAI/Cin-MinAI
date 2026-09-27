@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Phase 4 (training/guide/README.md): bake a tuned adapter into the base model and quantize it — the file
 # that ships. Runs in WSL (~/cinminai-train), CPU only, with the pinned llama.cpp (7fe450e = v0.5.0, the
 # same commit as the Mint box's builds). Same path as the eval: the GGUF adapter applied to a GGUF base,

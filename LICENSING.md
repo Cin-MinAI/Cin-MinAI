@@ -1,0 +1,34 @@
+# Licensing
+
+Cin-MinAI is free software, built in the open (PLAN D26). Decided by Ian on 2026-09-27 (PLAN D44).
+Full texts in [`LICENSES/`](LICENSES/); `LICENSE` at the top is the GPL, for tools that look there.
+
+| What | Licence | Where |
+|---|---|---|
+| **Our code** — daemon, applet, extensions, scripts, eval harness, generators, training and bench tools | **GPL-3.0-or-later** | everything not listed below; files carry `SPDX-License-Identifier: GPL-3.0-or-later` |
+| **Data and documents** — training corpora, eval tasks, docs, the spec and plan, model card, datasheet, release notes | **CC BY-SA 4.0** | `training/datasets/**/*.jsonl` and `*.json`, `training/eval/**/tasks.py` (marked `CC-BY-SA-4.0`), `docs/`, `*.md` |
+| **Our fine-tuned guide models** (published as model files, not in this repository) | **Apache-2.0**, the same as their base | the model card lists the base; Qwen's licence and notices ship with the file |
+
+"Or later" lets the project move to a future GPL version without asking every contributor again.
+
+## What we build on (each keeps its own licence)
+
+- **Linux Mint, Cinnamon and Ubuntu packages** in the ISO — each package under its own licence (mostly
+  GPL-2.0-or-later, which is why our code is GPL-3.0-or-later). Our own packages carry ours.
+- **llama.cpp** — MIT. **bubblewrap, polkit** — LGPL. **pyte** — LGPL-3.0. **LibreOffice** — MPL-2.0.
+- **Models:** the base models and the teacher are **Apache-2.0** (Qwen3.5-4B, Qwen3-14B); every model's
+  licence is checked before the distro offers it (PLAN §3). Model files are never in this repository.
+- `training/eval/guide/labels.json` and the knowledge base (`training/kb/`) contain program and menu
+  names taken from Linux Mint's and Cinnamon's own translation files (GPL-2.0-or-later); they are
+  distributed under GPL-3.0-or-later, and those names appear in the corpora as they appear on screen.
+
+## Contributions
+
+By contributing you agree that your contribution is published under these licences: code under
+GPL-3.0-or-later, data and documents under CC BY-SA 4.0.
+
+## Names and logos
+
+Licences cover code and content, not trademarks. "Linux Mint" and "Ubuntu" are their owners'
+trademarks; Cin-MinAI uses its own name and artwork (PLAN D17) and says it is *based on* Linux Mint.
+Mint's and Ubuntu's trademark policies are to be reviewed before the first public release (PLAN §5).

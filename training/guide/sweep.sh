@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Micro-run sweep for the guide fine-tune dose (cycle 0, Qwen3.5-4B). Run from Git Bash, detached
 # (so Claude Code's memory reaper can't stop it):
 #   powershell Start-Process bash -ArgumentList training/guide/sweep.sh -WindowStyle Hidden

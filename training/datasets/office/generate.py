@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Office corpus (cycle 0, 2026-09-26): the guide with a LibreOffice document shared, one request each.
 
 Why: the session-tuned guide (run HF, 92 % public) lost two office items to stock — with the spreadsheet

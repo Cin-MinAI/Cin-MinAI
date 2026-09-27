@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Guide eval runner (PLAN §3 guide track, SPEC §10.6). Talks to a running llama-server
 (OpenAI-compatible); stdlib only.
 

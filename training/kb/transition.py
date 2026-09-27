@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Transition knowledge base v0 (PLAN D23, D32): Windows habit -> Linux Mint, as short help cards.
 
 This is what `lookup_help` returns at runtime and what the transition corpus is built from. Every

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Portable llama.cpp bakeoff harness for Cin-MinAI (Python 3.12 stdlib only)."""
 
 from __future__ import annotations

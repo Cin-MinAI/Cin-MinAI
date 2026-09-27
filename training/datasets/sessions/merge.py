@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Merge raw session runs into the published session corpus (guide fine-tune, cycle 0).
 
 Every session is split into its turns (the planned types in meta.turns) and each turn is checked

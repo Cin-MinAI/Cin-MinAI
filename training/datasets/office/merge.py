@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Merge raw office runs into the published office corpus (guide fine-tune, cycle 0).
 
 The generator already checked every example (literal values in the message, computed calls, answers that

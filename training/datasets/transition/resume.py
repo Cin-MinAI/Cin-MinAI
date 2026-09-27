@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Resume an interrupted corpus run (power cut, reboot) without redoing finished work.
 
 Reads the generator's progress log(s) — one line per finished (topic, language) batch — and prints the

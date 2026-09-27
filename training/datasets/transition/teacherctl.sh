@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # teacherctl.sh start|stop — the corpus teacher server, tracked by a PID file (no pattern matching:
 # `pkill -f` over ssh matches the ssh command itself). TEACHER_TUNE=1 ./teacherctl.sh start uses the
 # tuned profile in teacher.sh (PLAN D33).

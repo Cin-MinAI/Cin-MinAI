@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Merge the raw generator outputs into the published corpora (guide fine-tune, phase 2).
 
 Every example goes through the same final checks, whatever run produced it:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """QLoRA fine-tune of a guide candidate on the transition corpus (training/guide/README.md, phase 3).
 
 Same settings for every candidate; everything that affects the result is logged to OUT/run.json.

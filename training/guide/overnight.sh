@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Overnight chain (2026-09-26), run from Git Bash on the dev PC:
 #   corpus (Mint box) -> merge -> commit -> train both candidates (RTX 4070, WSL) -> LoRA to GGUF
 #   -> public guide eval with prompt v2 on the Mint box's 1080 Ti (same hardware/settings as stock).

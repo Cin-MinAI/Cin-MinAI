@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
 """Vague-request eval (cycle 0): the right first move is to restate, offer 2-4 things the guide can do,
 and ask — the user is the pilot (PLAN D39). Used to tune how much interpretation training the guide
 gets: the public eval checks nothing is lost on clear questions, this set checks clarifying works.

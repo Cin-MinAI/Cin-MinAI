@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
 """Guide eval tasks (PLAN §3, guide track; SPEC §10.6). See README.md for the format.
 
 Each task: id, cat, q (the user's words; a dict per language for the translated ones), expect (the

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # User-level training environment for the guide fine-tune (no sudo): uv + a venv in ~/cinminai-train.
 set -euo pipefail
 export PATH=$HOME/.local/bin:$PATH

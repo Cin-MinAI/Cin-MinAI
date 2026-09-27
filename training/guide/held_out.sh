@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Cycle 0's one-shot held-out eval (training/guide/README.md, phase 5; D31). Run ONCE, from Git Bash on the
 # dev PC, on the three contenders Ian picked (2026-09-27): stock Qwen3.5-4B, tuned Qwen3.5-4B (run HO),
 # stock Gemma 4 E2B (its tune, run GO, scored 50 % public and was set aside for this cycle).

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Generate the Windows -> Linux transition corpus (PLAN D32; training/guide/README.md, phase 2).
 
 Teacher: a local open model behind llama-server (OpenAI-compatible) — never a proprietary API.

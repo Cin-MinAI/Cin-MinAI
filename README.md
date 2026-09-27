@@ -38,3 +38,9 @@ That corpus is written by local open-weight models (Apache-2.0) and published wi
 (PLAN D32), so anyone can inspect or rebuild it. Every decision and result — including the
 failures — is in `docs/` (PLAN D26: built in the open, under the oversight of its community).
 
+
+## Licence
+
+Our code is **GPL-3.0-or-later** (`LICENSE`). Data and documents — the training corpora, eval tasks and
+docs — are **CC BY-SA 4.0**; our fine-tuned guide models are **Apache-2.0**, like their base. What covers
+what, and the licences of what we build on: [`LICENSING.md`](LICENSING.md).

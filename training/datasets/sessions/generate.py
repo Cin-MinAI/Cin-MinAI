@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Session corpus (cycle 0, Ian's design 2026-09-26): one coherent conversation per example, every one
 unique, mixing the kinds of input a real user sends — so the guide learns to *choose* (answer directly,
 look up, check the machine, clarify with options, decline kindly, or just chat) instead of learning one

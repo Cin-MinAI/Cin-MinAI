@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
 """Held-out guide eval, model cycle 0 (training/guide/README.md, phase 1).
 
 Written 2026-09-25, before any prompt tuning or training; the git history is the proof. Used ONCE per

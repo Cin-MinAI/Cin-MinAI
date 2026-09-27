@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Teacher server for the transition corpus: Qwen3-14B (read-only testbed file), our pinned CUDA build, port 18091.
 # 36 of 40 layers on the GPU keeps the SPEC §4.2 desktop reserve (~1.9 GB free on the 1080 Ti at 4K).
 # Tuning (PLAN D33) — measured options, not yet adopted; set TEACHER_TUNE=1 to use them:

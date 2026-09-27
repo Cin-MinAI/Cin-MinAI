@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Build labels.json: the names Mint actually shows for its apps and settings panels, per v1 language
 (PLAN D25). Run on a Mint 22.x system (read-only):
 

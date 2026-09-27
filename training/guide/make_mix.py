@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Sample a training mix from the two corpora (guide micro runs, cycle 0).
 
     python3 make_mix.py --transition N --interpretation M --seed S --out mix.jsonl

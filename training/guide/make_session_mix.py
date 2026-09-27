@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Sample a balanced training mix from the session corpus (guide micro run G, cycle 0).
 
     python3 make_session_mix.py --turns 160 --seed 7 [--preset g|h] [--office N] --out mix.jsonl

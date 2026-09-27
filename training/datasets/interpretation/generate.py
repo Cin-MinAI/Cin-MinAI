@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Generate the interpretation corpus (PLAN D32 as amended: the guide's fine-tune teaches the Windows
 transition AND understanding people): underspecified requests answered by restating what the guide
 understood, offering 2-4 ways it can help, naming any out-of-scope reading honestly, and handing the
