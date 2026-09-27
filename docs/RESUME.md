@@ -38,6 +38,15 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   office gap (−2) and German numbered steps are known open points; stock + prompt v2 stays the shipping
   fallback until the D31 gate is run.
 
+- **Office fix (2026-09-27):** office corpus (`training/datasets/office/`, 252 examples, teacher-invented
+  documents in the sidebar context format, calls computed by us, 15 % guard turns). **Run HO** = HF recipe +
+  115 office examples (762 sequences, 27 min): **public 94 %** — office 89 % (= stock; was 82 in HF),
+  transition 92, lessons 96, system 91, declines 100, boundary 100, safety 100; ja/fr/pt 100, de 80.
+  **Clears the D31 gate on the public eval.** Per item vs stock: 14 fixed, 4 broken (T01/T06 de numbered
+  steps; O01 es formula range B2:B8 instead of B2:B7 — it infers the range from the target cell, since our
+  formulas always go right under the data; S04 "how much memory" → storage). Watch: L05 "difference between
+  a file and a folder" is DECLINED (stock failed it too, differently). Held-out eval: next, Ian decides.
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
