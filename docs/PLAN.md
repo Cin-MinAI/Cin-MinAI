@@ -55,6 +55,8 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D41 | **Cin-MinAI reviews models (and hardware) in public; the OS is one consumer of the reviews.** Nominations close **6 weeks before each release** (later ones roll to the next cycle). One published method for everyone (public + held-out eval, `bench/run.py`, reference hardware), so any review can be reproduced. **Every review is published**, including models that don't go into the OS and why. Hardware or models sent for review are **disclosed** in the review (what, by whom); a review unit buys a review, never a result; **no paid placement** — inclusion follows the D31 gate only. | new 2026-09-26 |
 | D43 | **Cycle 0 ships the tuned Qwen3.5-4B as the guide (Ian, 2026-09-27).** Held-out eval (run once): stock Qwen 66 %, tuned (run HO) **73 %**, stock Gemma 4 E2B 51 %; public 87 / 94 / 84. The tune gains on lessons (+27 pts held-out), declines (+27), boundary (+20), overall (+7; public +7) and loses nothing on safety, system or office — but held-out transition is **2 items below stock** (24/37 vs 26/37; Spanish 50 vs 70 %). That passes the SPEC §3.7 gate ("loses nowhere critical: safety, declines, careful-newcomer tasks") and fails the stricter training-README gate (transition and lessons up on both evals). Ian accepts the small transition loss for the other gains: a better everyday experience for the stock offering. The shipped guide is the default, not the last word — users are encouraged to run the bakeoff for their own machine. Known cause, fixed next cycle: complaint-style how-tos ("the text is too small", "the screen goes black") trigger a system check instead of a lookup (`docs/guide-model-journal.md`). Stock + prompt v2 stays one switch away (D31: the old model stays for a switch back). Gemma's tune (50 % public) was set aside this cycle — its training needs a memory fix first. | new 2026-09-27 |
 | D44 | **Licences (Ian, 2026-09-27):** our **code is GPL-3.0-or-later** (`LICENSE`; SPDX headers) — GPLv3 rather than v2 because Apache-2.0 (our models, the teacher) is compatible with v3 but not v2-only, Mint/Cinnamon code is mostly GPL-2.0-or-later, and v3 adds the patent grant and the anti-lock-down terms that fit "the user owns the computer"; **data and documents are CC BY-SA 4.0** (corpora, eval tasks, docs); **fine-tuned models are Apache-2.0**, like their base. What covers what, and what we build on: `LICENSING.md`. Trademarks (Mint, Ubuntu) are a separate review before the first public release (§5). | new 2026-09-27 |
+| D45 | **Two boot checks on the Mint box, split so a failure is easy to place (Ian, 2026-09-27).** **Boot check 1 — the alpha** (M1 + a trimmed M2, below): the live USB boots, the desktop works, the assistant opens and answers (guide on the CPU: the live session has no NVIDIA driver, D27). **Boot check 2 — before the beta (v0.1) wraps up:** a full install onto Ian's separate 120 GB SSD (D21), 1080 Ti on the 580 driver, the GPU profile. | new 2026-09-27 |
+| D46 | **Hosting (proposed 2026-09-27, Ian to confirm):** the signed apt repository on **GitHub Pages**, from a separate small public repository (`cinminai-apt`) so the main repository can stay private until going public (D26); Pages limits (~1 GB site, ~100 GB/month, 100 MB per file) fit our own packages. **Model files on Hugging Face** (the guide is 2.8 GB; GitHub Releases caps a file at 2 GB), fetched by a small package that checks the SHA-256. **The alpha ISO** is shared directly or split; public ISO hosting (mirrors, torrent) is decided with going public. | proposed 2026-09-27 |
 | D42 | **AI recovery mode (post-MVP):** boot the install USB → the guide diagnoses the installed system against a **sealed install record + change timeline** ("what changed since it last worked?"), plus package checksums as an independent reference; key by 2-of-3 secret sharing (USB share, machine share in TPM/EFI, printed code); the guide suggests refreshing the USB backup and writes only on the user's approval; fixed repair set, plan + button, offline (SPEC §8.7). | new 2026-09-26 |
 
 ### D1 — Sandbox details
@@ -254,6 +256,13 @@ box follow D21 and are cleaned up when M0 closes.
 
 Exit: a branded ISO installs in a VM and receives an update from our repository through Mint's Update Manager.
 
+### Alpha — M1 + a trimmed M2 (D45, boot check 1)
+
+- All of M1; from M2: `cinminai-daemon` with the guide (CPU and CUDA backends), `cinminai-llama`, the guide model package (downloaded, SHA-256 checked), the sidebar with streaming, the applet and the hotkey.
+- The guide's **read-only tools only**: `lookup_help` (the knowledge base), `inspect_system`, `open_app`. Nothing that changes the system (`request_install` and everything behind approvals waits for M4).
+
+Exit (boot check 1): the alpha ISO boots from USB on the Mint box; the desktop works; the assistant opens from applet and hotkey and answers a lookup, a system check and a decline correctly; nothing on the machine's own disks is touched.
+
 ### M2 — Assistant core on the desktop
 
 - `cinminai-daemon`: session D-Bus API, `InferenceBackend` + `LlamaCppBackend`, conversation, session state, supervisor/OOM ladder.
@@ -313,7 +322,7 @@ undone with one Ctrl+Z.
 - Automation that detects new Mint versions of forked packages and rebases.
 - Real-hardware install test on the Pascal machine.
 
-Exit: SPEC §18 acceptance criteria all pass → **v0.1**.
+Exit: SPEC §18 acceptance criteria all pass, and **boot check 2** (D45: full install on the 120 GB test SSD, GPU profile) → **v0.1**.
 
 ### M8 — Eval, then LoRA
 
@@ -388,7 +397,7 @@ record is detected; a lost USB is recovered with the printed code.
 
 - **Base series:** stay on Mint 22.x (Ubuntu 24.04, supported to 2029) for v0.1, or wait for Mint 23
   (Ubuntu 26.04)? Current plan: 22.x, rebase later.
-- **Apt repository hosting:** GitHub Pages / releases, a VPS, or object storage. Needed by M1.
+- **Apt repository hosting:** proposed D46 (GitHub Pages from a public `cinminai-apt` repo; models on Hugging Face) — Ian to confirm.
 - ~~Default terminal~~: keep Mint's default (VTE patch dropped after the M0 relay spike).
 - ~~Live-session assistant~~: decided — D23 + D27 (guide runs in the live session, reduced; install recommended).
 - ~~License~~: decided — D44 (code GPL-3.0-or-later, data and docs CC BY-SA 4.0, fine-tuned models Apache-2.0; `LICENSING.md`).
