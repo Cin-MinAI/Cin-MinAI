@@ -477,6 +477,15 @@ record is detected; a lost USB is recovered with the printed code.
   booking or switch approved by the owner** (D3/D30 at household scale). The hard part is access, not
   intelligence: device data (Matter, Home Assistant), stores and quote sites that allow automation. A
   person approving the last step also settles liability. After the MVP; fits the home platform above.
+- **Sister-project idea (2026-09-27, Ian): the generalized tool — the diagnostic AI's interface.** One
+  base (Pi Zero 2 W + touchscreen + battery + network; too small to run a model — the AI is on the home
+  platform) + an adapter + a software personality per job. Ian's examples: OBD-II (CAN board or ELM327,
+  python-OBD: fault codes explained for that car), a soldered-on NAND/flash reader (`flashrom` drives SPI
+  flash from the Pi's pins; parallel NAND needs more pins and 1.8 V level shifting), a Rock Band
+  controller clone. Also: UART console, I2C/SPI scanner, ADC voltage/current, camera for board photos
+  (vision on the home box). Rules: dump and verify before anything writes; any write (flash, config)
+  confirmed on the screen; mains-voltage measurement only through an isolated front end. Community fit:
+  anyone can publish a personality for their adapter.
 - **Post-MVP: vision (2026-09-26).** First the MVP — a capable helper for newcomers — then bigger.
   Order of preference for "what's on my screen / in this picture": (1) **AT-SPI** for our own desktop
   (exact labels and error texts, instant, no image tokens; the same layer voice will use), (2) **OCR**
