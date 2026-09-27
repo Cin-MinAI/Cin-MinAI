@@ -1,0 +1,1 @@
+deb [arch=amd64 signed-by=/usr/share/keyrings/cinminai-archive-keyring.gpg] @REPO_URL@ @REPO_SUITE@ @REPO_COMPONENT@

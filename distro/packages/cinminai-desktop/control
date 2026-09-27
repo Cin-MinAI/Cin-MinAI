@@ -1,0 +1,10 @@
+Package: cinminai-desktop
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Depends: cinminai-archive-keyring (= @VERSION@), cinminai-branding (= @VERSION@)
+Section: metapackages
+Priority: optional
+Description: Cin-MinAI desktop (metapackage)
+ Installs everything that makes a Linux Mint system Cin-MinAI. Its dependencies
+ grow with each milestone: the assistant, its model and its integrations follow.
