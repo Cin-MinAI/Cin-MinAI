@@ -73,7 +73,14 @@ Scores are from our public guide eval (157 items, prompt v2, 1080 Ti) unless not
   ship time, compare our own Q4_0 and Q4_K_M of the merged model against the QAT file (training README,
   phase 4).
 - **2026-09-27:** run GO started — HO's recipe on Gemma (sessions preset h, 360 turns + 115 office
-  examples, lr 5e-5, 1 epoch), stock Gemma re-evaluated first under the same scorer.
+  examples, lr 5e-5, 1 epoch), stock Gemma re-evaluated first under the same scorer (84 %, unchanged).
+- **The session corpus makes Gemma's memory problem much worse (measured, run GO).** The multi-turn
+  sessions are longer than cycle 0's single examples, so each step needs more memory: the driver
+  borrowed **15.1 GB of system RAM** as GPU overflow, and training slowed to **~205 s per step** (cycle 0:
+  ~11 s) — about 5.4 h for 95 steps, with Windows down to 1.7 GB free. Qwen trains the same mix in 27 min
+  inside the card's 12 GB. Ian's call: let it run on the established setup rather than change the
+  training code mid-comparison. Possible fixes for next time, untested: keep the per-layer embeddings in
+  system RAM; check whether the image/audio towers are loaded for text-only training.
 
 ## What training taught us (cycle 0, for future development)
 
