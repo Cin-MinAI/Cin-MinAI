@@ -36,6 +36,10 @@ for dir in "$here"/packages/*/; do
     fi
     find "$stage" -type f ! -path "$stage/usr/share/keyrings/*" -exec grep -Il . {} + 2>/dev/null \
         | while read -r f; do fill "$f"; done
+    # Installed-Size (KiB, apparent sizes: the same on every build host); build-iso.sh adds it to the
+    # installer's space estimate.
+    kib=$(du -s --apparent-size --block-size=1024 --exclude=DEBIAN "$stage" | cut -f1)
+    sed -i "/^Architecture:/a Installed-Size: $kib" "$stage/DEBIAN/control"
     find "$stage" -type d -exec chmod 755 {} +
     find "$stage" -type f -exec chmod 644 {} +
     find "$stage" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +

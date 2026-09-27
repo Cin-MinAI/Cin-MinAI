@@ -61,6 +61,15 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
 - **Shipped file made (phase 4):** `Qwen3.5-4B-guide-HO-Q4_K_M.gguf`, SHA-256 b9b132b0…e8c8e4, public 92 % merged
   (`merge_quantize.sh`; copies in cinminai-train-out and Mint ~/cin-minai/models). Next: MODEL_CARD.md, release note.
 
+- **M1 build (2026-09-27):** `distro/` — build-packages.sh, signing-key.sh (dev key "not for release"), make-repo.sh,
+  build-iso.sh, check-iso.sh. `cinminai-0.0.1-amd64.iso` passes all 5 checks (only our 3 packages; boot setup = upstream's,
+  hybrid USB image; md5sums; Mint's command-not-found DB and software catalogue unchanged; **reproducible**: two builds,
+  same SHA-256). Found on the way: apt's update hooks had rebuilt Mint's command-not-found DB and AppStream catalogue from
+  our repo alone (since the M0 spike) — fixed; `filesystem.size` from `du` wasn't reproducible — now upstream + Installed-Size;
+  mksquashfs 4.6 refuses SOURCE_DATE_EPOCH + -mkfs-time. **C: filled to 0 bytes** during the comparison builds (WSL disk
+  80 GB): recovered (sparse VHDX, Ian freed space; 103 GB free); build-iso.sh now refuses below 20 GB free and cleans up.
+  Next in M1: branding, the "Make your USB stick" guide, CI/boot test; then the Alpha milestone (D45).
+
 ## State right now (before the update above)
 
 - **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).

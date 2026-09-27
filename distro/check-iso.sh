@@ -37,10 +37,23 @@ if ( cd "$mnt" && grep -E ' \./casper/filesystem\.(squashfs|manifest|size)$' md5
     ok "md5sum.txt matches the changed files"; else bad "md5sum.txt"; fi
 umount "$mnt"; rmdir "$mnt"
 
+# Mint's command-not-found database and software catalogue must be upstream's (apt's update hooks rebuilt
+# them from our repo alone until 2026-09-27; build-iso.sh now restores them).
+t=$(mktemp -d)
+for x in up iso; do
+    src=$up; [[ $x == iso ]] && src=$iso
+    xorriso -osirrox on -indev "$src" -extract /casper/filesystem.squashfs "$t/$x.sqfs" >/dev/null 2>&1
+    unsquashfs -q -d "$t/$x" "$t/$x.sqfs" var/lib/command-not-found var/cache/swcatalog var/lib/swcatalog >/dev/null 2>&1
+    rm -f "$t/$x.sqfs"
+done
+if diff -rq "$t/up" "$t/iso" >/dev/null; then ok "Mint's command-not-found database and software catalogue unchanged"
+else bad "Mint's databases changed:"; diff -rq "$t/up" "$t/iso" | head -5 || true; fi
+rm -rf "$t"
+
 if [[ ${1:-} == --rebuild ]]; then
     OUTDIR=$M1/out-rebuild "$here/build-iso.sh" > "$M1/rebuild.log" 2>&1
     a=$(cut -d' ' -f1 "$M1/out/$OUT_ISO.sha256"); b=$(cut -d' ' -f1 "$M1/out-rebuild/$OUT_ISO.sha256")
-    [[ $a == "$b" ]] && ok "reproducible: a second build gives the same SHA-256 ($a)" \
-        || bad "not reproducible: $a vs $b (see $M1/rebuild.log)"
+    if [[ $a == "$b" ]]; then ok "reproducible: a second build gives the same SHA-256 ($a)"; rm -rf "$M1/out-rebuild"
+    else bad "not reproducible: $a vs $b (second ISO kept in $M1/out-rebuild; see $M1/rebuild.log)"; fi
 fi
 exit $fail

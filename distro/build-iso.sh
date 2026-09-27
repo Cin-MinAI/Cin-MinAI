@@ -20,6 +20,15 @@ owner=${SUDO_USER:-$(stat -c %U "$here/config.env")}
 [[ $WORK == /root/* ]] && { WORK=$(getent passwd "$owner" | cut -d: -f6)/cinminai-build; M1=$WORK/m1; }
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -c safe.directory='*' -C "$here" log -1 --format=%ct)}
 
+# Free space first. WSL's disk file lives on the Windows drive and grows with every build (a build needs
+# ~15 GB while it runs); on 2026-09-27 two builds plus a comparison filled C: to 0 bytes free.
+need_gb=${MIN_FREE_GB:-20}
+for fs in /mnt/c /; do
+    [[ -d $fs ]] || continue
+    free=$(df --output=avail -BG "$fs" | tail -1 | tr -dc 0-9)
+    (( free >= need_gb )) || { echo "only ${free} GB free on $fs (need ${need_gb}); free space first" >&2; exit 1; }
+done
+
 up=$WORK/upstream
 b=$M1/build
 rootfs=$b/rootfs
@@ -43,6 +52,7 @@ rm -rf "$b"; mkdir -p "$b/iso"
 xorriso -osirrox on -indev "$iso_in" \
     -extract /casper/filesystem.squashfs "$b/filesystem.squashfs.orig" \
     -extract /casper/filesystem.manifest "$b/manifest.upstream" \
+    -extract /casper/filesystem.size "$b/size.upstream" \
     -extract /md5sum.txt "$b/iso/md5sum.txt" 2>&1 | tail -1
 chmod u+w "$b/iso/md5sum.txt" "$b/manifest.upstream"
 unsquashfs -s "$b/filesystem.squashfs.orig" > "$b/squashfs-info.txt"
@@ -69,6 +79,13 @@ printf '#!/bin/sh\nexit 101\n' > "$rootfs/usr/sbin/policy-rc.d"; chmod 755 "$roo
 cp "$M1/build-key.gpg" "$rootfs/tmp/cinminai-build.gpg"
 echo "deb [signed-by=/tmp/cinminai-build.gpg] file:/mnt/cinminai-repo $REPO_SUITE $REPO_COMPONENT" > "$rootfs/tmp/cinminai-build.list"
 mkdir -p "$rootfs/tmp/cinminai-lists/partial"
+# apt's update hooks rebuild the command-not-found database and the software catalogue (AppStream) from
+# the lists apt can see — during the build, only ours — so Mint's would be replaced by near-empty ones
+# (found 2026-09-27: commands.db 3.8 vs 4.05 MB, swcatalog caches rewritten; also the one thing that made
+# two builds differ). Our packages add nothing to either: keep upstream's exactly.
+upstream_kept=(var/lib/command-not-found var/cache/swcatalog var/lib/swcatalog)
+mkdir -p "$b/kept"
+for d in "${upstream_kept[@]}"; do [[ -d $rootfs/$d ]] && { mkdir -p "$b/kept/$(dirname "$d")"; cp -a "$rootfs/$d" "$b/kept/$d"; }; done
 aptopts=(-o Dir::Etc::sourcelist=/tmp/cinminai-build.list -o Dir::Etc::sourceparts=-
          -o Dir::State::Lists=/tmp/cinminai-lists -o APT::Get::List-Cleanup=0)
 chroot "$rootfs" apt-get "${aptopts[@]}" update
@@ -86,12 +103,21 @@ for f in var/log/apt/history.log var/log/apt/term.log var/log/apt/eipp.log.xz va
     [[ -e $rootfs/$f ]] && : > "$rootfs/$f"   # keep the file (and its owner), drop this run's lines
 done
 rm -f "$rootfs"/var/cache/debconf/*-old "$rootfs"/var/lib/dpkg/*-old
+for d in "${upstream_kept[@]}"; do
+    [[ -d $b/kept/$d ]] && { rm -rf "${rootfs:?}/$d"; cp -a "$b/kept/$d" "$rootfs/$d"; }
+done
+rm -rf "$b/kept"
 
 # --- 4. repack ------------------------------------------------------------------------
 log "manifest + size"
 # Upstream's manifest format ("name[:arch]<TAB>version", as ${binary:Package} prints it).
 chroot "$rootfs" dpkg-query -W --showformat='${binary:Package}\t${Version}\n' > "$b/iso/filesystem.manifest"
-du -sx --block-size=1 "$rootfs" | cut -f1 > "$b/iso/filesystem.size"
+# The installer reads filesystem.size to estimate the space an install needs. `du` on the unpacked tree
+# isn't reproducible (directories keep the blocks they grew while apt ran: two builds differed by 8 KB),
+# so: upstream's size + the Installed-Size of what we added (KiB, from dpkg).
+ours=$(chroot "$rootfs" dpkg-query -W --showformat='${Package} ${Installed-Size}\n' \
+       | awk '$1 ~ /^cinminai-/ {s += $2} END {print s + 0}')
+echo $(( $(cat "$b/size.upstream") + ours * 1024 )) > "$b/iso/filesystem.size"
 diff "$b/manifest.upstream" "$b/iso/filesystem.manifest" > "$b/manifest.diff" || true
 cat "$b/manifest.diff"
 
@@ -121,4 +147,5 @@ xorriso -indev "$iso_in" -outdev "$out/$OUT_ISO" \
 ( cd "$out" && sha256sum "$OUT_ISO" | tee "$OUT_ISO.sha256" )
 cp "$b/manifest.diff" "$out/$OUT_ISO.manifest-diff"
 chown -R "$owner:" "$out" 2>/dev/null || true
+[[ ${KEEP_BUILD:-0} == 1 ]] || rm -rf "$b"   # the unpacked live system (~11 GB); KEEP_BUILD=1 keeps it
 ls -l "$out"

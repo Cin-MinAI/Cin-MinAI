@@ -134,6 +134,8 @@ Manifest diff vs. upstream: exactly our three packages added.
    `vm.sh` can't run here; BIOS was tested with a Hyper-V Gen1 VM instead of QEMU. `vm.sh` stays
    for Linux build hosts / CI.
 
+**Later finding (M1, 2026-09-27):** the spike's build also let apt's update hooks rebuild Mint's command-not-found database and software catalogue from our repo alone (the chroot's apt saw only our lists), so the spike ISO shipped near-empty copies of both. Fixed in `distro/build-iso.sh` (upstream's are restored) and checked by `distro/check-iso.sh`.
+
 ### Decision
 
 **GO on Stage 1 (PLAN D11).** Scripted remaster of the pinned Mint ISO plus our signed apt repo
