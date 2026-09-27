@@ -32,6 +32,11 @@ first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `
   (O04, O17: the spreadsheet is already shown, stock answers from it, HF calls read_range / inspect_system
   again) — a D31 "loses nowhere else" problem on the public eval. Sessions never contain a shared document,
   so nothing in the data teaches "answer from what's shown". Held-out eval still unused (Ian decides when).
+- **Decision (Ian, 2026-09-26 ~22:40):** HF is the **working baseline** for now ("ahead of stock in a way
+  that's satisfactory"). Adapter: `C:\Users\Ian\cinminai-train-out\sweep\sweep-HF-lora.gguf` (Mint
+  `~/cin-minai/adapters/`); recipe = `bash training/guide/sweep.sh HF`. Held-out eval still **unused**; the
+  office gap (−2) and German numbered steps are known open points; stock + prompt v2 stays the shipping
+  fallback until the D31 gate is run.
 
 ## State right now (before the update above)
 
