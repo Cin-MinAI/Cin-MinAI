@@ -15,7 +15,7 @@ deep teal of circuit traces between them. Sampled from `logo/logo-ian-original.p
 | **Text on blue** | `#000000` | logo lettering | text on Signal blue (as in the logo) |
 | **Text on dark** | `#E6F4F8` | chosen for contrast | normal text on Deep panel |
 
-Contrast (WCAG): black on Signal blue ≈ 8:1, Neon green on black ≈ 11:1, `#E6F4F8` on Deep panel ≈ 17:1 —
+Contrast (WCAG): black on Signal blue ≈ 7.5:1, Neon green on black ≈ 10.5:1, `#E6F4F8` on Deep panel ≈ 17:1 —
 all well above the 4.5:1 needed for readable text.
 
 Fonts: the logo's lettering is a bold condensed grotesque (Helvetica/Franklin family). Those fonts can't be
