@@ -1,6 +1,9 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -e
+if [ "$1" = configure ] || [ "$1" = triggered ]; then
+    /usr/lib/cinminai-branding/menu-override
+fi
 if [ "$1" = configure ]; then
     # our boot splash, above Mint's (mint-logo registers 200; a tie keeps theirs); the user can still choose
     update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \

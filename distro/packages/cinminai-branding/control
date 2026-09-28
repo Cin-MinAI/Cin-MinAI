@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
 Section: misc
 Priority: optional
-Depends: plymouth
+Depends: plymouth, python3
 Description: Cin-MinAI look: wallpapers, boot splash and theme defaults
  Identifies this system as Cin-MinAI, based on Linux Mint: the wallpapers (data-stream
  is the default), the boot splash, and Mint's own dark theme with the Aqua accent as

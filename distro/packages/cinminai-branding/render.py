@@ -75,3 +75,12 @@ small("keyboard", f'<rect x="2" y="8" width="36" height="20" rx="3" fill="none" 
                   + "".join(f'<rect x="{6 + 7 * k}" y="13" width="4" height="4" fill="{TEXT}"/>' for k in range(4))
                   + f'<rect x="10" y="21" width="20" height="3" fill="{TEXT}"/>', 40, 36)
 print("prompt images: entry bullet lock capslock keyboard")
+
+# --- menu button ----------------------------------------------------------------------------------------
+# Ian's choice (2026-09-27): mark A, the logo's oval with "AI" (artwork/logo/mark-a.svg, build_mark.py);
+# zz_cinminai.gschema.override points org.cinnamon app-menu-icon-name at it.
+icons = os.path.join(stage, "usr/share/icons/hicolor/scalable/apps")
+os.makedirs(icons, exist_ok=True)
+with open(os.path.join(art, "logo", "mark-a.svg"), encoding="utf-8") as src:
+    open(os.path.join(icons, "cinminai-menu.svg"), "w", encoding="utf-8", newline="\n").write(src.read())
+print("menu icon cinminai-menu.svg")

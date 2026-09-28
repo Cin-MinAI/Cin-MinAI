@@ -26,6 +26,8 @@ say "cinnamon_theme $(gsettings get org.cinnamon.theme name 2>/dev/null)"
 say "gtk_theme $(gsettings get org.cinnamon.desktop.interface gtk-theme 2>/dev/null)"
 say "icon_theme $(gsettings get org.cinnamon.desktop.interface icon-theme 2>/dev/null)"
 say "splash $(readlink -f /etc/alternatives/default.plymouth 2>/dev/null)"
+say "menu_icon $(gsettings get org.cinnamon app-menu-icon-name 2>/dev/null) $(ls /usr/share/icons/hicolor/scalable/apps/cinminai-menu.svg 2>/dev/null)"
+say "menu_applet_icon $(python3 -c 'import json; print(json.load(open("/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"))["menu-icon"]["default"])' 2>&1) (mint original kept: $(ls /usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json.mint 2>/dev/null))"
 say "wallpaper_file $(ls -l /usr/share/backgrounds/cinminai/data-stream.jpg 2>/dev/null | awk '{print $5}') bytes"
 # A screenshot of the live desktop, as the live user sees it, written raw onto the runner's empty 32 MiB
 # "results disk" (header: magic, size, SHA-256; data from byte 512). The serial port dropped bytes, and
@@ -47,6 +49,12 @@ fi
 res=PASS
 [ "$desktop" = yes ] || res=FAIL
 dpkg-query -W cinminai-desktop >/dev/null 2>&1 || res=FAIL
+# regression checks for the branding (each broke or was missing once on 2026-09-27)
+check() { [ "$2" = "$3" ] || { say "check_failed $1: got $2, want $3"; res=FAIL; }; }
+check wallpaper "$(gsettings get org.cinnamon.desktop.background picture-uri 2>/dev/null)" "'file:///usr/share/backgrounds/cinminai/data-stream.jpg'"
+check cinnamon_theme "$(gsettings get org.cinnamon.theme name 2>/dev/null)" "'Mint-Y-Dark-Aqua'"
+check splash "$(readlink -f /etc/alternatives/default.plymouth 2>/dev/null)" "/usr/share/plymouth/themes/cinminai/cinminai.plymouth"
+check menu_applet_icon "$(python3 -c 'import json; print(json.load(open("/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"))["menu-icon"]["default"])' 2>/dev/null)" "cinminai-menu"
 say "CINMINAI-BOOTTEST RESULT $res"
 say "CINMINAI-BOOTTEST END"
 sleep 3

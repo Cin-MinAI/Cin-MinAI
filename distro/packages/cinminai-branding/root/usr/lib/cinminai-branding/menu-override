@@ -1,0 +1,32 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Write the menu applet's settings override from Mint's, with our menu icon (cinminai-branding).
+
+Mint (mint-artwork) ships menu@cinnamon.org/settings-override.json, which puts the menu button in "custom
+icon" mode with Mint's logo — so the global app-menu-icon-name setting is never used. cinminai-branding
+diverts Mint's file to settings-override.json.mint; this script copies it back with only the default icon
+changed to Ian's mark A ("cinminai-menu") and that icon added to the picker. Run by postinst, and again by a
+trigger whenever mint-artwork updates its file, so we never fall behind Mint's changes.
+"""
+import json
+import os
+import sys
+
+DIR = "/usr/share/cinnamon/applets/menu@cinnamon.org"
+MINT, OURS, ICON = f"{DIR}/settings-override.json.mint", f"{DIR}/settings-override.json", "cinminai-menu"
+
+if not os.path.exists(MINT):          # mint-artwork not installed: nothing to adjust
+    sys.exit(0)
+with open(MINT, encoding="utf-8") as f:
+    data = json.load(f)
+icon = data.setdefault("menu-icon", {})
+icon["default"] = icon["default_icon"] = ICON
+icon["default_category"] = "Cin-MinAI"
+cats = [c for c in icon.get("icon_categories", []) if c.get("name") != "Cin-MinAI"]
+icon["icon_categories"] = [{"name": "Cin-MinAI", "icons": [ICON]}] + cats
+icon["override-props"] = True
+tmp = OURS + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=4, ensure_ascii=False)
+    f.write("\n")
+os.replace(tmp, OURS)

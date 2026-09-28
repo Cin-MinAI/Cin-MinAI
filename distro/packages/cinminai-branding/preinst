@@ -1,0 +1,10 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+# Mint's menu-applet override (mint-artwork) forces Mint's logo on the menu button: move it aside; postinst
+# writes ours from it (menu-override). Removing cinminai-branding puts Mint's back.
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+    dpkg-divert --package cinminai-branding --add --rename \
+        --divert "/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json.mint" \
+        "/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"
+fi

@@ -29,3 +29,7 @@ name='Mint-Y-Dark-Aqua'
 theme-name='Mint-Y-Dark-Aqua'
 icon-theme-name='Mint-Y-Aqua'
 background='/usr/share/backgrounds/cinminai/data-stream.jpg'
+
+# the menu button: Ian's mark A (the logo's oval with "AI")
+[org.cinnamon]
+app-menu-icon-name='cinminai-menu'

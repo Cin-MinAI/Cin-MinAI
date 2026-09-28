@@ -1,0 +1,9 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+if [ "$1" = remove ] || [ "$1" = purge ] || [ "$1" = abort-install ]; then
+    rm -f "/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"
+    dpkg-divert --package cinminai-branding --remove --rename \
+        --divert "/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json.mint" \
+        "/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"
+fi
