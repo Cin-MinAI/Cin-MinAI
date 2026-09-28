@@ -1,176 +1,104 @@
-# Resume note — where things stand, how we got here, what's next
+# Resume note — where things stand, what's next
 
-Updated 2026-09-26 ~20:45, before an IDE/Claude restart. For Ian, Claude, and Codex alike. Read this
-first; the reasoning behind every decision is in `docs/PLAN.md` (D1–D42) and `docs/SPEC.md`.
+Updated **2026-09-27 ~21:15** (end of the 26–27 Sept session, commit `20adac1`, all pushed). For Ian, Claude
+and Codex alike: **read this first.** Reasons behind decisions: `docs/PLAN.md` (D1–D47). How the work went,
+day by day: `docs/dev-journal.md`. The guide model's story: `docs/guide-model-journal.md`.
 
-## Update 2026-09-26 ~21:30 — step 1 done, run G measured
+## State right now
 
-- **Merge done** (`training/datasets/sessions/merge.py`, commit `1c44495`): 319 → **292 sessions**. New checks:
-  declines must refuse (35 cut: medical/voting/stock advice, "Yes, The Crown is based on…"); the exact
-  "What do you see now?" in ja/fr/pt walkthroughs **repaired** to the native phrase (56×, Ian's choice B);
-  repeated walkthrough steps cut (14). `WALK_GUIDE` fixed for future runs.
-- **Mix** (`training/guide/make_session_mix.py`): 160 turns to the journal shares, others kept as context
-  (`"train": false`, honoured by `train_lora.py`); reports that name the program to open picked first. 317 sequences.
-- **Run G** (Qwen3.5-4B, lr 5e-5, 1 epoch): **72 %** (stock 87 %). **The collapse is fixed:** declines 100 %,
-  system checks 91 % (stock 86 %), tool choice 141/157 (stock 142). **New loss: numbered steps** — 25 of the
-  failures are "no numbered steps": correct content written as prose. Cause: walkthrough and report turns are
-  trained "no numbered list" after the same lookup call, so the model learned prose after a lookup.
-  Vague set 0/19 (as stock) — it doesn't discriminate yet.
-- Reading of the sessions (for the next generation run): reports describe the problem but rarely say what it
-  means or offer the fix (only 81/381 name the program to open) — make them "what it means + offer the action".
+- **Repository:** clean, pushed. Nothing is running anywhere.
+- **Mint box** (`mint@192.168.5.70`): teacher stopped, GPU idle; Ian's `qwen14b.service` untouched (active,
+  model unloaded). Our area `~/cin-minai/` is 47 GB (disk 63 GB free, shared — keep it small).
+- **Dev PC:** C: 102 GB free. WSL stopped (it starts on demand; `sweep.sh` shuts it down after training).
+  Hyper-V VMs `cinminai-uefi` and `cinminai-bios` both off.
 
-- **Run H** (preset h: clear 30 %, walkthroughs train follow-ups only; 290 sequences, lr 5e-5, 1 epoch):
-  **91 % — first tune above stock (87 %).** Transition 92 % (stock 81), lessons 96 % (88), system 86 % (86),
-  declines 95 % (100: D01 de → lookup), office 86 % (89), ja/fr 100 %, **de 73 %** (stock 80: 3 of its 4 misses
-  are numbered steps). Per item vs stock: 14 fixed, 8 broken. Vague set still 0/19.
-  Next (proposed): repeat H with another seed to see whether +4 points is real, then full run at this recipe
-  → held-out eval (once) → D31 gate.
+## Where things are
 
-- **Full run HF** (H's recipe, 360 turns = 647 sequences, 1 epoch, lr 5e-5, 31 min on the 4070): **public 92 %**
-  (stock 87, H 91). Transition 90 % (81), lessons 100 % (88), system 91 % (86), declines 100 %, boundary 100 % (86),
-  safety 100 %, ja/fr/pt 100 %, de 80 % (= stock; misses are numbered steps). **Office 82 % (stock 89): −2 items**
-  (O04, O17: the spreadsheet is already shown, stock answers from it, HF calls read_range / inspect_system
-  again) — a D31 "loses nowhere else" problem on the public eval. Sessions never contain a shared document,
-  so nothing in the data teaches "answer from what's shown". Held-out eval still unused (Ian decides when).
-- **Decision (Ian, 2026-09-26 ~22:40):** HF is the **working baseline** for now ("ahead of stock in a way
-  that's satisfactory"). Adapter: `C:\Users\Ian\cinminai-train-out\sweep\sweep-HF-lora.gguf` (Mint
-  `~/cin-minai/adapters/`); recipe = `bash training/guide/sweep.sh HF`. Held-out eval still **unused**; the
-  office gap (−2) and German numbered steps are known open points; stock + prompt v2 stays the shipping
-  fallback until the D31 gate is run.
+| What | Where |
+|---|---|
+| Shipped guide model | `Qwen3.5-4B-guide-HO-Q4_K_M.gguf`, SHA-256 `b9b132b0…e8c8e4` — Mint `~/cin-minai/models/`, WSL `~/cinminai-train/out/` |
+| Training environment | WSL `~/cinminai-train/` (`.venv` via uv, `base/`, `runs/`, `llama.cpp/` at `7fe450e` with a CPU build of export-lora/quantize) |
+| Training results, logs | `C:\Users\Ian\cinminai-train-out\` (`sweep\`, `held-out\`) |
+| Distro build area | WSL `~/cinminai-build/` (`upstream/` = pinned Mint ISO; `m1/` = our pkgs, repo, ISOs, dev key `gnupg-dev`) |
+| Test ISO + boot-test logs and screenshots | `C:\Users\Ian\cinminai-vm\iso\`, `C:\Users\Ian\cinminai-vm\boottest-logs\` |
+| Eval on the Mint box | `~/cin-minai/eval-guide/` (public), `eval-guide-hidden/` (**used once for cycle 0**), `eval-guide-interp/` |
 
-- **Office fix (2026-09-27):** office corpus (`training/datasets/office/`, 252 examples, teacher-invented
-  documents in the sidebar context format, calls computed by us, 15 % guard turns). **Run HO** = HF recipe +
-  115 office examples (762 sequences, 27 min): **public 94 %** — office 89 % (= stock; was 82 in HF),
-  transition 92, lessons 96, system 91, declines 100, boundary 100, safety 100; ja/fr/pt 100, de 80.
-  **Clears the D31 gate on the public eval.** Per item vs stock: 14 fixed, 4 broken (T01/T06 de numbered
-  steps; O01 es formula range B2:B8 instead of B2:B7 — it infers the range from the target cell, since our
-  formulas always go right under the data; S04 "how much memory" → storage). Watch: L05 "difference between
-  a file and a folder" is DECLINED (stock failed it too, differently). Held-out eval: next, Ian decides.
+## What's done
 
-- **Run GO (Gemma 4 E2B, HO recipe, 2026-09-27): 50 %** (stock Gemma 84 % re-scored). 64/111 replies after
-  a tool result written as JSON calls; declines 3/20 (answers off-topic). 5.5 h training with a 15 GB RAM
-  spill (Ian: let it run). Details in `docs/guide-model-journal.md`. Decision pending with Ian.
+**Guide model, cycle 0 — complete** (D43). Tuned Qwen3.5-4B (run HO: sessions corpus, preset h, + office
+corpus): public **92 %** as the merged file (stock 87), held-out **73 %** (stock 66, Gemma 51); 66 tok/s and
+3.0 GiB on the 1080 Ti, fits the 6 GB budget. Ships despite a 2-item held-out transition loss (Ian's call).
+Documents: `training/guide/MODEL_CARD.md`, `training/datasets/DATASHEET.md` (all four corpora),
+`docs/release-notes/cycle-0-guide.md`. Gemma's tune (50 %) set aside: it needs a memory fix first.
 
-- **Held-out eval, run once (2026-09-27, Ian's pick of contenders):** stock Qwen 66 %, **tuned Qwen (HO) 73 %**,
-  stock Gemma 51 %. Qwen3.5-4B is the model. HO fails the D31 gate's letter: held-out transition 24/37 vs
-  stock 26/37 (complaint-style how-tos -> inspect_system). Ship decision (stock vs tuned) with Ian.
+**Licences** (D44): code GPL-3.0-or-later, data and docs CC BY-SA 4.0, fine-tuned models Apache-2.0
+(`LICENSE`, `LICENSES/`, `LICENSING.md`, SPDX headers).
 
-- **D43 (Ian): cycle 0 ships the tuned Qwen3.5-4B (HO)** — accepts the 2-item held-out transition loss for the
-  other gains. Next: MODEL_CARD.md, merge + quantize the tune (phase 4), release note; cycle 1 fixes listed in the journal.
+**M1, distro skeleton — mostly done:**
+- `distro/`: `build-packages.sh` (source dirs → .debs, bit-for-bit reproducible; build hooks, maintainer
+  scripts, `links`), `signing-key.sh` (dev key "not for release"), `make-repo.sh` (signed, rebuilt each
+  time), `build-iso.sh` (pinned Mint 22.3 → our ISO; `BOOTTEST=1` test variant; free-space guard),
+  `check-iso.sh` (5 checks incl. reproducibility with `--rebuild`), `vm-boottest.ps1` (throwaway Hyper-V
+  VM, UEFI + Secure Boot, report via COM1, screenshot via a raw results disk, regression checks).
+- Packages: `cinminai-archive-keyring`, `cinminai-desktop` (meta), `cinminai-branding`; test-only
+  `cinminai-boottest` (never in the repo).
+- **Branding** (from Ian's designs, `artwork/`): vector logo (Archivo fitted to Ian's original, approved),
+  three vector wallpapers (data-stream default, also on the login screen), Mint-Y-Dark-Aqua theme +
+  Mint-Y-Aqua icons as defaults, Plymouth splash (installed systems), **menu button = Ian's mark A** (via a
+  diversion of Mint's menu-applet override, regenerated by a trigger). Verified in the VM with a screenshot
+  (`artwork/live-desktop-2026-09-27.png`).
+- `docs/install/make-usb-stick.md` (plain-language, Etcher/Rufus, clean installs per D47).
 
-- **Shipped file made (phase 4):** `Qwen3.5-4B-guide-HO-Q4_K_M.gguf`, SHA-256 b9b132b0…e8c8e4, public 92 % merged
-  (`merge_quantize.sh`; copies in cinminai-train-out and Mint ~/cin-minai/models). Next: MODEL_CARD.md, release note.
+## Next — the Alpha (D45, boot check 1)
 
-- **M1 build (2026-09-27):** `distro/` — build-packages.sh, signing-key.sh (dev key "not for release"), make-repo.sh,
-  build-iso.sh, check-iso.sh. `cinminai-0.0.1-amd64.iso` passes all 5 checks (only our 3 packages; boot setup = upstream's,
-  hybrid USB image; md5sums; Mint's command-not-found DB and software catalogue unchanged; **reproducible**: two builds,
-  same SHA-256). Found on the way: apt's update hooks had rebuilt Mint's command-not-found DB and AppStream catalogue from
-  our repo alone (since the M0 spike) — fixed; `filesystem.size` from `du` wasn't reproducible — now upstream + Installed-Size;
-  mksquashfs 4.6 refuses SOURCE_DATE_EPOCH + -mkfs-time. **C: filled to 0 bytes** during the comparison builds (WSL disk
-  80 GB): recovered (sparse VHDX, Ian freed space; 103 GB free); build-iso.sh now refuses below 20 GB free and cleans up.
-  Next in M1: branding, the "Make your USB stick" guide, CI/boot test; then the Alpha milestone (D45).
+**M1 + a trimmed M2** (PLAN §4 "Alpha"): `cinminai-daemon` (session D-Bus `org.cinminai.Assistant1`,
+`LlamaCppBackend`), `cinminai-llama` (pinned llama.cpp, CUDA/Vulkan/CPU), the guide model package (downloaded
+from Hugging Face per D46, SHA-256 checked — or on the ISO per D23), sidebar with streaming, applet, Super+A.
+Read-only tools only: `lookup_help`, `inspect_system`, `open_app`. The M0 spikes (`spikes/`: desktop surface,
+streaming) show the shapes; they're throwaway, rebuild as packages. **Exit:** the live USB boots on the Mint
+box, the assistant answers a lookup, a system check and a decline; nothing on its disks touched.
 
-- **M1 automated boot test (2026-09-27): PASS.** `BOOTTEST=1 distro/build-iso.sh` makes a test-only ISO (adds
-  `cinminai-boottest` from `distro/test-packages/`, 5 s menu timeout); `distro/vm-boottest.ps1` boots it in a throwaway
-  Hyper-V Gen2 VM (UEFI, Secure Boot on, no disk, no network) and reads the report from COM1: desktop 24 s after
-  power-on, secure boot 1, all packages present, no failed units. The first run's cleanup failed because vmms was stopped
-  mid-test (Ian pressed Stop Service in Hyper-V Manager); the runner is now fault-tolerant. Leftover: orphaned vmwp for
-  the test VM (needs admin to end, or goes at reboot), then delete ~/cinminai-vm/cinminai-boottest.
+Also open in M1 (smaller):
+- **Live-USB splash:** the live system's Plymouth theme sits in `casper/initrd.lz` — rebuild or patch it in
+  `build-iso.sh` (update md5sum.txt; keep the boot check passing).
+- **Automated install test** (preseed / automatic-ubiquity in the test ISO; results disk as today).
+- **CI and publishing** — needs Ian: the public `cinminai-apt` repo with Pages, a Hugging Face account/org,
+  and where the offline release signing key lives.
+- Bonus: an icon-theme variant in the palette; circuit-floor's side towers (optional).
 
-## State right now (before the update above)
+## Waiting on Ian
 
-- **Repository:** everything committed and pushed (`main`, last code commit `7e2c930`).
-- **Nothing running** anywhere. The corpus teacher on the Mint box is stopped (GPU back to 1.7 GB).
-  Ian's `qwen14b.service` (port 8080) is untouched and not ours to start or stop.
-- **Mint box work area:** `~/cin-minai/repo-train/` (generator runs, raw corpora), `~/cin-minai/eval-guide/`
-  (public eval + results), `~/cin-minai/eval-guide-interp/` (vague set), `~/cin-minai/adapters/` (LoRA GGUFs),
-  `~/cin-minai/models/` (guide candidates), `~/cin-minai/llama.cpp/` (pinned `v0.5.0`, builds cuda/vulkan/cpu).
-- **Dev PC:** WSL `~/cinminai-train/` (`.venv`, `base/gemma-4-E2B-it`, `base/Qwen3.5-4B`, `llama.cpp/` for
-  `convert_lora_to_gguf.py`, `runs/`, `data/`); results and readable files in `C:\Users\Ian\cinminai-train-out\`
-  (`sweep\` = micro runs, `sessions-read\` = readable session batches).
-- **Teacher control:** `TEACHER_TUNE=1 ~/cin-minai/repo-train/teacherctl.sh start|stop` (PID file). **Never
-  `pkill -f` with a pattern over ssh** — it matches the ssh command itself and kills the session.
-- **Long jobs on the dev PC:** launch detached with PowerShell `Start-Process` (see below) — Claude Code's
-  memory reaper kills its own background shells when Windows runs low on memory (it did, twice), but not
-  detached processes. Windows had ~1.8 GB free overnight with training + WSL cache; with apps closed ~6 GB.
-  A `.wslconfig` memory cap is still to discuss before training Gemma (it spills past 12 GB VRAM).
+- Create `cinminai-apt` (public, Pages) and a Hugging Face account/org — only when publishing starts.
+- Decide where the offline master signing key lives (e.g. a USB stick he keeps).
 
-## What we did, and why (the guide fine-tune, cycle 0)
+## Cycle 1 list (the guide, next model cycle)
 
-1. **Stock bakeoff** (`docs/benchmarks.md`): 7 guide candidates on the 157-item public eval. Leaders:
-   Qwen3.5-4B and Gemma 4 E2B. **Prompt v2** lifted them to **87 %** and **84 %** (reference Qwen3-14B 82 %).
-2. **Fine-tune goal (D32, D39):** make the Windows→Linux transition and "understanding vague requests"
-   better, with a published corpus. Built: transition knowledge base (63 topics, every Mint name verified),
-   **transition corpus** (1,456 examples) and **interpretation corpus** (691), both teacher-generated by local
-   Qwen3-14B, mechanically checked, decontaminated against the evals, hand-read. Datasheet:
-   `training/datasets/DATASHEET.md`. Many teacher failure modes found and fixed along the way (wrong-language
-   questions, junk under list format, persona labels, English lines inside non-English replies, …).
-3. **First full tune collapsed to 16 %** — it answered everything with "It sounds like… 1. 2. 3.". Cause: a
-   format bug — Qwen3.5's template puts an empty thinking block before the *last* assistant turn only; the
-   lookup call was only ever trained as an earlier turn. **Fixed:** every assistant turn is trained in
-   last-turn position, rendered exactly as at run time (`train_lora.py`, verified token by token).
-4. **Micro-sweep** (Ian: "find a baseline, squeeze don't push"; `training/guide/sweep.sh`, Qwen3.5-4B,
-   300–800 sequences, 1 epoch): tuning **raised Windows→Mint 81 → 96 % and lessons 88 → 100 %**, but
-   **declines (100 → 0–10 %) and system checks (86 → 0–41 %) collapsed** into `lookup_help`. Dose and
-   learning rate didn't fix it. **Reply-only tuning** (run F) restored system checks (91 %) but the guide
-   then *answered* off-topic questions (lasagna recipe, WWII). **Lesson: a LoRA generalises the attitude
-   of its data; there's no narrow targeting. The data must contain every behaviour, in proportion.**
-5. **Ian's redesign — session corpus:** one coherent, unique conversation per example, mixing turn types
-   (clear lookup, vague → offers + question, decline, system check, safety, small talk), so the model
-   learns to *choose*. Then Ian's second idea — **journalistic turns**: *report* (describe only what the
-   tool shows, then ask) and *walkthrough* (one step at a time, "what do you see now?", sometimes
-   unfinished) — to cut the teacher's invention, which happens when it writes complete solutions.
-   `training/datasets/sessions/generate.py` (`--mix journal`). Checks added from hand-reading: grounding
-   (quoted UI names must exist in the card/result/labels/user's words), Menu at bottom-left, no terminal,
-   no Windows-only UI names, no copied messages, fallback turn instead of dropping a session.
-6. **Result:** invented steps went from "nearly every session" (old mix) to a few; keep rate 34 % → **80 %**.
-   **Big journal batch: 319 sessions** (~1,500 assistant turns), balanced across the six languages.
-   Raw: Mint `~/cin-minai/repo-train/journal-jc/` + `journal-jd/`; copies:
-   `C:\Users\Ian\cinminai-train-out\sessions-read\journal-big-319.jsonl` (+ readable `.txt`).
+Complaint-style how-tos → `lookup_help` in the sessions (the held-out transition loss); formulas in a cell
+the user names; German numbered steps; report turns "what it means + offer the action"; the vague set scores
+0 % for every model — fix the set; Gemma: keep per-layer embeddings off the GPU, then tune; a new held-out
+set; an imatrix quant A/B (D33).
 
-## Known issues in the 319 sessions (to fix at merge — not by regenerating)
+## How to (dev PC)
 
-- **Turn-type skew from the fallback:** reports 28 %, **declines 24 %**, walkthroughs 18 %, clear 10 %,
-  safety 8 %, system 5 %, **vague 3 %**, chat 2 % (planned: 18/12/20/15/8/5/15/7). Training on this as-is
-  risks an over-cautious guide that rarely clarifies.
-- **A "decline" that answers** (The Crown: "Yes, it's based on real people…") — seen 1 in 6 sampled.
-- **English inside Japanese walkthroughs:** "…してください。 What do you see now?" — from the English example
-  in the walkthrough format instruction (`WALK_GUIDE` in the generator).
-- Card-internal UI labels still English ("Extract Here", "Apply Changes", "Left handed") — KB gap for next cycle.
+- **Long jobs:** launch detached — Claude Code stops its own background shells when Windows is low on
+  memory: `Start-Process -FilePath "C:\Program Files\Git\bin\bash.exe" -ArgumentList '-lc "…"' -WindowStyle Hidden`.
+- **Build + check + boot test, all:** `bash distro/build-all.sh` (packages → repo → ISO + `check-iso.sh`
+  → `BOOTTEST=1` ISO → `vm-boottest.ps1`), ~25 min; results in `cinminai-train-out\br-*.log` (`br-done.log`
+  sums up) and the boot-test logs folder.
+- **Windows gotchas:** Python on Windows writes CRLF (write with `newline='\n'`); Windows PowerShell 5.1
+  reads BOM-less UTF-8 as ANSI (keep `.ps1` ASCII); Git Bash's `grep` hides `\r` (use `file`); git here
+  stores no symlinks (use a package's `links` file); `\` in Python heredocs — use the Edit tool.
+- **Hyper-V:** "Stop Service" in Hyper-V Manager stops `vmms` for everything (a VM keeps running unmanaged);
+  starting it again needs admin. Hyper-V's thumbnail call returns 32775 here; the boot test uses its own
+  screenshot path.
+- **Mint box:** never `pkill -f` over ssh (it matches the ssh command); GPU check before every run; the
+  teacher: `~/cin-minai/repo-train/teacherctl.sh start|stop`.
 
-## Next steps — the plan (step by step; Ian decides each step)
+## History, in short
 
-1. **Merge the sessions** (write a `--kind sessions` path in `training/datasets/merge.py` or a small
-   `sessions/merge.py`): per turn, drop/truncate at the first bad turn (keep sessions with ≥ 2 good turns):
-   decline must contain a refusal ("can't/cannot", "no puedo", "não posso", "je ne peux", "kann … nicht",
-   "できません"); the closing question of walkthrough/report turns must be in the user's language (reject
-   "What do you see" in non-English replies); re-run the existing checks with the current scorer;
-   decontaminate against all three evals. Also fix `WALK_GUIDE`'s English example for future runs.
-2. **Build a balanced training mix** (`make_mix.py` extension): down-sample decline and report turns toward
-   the planned shares; add vague turns from `training/datasets/interpretation/corpus.jsonl` (single-turn, 691)
-   to reach ~15 %. Record the mix in the run's `run.json`.
-3. **Micro run G** (sessions only, balanced): Qwen3.5-4B, lr 5e-5, 1 epoch, ~300–400 sequences, all turns in
-   last-turn position, `--targets q,k,v,o,gate,up,down`. Evaluate with prompt v2 on the public eval + vague
-   set on the 1080 Ti (same as the sweep): `bash training/guide/sweep.sh` pattern — add a run "G" there.
-   **Success = declines and system checks at stock level (≈100 % / ≈86 %), Windows→Mint up, vague set up.**
-4. **Micro run H** (only if G is promising): sessions + a small share of transition examples.
-5. If one works: **full run** at that recipe, then held-out eval (used once) → pick → `MODEL_CARD.md`.
-   Then the same recipe for Gemma 4 E2B (memory: discuss `.wslconfig` first).
-6. Stock model + prompt v2 stays the fallback (D31 gate): the tuned guide ships only if it beats stock.
-
-How to launch a long job detached from Claude Code (dev PC):
-`Start-Process -FilePath "C:\Program Files\Git\bin\bash.exe" -ArgumentList '-lc "cd /c/Users/Ian/Cin-minAI && bash training/guide/sweep.sh G"' -WindowStyle Hidden`
-(`sweep.sh` currently has a special case for `F`; add `G`/`H` the same way.)
-
-## Decisions and ideas recorded this session (for context)
-
-D26 vision + built in the open · D27 USB reduced, install recommended · D28 careful newcomer (offline mode,
-checkbook, scam help) · D29 watchable updates + sights/sounds · D30 suggest, don't decide · D31 twice-yearly
-public model cycle · D32 fine-tune = transition (+ D39 interpretation) with a published corpus · D33 measured
-optimizations · D34 MVP = careful newcomer + everyday user; seed community AI · D35/M10 cloud backends + IDEs
-(post-v0.1) · D36 HELP-WANTED · D37 target 8 GB, min 6 GB, older gaming laptops · D38 familiarity is a feature,
-our own aesthetics · D40 one continuous Jarvis-like conversation, rundown offered on open · D41 public model
-reviews (6-week nomination cutoff) · D42/M11 AI recovery mode (post-MVP). Ideas parked in PLAN §6: Pi 5 /
-tinkerer version (domain packs, board-level repair, dump discipline), home cluster on old server GPUs,
-training on old cards + ricer-style tuning, Microsoft open-source review list, vision (AT-SPI first).
-Credits (README): Ian leads; Gemini (initial plan), Claude and Codex/ChatGPT build it, none preferred.
+- **2026-09-24/25:** M0 spikes, all GO; stock bakeoff (Qwen3.5-4B 87 %, Gemma 4 E2B 84 % with prompt v2).
+- **2026-09-26:** first tune collapsed (16 %, template bug, fixed); micro-sweep showed forgetting; Ian's
+  session corpus with journalistic turns.
+- **2026-09-26/27:** session merge → runs G, H, HF, HO → held-out → D43; merge/quantize; model card,
+  datasheet, release note; licences; M1 build, reproducibility, boot test; branding from Ian's designs.
+  Full account: `docs/dev-journal.md`.
