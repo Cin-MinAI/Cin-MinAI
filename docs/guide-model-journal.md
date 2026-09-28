@@ -92,6 +92,37 @@ Scores are from our public guide eval (157 items, prompt v2, 1080 Ti) unless not
   parameters on Gemma vs 21.2 M on Qwen — a stronger push at the same learning rate. Another case of
   the lesson below: the same corpus is a different pattern to a different model.
 
+## Journaling instead of answers (Ian's idea, 2026-09-26)
+
+**The problem.** Generating training conversations, the teacher (Qwen3-14B) kept *inventing*: buttons,
+menus and steps that don't exist in Mint ("Add Device", "Restart Wi-Fi", Windows' "Printers & Scanners").
+Reading the sessions by hand showed when: **it invented when it wrote a complete solution** — a full
+how-to from start to finish, filling the gaps it didn't know with plausible guesses.
+
+**Ian's idea: make the guide a journalist, not an answer machine.** Two new turn types that describe instead
+of solve:
+- a **report** says only what a tool actually shows ("the printer is paused, 3 jobs waiting"), then asks what
+  the person would like to do;
+- a **walkthrough** gives *one* step from the help card, then asks "what do you see now?" — and waits for the
+  answer before the next step, sometimes stopping before the end. It never needs to know the whole path.
+
+**The measured effect** (the session corpus, `sessions/generate.py --mix journal`): invented steps went from
+*nearly every session* (the old answer-heavy mix) to *a few*, and the share of sessions that passed every
+check rose from **34 % to 80 %**. Together with the grounding check (every quoted UI name must exist in the
+card, the result, Mint's labels or the user's words), it's what made a clean corpus possible at all.
+
+**What it taught us in training (2026-09-27).** The journal turns made the *data* honest, but in the wrong
+proportion they taught the wrong *reply format*: in run G, prose one-step replies after a lookup outnumbered
+full numbered answers (41 to 28), and the tuned guide stopped writing numbered steps (72 %). The fix kept the
+idea and changed the mix: more full answers, and walkthroughs trained **only on their follow-up steps** — so
+the guide learns "one step at a time" once a walkthrough has begun, and "full numbered answer" as the default
+(run H, 91 %). The reports have one gap left for the next cycle: they describe the problem but rarely offer
+the fix ("what it means + offer the action").
+
+**Why it matters beyond this corpus:** it's a general way to get honest data from a teacher model — ask it
+to observe and report, not to know. It also matches how the guide should behave with a newcomer: say what's
+on the screen, one step, check, then the next.
+
 ## What training taught us (cycle 0, for future development)
 
 **A LoRA learns the corpus's patterns, not its facts.** Whatever is most consistent across the examples

@@ -102,7 +102,9 @@ sends, so the guide learns to *choose* — look up, check the computer, walk thr
 decline, or just chat — instead of learning one pattern per corpus (Ian's design). Two turn types are
 "journalistic" (Ian's second idea), to stop the teacher inventing complete solutions: a **report**
 says only what a system check shows, then asks what to do next; a **walkthrough** gives one step from
-the help card, then asks "what do you see now?" — sometimes without reaching the end.
+the help card, then asks "what do you see now?" — sometimes without reaching the end. Measured: invented steps fell from nearly every session (the answer-heavy mix) to a few, and the share of
+sessions passing every check rose from 34 % to 80 % (the story: `docs/guide-model-journal.md`, "Journaling
+instead of answers").
 
 **How it was made.** `sessions/generate.py --mix journal` (two runs, seeds jc and jd, 400 sessions
 attempted, 6.3 h each on the 1080 Ti, same teacher as above). We plan every turn's *type*; the teacher
