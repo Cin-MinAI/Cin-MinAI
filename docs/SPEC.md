@@ -361,7 +361,8 @@ Components (each is one Debian package unless noted):
 | `cinminai-admin` | root, D-Bus activated | Privileged mechanism behind polkit (§8.4) |
 | `cinminai-sandbox` | user | bwrap profile + runner (§8.2) |
 | `cinminai-setup` | user (+ admin for driver) | First-boot hardware/model configurator (§9) |
-| `cinminai-llama` | user (systemd `--user`, started by the daemon) | Pinned llama.cpp build (`llama-server`; CUDA 12, Vulkan, CPU backends) and its service |
+| `cinminai-llama` | user (the daemon's child, in its unit; PLAN D48) | Pinned llama.cpp build (`llama-server`; CPU and Vulkan backends as modules; CUDA 12 in `cinminai-llama-cuda`) |
+| `cinminai-guide-model` | — | Puts the guide model in place from the install media or the download, SHA-256 checked (D23, D46, D48) |
 | `cinminai-branding` | — | Artwork, os-release, plymouth, slideshow |
 | `cinminai-archive-keyring` | — | Our apt key + source list + pins |
 | `cinminai-desktop` | — | Meta-package pulling in all of the above |

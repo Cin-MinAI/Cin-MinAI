@@ -67,6 +67,13 @@ Notes:
   fine on 8 GB, not on 4 GB (minimum requirements, D24).
 - The first 2B CPU run overlapped a Qwen3-14B eval on the same box; CPU numbers will be re-run before
   the cycle closes.
+- **Packaged build vs. the bench build, CPU (2026-09-28, D33 A/B):** `cinminai-llama` (one build, a CPU
+  module per instruction-set level picked at start, D48) against the M0 build (`GGML_NATIVE=OFF`), shipped
+  guide, i7-4790K, 4 threads, same flags: prompt 27.2 vs 27.5 tok/s, generation 6.05 vs 6.07 tok/s,
+  first token 147 vs 146 s, identical generated text. **No speed change on Haswell** (the old build already
+  used AVX2); the modules are for portability: the same package runs on CPUs without AVX2 and uses
+  AVX-512 where present. Also 2026-09-28: the public guide eval with the product's own `lookup_help`
+  instead of each task's card: 92 % (145/157), the same items as with task cards.
 
 ### Phase 1 — prompt v2 (public eval only, 2026-09-25)
 

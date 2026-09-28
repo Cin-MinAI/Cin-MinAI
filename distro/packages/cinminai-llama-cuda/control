@@ -1,0 +1,12 @@
+Package: cinminai-llama-cuda
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: cinminai-llama (= @VERSION@), libcudart12, libcublas12, libcublaslt12
+Description: llama.cpp CUDA module for the Cin-MinAI assistant (NVIDIA)
+ Runs the assistant's model on an NVIDIA graphics card with the proprietary
+ driver (GTX 9xx and newer; built with CUDA 12.0 for Pascal, Turing, Ampere and
+ Ada, and PTX for Maxwell and newer cards). Without the NVIDIA driver it is
+ simply not used. The CUDA libraries come from Ubuntu (multiverse).

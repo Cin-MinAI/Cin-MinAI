@@ -1,0 +1,6 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Cin-MinAI assistant daemon (systemd --user: cinminai-daemon.service, D-Bus activated).
+from cin_minai.daemon.__main__ import main
+
+main()

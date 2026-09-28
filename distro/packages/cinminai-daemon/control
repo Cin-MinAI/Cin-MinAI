@@ -1,0 +1,16 @@
+Package: cinminai-daemon
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: python3 (>= 3.12), python3-gi, gir1.2-glib-2.0, cinminai-llama (= @VERSION@)
+Recommends: network-manager, pulseaudio-utils, cups-client, pciutils, ubuntu-drivers-common
+Description: Cin-MinAI assistant (the daemon)
+ The assistant built into Cin-MinAI: it answers on the session bus as
+ org.cinminai.Assistant1 for the sidebar, the panel applet and the other parts,
+ and runs the model on this computer with llama.cpp (cinminai-llama). It picks
+ the graphics card or the processor at each start, keeps graphics memory free
+ for the desktop, and says so when it has to run smaller. This version has the
+ guide's read-only tools: the built-in help, checking this computer, and opening
+ programs. Nothing is sent over the network.

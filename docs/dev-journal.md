@@ -7,6 +7,67 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-09-28 — the assistant's engine: daemon, llama.cpp, the guide on the ISO
+
+*Claude (lead) worked alone overnight while Ian slept ("take some time, no rush"): he chose the step
+(daemon + `cinminai-llama` first) and left the rest to the lead. Codex wasn't involved.*
+
+### The flow
+
+1. **A clean build place for llama.cpp.** No compilers on the dev PC's WSL, and installing them needs Ian's
+   password — so the build runs in its own Ubuntu 24.04 build root (the official base tarball, apt pinned
+   to a dated snapshot), which also makes the toolchain the same on every run. One build carries every
+   backend as a module; the CPU one comes in a variant per instruction-set level.
+2. **The help the guide looks things up in didn't cover what it's tested on.** The eval hands each task
+   its own help card; the knowledge base the product ships had only the 63 transition cards, none for the
+   lessons (copy and paste, a new folder, removing a USB stick...). Lesson cards were added, and a
+   retrieval that bridges six languages to English cards. It was measured on 591 labelled queries
+   while being written, then **once** on a clean set (the guide's own held-out queries, labelled by hand
+   before looking): 78.7 %. The misses are the same "complaint" pattern the guide itself has.
+3. **First real answers, all wrong.** The first run on the Mint box answered "Who should I vote for?"
+   with a system check. Cause: the generated schema was written with `sort_keys`, so the grammar made the
+   model write its arguments before choosing the tool. One word; a test now guards the key order. After
+   the fix the three Alpha questions came out right.
+4. **The server that died with its thread.** Each answer loaded the model again: `PR_SET_PDEATHSIG` (kill
+   the server if the daemon dies) fires when the *thread* that started it ends, and the loads ran on worker
+   threads. Now one long-lived thread starts servers; two tests check it (outlives the asking thread, dies
+   with the daemon).
+5. **The ISO's 4 GiB wall.** The guide (2.8 GB) inside the live filesystem would push it past ISO 9660's
+   per-file limit, so it ships as its own file on the ISO, read from the stick in the live session (D48).
+6. **The whole thing, booted.** The first full build with the assistant: a 5.9 GB ISO. In the VM boot test
+   (UEFI, Secure Boot, 4 vCPUs, 8 GB, no GPU) the daemon started through D-Bus as the live user, read the
+   guide from the virtual DVD and answered "how do I install a program?" with a help lookup and five
+   correct steps naming Software Manager, in 52 s on the processor. `check-iso.sh` then caught that the
+   bigger image has no MBR cylinder alignment: CHS can describe at most 4.27 GB (1024 × 255 × 32 × 512),
+   so no hybrid image of this size can have it. Only pre-LBA BIOS geometry uses it; the check now says so
+   and leaves exactly those lines out, only for images over the limit.
+
+### What went wrong (and what we changed)
+
+- **`sort_keys=True`** on the generated prompt data (above). Lesson: a JSON schema's key order is meaning,
+  not formatting, when a grammar is built from it.
+- **PDEATHSIG and threads** (above).
+- **Heredocs through Python on Windows** turned `\n` escapes into real line breaks in two files; caught by
+  a syntax check and by reading them back.
+- **A secret on screen:** checking for leftover processes on the Mint box with `pgrep -a` printed the
+  command line of Ian's `qwen14b.service`, API key included (hard rule 4). Only into this session's
+  context; Ian was told. (It is llama-server's own key, and the server listens on 127.0.0.1 only, so the
+  exposure is small; still a rule broken.) Processes there are listed by name only now (`pgrep -l`).
+- **A hoped-for speed gain that wasn't:** the per-CPU modules were expected to speed up the i7-4790K;
+  measured, the same speed (the old build already used AVX2). Recorded as portability, not speed.
+
+### What we learned
+
+- **Single-turn evals miss conversation failures.** In six-language, multi-turn probes the guide chose to
+  decline correctly, but in English and Japanese its decline *text* listed the forbidden topics as things it
+  can help with (4 of 12), and after a Spanish turn it answered German in Spanish. The eval (one question
+  at a time) scores declines 100 %. A multi-turn check belongs in the next cycle's eval.
+- **Measure the product path, not only the model.** Running the public eval with the product's own lookup
+  instead of the task's card gave the same 92 %, item for item — useful, but the search words were partly
+  written on those queries; the clean held-out number is the honest one.
+
+---
+
 ## 2026-09-26/27 — from a tuned guide to a branded, tested ISO
 
 *One long session, about 26 hours of wall-clock time with training and builds running in between.

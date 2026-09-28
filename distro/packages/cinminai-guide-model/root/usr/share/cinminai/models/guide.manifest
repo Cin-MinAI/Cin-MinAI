@@ -1,0 +1,5 @@
+# The guide model this package installs (filled in at build time from distro/config.env).
+file=@GUIDE_FILE@
+size=@GUIDE_SIZE@
+sha256=@GUIDE_SHA256@
+url=@GUIDE_URL@

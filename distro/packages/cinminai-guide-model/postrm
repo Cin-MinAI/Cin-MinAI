@@ -1,0 +1,7 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+    rm -f /usr/share/cinminai/models/*.gguf /usr/share/cinminai/models/*.gguf.part
+    rmdir --ignore-fail-on-non-empty /usr/share/cinminai/models 2>/dev/null || true
+fi

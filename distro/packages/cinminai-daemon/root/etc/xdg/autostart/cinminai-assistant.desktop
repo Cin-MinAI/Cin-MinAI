@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Cin-MinAI assistant
+Comment=Starts the assistant at login (it loads its model then, except on the live USB)
+Exec=gdbus call --session --dest org.cinminai.Assistant1 --object-path /org/cinminai/Assistant1 --method org.freedesktop.DBus.Peer.Ping
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

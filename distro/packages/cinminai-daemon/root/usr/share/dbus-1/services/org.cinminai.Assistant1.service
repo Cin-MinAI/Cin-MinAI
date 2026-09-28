@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.cinminai.Assistant1
+Exec=/usr/libexec/cinminai-daemon
+SystemdService=cinminai-daemon.service

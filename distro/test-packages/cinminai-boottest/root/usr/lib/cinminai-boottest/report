@@ -46,8 +46,29 @@ elif runuser -u "$live_user" -- env DISPLAY=:0 XAUTHORITY="/home/$live_user/.Xau
 else
     say "screenshot failed (gnome-screenshot as $live_user)"
 fi
+# The assistant, end to end as the live user would reach it: D-Bus activation of cinminai-daemon (systemd
+# --user), the guide read from the stick on the processor, a help lookup, the reply in Mint's names.
+uid=$(id -u "$live_user" 2>/dev/null)
+ask=$(runuser -u "$live_user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+      XDG_RUNTIME_DIR="/run/user/$uid" timeout 600 python3 -m cin_minai.daemon.client --timeout 540 \
+      "How do I install a program? On Windows I downloaded an .exe." 2>&1)
+printf '%s\n' "$ask" | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    r = json.loads(raw)
+except ValueError:
+    print("assistant_raw " + " / ".join(raw.splitlines())[-400:]); sys.exit()
+print("assistant_model " + r.get("model", ""))
+print("assistant_actions " + json.dumps([a[:2] for a in r.get("actions", []) if a[2] == "done"], ensure_ascii=False))
+print("assistant_reply " + " / ".join(r.get("reply", "").splitlines())[:400])
+print("assistant_error %s timed_out %s seconds %s" % (r.get("error"), r.get("timed_out"), r.get("seconds")))
+print("assistant_stats " + json.dumps(r.get("stats", {}).get("timings", ""))[:600])
+' 2>&1 | while read -r l; do say "$l"; done
 res=PASS
 [ "$desktop" = yes ] || res=FAIL
+case $ask in *'"lookup_help"'*) ;; *) say "check_failed assistant: no help lookup"; res=FAIL ;; esac
+case $ask in *'Software Manager'*) ;; *) say "check_failed assistant: reply without Software Manager"; res=FAIL ;; esac
 dpkg-query -W cinminai-desktop >/dev/null 2>&1 || res=FAIL
 # regression checks for the branding (each broke or was missing once on 2026-09-27)
 check() { [ "$2" = "$3" ] || { say "check_failed $1: got $2, want $3"; res=FAIL; }; }

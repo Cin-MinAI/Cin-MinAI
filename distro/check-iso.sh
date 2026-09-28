@@ -7,7 +7,8 @@
 # 1. the live system differs from upstream by exactly our packages (manifest diff: added lines only);
 # 2. the boot setup is upstream's, unchanged (El Torito and partition-table report identical), so the image
 #    is still a hybrid that USB writers handle in one step;
-# 3. md5sum.txt matches the files it lists (casper's "check disc for defects" uses it);
+# 3. md5sum.txt matches the files it lists (casper's "check disc for defects" uses it), and the guide model
+#    is on the ISO;
 # 4. with --rebuild: build again into a second directory and compare SHA-256 (reproducibility).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -19,7 +20,7 @@ fail=0; ok() { echo "PASS  $*"; }; bad() { echo "FAIL  $*"; fail=1; }
 
 diff=$M1/out/$OUT_ISO.manifest-diff
 removed=$(grep -c '^<' "$diff" || true); added=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort | tr '\n' ' ')
-want="cinminai-archive-keyring cinminai-branding cinminai-desktop "
+want="cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-llama "
 [[ $removed == 0 && $added == "$want" ]] && ok "manifest: only our packages added ($added)" \
     || bad "manifest: removed $removed, added: $added"
 
@@ -32,12 +33,24 @@ report() { xorriso -indev "$1" -report_el_torito plain -report_system_area plain
            | awk '/^El Torito catalog/ {$NF=""; $(NF-1)=""} /^El Torito boot img/ {$NF=""}
                   /^MBR partition/ && NF>=8 {$(NF-1)=""} /^MBR partition +: +1 / {$NF=""}
                   /^GPT lba range/ {$NF=""; $(NF-1)=""} {print}'; }
-if cmp -s <(report "$up") <(report "$iso"); then ok "boot setup identical to upstream except block positions (hybrid USB image kept)"
-else bad "boot setup differs from upstream:"; diff <(report "$up") <(report "$iso") | head -20 || true; fi
+# The MBR's CHS geometry (cylinder alignment) can only describe images up to 1024 cyl x 255 heads x 32 sectors
+# x 512 B = 4.27 GB. Upstream's 2.9 GB image has it; ours carries the guide model (D48) and is bigger, so
+# xorriso records none — any hybrid image that size does. Only pre-LBA BIOS geometry uses it. Those lines are
+# left out of the comparison only when the image is over the limit, and it's said.
+chs_max=$((1024 * 255 * 32 * 512))
+if (( $(stat -c %s "$iso") > chs_max )); then
+    echo "NOTE  image over $chs_max bytes: no CHS cylinder alignment possible (not compared)"
+    report_full() { report "$1" | grep -v -E '^System area (options|summary)|^MBR (heads per cyl|secs per head)'; }
+else
+    report_full() { report "$1"; }
+fi
+if cmp -s <(report_full "$up") <(report_full "$iso"); then ok "boot setup identical to upstream except block positions (hybrid USB image kept)"
+else bad "boot setup differs from upstream:"; diff <(report_full "$up") <(report_full "$iso") | head -20 || true; fi
 
 mnt=$(mktemp -d); mount -o loop,ro "$iso" "$mnt"
-if ( cd "$mnt" && grep -E ' \./casper/filesystem\.(squashfs|manifest|size)$' md5sum.txt | md5sum -c --quiet - ); then
-    ok "md5sum.txt matches the changed files"; else bad "md5sum.txt"; fi
+if ( cd "$mnt" && grep -E ' \./(casper/filesystem\.(squashfs|manifest|size)|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then
+    ok "md5sum.txt matches the changed files (incl. the guide model)"; else bad "md5sum.txt"; fi
+if ( cd "$mnt" && ls cinminai/models/*.gguf >/dev/null 2>&1 ); then ok "the guide model is on the ISO"; else bad "no guide model on the ISO"; fi
 umount "$mnt"; rmdir "$mnt"
 
 # Mint's command-not-found database and software catalogue must be upstream's (apt's update hooks rebuilt

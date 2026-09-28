@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Build hook helper: the guide's data files for cinminai-daemon, from the sources it was trained on.
+
+    python3 gen_data.py OUT_DIR REPO
+
+Writes OUT_DIR/guide.json (system prompt v2 exactly as rendered in training and the eval, the reply
+instruction, the tool-call JSON schema, the inspect_system topics, the apps open_app knows) and
+OUT_DIR/help.json (the help cards from training/kb/ with their search words, Mint's labels, and the
+.desktop file for each label). Nothing is retyped: a change to the prompt or the knowledge base reaches
+the daemon with the next package build, and the checks below stop the build if they drift apart.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import re
+import sys
+
+
+def load(path: str, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    saved, sys.argv = sys.argv, [path]  # run_eval looks at sys.argv when imported
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.argv = saved
+    return mod
+
+
+def build(repo: str) -> dict:
+    ev = os.path.join(repo, "training", "eval", "guide")
+    kb = os.path.join(repo, "training", "kb")
+    R = load(os.path.join(ev, "run_eval.py"), "run_eval")
+    X = load(os.path.join(ev, "extract_labels.py"), "extract_labels")
+    T = load(os.path.join(kb, "transition.py"), "kb_transition")
+    L = load(os.path.join(kb, "lessons.py"), "kb_lessons")
+    S = load(os.path.join(kb, "search.py"), "kb_search")
+
+    R.PROMPT = "v2"  # the prompt the shipped guide was trained and measured with (MODEL_CARD.md)
+    guide = {
+        "prompt": "v2",
+        "system": R.system_prompt({}),
+        "style": R.STYLE_V2,
+        "result_format": "Result of {tool}:\n{result}\n\n{style}",
+        "schema": R.schema(None),
+        "tools": {name: desc for name, (_, desc) in R.GUIDE_TOOLS.items()},
+        "topics": R.TOPICS,
+        "apps": sorted(R.LABELS),
+    }
+    # the same text the corpus generator used: training/datasets/sessions/generate.py
+    assert "No document is shared." in guide["system"] and "- lookup_help:" in guide["system"]
+
+    cards = []
+    for source, mod in (("transition", T), ("lessons", L)):
+        for c in mod.TOPICS:
+            if c["id"] not in S.KEYWORDS:
+                raise SystemExit(f"help card {c['id']} has no search words in training/kb/search.py")
+            cards.append({**c, "source": source, "keywords": S.KEYWORDS[c["id"]]})
+    ids = [c["id"] for c in cards]
+    if len(ids) != len(set(ids)):
+        raise SystemExit("duplicate help card ids")
+    unknown = set(S.KEYWORDS) - set(ids)
+    if unknown:
+        raise SystemExit(f"search words for unknown cards: {sorted(unknown)}")
+    desktop = {**{k: v + ".desktop" for k, v in X.LABELS.items()}, **{k: None for k in X.ACTIONS}}
+    help_ = {"labels": R.LABELS, "desktop": desktop, "cards": cards}
+    for c in cards:
+        for key in re.findall(r"\{(\w+)\}", c["card"]):
+            if key not in R.LABELS:
+                raise SystemExit(f"card {c['id']}: unknown label {{{key}}}")
+    return {"guide.json": guide, "help.json": help_}
+
+
+def main() -> None:
+    out, repo = sys.argv[1], sys.argv[2]
+    os.makedirs(out, exist_ok=True)
+    for name, data in build(repo).items():
+        with open(os.path.join(out, name), "w", encoding="utf-8", newline="\n") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)  # never sort_keys: the schema's key order is the order the model writes
+            f.write("\n")
+
+
+if __name__ == "__main__":
+    main()

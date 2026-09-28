@@ -1,0 +1,14 @@
+# Cin-MinAI assistant: system-wide settings. Your own settings go in ~/.config/cinminai/config.toml
+# (same tables); they win over these. After a change: systemctl --user restart cinminai-daemon
+
+[inference]
+# model = "/usr/share/cinminai/models/Qwen3.5-4B-guide-HO-Q4_K_M.gguf"
+# build = "auto"          # auto | cuda | vulkan | cpu
+# context = 8192          # on the graphics card
+# cpu_context = 4096      # on the processor
+# threads = "auto"        # one per core
+# idle_unload_s = 0       # unload the model after this many idle seconds (0 = keep it loaded)
+# extra_args = []         # any other llama-server option
+
+[guide]
+# preload = "auto"        # load the model at login (auto: not on the live USB, where it loads on first use)

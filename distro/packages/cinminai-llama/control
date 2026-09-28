@@ -1,0 +1,16 @@
+Package: cinminai-llama
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: libc6 (>= 2.39), libstdc++6, libgcc-s1, libgomp1, libvulkan1
+Suggests: cinminai-llama-cuda
+Description: llama.cpp for the Cin-MinAI assistant (processor and Vulkan)
+ The pinned llama.cpp release (llama-server) that runs the assistant's model on
+ this computer. One build, with the backends as modules loaded at start: the
+ processor (a module per instruction-set level, the best one is picked for the
+ running CPU) and Vulkan (AMD and Intel graphics). NVIDIA's CUDA module is in
+ cinminai-llama-cuda. Nothing here downloads or sends anything; the assistant
+ starts it and talks to it over a private socket. How it was built:
+ /usr/share/doc/cinminai-llama/BUILDINFO.

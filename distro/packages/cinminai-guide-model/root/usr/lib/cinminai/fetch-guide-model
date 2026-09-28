@@ -1,0 +1,27 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Put the guide model in /usr/share/cinminai/models/ and check it (PLAN D23, D46). Sources, in order: the
+# file already there, the Cin-MinAI install media (/cdrom/cinminai/models/, the live USB), the download
+# URL. Nothing is used unless its SHA-256 matches the manifest.
+#   fetch-guide-model [--offline]     (as root; --offline: never download)
+set -eu
+dir=/usr/share/cinminai/models
+. "$dir/guide.manifest"
+dest=$dir/$file
+ok() { [ -f "$1" ] && [ "$(stat -c %s "$1")" = "$size" ] && echo "$sha256  $1" | sha256sum -c --status -; }
+if ok "$dest"; then echo "guide model: in place and checked"; exit 0; fi
+for media in /cdrom/cinminai/models/$file /run/live/medium/cinminai/models/$file; do
+    if ok "$media"; then
+        cp "$media" "$dest.part" && mv "$dest.part" "$dest"
+        echo "guide model: copied from the install media and checked"; exit 0
+    fi
+done
+if [ "${1:-}" = --offline ] || [ -z "$url" ]; then
+    echo "guide model: not installed (no install media found${url:+, offline}); run $0 when online" >&2
+    exit 1
+fi
+echo "guide model: downloading $(( size / 1000000 )) MB from $url"
+curl -fL --retry 3 -C - -o "$dest.part" "$url"
+ok "$dest.part" || { echo "guide model: the download doesn't match its SHA-256; deleted" >&2; rm -f "$dest.part"; exit 1; }
+mv "$dest.part" "$dest"
+echo "guide model: downloaded and checked"

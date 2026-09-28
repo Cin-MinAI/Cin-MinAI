@@ -149,6 +149,7 @@ STYLE_V2 = ("Now write your reply to the user as plain text (not JSON), in the l
             "one short sentence, then numbered steps if there are two or more, using the names exactly as "
             "they appear above.")
 PROMPT = "v1"
+HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
 
 
 def system_prompt(task: dict) -> str:
@@ -316,6 +317,10 @@ def run_item(srv: Server, it: dict) -> dict:
     reply = None
     if tool in ("answer", "decline"):
         reply = args.get("text", "")
+    elif tool == "lookup_help" and "card" in it and HELP is not None:
+        # --help-json: the card the product's retrieval finds for the model's own query (not the task's)
+        cid, result = HELP.lookup(str(args.get("query", "")), it["lang"])
+        rec["help_card"] = cid
     elif tool == "lookup_help" and "card" in it:
         result = it["card"]
     elif tool == "inspect_system" and "result" in it:
@@ -361,10 +366,15 @@ def main() -> None:
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
     ap.add_argument("--prompt", choices=["v1", "v2"], default="v1")
+    ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
+                                        "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")
     o = ap.parse_args()
-    global PROMPT
+    global PROMPT, HELP
     PROMPT = o.prompt
+    if o.help_json:
+        from cin_minai.daemon.helpcards import HelpIndex
+        HELP = HelpIndex.load(o.help_json)
 
     its = items()  # resolves every label: a missing translation fails here, before any model call
     if o.only:

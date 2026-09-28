@@ -6,7 +6,7 @@
 #
 # Each package directory has `control` (with @VERSION@ etc.), an optional `conffiles`, an optional `links`
 # ("link-path target" per line: git on the Windows dev PC stores no symlinks), and `root/`, the files as
-# installed; files starting with #! are made executable. packages/ go to $M1/pkgs (the repo);
+# installed; files starting with #! and ELF programs are made executable; the Architecture line names the .deb. packages/ go to $M1/pkgs (the repo);
 # test-packages/ (the boot test) go to $M1/pkgs-test and never into the repository. @PLACEHOLDERS@ in control and in root/ are filled from config.env. The archive key
 # is exported from the signing keyring into cinminai-archive-keyring. Reproducible: file dates are the
 # last git commit's (SOURCE_DATE_EPOCH), owners root:root, fixed compression.
@@ -20,7 +20,9 @@ export GNUPGHOME=$SIGNING_GNUPGHOME
 fill() {  # file: replace @PLACEHOLDERS@ in place
     sed -i -e "s#@VERSION@#$CINMINAI_VERSION#g" -e "s#@MINT_VERSION@#$MINT_VERSION#g" \
            -e "s#@REPO_URL@#$REPO_URL#g" -e "s#@REPO_SUITE@#$REPO_SUITE#g" \
-           -e "s#@REPO_COMPONENT@#$REPO_COMPONENT#g" "$1"
+           -e "s#@REPO_COMPONENT@#$REPO_COMPONENT#g" -e "s#@GUIDE_FILE@#$GUIDE_FILE#g" \
+           -e "s#@GUIDE_SIZE@#$GUIDE_SIZE#g" -e "s#@GUIDE_SHA256@#$GUIDE_SHA256#g" \
+           -e "s#@GUIDE_URL@#$GUIDE_URL#g" "$1"
 }
 
 for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
@@ -51,6 +53,8 @@ for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
     find "$stage" -type d -exec chmod 755 {} +
     find "$stage" -type f -exec chmod 644 {} +
     find "$stage" -type f -exec sh -c 'head -c2 "$1" | grep -q "#!"' _ {} \; -exec chmod 755 {} \;
+    # ELF programs too (cinminai-llama's llama-server); shared libraries stay 644 (Debian policy)
+    find "$stage" -type f ! -name '*.so' ! -name '*.so.*' -exec sh -c 'head -c4 "$1" | grep -q "ELF"' _ {} \; -exec chmod 755 {} \;
     [[ -f $stage/DEBIAN/triggers ]] && chmod 644 "$stage/DEBIAN/triggers"
     if [[ -f $dir/links ]]; then
         grep -v '^#' "$dir/links" | while read -r link target; do
@@ -59,7 +63,8 @@ for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
         done
     fi
     find "$stage" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
-    deb=$out/${name}_${CINMINAI_VERSION}_all.deb
+    arch=$(awk '/^Architecture:/ {print $2}' "$stage/DEBIAN/control")
+    deb=$out/${name}_${CINMINAI_VERSION}_${arch}.deb
     dpkg-deb -Zxz --root-owner-group --build "$stage" "$deb" >/dev/null
     rm -rf "$stage"
     printf '%s  %s\n' "$(sha256sum "$deb" | cut -d' ' -f1)" "$(basename "$deb")"

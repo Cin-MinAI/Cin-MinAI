@@ -1,6 +1,7 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-09-27 ~21:15** (end of the 26–27 Sept session, commit `20adac1`, all pushed). For Ian, Claude
+Updated **2026-09-28** (the daemon + llama.cpp session; see "Next" and `docs/dev-journal.md`). Before that:
+2026-09-27 ~21:15 (end of the 26–27 Sept session, commit `20adac1`). For Ian, Claude
 and Codex alike: **read this first.** Reasons behind decisions: `docs/PLAN.md` (D1–D47). How the work went,
 day by day: `docs/dev-journal.md`. The guide model's story: `docs/guide-model-journal.md`.
 
@@ -51,12 +52,25 @@ Documents: `training/guide/MODEL_CARD.md`, `training/datasets/DATASHEET.md` (all
 
 ## Next — the Alpha (D45, boot check 1)
 
-**M1 + a trimmed M2** (PLAN §4 "Alpha"): `cinminai-daemon` (session D-Bus `org.cinminai.Assistant1`,
-`LlamaCppBackend`), `cinminai-llama` (pinned llama.cpp, CUDA/Vulkan/CPU), the guide model package (downloaded
-from Hugging Face per D46, SHA-256 checked — or on the ISO per D23), sidebar with streaming, applet, Super+A.
-Read-only tools only: `lookup_help`, `inspect_system`, `open_app`. The M0 spikes (`spikes/`: desktop surface,
-streaming) show the shapes; they're throwaway, rebuild as packages. **Exit:** the live USB boots on the Mint
-box, the assistant answers a lookup, a system check and a decline; nothing on its disks touched.
+**M1 + a trimmed M2** (PLAN §4 "Alpha"). **Done 2026-09-28 (D48):** `cinminai-llama` + `cinminai-llama-cuda`
+(`distro/build-llama.sh`: pinned v0.5.0 in a clean noble build root; CPU variants + Vulkan + CUDA as modules),
+`cinminai-daemon` (`src/cin_minai/`: D-Bus service, `LlamaCppBackend` with load-time budget and step-down,
+the guide's turn protocol as trained, `lookup_help` retrieval, `inspect_system`, `open_app`; `python3 -m
+cin_minai.daemon.client "question"` asks it), `cinminai-guide-model` (the model is its own file on the ISO;
+fetch + SHA-256 into installed systems), boot test asks the assistant. Tests: `python3 -m unittest
+tests.unit.test_helpcards tests.unit.test_guide tests.unit.test_llamacpp`. Verified on the Mint box from the
+unpacked .debs: CUDA, Vulkan and CPU all answer. Full pipeline (`distro/build-all.sh`): 5.9 GB ISO, all
+`check-iso.sh` checks pass (no CHS cylinder alignment above 4.27 GB: noted, not compared), VM boot test PASS
+with the assistant answering on the processor in 52 s. **Still to do for the Alpha:** sidebar with streaming, applet,
+Super+A (rebuild the `spikes/desktop` shapes as packages); then boot check 1. **Exit:** the live USB boots on
+the Mint box, the assistant answers a lookup, a system check and a decline; nothing on its disks touched.
+
+**Open from 2026-09-28 (Ian to decide):** declines go wrong a few turns into a conversation in English and
+Japanese (the text lists the off-limits topics as things it helps with; 4/12 in a probe) — a daemon guard now,
+or a prompt/training fix in cycle 1; mixed-language drift. Lesson cards (`training/kb/lessons.py`) need their
+facts rechecked on Mint; search words (`training/kb/search.py`) need native speakers. `lookup_help` is 78.7 %
+right on the clean held-out queries. Model into *installed* systems: the installer doesn't copy it yet (needed
+before boot check 2: a ubiquity success command or first boot).
 
 Also open in M1 (smaller):
 - **Live-USB splash:** the live system's Plymouth theme sits in `casper/initrd.lz` — rebuild or patch it in

@@ -18,6 +18,7 @@ source "$here/config.env"
 # Run through `wsl -u root` or sudo: keep the work area in the building user's home.
 owner=${SUDO_USER:-$(stat -c %U "$here/config.env")}
 [[ $WORK == /root/* ]] && { WORK=$(getent passwd "$owner" | cut -d: -f6)/cinminai-build; M1=$WORK/m1; }
+[[ $GUIDE_LOCAL == /root/* ]] && GUIDE_LOCAL=$(getent passwd "$owner" | cut -d: -f6)${GUIDE_LOCAL#/root}
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -c safe.directory='*' -C "$here" log -1 --format=%ct)}
 
 # Free space first. WSL's disk file lives on the Windows drive and grows with every build (a build needs
@@ -48,6 +49,19 @@ mkdir -p "$up"
 [[ -f $iso_in ]] || curl -fL -o "$iso_in" "$MINT_MIRROR/$MINT_ISO"
 echo "$MINT_ISO_SHA256  $iso_in" | sha256sum -c -
 [[ -d $repo/dists/$REPO_SUITE ]] || { echo "no repo at $repo; run build-packages.sh and make-repo.sh" >&2; exit 1; }
+# The guide model (D23): its own file on the ISO, next to the live system — inside the squashfs it would
+# push that past 4 GiB (ISO 9660's file limit; also what Rufus's FAT32 mode can't copy). The live session
+# reads it from the stick; cinminai-guide-model copies it into an installed system.
+log "verify the guide model"
+model=$WORK/models/$GUIDE_FILE
+mkdir -p "$WORK/models"
+if [[ ! -f $model ]]; then
+    if [[ -f $GUIDE_LOCAL ]]; then cp "$GUIDE_LOCAL" "$model"
+    elif [[ -n $GUIDE_URL ]]; then curl -fL -o "$model" "$GUIDE_URL"
+    else echo "no guide model: set GUIDE_LOCAL or GUIDE_URL (config.env)" >&2; exit 1; fi
+fi
+echo "$GUIDE_SHA256  $model" | sha256sum -c -
+touch -d "@$SOURCE_DATE_EPOCH" "$model"   # our cached copy: its date goes into the ISO
 keyring=$(ls "$M1/pkgs/$CINMINAI_VERSION"/cinminai-archive-keyring_*.deb)
 mkdir -p "$M1"
 dpkg-deb --fsys-tarfile "$keyring" | tar -xO ./usr/share/keyrings/cinminai-archive-keyring.gpg > "$M1/build-key.gpg"
@@ -149,6 +163,9 @@ if [[ $BOOTTEST == 1 ]]; then   # boot the first menu entry after 5 s (the confi
     sed -i '1i set timeout=5' "$b/iso/grub.cfg"
     maps+=(-map "$b/iso/grub.cfg" /boot/grub/grub.cfg)
 fi
+maps+=(-map "$model" "/cinminai/models/$GUIDE_FILE")
+grep -q "cinminai/models/$GUIDE_FILE\$" "$b/iso/md5sum.txt" ||
+    echo "$(md5sum "$model" | cut -d' ' -f1)  ./cinminai/models/$GUIDE_FILE" >> "$b/iso/md5sum.txt"
 for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.size boot/grub/grub.cfg; do
     [[ -f $b/iso/$(basename "$f") ]] || continue
     sum=$(md5sum "$b/iso/$(basename "$f")" | cut -d' ' -f1)

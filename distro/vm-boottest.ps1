@@ -15,7 +15,7 @@ The M0 VMs (cinminai-uefi, cinminai-bios) are never touched. Exit code 0 = PASS.
 #>
 param(
     [Parameter(Mandatory)] [string] $Iso,
-    [int] $TimeoutMinutes = 15,
+    [int] $TimeoutMinutes = 30,
     [string] $Name = 'cinminai-boottest',
     [string] $LogDir = "$env:USERPROFILE\cinminai-vm\boottest-logs"
 )
@@ -71,7 +71,7 @@ function Remove-TestVM {  # never throws: cleanup problems are reported, and the
 if (-not (Test-Vmms)) { throw "Hyper-V's management service (vmms) isn't running - start it in Hyper-V Manager (Start Service) first" }
 try {
     Remove-TestVM   # a leftover from an interrupted run
-    New-VM -Name $Name -Generation 2 -MemoryStartupBytes 4GB -NoVHD -Path $vmDir | Out-Null
+    New-VM -Name $Name -Generation 2 -MemoryStartupBytes 8GB -NoVHD -Path $vmDir | Out-Null
     Set-VMMemory -VMName $Name -DynamicMemoryEnabled $false
     Set-VMProcessor -VMName $Name -Count 4
     Set-VMFirmware -VMName $Name -EnableSecureBoot On -SecureBootTemplate MicrosoftUEFICertificateAuthority

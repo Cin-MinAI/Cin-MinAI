@@ -1,0 +1,638 @@
+{"src": "sessions", "lang": "es", "q": "cambiar teclado a japonés en Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "es", "q": "¿El asistente envía lo que escribo a internet?", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "fr", "q": "how to use Paint to draw a simple image for a birthday card", "id": "paint"}
+{"src": "sessions", "lang": "de", "q": "where is the email program on Windows", "id": "outlook"}
+{"src": "sessions", "lang": "de", "q": "how to completely disconnect the computer from the internet on Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "de", "q": "how to end a non-responsive program on Linux Mint", "id": "frozen"}
+{"src": "sessions", "lang": "de", "q": "how to uninstall a program on Linux Mint", "id": "uninstall"}
+{"src": "sessions", "lang": "en", "q": "check Device Manager for camera and install drivers", "id": "drivers"}
+{"src": "sessions", "lang": "en", "q": "show Recycle Bin on desktop", "id": "recycle_bin"}
+{"src": "sessions", "lang": "es", "q": "cambiar el idioma del teclado en Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "how to open Add or Remove Programs in Linux Mint", "id": "uninstall"}
+{"src": "sessions", "lang": "es", "q": "cambiar el idioma de visualización en Windows 10", "id": "system_language"}
+{"src": "sessions", "lang": "pt", "q": "como criar um atalho de site no menu iniciar do Windows", "id": "web_app"}
+{"src": "sessions", "lang": "pt", "q": "como usar o Sticky Notes no Windows", "id": "sticky"}
+{"src": "sessions", "lang": "fr", "q": "changer la résolution de l'écran et mise à l'échelle", "id": "display_scale"}
+{"src": "sessions", "lang": "fr", "q": "installer un programme windows sur linux mint", "id": "install"}
+{"src": "sessions", "lang": "ja", "q": "画面の言語を変更する方法", "id": "system_language"}
+{"src": "sessions", "lang": "ja", "q": "デバイスマネージャーでドライバをインストールする方法", "id": "drivers"}
+{"src": "sessions", "lang": "en", "q": "change desktop background Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "es", "q": "how to pin a website as an app in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "es", "q": "how to use Fotos app to view and organize photos in Linux Mint", "id": "photos"}
+{"src": "sessions", "lang": "pt", "q": "scan for viruses in Linux Mint", "id": "scam_phone"}
+{"src": "sessions", "lang": "pt", "q": "scan for viruses in Linux Mint", "id": "scam_phone"}
+{"src": "sessions", "lang": "pt", "q": "share files between Linux Mint and Windows on same Wi-Fi", "id": "nearby_share"}
+{"src": "sessions", "lang": "fr", "q": "how to enable Windows Defender on Windows", "id": "antivirus"}
+{"src": "sessions", "lang": "fr", "q": "how to enable Windows Defender Firewall on Windows", "id": "firewall"}
+{"src": "sessions", "lang": "fr", "q": "how to check important updates in Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "de", "q": "how to switch between windows using Alt+Tab in Linux Mint", "id": "switch_windows"}
+{"src": "sessions", "lang": "de", "q": "how to add keyboard layouts in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "de", "q": "how to connect Bluetooth headphones to Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "ja", "q": "IME 設定 日本語 入力 かな ひらがな", "id": "typing_japanese"}
+{"src": "sessions", "lang": "pt", "q": "como identificar e evitar golpes de suporte técnico", "id": "scam_phone"}
+{"src": "sessions", "lang": "fr", "q": "data privacy and internet usage in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "fr", "q": "program not responding and restart option is grayed out in Linux Mint", "id": "frozen"}
+{"src": "sessions", "lang": "fr", "q": "how to identify if a call from Microsoft support is a scam", "id": "scam_phone"}
+{"src": "sessions", "lang": "de", "q": "how to pin a website to the desktop as a shortcut in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "de", "q": "how to open paint in Linux Mint", "id": "paint"}
+{"src": "sessions", "lang": "ja", "q": "重要性 of system updates in Linux Mint and security", "id": "updates_why"}
+{"src": "sessions", "lang": "en", "q": "check programs starting automatically on Windows", "id": "startup_apps"}
+{"src": "sessions", "lang": "en", "q": "privacy and data tracking in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "change display language in Windows", "id": "system_language"}
+{"src": "sessions", "lang": "es", "q": "on-screen keyboard in Linux Mint", "id": "onscreen_kb"}
+{"src": "sessions", "lang": "es", "q": "pair Bluetooth headphones in Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "de", "q": "deaktivieren Windows Update ohne System beschädigen", "id": "windows_update"}
+{"src": "sessions", "lang": "en", "q": "how to identify and avoid scams and phishing calls", "id": "scam_phone"}
+{"src": "sessions", "lang": "en", "q": "how to uninstall a program using Add or Remove Programs in Windows", "id": "uninstall"}
+{"src": "sessions", "lang": "es", "q": "how to sign in with a Microsoft account on Linux Mint", "id": "microsoft_account"}
+{"src": "sessions", "lang": "es", "q": "how to share files between computers on the same wifi network in Linux Mint", "id": "nearby_share"}
+{"src": "sessions", "lang": "es", "q": "are Linux Mint updates important and should I install them", "id": "updates_why"}
+{"src": "sessions", "lang": "de", "q": "how to uninstall a program in Linux Mint", "id": "uninstall"}
+{"src": "sessions", "lang": "en", "q": "data privacy and ai behavior", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "change desktop wallpaper in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "pt", "q": "privacy and data transmission", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "pt", "q": "system updates and their purpose", "id": "updates_why"}
+{"src": "sessions", "lang": "de", "q": "How to pin a website as a desktop app in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "de", "q": "How often are updates for Linux Mint apps performed and their importance compared to Windows antivirus definitions", "id": "updates_why"}
+{"src": "sessions", "lang": "ja", "q": "Linux Mint で Windows の .exe や .msi ファイルを使う方法", "id": "install"}
+{"src": "sessions", "lang": "en", "q": "pair Bluetooth headphones Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "en", "q": "enable screen reader Linux Mint", "id": "screen_reader"}
+{"src": "sessions", "lang": "en", "q": "download .exe file Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "es", "q": "how to back up files in Linux Mint similar to Windows File History", "id": "backup"}
+{"src": "sessions", "lang": "es", "q": "how to change wallpaper in Linux Mint from Customize > Background", "id": "wallpaper"}
+{"src": "sessions", "lang": "pt", "q": "mudar idioma da interface do linux mint", "id": "system_language"}
+{"src": "sessions", "lang": "fr", "q": "désinstaller un programme via Programmes et fonctionnalités sur Linux Mint", "id": "uninstall"}
+{"src": "sessions", "lang": "fr", "q": "vérifier la sécurité d'un courriel de banque demandant des informations personnelles", "id": "scam_email"}
+{"src": "sessions", "lang": "fr", "q": "ouvrir le bloc-notes sur Linux Mint", "id": "notepad"}
+{"src": "sessions", "lang": "de", "q": "Mausgeschwindigkeit einstellen und Mausknopf für Linkshänder umstellen", "id": "mouse"}
+{"src": "sessions", "lang": "de", "q": "Taschenrechner öffnen und Brüche eingeben", "id": "calculator"}
+{"src": "sessions", "lang": "ja", "q": "How to change desktop background in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "ja", "q": "How to add keyboard layouts in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "ja", "q": "How to connect to Wi-Fi from the taskbar in Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "ja", "q": "How to check email in Linux Mint", "id": "outlook"}
+{"src": "sessions", "lang": "en", "q": "system restore points in Linux Mint", "id": "system_restore"}
+{"src": "sessions", "lang": "es", "q": "administrador de dispositivos", "id": "drivers"}
+{"src": "sessions", "lang": "es", "q": "desinstalar programas", "id": "uninstall"}
+{"src": "sessions", "lang": "de", "q": "How to change or remove startup programs in Task Manager in Linux Mint", "id": "startup_apps"}
+{"src": "sessions", "lang": "ja", "q": "why are updates important for Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "ja", "q": "how to open zip files in Linux Mint", "id": "zip"}
+{"src": "sessions", "lang": "ja", "q": "how to check if Cin-MinAI sends data to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "ja", "q": "how to check if the computer is infected with malware or virus", "id": "scam_popup"}
+{"src": "sessions", "lang": "en", "q": "OneDrive on Linux Mint", "id": "microsoft_account"}
+{"src": "sessions", "lang": "es", "q": "cambiar fondo de pantalla en Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "es", "q": "como usar la app de fotos en Linux Mint", "id": "photos"}
+{"src": "sessions", "lang": "pt", "q": "como identificar e proteger contra vírus no Linux Mint", "id": "scam_phone"}
+{"src": "sessions", "lang": "pt", "q": "como emparelhar fone de ouvido Bluetooth no Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "fr", "q": "logiciel photo pour trier et regarder les photos sur Linux Mint", "id": "photos"}
+{"src": "sessions", "lang": "fr", "q": "logiciel de dessin similaire à Paint sous Linux Mint", "id": "paint"}
+{"src": "sessions", "lang": "de", "q": "how to completely uninstall a program in Windows", "id": "uninstall"}
+{"src": "sessions", "lang": "ja", "q": "how to identify phishing emails and scams", "id": "scam_email"}
+{"src": "sessions", "lang": "ja", "q": "how to identify phishing emails and scams", "id": "scam_email"}
+{"src": "sessions", "lang": "en", "q": "how to check if a bank email is legitimate", "id": "scam_email"}
+{"src": "sessions", "lang": "en", "q": "how to take a screenshot in Linux Mint", "id": "screenshot"}
+{"src": "sessions", "lang": "en", "q": "how do system updates work in Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "de", "q": "How to install and set up an email client like Outlook or Thunderbird on Linux Mint for using a Microsoft email account", "id": "outlook"}
+{"src": "sessions", "lang": "de", "q": "How to sign in to OneDrive with a Microsoft account on Linux Mint", "id": "microsoft_account"}
+{"src": "sessions", "lang": "ja", "q": "Bluetooth ヘッドホン 接続", "id": "bluetooth"}
+{"src": "sessions", "lang": "en", "q": "how to download and install programs on Windows", "id": "install"}
+{"src": "sessions", "lang": "en", "q": "how to find and use Character Map in Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "en", "q": "how to connect to Wi-Fi from the taskbar in Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "en", "q": "how to open On-Screen Keyboard in Linux Mint", "id": "onscreen_kb"}
+{"src": "sessions", "lang": "es", "q": "how to manage drivers in Linux Mint", "id": "drivers"}
+{"src": "sessions", "lang": "es", "q": "how to deal with virus warnings on Linux Mint", "id": "scam_popup"}
+{"src": "sessions", "lang": "pt", "q": "como criar um atalho na área de trabalho para um programa no Linux Mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "fr", "q": "se connecter à un réseau Wi-Fi depuis la barre des tâches", "id": "wifi"}
+{"src": "sessions", "lang": "fr", "q": "se connecter à un réseau Wi-Fi depuis la barre des tâches", "id": "wifi"}
+{"src": "sessions", "lang": "pt", "q": "como adicionar um layout de teclado em português do Brasil no Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "pt", "q": "como configurar o IME para digitação em japonês no Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "fr", "q": "Cin-MinAI sends data over Internet like Windows Defender", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "de", "q": "wie man Scams auf der Webseite erkennen kann", "id": "scam_popup"}
+{"src": "sessions", "lang": "de", "q": "wie wichtig sind Updates fuer das Betriebssystem", "id": "updates_why"}
+{"src": "sessions", "lang": "en", "q": "how to disable network adapters in Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "en", "q": "how to change display language in Windows to Spanish", "id": "system_language"}
+{"src": "sessions", "lang": "en", "q": "how to check if Windows Defender is working properly and if another antivirus is needed", "id": "antivirus"}
+{"src": "sessions", "lang": "en", "q": "how to use Windows Fax and Scan to scan a letter and save it as a PDF", "id": "scanner"}
+{"src": "sessions", "lang": "es", "q": "configurar historial de archivos en Linux Mint como Backup y Restauración en Windows", "id": "backup"}
+{"src": "sessions", "lang": "es", "q": "cambiar el layout del teclado a español en Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "donde esta el administrador de dispositivos en linux mint", "id": "drivers"}
+{"src": "sessions", "lang": "pt", "q": "como desativar a conexão de internet no Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "pt", "q": "como fixar um site no desktop no Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "fr", "q": "capture d'ecran dans Linux Mint", "id": "screenshot"}
+{"src": "sessions", "lang": "fr", "q": "partage de fichiers sur le meme reseau sous Linux Mint", "id": "nearby_share"}
+{"src": "sessions", "lang": "de", "q": "How to scan a document and save it as PDF using Windows Fax and Scan", "id": "scanner"}
+{"src": "sessions", "lang": "de", "q": "How to open File Manager to view files on the C: partition in Linux Mint", "id": "explorer"}
+{"src": "sessions", "lang": "ja", "q": "OneDriveにサインインする方法", "id": "microsoft_account"}
+{"src": "sessions", "lang": "en", "q": "how to open .docx files in Linux Mint", "id": "word_files"}
+{"src": "sessions", "lang": "en", "q": "how to pin a website to the taskbar in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "en", "q": "how to handle suspicious websites in Linux Mint", "id": "scam_popup"}
+{"src": "sessions", "lang": "es", "q": "how to uninstall a program", "id": "uninstall"}
+{"src": "sessions", "lang": "pt", "q": "como emparelhar fones de ouvido Bluetooth no Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "fr", "q": "privacy and data security in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "how to check if an .exe file is safe to download and run on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "en", "q": "how to download and install programs on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "pt", "q": "ativar IME japonês no Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "de", "q": "how to change mouse speed and button configuration for left-handed mouse in Linux Mint", "id": "mouse"}
+{"src": "sessions", "lang": "de", "q": "how to set up night light in Linux Mint", "id": "night_light"}
+{"src": "sessions", "lang": "de", "q": "how to check if applications on Linux Mint send data to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "privacy settings for keyboard input", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "connect to Wi-Fi from taskbar", "id": "wifi"}
+{"src": "sessions", "lang": "en", "q": "change display language in Windows", "id": "system_language"}
+{"src": "sessions", "lang": "pt", "q": "como emparelhar fones de ouvido Bluetooth no Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "pt", "q": "como compartilhar arquivos com outra mquina na mesma rede Wi-Fi no Linux Mint", "id": "nearby_share"}
+{"src": "sessions", "lang": "fr", "q": "Où est l'option 'Ajouter ou supprimer des programmes' dans les paramètres de Windows ?", "id": "uninstall"}
+{"src": "sessions", "lang": "fr", "q": "Comment créer un raccourci sur le bureau pour un programme ?", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "fr", "q": "Comment changer la résolution de l'écran et rendre les choses plus lisibles ?", "id": "display_scale"}
+{"src": "sessions", "lang": "de", "q": "zeichensatz-programm oder character map äquivalent", "id": "char_map"}
+{"src": "sessions", "lang": "ja", "q": "ウイルス警告 Linux Mint", "id": "scam_popup"}
+{"src": "sessions", "lang": "ja", "q": "ウェブサイトをホーム画面にピン留め Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "en", "q": "check missing drivers in Device Manager", "id": "drivers"}
+{"src": "sessions", "lang": "en", "q": "add a new keyboard layout in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "actualizaciones del sistema y seguridad", "id": "updates_why"}
+{"src": "sessions", "lang": "es", "q": "correos fraudulentos y seguridad", "id": "scam_email"}
+{"src": "sessions", "lang": "de", "q": "Microsoft Word Excel PowerPoint installieren", "id": "office"}
+{"src": "sessions", "lang": "de", "q": "Notepad-ähnliches Programm finden und installieren", "id": "notepad"}
+{"src": "sessions", "lang": "fr", "q": "how to install .exe or .msi files on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "ja", "q": "why are updates important and how often should I do them", "id": "updates_why"}
+{"src": "sessions", "lang": "ja", "q": "where are security settings in Linux Mint like Windows Control Panel", "id": "control_panel"}
+{"src": "sessions", "lang": "ja", "q": "how to check if my input is being sent over the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "pt", "q": "diferenças entre fones de ouvido e alto-falantes", "id": "sound_output"}
+{"src": "sessions", "lang": "pt", "q": "como usar Alt+Tab para alternar entre janelas", "id": "switch_windows"}
+{"src": "sessions", "lang": "pt", "q": "post-it virtual ou Sticky Notes no Linux Mint", "id": "sticky"}
+{"src": "sessions", "lang": "fr", "q": "fixer un site web sur l'écran d'accueil", "id": "web_app"}
+{"src": "sessions", "lang": "fr", "q": "ouvrir l'application Calculatrice", "id": "calculator"}
+{"src": "sessions", "lang": "de", "q": "wie prüfe ich, ob Windows Defender Firewall aktiv ist und meine Verbindung schützt", "id": "firewall"}
+{"src": "sessions", "lang": "ja", "q": "Windows Update 自動更新 設定", "id": "windows_update"}
+{"src": "sessions", "lang": "ja", "q": "Steam のインストールと起動", "id": "games"}
+{"src": "sessions", "lang": "en", "q": "how to access special characters in Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "en", "q": "how to change display settings in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "en", "q": "what are updates in Linux Mint and how do they work", "id": "updates_why"}
+{"src": "sessions", "lang": "pt", "q": "como instalar drivers no Linux Mint", "id": "drivers"}
+{"src": "sessions", "lang": "pt", "q": "como usar o app de fotos no Linux Mint", "id": "photos"}
+{"src": "sessions", "lang": "pt", "q": "como o assistente de suporte do Linux Mint lida com privacidade e dados", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "fr", "q": "connect to Wi-Fi from taskbar", "id": "wifi"}
+{"src": "sessions", "lang": "fr", "q": "create web app shortcut on desktop", "id": "web_app"}
+{"src": "sessions", "lang": "de", "q": "how to disable Windows Update without slowing down the system", "id": "windows_update"}
+{"src": "sessions", "lang": "de", "q": "how to completely disable internet connection on Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "de", "q": "how to open Calculator on Linux Mint", "id": "calculator"}
+{"src": "sessions", "lang": "en", "q": "how to change desktop wallpaper in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "how to change display resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "es", "q": "cambiar el idioma del teclado a japonés en Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "es", "q": "cambiar el idioma de visualización en Windows", "id": "system_language"}
+{"src": "sessions", "lang": "fr", "q": "se connecter au Wi-Fi depuis la barre des tâches", "id": "wifi"}
+{"src": "sessions", "lang": "fr", "q": "télécharger et installer un programme depuis le web", "id": "install"}
+{"src": "sessions", "lang": "fr", "q": "changer les paramètres d'affichage, résolution et zoom sous Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "fr", "q": "désinstaller un programme sous Linux Mint", "id": "uninstall"}
+{"src": "sessions", "lang": "fr", "q": "ouvrir un fichier texte comme Bloc-notes sous Linux Mint", "id": "notepad"}
+{"src": "sessions", "lang": "ja", "q": "ディスプレイの解像度とスケーリング設定", "id": "display_scale"}
+{"src": "sessions", "lang": "ja", "q": "スクリーンショットを取る方法", "id": "screenshot"}
+{"src": "sessions", "lang": "en", "q": "create desktop shortcut for program", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "es", "q": "how to uninstall a windows update causing problems", "id": "windows_update"}
+{"src": "sessions", "lang": "fr", "q": "changer l'image d'arrière-plan du bureau", "id": "wallpaper"}
+{"src": "sessions", "lang": "de", "q": "suspicious website and phone number", "id": "scam_popup"}
+{"src": "sessions", "lang": "de", "q": "activate dark mode in settings", "id": "dark_mode"}
+{"src": "sessions", "lang": "en", "q": "check for latest drivers for sound card in Windows Update", "id": "windows_update"}
+{"src": "sessions", "lang": "es", "q": "conectar a red Wi-Fi desde bandeja del sistema", "id": "wifi"}
+{"src": "sessions", "lang": "pt", "q": "como identificar e proteger contra scams de suporte técnico", "id": "scam_phone"}
+{"src": "sessions", "lang": "pt", "q": "como ajustar a velocidade do mouse e inverter os botões do teclado", "id": "mouse"}
+{"src": "sessions", "lang": "fr", "q": "how to download and install .exe or .msi files on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "de", "q": "wie man besondere Zeichen wie © oder ® auf Linux Mint eingibt", "id": "char_map"}
+{"src": "sessions", "lang": "en", "q": "updates importance in Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "en", "q": "change text size in Linux Mint", "id": "text_size"}
+{"src": "sessions", "lang": "en", "q": "pin website to taskbar in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "en", "q": "check installed drivers in Linux Mint", "id": "drivers"}
+{"src": "sessions", "lang": "pt", "q": "como fixar um site no linux mint como app", "id": "web_app"}
+{"src": "sessions", "lang": "fr", "q": "Comment ouvrir le Character Map (Mappe des caractères) sous Linux Mint pour taper des caractères spéciaux comme © ou ® ?", "id": "char_map"}
+{"src": "sessions", "lang": "ja", "q": "display scaling and resolution settings in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "ja", "q": "how to install .exe files in Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "en", "q": "popup saying computer is infected and asking to call a number", "id": "scam_popup"}
+{"src": "sessions", "lang": "en", "q": "UAC prompt asking for administrator password when moving files", "id": "admin_password"}
+{"src": "sessions", "lang": "en", "q": "create shortcut for chrome on desktop", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "es", "q": "instalar Microsoft Office sin clave de producto", "id": "office"}
+{"src": "sessions", "lang": "fr", "q": "how to create a desktop shortcut in Linux Mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "de", "q": "wie öffne ich ein Zeichensatz-Programm oder ein Symbol-Panel in Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "de", "q": "wie trenne ich mein System vollständig von Internetverbindungen in Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "en", "q": "how to adjust outlook display settings for lower brightness or color intensity", "id": "outlook"}
+{"src": "sessions", "lang": "en", "q": "how to adjust display scaling settings in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "es", "q": "instalar programas Windows en Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "es", "q": "cambiar fondo de pantalla en Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "ja", "q": "ネットに送ってる？", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "Nearby Sharing send file same Wi-Fi network", "id": "nearby_share"}
+{"src": "sessions", "lang": "en", "q": "pair Bluetooth mouse Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "en", "q": "popup computer infected call number", "id": "scam_popup"}
+{"src": "sessions", "lang": "es", "q": "recomendaciones de altavoces o auriculares para reuniones en casa, económicos y de buena calidad", "id": "sound_output"}
+{"src": "sessions", "lang": "es", "q": "cómo instalar archivos .exe o .msi en Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "es", "q": "correo electronico similar a outlook en linux mint", "id": "outlook"}
+{"src": "sessions", "lang": "es", "q": "alternativas a Sticky Notes en Linux Mint", "id": "sticky"}
+{"src": "sessions", "lang": "fr", "q": "how to uninstall programs in Linux Mint", "id": "uninstall"}
+{"src": "sessions", "lang": "de", "q": "how to open PDF files with Adobe Reader or Edge on Linux Mint", "id": "pdf"}
+{"src": "sessions", "lang": "de", "q": "how to connect to Wi-Fi network via the menu in the taskbar on Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "de", "q": "how to check if Windows updates have been applied on Linux Mint", "id": "windows_update"}
+{"src": "sessions", "lang": "en", "q": "add a new keyboard layout", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "how to pin a website as an app to the desktop in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "es", "q": "how to pin a website as an icon on the desktop in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "pt", "q": "como desativar a conexão de internet no Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "pt", "q": "como bloquear pop-ups de segurança no Linux Mint", "id": "scam_popup"}
+{"src": "sessions", "lang": "fr", "q": "how to fix a website as a desktop application in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "fr", "q": "how to change desktop wallpaper in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "fr", "q": "how to enable nearby sharing in Linux Mint", "id": "nearby_share"}
+{"src": "sessions", "lang": "fr", "q": "how to check if a bank email asking for PIN or password is safe in Linux Mint", "id": "scam_email"}
+{"src": "sessions", "lang": "de", "q": "sagt das ding alles ins internet wenn ich texte eingeb", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "de", "q": "wie kann ich das ding komplett vom internet trennen, wie bei windows mit dem firewall einstellen", "id": "offline_mode"}
+{"src": "sessions", "lang": "de", "q": "wie kann ich microsoft office auf dem rechner installieren? ich meine word, excel und powerpoint, wie bei windows normalerweise", "id": "office"}
+{"src": "sessions", "lang": "de", "q": "wie kann ich das japanische tippen auf dem rechner einstellen? ich meine den ime, wie bei windows mit dem japanischen input", "id": "typing_japanese"}
+{"src": "sessions", "lang": "de", "q": "wie kann ich prüfen, ob mein computer einen virus hat", "id": "scam_phone"}
+{"src": "sessions", "lang": "ja", "q": "Personalize > Background でデスクトップの壁紙を変える方法", "id": "wallpaper"}
+{"src": "sessions", "lang": "ja", "q": "表示言語を日本語から英語に変更する方法", "id": "system_language"}
+{"src": "sessions", "lang": "es", "q": "cambiar resolución y escalado de pantalla", "id": "display_scale"}
+{"src": "sessions", "lang": "es", "q": "conectar a red Wi-Fi desde la barra de tareas", "id": "wifi"}
+{"src": "sessions", "lang": "pt", "q": "como ativar dispositivos Bluetooth no Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "fr", "q": "se connecter au Wi-Fi depuis la barre des tâches", "id": "wifi"}
+{"src": "sessions", "lang": "de", "q": "how to change display resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "de", "q": "how to change display resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "en", "q": "change display language in Windows to English", "id": "system_language"}
+{"src": "sessions", "lang": "en", "q": "how to open zip files in Linux Mint", "id": "zip"}
+{"src": "sessions", "lang": "en", "q": "how to pin a website to the taskbar in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "es", "q": "system updates importance", "id": "updates_why"}
+{"src": "sessions", "lang": "es", "q": "connect to Wi-Fi from taskbar", "id": "wifi"}
+{"src": "sessions", "lang": "pt", "q": "Como usar o Windows Fax and Scan para digitalizar uma carta", "id": "scanner"}
+{"src": "sessions", "lang": "fr", "q": "télécharger et installer un programme depuis le web", "id": "install"}
+{"src": "sessions", "lang": "fr", "q": "installer un pilote d'imprimante", "id": "drivers"}
+{"src": "sessions", "lang": "fr", "q": "ajouter le français comme langue du clavier", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "de", "q": "wie man eine .zip-datei entpackt", "id": "zip"}
+{"src": "sessions", "lang": "ja", "q": "ウイルスとLinux Mint", "id": "scam_phone"}
+{"src": "sessions", "lang": "en", "q": "how to enable screen reader in Linux Mint", "id": "screen_reader"}
+{"src": "sessions", "lang": "en", "q": "does Linux Mint send user input to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "pt", "q": "como forçar o fechamento de um programa travado e reiniciá-lo no Linux Mint", "id": "frozen"}
+{"src": "sessions", "lang": "pt", "q": "como configurar o Outlook para usar uma conta de e-mail do Gmail no Linux Mint", "id": "outlook"}
+{"src": "sessions", "lang": "pt", "q": "como fixar um site no painel de tarefas no Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "fr", "q": "gestionnaire de périphériques linux mint", "id": "drivers"}
+{"src": "sessions", "lang": "fr", "q": "email banque demande code PIN ou mot de passe", "id": "scam_email"}
+{"src": "sessions", "lang": "fr", "q": "désactiver internet linux mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "fr", "q": "créer un raccourci sur le bureau linux mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "de", "q": "wie man das Fax und Scan-Programm in Windows findet und verwendet", "id": "scanner"}
+{"src": "sessions", "lang": "de", "q": "wie man Windows Fax und Scan aktiviert und verwendet", "id": "scanner"}
+{"src": "sessions", "lang": "ja", "q": "ノートパッドでファイルを開いたが保存時にエラーになる原因と解決方法", "id": "notepad"}
+{"src": "sessions", "lang": "ja", "q": "Bluetoothヘッドホンをペアリングするときにデバイスが見つからない原因と解決方法", "id": "bluetooth"}
+{"src": "sessions", "lang": "ja", "q": "テキストエディターでファイルを保存した際の保存場所を確認する方法", "id": "notepad"}
+{"src": "sessions", "lang": "ja", "q": "Linux Mint におけるファイアウォールの設定と開き方", "id": "firewall"}
+{"src": "sessions", "lang": "en", "q": "type special characters like © or ® on Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "en", "q": "change display language in Windows to English", "id": "system_language"}
+{"src": "sessions", "lang": "en", "q": "open PDF file on Linux Mint", "id": "pdf"}
+{"src": "sessions", "lang": "en", "q": "set up Outlook on Linux Mint", "id": "outlook"}
+{"src": "sessions", "lang": "es", "q": "how to identify phishing emails and scams", "id": "scam_email"}
+{"src": "sessions", "lang": "es", "q": "how to check if text is sent to internet or server", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "uninstall programs", "id": "uninstall"}
+{"src": "sessions", "lang": "en", "q": "check for updates", "id": "windows_update"}
+{"src": "sessions", "lang": "en", "q": "what do updates do", "id": "updates_why"}
+{"src": "sessions", "lang": "en", "q": "how to open .docx files in Linux Mint", "id": "word_files"}
+{"src": "sessions", "lang": "en", "q": "how to change display language in Windows to English", "id": "system_language"}
+{"src": "sessions", "lang": "pt", "q": "como desligar a internet no linux mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "fr", "q": "how to use Windows Fax and Scan to scan a letter and save it on the computer", "id": "scanner"}
+{"src": "sessions", "lang": "fr", "q": "does everything I type here go on the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "fr", "q": "how to pin a website to the desktop like an app in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "en", "q": "checking email legitimacy and phishing", "id": "scam_email"}
+{"src": "sessions", "lang": "en", "q": "adding a new keyboard layout", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "how to add spanish keyboard layout in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "how to pin a website to the desktop as an app in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "pt", "q": "como identificar e remover vírus no Linux Mint", "id": "scam_phone"}
+{"src": "sessions", "lang": "fr", "q": "how to add a new keyboard layout in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "fr", "q": "how to use scanner in Linux Mint", "id": "scanner"}
+{"src": "sessions", "lang": "en", "q": "how to scan a document on Linux Mint", "id": "scanner"}
+{"src": "sessions", "lang": "en", "q": "how to install Zoom on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "en", "q": "how to open the Photos app on Linux Mint", "id": "photos"}
+{"src": "sessions", "lang": "en", "q": "how to pin a website to the taskbar on Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "es", "q": "privacy and data security in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "es", "q": "lock screen shortcut in Linux Mint", "id": "lock_screen"}
+{"src": "sessions", "lang": "pt", "q": "como verificar se um e-mail de banco é legítimo no Linux Mint", "id": "scam_email"}
+{"src": "sessions", "lang": "pt", "q": "como ajustar a resolução e o escalonamento da tela no Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "fr", "q": "create desktop shortcut linux mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "ja", "q": "表示言語を変更する", "id": "system_language"}
+{"src": "sessions", "lang": "en", "q": "how to connect to Wi-Fi from the taskbar in Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "en", "q": "how to change display settings for scaling and resolution in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "en", "q": "how to set or change administrator password in Linux Mint", "id": "admin_password"}
+{"src": "sessions", "lang": "es", "q": "privacy and data storage", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "es", "q": "software updates", "id": "updates_why"}
+{"src": "sessions", "lang": "fr", "q": "how to manage devices and install drivers in Linux Mint", "id": "drivers"}
+{"src": "sessions", "lang": "de", "q": "How to change desktop background in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "de", "q": "How to connect to Wi-Fi network in Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "de", "q": "Does the assistant send everything typed to the internet?", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "fr", "q": "différence entre mise à jour importante et correctif Windows", "id": "windows_update"}
+{"src": "sessions", "lang": "de", "q": "how to change display resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "de", "q": "does Cin-MinAI send user input to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "de", "q": "how to install outlook on Linux Mint", "id": "outlook"}
+{"src": "sessions", "lang": "de", "q": "how to synchronize outlook emails with linux mint", "id": "outlook"}
+{"src": "sessions", "lang": "ja", "q": "how to change display language in Linux Mint", "id": "system_language"}
+{"src": "sessions", "lang": "ja", "q": "does the assistant send typed information to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "es", "q": "páginas web que dicen que la computadora está infectada", "id": "scam_popup"}
+{"src": "sessions", "lang": "fr", "q": "how to create a desktop shortcut for a website in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "de", "q": "how to change keyboard layout to German in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "ja", "q": "scams and suspicious websites", "id": "scam_popup"}
+{"src": "sessions", "lang": "es", "q": "how to use scanner like Windows Fax and Scan", "id": "scanner"}
+{"src": "sessions", "lang": "pt", "q": "como criar um atalho no desktop no linux mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "pt", "q": "como emparelhar um fone de ouvido bluetooth no linux mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "de", "q": "Updates and security on Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "de", "q": "How to configure Windows Defender Firewall on Linux Mint", "id": "firewall"}
+{"src": "sessions", "lang": "en", "q": "connect to Wi-Fi from the taskbar in Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "en", "q": "how to identify phishing emails in Linux Mint", "id": "scam_email"}
+{"src": "sessions", "lang": "es", "q": "cambiar el idioma del teclado a japonés", "id": "typing_japanese"}
+{"src": "sessions", "lang": "pt", "q": "como mudar a hora e o fuso horário no Linux Mint", "id": "clock"}
+{"src": "sessions", "lang": "pt", "q": "como definir o fuso horário manualmente no Linux Mint", "id": "clock"}
+{"src": "sessions", "lang": "pt", "q": "como baixar e instalar programas .exe ou .msi no Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "fr", "q": "changer le langage d'affichage dans Windows", "id": "system_language"}
+{"src": "sessions", "lang": "de", "q": "How to change desktop background in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "de", "q": "How to add a new keyboard language in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "ja", "q": "管理者パスワード ポップアップ 設定", "id": "admin_password"}
+{"src": "sessions", "lang": "ja", "q": "Outlook 新規メール ボタン", "id": "outlook"}
+{"src": "sessions", "lang": "en", "q": "change desktop background Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "open Microsoft Word Excel PowerPoint Linux Mint", "id": "office"}
+{"src": "sessions", "lang": "en", "q": "popup virus scam Linux Mint", "id": "scam_popup"}
+{"src": "sessions", "lang": "en", "q": "pair Bluetooth headphones mouse Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "es", "q": "how to uninstall a program", "id": "uninstall"}
+{"src": "sessions", "lang": "fr", "q": "how to access Windows Update in Linux Mint", "id": "windows_update"}
+{"src": "sessions", "lang": "de", "q": "how to connect to wifi", "id": "wifi"}
+{"src": "sessions", "lang": "de", "q": "how to enable night light", "id": "night_light"}
+{"src": "sessions", "lang": "ja", "q": "Microsoft support calling about virus on computer", "id": "scam_phone"}
+{"src": "sessions", "lang": "ja", "q": "Linux Mint firewall equivalent to Windows Defender Firewall", "id": "firewall"}
+{"src": "sessions", "lang": "en", "q": "change desktop background", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "set selected picture as desktop background", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "scan a document", "id": "scanner"}
+{"src": "sessions", "lang": "pt", "q": "como instalar o IME japonês no Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "fr", "q": "changer le clavier pour taper en japonais, utiliser le pavé numérique pour sélectionner les kana", "id": "typing_japanese"}
+{"src": "sessions", "lang": "fr", "q": "importance des mises à jour de sécurité dans Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "de", "q": "Outlook unter Linux Mint verwenden", "id": "outlook"}
+{"src": "sessions", "lang": "en", "q": "how to disable internet connection in linux mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "en", "q": "how to pin a website to the taskbar in linux mint", "id": "web_app"}
+{"src": "sessions", "lang": "es", "q": "modo oscuro en Linux Mint", "id": "dark_mode"}
+{"src": "sessions", "lang": "es", "q": "cambiar fondo de escritorio en Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "fr", "q": "Windows Fax and Scan location in Start menu", "id": "scanner"}
+{"src": "sessions", "lang": "fr", "q": "how to install and run Counter-Strike on Linux Mint", "id": "games"}
+{"src": "sessions", "lang": "de", "q": "how to insert special characters like © or ® in Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "de", "q": "how to open system settings in Linux Mint to manage time or user accounts", "id": "control_panel"}
+{"src": "sessions", "lang": "ja", "q": "how to install a program from an exe file on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "ja", "q": "how to check if my actions are being sent over the internet on Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "how to use windows fax and scan with a connected printer", "id": "scanner"}
+{"src": "sessions", "lang": "es", "q": "how to download and install .exe or .msi file in Windows", "id": "install"}
+{"src": "sessions", "lang": "es", "q": "how to fix Windows update permission error", "id": "windows_update"}
+{"src": "sessions", "lang": "pt", "q": "como abrir o Character Map no Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "de", "q": "how to download and install .exe or .msi files on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "en", "q": "pair Bluetooth headphones Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "ja", "q": "プライバシーとセキュリティ", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "uninstall programs", "id": "uninstall"}
+{"src": "sessions", "lang": "pt", "q": "privacy and data safety in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "de", "q": "aktivieren Night Light in Linux Mint", "id": "night_light"}
+{"src": "sessions", "lang": "de", "q": "Sprache des Betriebssystems in Linux Mint ändern", "id": "system_language"}
+{"src": "sessions", "lang": "en", "q": "install Visual C++ Redistributable on Linux Mint", "id": "games"}
+{"src": "sessions", "lang": "pt", "q": "como baixar e instalar programas em Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "es", "q": "how to share files over the same Wi-Fi network in Linux Mint", "id": "nearby_share"}
+{"src": "sessions", "lang": "es", "q": "how to change screen resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "es", "q": "how to download and install .exe or .msi files in Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "es", "q": "what to do if a website says your computer is infected and asks for a phone number", "id": "scam_popup"}
+{"src": "sessions", "lang": "de", "q": "Microsoft Support Anruf Virus", "id": "scam_phone"}
+{"src": "sessions", "lang": "en", "q": "how to turn on night light in Linux Mint", "id": "night_light"}
+{"src": "sessions", "lang": "en", "q": "does Cin-MinAI send data to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "es", "q": "how to disable internet connection in Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "pt", "q": "ajustar velocidade do mouse e inverter botões no Linux Mint", "id": "mouse"}
+{"src": "sessions", "lang": "pt", "q": "configurar outlook no linux mint ou alternativas", "id": "outlook"}
+{"src": "sessions", "lang": "pt", "q": "como abrir o menu iniciar no linux mint", "id": "start_menu"}
+{"src": "sessions", "lang": "de", "q": "Datenschutz und Sicherheit von Fotos auf dem Computer", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "de", "q": "Outlook-E-Mails in Ordnern organisieren", "id": "outlook"}
+{"src": "sessions", "lang": "de", "q": "Systemwiederherstellungspunkt erstellen auf Windows-Computer", "id": "system_restore"}
+{"src": "sessions", "lang": "de", "q": "Japanisch-IME auf Windows einstellen", "id": "typing_japanese"}
+{"src": "sessions", "lang": "en", "q": "how to add a new email account in outlook on windows", "id": "outlook"}
+{"src": "sessions", "lang": "es", "q": "how to scan a document using Windows Fax and Scan", "id": "scanner"}
+{"src": "sessions", "lang": "es", "q": "how to open a .zip file in Linux Mint", "id": "zip"}
+{"src": "sessions", "lang": "de", "q": "how to run .exe files on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "de", "q": "how to check if a link in an email is safe on Linux Mint", "id": "scam_email"}
+{"src": "sessions", "lang": "ja", "q": "ウイルスの警告メッセージの対処法", "id": "scam_popup"}
+{"src": "sessions", "lang": "ja", "q": "システムの更新とウイルス対策ソフトの関係", "id": "updates_why"}
+{"src": "sessions", "lang": "es", "q": "how to identify phishing emails and scams", "id": "scam_email"}
+{"src": "sessions", "lang": "es", "q": "how to enable screen reader in Linux Mint", "id": "screen_reader"}
+{"src": "sessions", "lang": "es", "q": "how to identify phishing calls and scams", "id": "scam_phone"}
+{"src": "sessions", "lang": "pt", "q": "como criar um atalho na área de trabalho para um programa no Linux Mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "pt", "q": "como abrir o device manager no Linux Mint", "id": "drivers"}
+{"src": "sessions", "lang": "de", "q": "aktivieren Nachtmodus Linux Mint", "id": "night_light"}
+{"src": "sessions", "lang": "de", "q": "scannen mit Fax und Scan unter Linux Mint", "id": "scanner"}
+{"src": "sessions", "lang": "de", "q": "beenden oder neu starten von Dokument-Scanner unter Linux Mint", "id": "frozen"}
+{"src": "sessions", "lang": "ja", "q": "ファイルをWi-Fi経由で共有する方法", "id": "nearby_share"}
+{"src": "sessions", "lang": "en", "q": "how to open device manager in Linux Mint", "id": "drivers"}
+{"src": "sessions", "lang": "es", "q": "importance of system updates in Linux Mint and whether they can be ignored", "id": "updates_why"}
+{"src": "sessions", "lang": "es", "q": "how to pair Bluetooth devices like headphones or a mouse in Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "es", "q": "how to change screen resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "pt", "q": "como mudo o fundo do outlook pra não machucar os eyes", "id": "outlook"}
+{"src": "sessions", "lang": "pt", "q": "como verificar se o teclado está enviando dados para a internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "pt", "q": "onde fica o botão iniciar no linux mint", "id": "start_menu"}
+{"src": "sessions", "lang": "fr", "q": "changer le layout du clavier sous Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "fr", "q": "installer ou activer un clavier japonais sous Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "de", "q": "how to activate Japanese IME in Linux Mint", "id": "typing_japanese"}
+{"src": "sessions", "lang": "ja", "q": "ファイルを共有する", "id": "nearby_share"}
+{"src": "sessions", "lang": "ja", "q": "Wi-Fiに接続する", "id": "wifi"}
+{"src": "sessions", "lang": "en", "q": "change display language in Windows to Spanish", "id": "system_language"}
+{"src": "sessions", "lang": "en", "q": "turn on Night light in Linux Mint", "id": "night_light"}
+{"src": "sessions", "lang": "fr", "q": "how to install .exe or .msi files on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "de", "q": "how to change language settings in Linux Mint", "id": "system_language"}
+{"src": "sessions", "lang": "de", "q": "how to install .exe or .msi files on Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "de", "q": "how to lock the screen in Linux Mint", "id": "lock_screen"}
+{"src": "sessions", "lang": "ja", "q": "How to share files with other computers on the same Wi-Fi network in Linux Mint", "id": "nearby_share"}
+{"src": "sessions", "lang": "ja", "q": "Where is Personalize > Background in Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "scan document", "id": "scanner"}
+{"src": "sessions", "lang": "en", "q": "pair bluetooth headphones", "id": "bluetooth"}
+{"src": "sessions", "lang": "en", "q": "update bluetooth drivers", "id": "drivers"}
+{"src": "sessions", "lang": "en", "q": "check antivirus status", "id": "antivirus"}
+{"src": "sessions", "lang": "es", "q": "cómo encontrar el número de contacto del banco en Linux Mint", "id": "scam_email"}
+{"src": "sessions", "lang": "es", "q": "cómo conectarse a Wi-Fi desde la bandeja del sistema en Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "pt", "q": "Como enviar fotos entre computadores na mesma rede Wi-Fi usando Nearby Sharing", "id": "nearby_share"}
+{"src": "sessions", "lang": "fr", "q": "changer le fond d'écran dans Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "fr", "q": "fixer un site web sur le bureau comme une application Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "de", "q": "how to change keyboard layout to German in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "de", "q": "how to open PDF files with Adobe Reader or Edge in Linux Mint", "id": "pdf"}
+{"src": "sessions", "lang": "en", "q": "scams and suspicious calls", "id": "scam_phone"}
+{"src": "sessions", "lang": "es", "q": "privacy and data collection", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "fr", "q": "create desktop shortcut with icon Linux Mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "de", "q": "Wi-Fi-Netzwerk verbinden", "id": "wifi"}
+{"src": "sessions", "lang": "en", "q": "type special characters like copyright or euro in Linux Mint", "id": "char_map"}
+{"src": "sessions", "lang": "en", "q": "create a desktop shortcut for Chrome in Linux Mint", "id": "desktop_shortcut"}
+{"src": "sessions", "lang": "en", "q": "open on-screen keyboard in Linux Mint", "id": "onscreen_kb"}
+{"src": "sessions", "lang": "en", "q": "add a new keyboard layout like Spanish in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "actualizaciones del sistema en Linux Mint", "id": "updates_why"}
+{"src": "sessions", "lang": "es", "q": "emparejar dispositivos Bluetooth en Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "es", "q": "cambiar idioma en Windows 10", "id": "system_language"}
+{"src": "sessions", "lang": "fr", "q": "privacy and data collection in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "de", "q": "sicherheit bei E-Mails von Banken und Links", "id": "scam_email"}
+{"src": "sessions", "lang": "de", "q": "wie man eine neue Tastaturbelegung auf Linux Mint hinzufügt", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "en", "q": "change display language in Windows", "id": "system_language"}
+{"src": "sessions", "lang": "es", "q": "cómo funciona el administrador y la contraseña en Linux Mint", "id": "admin_password"}
+{"src": "sessions", "lang": "pt", "q": "como identificar e-mails de phishing ou golpes", "id": "scam_email"}
+{"src": "sessions", "lang": "de", "q": "Scanvorgang starten", "id": "scanner"}
+{"src": "sessions", "lang": "de", "q": "Windows Spiele unter Linux Mint installieren", "id": "games"}
+{"src": "sessions", "lang": "ja", "q": "Windows Update 自動 更新 手動", "id": "windows_update"}
+{"src": "sessions", "lang": "en", "q": "change desktop background Linux Mint", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "check email sender and security tools Linux Mint", "id": "scam_email"}
+{"src": "sessions", "lang": "pt", "q": "como conectar fones de ouvido bluetooth no linux mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "pt", "q": "como lidar com sites que dizem que o computador esta infectado", "id": "scam_popup"}
+{"src": "sessions", "lang": "pt", "q": "como ajustar o zoom ou tamanho de texto e elementos no linux mint", "id": "display_scale"}
+{"src": "sessions", "lang": "en", "q": "scams, phishing emails, bank security", "id": "scam_email"}
+{"src": "sessions", "lang": "en", "q": "download files, safety, .exe files", "id": "install"}
+{"src": "sessions", "lang": "fr", "q": "how to add a new keyboard layout in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "de", "q": "How to change display resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "ja", "q": "how to view startup programs in Linux Mint", "id": "startup_apps"}
+{"src": "sessions", "lang": "ja", "q": "how to add a startup program in Linux Mint", "id": "startup_apps"}
+{"src": "sessions", "lang": "en", "q": "how to identify phishing emails and scams", "id": "scam_email"}
+{"src": "sessions", "lang": "en", "q": "where are personal files stored in Linux Mint", "id": "explorer"}
+{"src": "sessions", "lang": "es", "q": "cambiar resolucion y escala de pantalla linux mint", "id": "display_scale"}
+{"src": "sessions", "lang": "de", "q": "How to change display language in Windows 10", "id": "system_language"}
+{"src": "sessions", "lang": "de", "q": "How to handle fake virus alert websites", "id": "scam_popup"}
+{"src": "sessions", "lang": "de", "q": "How to open Windows Update in Windows 10", "id": "windows_update"}
+{"src": "sessions", "lang": "ja", "q": "on-screen keyboard", "id": "onscreen_kb"}
+{"src": "sessions", "lang": "en", "q": "how to open Microsoft Word, Excel, and PowerPoint on Windows", "id": "office"}
+{"src": "sessions", "lang": "en", "q": "how to change display settings to make everything bigger on Windows", "id": "display_scale"}
+{"src": "sessions", "lang": "fr", "q": "Ajouter le clavier français dans les paramètres de Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "de", "q": "how to change display resolution and scaling in Linux Mint", "id": "display_scale"}
+{"src": "sessions", "lang": "ja", "q": "Outlook Linux Mint", "id": "outlook"}
+{"src": "sessions", "lang": "ja", "q": "User Account Control Thunderbird Linux Mint", "id": "admin_password"}
+{"src": "sessions", "lang": "en", "q": "privacy and data collection in Linux Mint", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "en", "q": "using OneDrive on Linux Mint", "id": "microsoft_account"}
+{"src": "sessions", "lang": "en", "q": "scams and suspicious calls", "id": "scam_phone"}
+{"src": "sessions", "lang": "ja", "q": "Personalize > Background どこにある", "id": "wallpaper"}
+{"src": "sessions", "lang": "en", "q": "Windows Fax and Scan in Linux Mint", "id": "scanner"}
+{"src": "sessions", "lang": "en", "q": "adjust text size in Linux Mint", "id": "text_size"}
+{"src": "sessions", "lang": "pt", "q": "como conectar ao Wi-Fi no Linux Mint", "id": "wifi"}
+{"src": "sessions", "lang": "pt", "q": "como conectar dispositivos Bluetooth no Linux Mint", "id": "bluetooth"}
+{"src": "sessions", "lang": "pt", "q": "como instalar programas .exe ou .msi no Linux Mint", "id": "install"}
+{"src": "sessions", "lang": "de", "q": "how to disable internet connection on Linux Mint", "id": "offline_mode"}
+{"src": "sessions", "lang": "de", "q": "how to adjust mouse settings on Linux Mint", "id": "mouse"}
+{"src": "sessions", "lang": "en", "q": "how to identify and respond to scam calls claiming to be from Microsoft support", "id": "scam_phone"}
+{"src": "sessions", "lang": "en", "q": "how to set up outlook on linux mint to sync with windows email account", "id": "outlook"}
+{"src": "sessions", "lang": "es", "q": "how to add a spanish keyboard layout in Linux Mint", "id": "keyboard_layout"}
+{"src": "sessions", "lang": "es", "q": "does the assistant send text to the internet", "id": "privacy_assistant"}
+{"src": "sessions", "lang": "es", "q": "how to pin a website to the desktop as an app in Linux Mint", "id": "web_app"}
+{"src": "sessions", "lang": "pt", "q": "como escanear um documento com o Windows Fax and Scan no Linux Mint", "id": "scanner"}
+{"src": "sessions", "lang": "en", "q": "how to force close a program in Linux Mint", "id": "frozen"}
+{"src": "sessions", "lang": "en", "q": "how to check for system updates in Linux Mint", "id": "windows_update"}
+{"src": "sessions", "lang": "es", "q": "how to identify phishing emails and safe online practices", "id": "scam_email"}
+{"src": "eval-HO", "lang": "en", "q": "how to install a program on Linux Mint", "id": "install"}
+{"src": "eval-HO", "lang": "es", "q": "instalar programa en Linux Mint", "id": "install"}
+{"src": "eval-HO", "lang": "pt", "q": "como instalar um programa no Linux Mint", "id": "install"}
+{"src": "eval-HO", "lang": "fr", "q": "comment installer un programme sur Linux Mint", "id": "install"}
+{"src": "eval-HO", "lang": "de", "q": "wie installiere ich ein Programm unter Linux Mint", "id": "install"}
+{"src": "eval-HO", "lang": "ja", "q": "how to install programs in Linux Mint", "id": "install"}
+{"src": "eval-HO", "lang": "en", "q": "Control Panel location", "id": "control_panel"}
+{"src": "eval-HO", "lang": "es", "q": "dónde está el Panel de control en Linux Mint", "id": "control_panel"}
+{"src": "eval-HO", "lang": "pt", "q": "onde fica o Painel de Controle", "id": "control_panel"}
+{"src": "eval-HO", "lang": "fr", "q": "panneau de configuration", "id": "control_panel"}
+{"src": "eval-HO", "lang": "de", "q": "Systemsteuerung finden", "id": "control_panel"}
+{"src": "eval-HO", "lang": "ja", "q": "コントロールパネル", "id": "control_panel"}
+{"src": "eval-HO", "lang": "en", "q": "how to do Windows Update in Linux Mint", "id": "windows_update"}
+{"src": "eval-HO", "lang": "es", "q": "how to update Linux Mint like Windows Update", "id": "windows_update"}
+{"src": "eval-HO", "lang": "pt", "q": "como fazer atualizações no Linux Mint", "id": "windows_update"}
+{"src": "eval-HO", "lang": "fr", "q": "how to update Linux Mint like Windows Update", "id": "windows_update"}
+{"src": "eval-HO", "lang": "de", "q": "wie mache ich updates auf linux mint", "id": "windows_update"}
+{"src": "eval-HO", "lang": "ja", "q": "Windows Update Linux Mint", "id": "windows_update"}
+{"src": "eval-HO", "lang": "en", "q": "change desktop wallpaper", "id": "wallpaper"}
+{"src": "eval-HO", "lang": "es", "q": "cambiar fondo de escritorio", "id": "wallpaper"}
+{"src": "eval-HO", "lang": "pt", "q": "como mudar o papel de parede da área de trabalho", "id": "wallpaper"}
+{"src": "eval-HO", "lang": "fr", "q": "changer le fond d'écran", "id": "wallpaper"}
+{"src": "eval-HO", "lang": "de", "q": "wie ändere ich das Hintergrundbild", "id": "wallpaper"}
+{"src": "eval-HO", "lang": "ja", "q": "how to change desktop wallpaper", "id": "wallpaper"}
+{"src": "eval-HO", "lang": "en", "q": "how to set up Japanese input on Linux Mint", "id": "typing_japanese"}
+{"src": "eval-HO", "lang": "es", "q": "how to configure Japanese language input", "id": "typing_japanese"}
+{"src": "eval-HO", "lang": "pt", "q": "como configurar digitar em japonês no Linux Mint", "id": "typing_japanese"}
+{"src": "eval-HO", "lang": "fr", "q": "comment configurer le japonais sur Linux Mint", "id": "typing_japanese"}
+{"src": "eval-HO", "lang": "de", "q": "Japanisch tippen einrichten", "id": "typing_japanese"}
+{"src": "eval-HO", "lang": "ja", "q": "日本語を入力できるようにする", "id": "typing_japanese"}
+{"src": "eval-HO", "lang": "en", "q": "how to connect to Wi-Fi", "id": "wifi"}
+{"src": "eval-HO", "lang": "es", "q": "how to connect to wifi", "id": "wifi"}
+{"src": "eval-HO", "lang": "pt", "q": "como conectar ao Wi-Fi no Linux Mint", "id": "wifi"}
+{"src": "eval-HO", "lang": "fr", "q": "comment se connecter au Wi-Fi", "id": "wifi"}
+{"src": "eval-HO", "lang": "de", "q": "wie verbinde ich mich mit meinem wlan", "id": "wifi"}
+{"src": "eval-HO", "lang": "ja", "q": "how to connect to Wi-Fi", "id": "wifi"}
+{"src": "eval-HO", "lang": "en", "q": "Task Manager Linux Mint", "id": "task_manager"}
+{"src": "eval-HO", "lang": "en", "q": "how to take a screenshot in Linux Mint", "id": "screenshot"}
+{"src": "eval-HO", "lang": "en", "q": "antivirus installation", "id": "antivirus"}
+{"src": "eval-HO", "lang": "en", "q": "how to open Word documents on Linux Mint", "id": "word_files"}
+{"src": "eval-HO", "lang": "en", "q": "how to uninstall a program", "id": "uninstall"}
+{"src": "eval-HO", "lang": "en", "q": "how to add a printer", "id": "printers"}
+{"src": "eval-HO", "lang": "en", "q": "System Restore Linux Mint", "id": "system_restore"}
+{"src": "eval-HO", "lang": "en", "q": "Where did the Start menu go?", "id": "start_menu"}
+{"src": "eval-HO", "lang": "en", "q": "stop programs starting at login", "id": "startup_apps"}
+{"src": "eval-HO", "lang": "en", "q": "dark mode", "id": "dark_mode"}
+{"src": "eval-HO", "lang": "en", "q": "set default browser", "id": "default_apps"}
+{"src": "eval-HO", "lang": "en", "q": "NVIDIA driver installation on Linux Mint", "id": "drivers"}
+{"src": "eval-HO", "lang": "en", "q": "copy and paste text", "id": "copy_paste"}
+{"src": "eval-HO", "lang": "es", "q": "copiar y pegar texto", "id": "copy_paste"}
+{"src": "eval-HO", "lang": "pt", "q": "como copiar e colar texto no Linux Mint", "id": "copy_paste"}
+{"src": "eval-HO", "lang": "fr", "q": "copier et coller du texte", "id": "copy_paste"}
+{"src": "eval-HO", "lang": "de", "q": "wie kopiere ich text und füge ihn ein", "id": "copy_paste"}
+{"src": "eval-HO", "lang": "ja", "q": "文字のコピーと貼り付け", "id": "copy_paste"}
+{"src": "eval-HO", "lang": "en", "q": "how to create a new folder", "id": "new_folder"}
+{"src": "eval-HO", "lang": "es", "q": "crear carpeta nueva", "id": "new_folder"}
+{"src": "eval-HO", "lang": "pt", "q": "como criar uma pasta nova no Linux Mint", "id": "new_folder"}
+{"src": "eval-HO", "lang": "fr", "q": "créer un nouveau dossier", "id": "new_folder"}
+{"src": "eval-HO", "lang": "de", "q": "wie erstelle ich einen neuen ordner", "id": "new_folder"}
+{"src": "eval-HO", "lang": "ja", "q": "how to create a new folder in Linux Mint", "id": "new_folder"}
+{"src": "eval-HO", "lang": "en", "q": "how to safely remove a USB stick", "id": "usb_remove"}
+{"src": "eval-HO", "lang": "es", "q": "cómo sacar memoria USB de forma segura", "id": "usb_remove"}
+{"src": "eval-HO", "lang": "pt", "q": "como tirar pendrive com segurança", "id": "usb_remove"}
+{"src": "eval-HO", "lang": "fr", "q": "retirer clé USB en toute sécurité", "id": "usb_remove"}
+{"src": "eval-HO", "lang": "de", "q": "wie entferne ich sicher einen USB-Stick unter Linux Mint", "id": "usb_remove"}
+{"src": "eval-HO", "lang": "ja", "q": "USBメモリーを安全に取り外す方法", "id": "usb_remove"}
+{"src": "eval-HO", "lang": "en", "q": "how to save a document", "id": "save_file"}
+{"src": "eval-HO", "lang": "en", "q": "how to close a frozen program", "id": "frozen"}
+{"src": "eval-HO", "lang": "en", "q": "how to change font size in web browsers", "id": "zoom_text"}
+{"src": "eval-HO", "lang": "en", "q": "switch between open windows quickly", "id": "switch_windows"}
+{"src": "eval-HO", "lang": "en", "q": "right-click meaning", "id": "right_click"}
+{"src": "eval-HO", "lang": "en", "q": "count words in Writer", "id": "word_count"}
+{"src": "eval-HO", "lang": "en", "q": "watch DVDs on Linux Mint", "id": "dvd"}
+{"src": "eval-HO", "lang": "en", "q": "how to make a chart of my monthly budget", "id": "chart"}
+{"src": "eval-HO", "lang": "en", "q": "how to make a video call", "id": "video_call"}
+{"src": "eval-HO", "lang": "en", "q": "how to verify if a bank email is real", "id": "scam_email"}
+{"src": "eval-HO", "lang": "en", "q": "how to disconnect from the internet", "id": "offline_mode"}
+{"src": "eval-HO", "lang": "en", "q": "why should I bother with updates", "id": "updates_why"}
+{"src": "eval-HO", "lang": "en", "q": "how to delete files in Downloads folder", "id": "delete_files"}
+{"src": "eval-HO", "lang": "en", "q": "administrator password", "id": "admin_password"}
+{"src": "heldout-HO", "lang": "en", "q": "fix wrong time on Linux Mint", "id": "clock"}
+{"src": "heldout-HO", "lang": "pt", "q": "como corrigir a hora no Linux Mint", "id": "clock"}
+{"src": "heldout-HO", "lang": "fr", "q": "comment corriger l'heure incorrecte sur Linux Mint", "id": "clock"}
+{"src": "heldout-HO", "lang": "de", "q": "how to change the time on Linux Mint", "id": "clock"}
+{"src": "heldout-HO", "lang": "en", "q": "change keyboard layout to Spanish", "id": "keyboard_layout"}
+{"src": "heldout-HO", "lang": "es", "q": "cambiar distribución de teclado a español", "id": "keyboard_layout"}
+{"src": "heldout-HO", "lang": "pt", "q": "como mudar o layout do teclado para espanhol no Linux Mint", "id": "keyboard_layout"}
+{"src": "heldout-HO", "lang": "fr", "q": "changer la disposition du clavier en espagnol", "id": "keyboard_layout"}
+{"src": "heldout-HO", "lang": "de", "q": "spanische Tastatur Layout Linux Mint", "id": "keyboard_layout"}
+{"src": "heldout-HO", "lang": "ja", "q": "スペイン語の配列にキーボードを切り替える", "id": "keyboard_layout"}
+{"src": "heldout-HO", "lang": "pt", "q": "tela fica preta depois de alguns minutos quando estou lendo", "id": "screen_timeout"}
+{"src": "heldout-HO", "lang": "fr", "q": "empêcher l'écran de devenir noir au bout de quelques minutes", "id": "screen_timeout"}
+{"src": "heldout-HO", "lang": "de", "q": "how to disable screen blanking in Linux Mint", "id": "screen_timeout"}
+{"src": "heldout-HO", "lang": "en", "q": "email client like Outlook", "id": "outlook"}
+{"src": "heldout-HO", "lang": "en", "q": "how to open a PDF file", "id": "pdf"}
+{"src": "heldout-HO", "lang": "en", "q": "where is notepad", "id": "notepad"}
+{"src": "heldout-HO", "lang": "en", "q": "connect Bluetooth headphones", "id": "bluetooth"}
+{"src": "heldout-HO", "lang": "en", "q": "change language to French", "id": "system_language"}
+{"src": "heldout-HO", "lang": "es", "q": "change language to French", "id": "system_language"}
+{"src": "heldout-HO", "lang": "pt", "q": "mudar idioma do sistema para francês", "id": "system_language"}
+{"src": "heldout-HO", "lang": "fr", "q": "changer la langue de l'ordinateur en français", "id": "system_language"}
+{"src": "heldout-HO", "lang": "de", "q": "change language to French", "id": "system_language"}
+{"src": "heldout-HO", "lang": "ja", "q": "change system language to French", "id": "system_language"}
+{"src": "heldout-HO", "lang": "en", "q": "how to open a website as an app from the menu", "id": "web_app"}
+{"src": "heldout-HO", "lang": "en", "q": "how to change the size of the taskbar in Linux Mint", "id": "taskbar"}
+{"src": "heldout-HO", "lang": "en", "q": "reduce screen blue light at night", "id": "night_light"}
+{"src": "heldout-HO", "lang": "en", "q": "how to add firefox icon to desktop in linux mint", "id": "desktop_shortcut"}
+{"src": "heldout-HO", "lang": "es", "q": "how to add firefox icon to desktop in linux mint", "id": "desktop_shortcut"}
+{"src": "heldout-HO", "lang": "pt", "q": "como colocar um ícone do firefox na área de trabalho", "id": "desktop_shortcut"}
+{"src": "heldout-HO", "lang": "fr", "q": "comment mettre une icône de firefox sur le bureau", "id": "desktop_shortcut"}
+{"src": "heldout-HO", "lang": "de", "q": "how to add firefox icon to desktop", "id": "desktop_shortcut"}
+{"src": "heldout-HO", "lang": "ja", "q": "firefox icon on desktop", "id": "desktop_shortcut"}
+{"src": "heldout-HO", "lang": "en", "q": "how to rename a file in Linux Mint", "id": null}
+{"src": "heldout-HO", "lang": "en", "q": "how to recover deleted text or undo accidental deletion", "id": null}
+{"src": "heldout-HO", "lang": "en", "q": "how to select multiple photos to move them", "id": null}
+{"src": "heldout-HO", "lang": "en", "q": "no sound when playing video", "id": "sound_output"}
+{"src": "heldout-HO", "lang": "en", "q": "how to handle scam calls claiming virus or Microsoft support", "id": "scam_phone"}
+{"src": "heldout-HO", "lang": "es", "q": "cómo identificar y evitar estafas de soporte técnico falso", "id": "scam_phone"}
+{"src": "heldout-HO", "lang": "pt", "q": "como lidar com ligações de supostos representantes da Microsoft dizendo que o computador tem vírus", "id": "scam_phone"}
+{"src": "heldout-HO", "lang": "fr", "q": "comment gérer les appels suspects ou tentatives de connexion non autorisées", "id": "scam_phone"}
+{"src": "heldout-HO", "lang": "de", "q": "scam phone call microsoft virus", "id": "scam_phone"}
+{"src": "heldout-HO", "lang": "ja", "q": "scam phone call virus claim microsoft", "id": "scam_phone"}
+{"src": "heldout-HO", "lang": "en", "q": "how to write a complaint letter in Writer", "id": null}
+{"src": "heldout-HO", "lang": "en", "q": "how to enable screen reader on Linux Mint", "id": "screen_reader"}
+{"src": "heldout-HO", "lang": "en", "q": "how to handle pop-up messages about computer infection", "id": "scam_popup"}
+{"src": "heldout-HO", "lang": "en", "q": "how to turn off updates in Linux Mint", "id": ["windows_update", "updates_why"]}
+{"src": "heldout-HO", "lang": "en", "q": "should I type my password into a terminal to fix Firefox", "id": "admin_password"}

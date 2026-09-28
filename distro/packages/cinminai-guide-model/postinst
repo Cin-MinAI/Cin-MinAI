@@ -1,0 +1,7 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+if [ "$1" = configure ]; then
+    # never fails the install: without the file the assistant says it isn't installed yet
+    /usr/lib/cinminai/fetch-guide-model || true
+fi

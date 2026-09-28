@@ -1,0 +1,16 @@
+[Unit]
+Description=Cin-MinAI assistant
+Documentation=https://github.com/Brickmii/Cin-MinAI
+# restart after a crash, but never loop (SPEC §4.1): 3 starts in 5 minutes at most
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=dbus
+BusName=org.cinminai.Assistant1
+ExecStart=/usr/libexec/cinminai-daemon
+Restart=on-failure
+RestartSec=5
+# llama-server is the daemon's child: stopping the unit stops both
+KillMode=control-group
+TimeoutStopSec=20
