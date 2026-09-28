@@ -92,7 +92,17 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
     drive; ejecting works). Second run: PASS — the model copied and SHA-checked, the installed assistant
     answering in 47 s on the processor, icon and Super+A set for the new user. It's now part of every
     `build-all.sh`. It also showed the next gaps: Mint's "Welcome to Linux Mint" on first login, and a
-    failed `casper-md5check.service` in the installed system (to compare with plain Mint).
+    failed `casper-md5check.service` in the installed system — which plain Mint on the Mint box shows too
+    (upstream, not ours).
+11. **Shutting the live USB down** (Ian's photo, `images/boot-check-1/12-shutdown-at-spi-not-responding.jpg`):
+    Cinnamon's shutdown dialog said `at-spi-registryd.desktop` (the accessibility registry) was "Not
+    responding"; the machine shut down after a while. Whether it's ours (the sidebar is a GTK program on
+    that bus; the model on the processor) or a Mint live-session quirk isn't known yet — the VM boot test
+    never saw it, because its report shuts down with `systemctl poweroff`, which skips that dialog.
+12. **An NVIDIA edition: the licence, read.** `docs/nvidia-edition-licence.md` — permitted with conditions
+    (unmodified binaries, the licence provided to each recipient); a GPL stance to take for Pascal's
+    proprietary module; signed prebuilt modules exist for the ISO's kernel (verified); and the CUDA
+    libraries' "only accessed by your application" condition argues for keeping them off the ISO.
 
 ### What went wrong (and what we changed)
 
