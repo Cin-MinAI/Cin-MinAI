@@ -61,6 +61,38 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
    why — the setup wrote the setting while Cinnamon was starting, in the moment after it read its
    applets and before it listened for changes. The setup now waits for Cinnamon's panel, writes, and
    confirms. Lesson: a test must check what the user sees, not what we wrote.
+9. **Boot check 1 — the Alpha on real hardware (D45).** Ian flashed the ISO with balenaEtcher and booted
+   the Mint box from it. The normal entry didn't give a usable picture on his 4K TV (nouveau on the
+   1080 Ti), so he used **compatibility mode** — the same workaround he needed to install Mint on that
+   box. He thought that ended the test, but the photos show the assistant working on the processor, as
+   designed for the live USB: "Getting ready…", then *Looked it up in the built-in help* → the right
+   Wi-Fi steps; *Checked the disk space*; a polite decline of "who do I vote for?"; *Opened LibreOffice
+   Writer*. What the photos also showed, and what changed because of them:
+   - the boot menu still said "Start Linux Mint 22.3 Cinnamon" and the boot splash was Mint's logo,
+     while the shutdown screen already showed Ian's mark — the live splash lives in the initrd. Both
+     are ours now (`build-iso.sh`, `distro/initrd_splash.py`, checked by `check-iso.sh`);
+   - "your hard drive is 17 GB and currently empty" was the live session's memory: true and misleading.
+     The system check now says it's running from the stick and the computer's disks aren't used;
+   - "help me write something as a document" was declined outright, and "open something to write a
+     document in" found the word-count card. The search words are fixed; the blunt decline is cycle-1
+     material;
+   - the 4K + NVIDIA + nouveau problem is the one a newcomer with an older gaming PC hits first. Options
+     (safe-graphics entry named plainly / an NVIDIA edition with the 580 driver / driver at first boot)
+     are Ian's to decide, after a licence write-up.
+   Not yet confirmed on the hardware: the `lsblk` "nothing mounted" check. Photos, with their metadata
+   removed: `docs/images/boot-check-1/`.
+
+   ![The sidebar on the Mint box, from the live USB](images/boot-check-1/09-lookup-check-decline.jpg)
+10. **The model into installed systems, and an install test.** Mint 22.3's installer runs hook scripts from
+    `/usr/lib/ubiquity/target-config/` near the end (read in its own code, not from memory);
+    `cinminai-guide-model` now ships one that copies the model from the stick and checks it. To prove it,
+    an unattended install test: a test ISO whose first entry installs onto an empty VM disk (preseed), then
+    the VM boots from that disk and the boot-test report runs in the installed system. First run: the
+    install took 8.3 minutes and my runner then failed to eject the virtual DVD (Hyper-V won't remove the
+    drive; ejecting works). Second run: PASS — the model copied and SHA-checked, the installed assistant
+    answering in 47 s on the processor, icon and Super+A set for the new user. It's now part of every
+    `build-all.sh`. It also showed the next gaps: Mint's "Welcome to Linux Mint" on first login, and a
+    failed `casper-md5check.service` in the installed system (to compare with plain Mint).
 
 ### What went wrong (and what we changed)
 

@@ -65,9 +65,22 @@ with the assistant answering on the processor in 52 s. **Sidebar done** (`cinmin
 VM boot test opens it and gets an answer (18 s, CPU); Ian's hands-on on the Mint box went well (D49 came out of
 it). **Applet + Super+A done** (`cinminai-applet`: the icon, `/usr/libexec/cinminai-desktop-setup` once per user;
 VM boot test checks the icon is really running). On the Mint box the spike was uninstalled and ours runs from
-`~/cin-minai/alpha/applet-test/` (undo: `undo-applet-test.sh` there). **Next: boot check 1** — write the ISO to
-a USB stick, boot the Mint box from it, and ask a lookup, a system check and a decline; nothing on its disks
-touched (D45). **Exit:** the live USB boots on
+`~/cin-minai/alpha/applet-test/` (undo: `undo-applet-test.sh` there).
+
+**Boot check 1 done (2026-09-28, journal entry 9, photos in `docs/images/boot-check-1/`)**: the live USB booted
+on the Mint box (compatibility mode: 4K TV + nouveau) and the assistant answered a lookup, a system check and
+a decline on the processor. Not yet confirmed: `lsblk` shows nothing of the internal disks mounted. Fixed after
+it: boot menus and live splash in our name, "Install Cin-MinAI", the live-session disk message, "write a
+document" retrieval. **Model on installed systems:** `cinminai-guide-model`'s ubiquity target-config hook;
+the **install test** (`INSTALLTEST=1` ISO + `vm-boottest.ps1 -Install`, part of `build-all.sh`) installs
+unattended and checks the installed system — first PASS 2026-09-28 (model copied and SHA-checked, assistant
+answered, icon, Super+A).
+
+**Next:** Ian's call on NVIDIA/4K (safe-graphics naming / an NVIDIA edition — licence write-up first / driver
+at first boot); boot check 2 (install onto the separate SSD, 580 driver, GPU profile). Smaller: Mint's
+"Welcome to Linux Mint" on first login (rebrand, SPEC §3.2); `casper-md5check.service` failed in the installed
+VM (compare with plain Mint on the Mint box); the cycle-1 list (multi-turn declines, "help me write a
+document" declined bluntly). **Exit:** the live USB boots on
 the Mint box, the assistant answers a lookup, a system check and a decline; nothing on its disks touched.
 
 **Open from 2026-09-28 (Ian to decide):** declines go wrong a few turns into a conversation in English and

@@ -48,7 +48,12 @@ if cmp -s <(report_full "$up") <(report_full "$iso"); then ok "boot setup identi
 else bad "boot setup differs from upstream:"; diff <(report_full "$up") <(report_full "$iso") | head -20 || true; fi
 
 mnt=$(mktemp -d); mount -o loop,ro "$iso" "$mnt"
-if ( cd "$mnt" && grep -E ' \./(casper/filesystem\.(squashfs|manifest|size)|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then
+if ( cd "$mnt" && grep -q "Start Cin-MinAI" boot/grub/grub.cfg && grep -q "Start Cin-MinAI" isolinux/live.cfg \
+     && ! grep -v "based on Linux Mint" boot/grub/grub.cfg isolinux/live.cfg | grep -q "Linux Mint" ); then
+    ok "boot menus (UEFI and BIOS) say Cin-MinAI"; else bad "boot menus still name Linux Mint"; fi
+splash=$(python3 "$here/initrd_splash.py" list "$mnt/casper/initrd.lz" 2>&1 | grep "default.plymouth ->")
+case $splash in *themes/cinminai/cinminai.plymouth*) ok "live boot splash is ours ($splash)" ;; *) bad "live boot splash: $splash" ;; esac
+if ( cd "$mnt" && grep -E ' \./(casper/(filesystem\.(squashfs|manifest|size)|initrd\.lz)|boot/grub/grub\.cfg|isolinux/live\.cfg|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then
     ok "md5sum.txt matches the changed files (incl. the guide model)"; else bad "md5sum.txt"; fi
 if ( cd "$mnt" && ls cinminai/models/*.gguf >/dev/null 2>&1 ); then ok "the guide model is on the ISO"; else bad "no guide model on the ISO"; fi
 umount "$mnt"; rmdir "$mnt"

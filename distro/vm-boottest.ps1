@@ -10,19 +10,25 @@ after 5 s, and cinminai-boottest writes a report to COM1 once the desktop is up,
 can't type into Linux guests (M0 finding), so nothing here needs a keyboard.
 
 The VM: generation 2 (UEFI), Secure Boot on with the Microsoft UEFI CA template (what real PCs use for
-Linux), 4 GB RAM, 4 CPUs, no disk, no network. It's created fresh, and deleted afterwards whatever happens.
+Linux), 8 GB RAM, 4 CPUs, no disk (with -Install: an empty 40 GB one), no network. It's created fresh, and deleted afterwards whatever happens.
 The M0 VMs (cinminai-uefi, cinminai-bios) are never touched. Exit code 0 = PASS.
 #>
 param(
     [Parameter(Mandatory)] [string] $Iso,
     [int] $TimeoutMinutes = 30,
     [string] $Name = 'cinminai-boottest',
-    [string] $LogDir = "$env:USERPROFILE\cinminai-vm\boottest-logs"
+    [string] $LogDir = "$env:USERPROFILE\cinminai-vm\boottest-logs",
+    # -Install: the install test (INSTALLTEST=1 ISO). An empty 40 GB disk is added; the ISO's first entry
+    # installs onto it unattended and powers off; then the VM boots from that disk and the same report runs
+    # in the installed system.
+    [switch] $Install,
+    [int] $InstallMinutes = 60
 )
 $ErrorActionPreference = 'Stop'
 if ($Name -in @('cinminai-uefi', 'cinminai-bios')) { throw "refusing to use the M0 VM name $Name" }
 $Iso = (Resolve-Path $Iso).Path
-if ($Iso -notmatch 'boottest') { throw "not a boot-test ISO (build it with BOOTTEST=1): $Iso" }
+if ($Install -and $Iso -notmatch 'installtest') { throw "-Install needs the install-test ISO (INSTALLTEST=1): $Iso" }
+if (-not $Install -and $Iso -notmatch 'boottest') { throw "not a boot-test ISO (build it with BOOTTEST=1): $Iso" }
 $pipe = "cinminai-boottest-$PID"
 $vmDir = "$env:USERPROFILE\cinminai-vm\$Name"
 New-Item -ItemType Directory -Force $LogDir | Out-Null
@@ -79,12 +85,31 @@ try {
     Set-VMFirmware -VMName $Name -FirstBootDevice (Get-VMDvdDrive -VMName $Name)
     Get-VMNetworkAdapter -VMName $Name | Remove-VMNetworkAdapter      # offline, like a first live boot
     Set-VMComPort -VMName $Name -Number 1 -Path "\\.\pipe\$pipe"
+    if ($Install) {
+        # the install target first, so it's /dev/sda (the preseed installs onto the first disk)
+        $target = Join-Path $vmDir 'target.vhdx'
+        New-VHD -Path $target -SizeBytes 40GB -Dynamic | Out-Null
+        Add-VMHardDiskDrive -VMName $Name -Path $target
+    }
     # an empty 32 MiB "results disk": the guest writes its screenshot onto it (a fixed VHD is the raw disk
     # plus a 512-byte footer, so it's read straight from the file afterwards; the serial port dropped bytes)
     $resultsDisk = Join-Path $vmDir 'results.vhd'
     New-VHD -Path $resultsDisk -SizeBytes 32MB -Fixed | Out-Null
     Add-VMHardDiskDrive -VMName $Name -Path $resultsDisk
     Set-VM -Name $Name -AutomaticCheckpointsEnabled $false
+
+    if ($Install) {
+        # phase 1: the unattended install; it powers the VM off when done
+        $t0 = Get-Date
+        Start-VM -Name $Name
+        $until = $t0.AddMinutes($InstallMinutes)
+        while ((Get-VM -Name $Name).State -ne 'Off' -and (Get-Date) -lt $until) { Start-Sleep 10 }
+        if ((Get-VM -Name $Name).State -ne 'Off') { throw "the install didn't finish within $InstallMinutes min" }
+        $lines.Add(('install_minutes {0:N1}' -f ((Get-Date) - $t0).TotalMinutes))
+        # phase 2: boot the installed system from its disk, without the ISO
+        Get-VMDvdDrive -VMName $Name | Set-VMDvdDrive -Path $null   # eject (removing the drive fails)
+        Set-VMFirmware -VMName $Name -FirstBootDevice (Get-VMHardDiskDrive -VMName $Name | Where-Object Path -eq $target)
+    }
 
     $start = Get-Date
     Start-VM -Name $Name

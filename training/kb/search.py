@@ -25,7 +25,12 @@ KEYWORDS = {
              "d'applications app-store laden ストア アプリストア",
     "office": "microsoft office word excel powerpoint libreoffice documents spreadsheet slides "
               "ofimática documentos hoja de cálculo diapositivas planilha escritório bureautique tableur "
-              "diapositives büro tabellenkalkulation folien オフィス ワード エクセル パワーポイント",
+              "diapositives büro tabellenkalkulation folien オフィス ワード エクセル パワーポイント "
+              # boot check 1 (2026-09-28): "open something for me to write a document in" found word count
+              "write a document write something write a letter program to write word processor typing "
+              "escribir un documento escribir una carta procesador de texto escrever um documento escrever "
+              "uma carta editor de texto écrire un document écrire une lettre traitement de texte "
+              "dokument schreiben brief schreiben textverarbeitung 文書を書く 手紙を書く 文書作成",
     "games": "games gaming steam play juegos jugar jogos jogar jeux jouer spiele spielen ゲーム steam counter-strike visual c++ redistributable directx",
     "control_panel": "control panel settings windows settings configuration panel de control configuración "
                      "ajustes painel de controle configurações panneau de configuration paramètres réglages "

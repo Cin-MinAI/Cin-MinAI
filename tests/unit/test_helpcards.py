@@ -64,6 +64,13 @@ class HelpCards(unittest.TestCase):
         for c in data()["help.json"]["cards"]:
             self.assertEqual(self.index.lookup(c["windows"], "en")[0], c["id"], c["windows"])
 
+    def test_writing_a_document_finds_the_office_card(self):
+        # boot check 1 (2026-09-28): a real query went to the word-count card
+        for q, lang in [("open a program to write a document in", "en"), ("program to write a letter", "en"),
+                        ("escribir un documento", "es"), ("Dokument schreiben", "de")]:
+            self.assertEqual(self.index.lookup(q, lang)[0], "office", q)
+        self.assertEqual(self.index.lookup("count the words in my document", "en")[0], "word_count")
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

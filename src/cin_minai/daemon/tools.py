@@ -20,6 +20,8 @@ import subprocess
 
 from cin_minai.inference import hardware
 
+from .config import live_session
+
 HOME = os.path.expanduser("~")
 
 
@@ -76,12 +78,21 @@ class Tools:
         g = self._gpu_names()
         return {"open_with": self.label("system_info"), "os": osname.group(1) if osname else "Linux",
                 "cpu": re.sub(r"\s+", " ", cpu.group(1)) if cpu else "unknown",
-                "ram_gb": math.ceil(hardware.ram_mib() / 1024),  # the kernel keeps some: 31.3 -> 32 "gpu": ", ".join(g) or "none found",
+                "ram_gb": math.ceil(hardware.ram_mib() / 1024),  # the kernel keeps some: 31.3 -> 32
+                "gpu": ", ".join(g) or "none found",
                 "disk_gb": round(st.f_blocks * st.f_frsize / 1e9)}
+
+    LIVE_NOTE = ("Running from the USB stick (the live session): files are kept in memory and are lost at "
+                 "shutdown. This computer's own disks are not used or changed. Install Cin-MinAI to keep files.")
 
     def _storage(self) -> dict:
         st = os.statvfs(HOME)
         size, free = st.f_blocks * st.f_frsize, st.f_bavail * st.f_frsize
+        if live_session():
+            # the "disk" here is the live session's memory, not a drive: saying "your hard drive is 17 GB
+            # and empty" (boot check 1, 2026-09-28) was true and misleading
+            return {"live_session": True, "note": self.LIVE_NOTE,
+                    "memory_space_free_gb": round(free / 1e9), "open_with": self.label("files")}
         folders = []
         for name in ("Videos", "Downloads", "Pictures", "Documents", "Music", "Desktop"):
             path = os.path.join(HOME, name)

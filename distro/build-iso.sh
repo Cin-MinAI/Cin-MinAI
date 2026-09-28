@@ -34,7 +34,12 @@ done
 # and a 5 s timeout to the live boot menu (upstream's waits for a key press). Separate name and folder;
 # never published.
 BOOTTEST=${BOOTTEST:-0}
-[[ $BOOTTEST == 1 ]] && OUT_ISO=${OUT_ISO%.iso}-boottest.iso
+# INSTALLTEST=1: the boot-test ISO whose first menu entry installs unattended onto the first disk, ERASING it
+# (test-packages/installtest.seed), for vm-boottest.ps1 -Install. Never published.
+INSTALLTEST=${INSTALLTEST:-0}
+[[ $INSTALLTEST == 1 ]] && BOOTTEST=1
+if [[ $INSTALLTEST == 1 ]]; then OUT_ISO=${OUT_ISO%.iso}-installtest.iso
+elif [[ $BOOTTEST == 1 ]]; then OUT_ISO=${OUT_ISO%.iso}-boottest.iso; fi
 
 up=$WORK/upstream
 b=$M1/build
@@ -118,6 +123,16 @@ if [[ $BOOTTEST == 1 ]]; then
     rm -f "$rootfs/tmp/boottest.deb"
 fi
 
+# The live desktop's installer icon ("Install RELEASE"): casper fills RELEASE in at boot from the first two
+# words of /.disk/info ("Linux Mint"), turning the first "-" into a space, so "Cin-MinAI" would come out as
+# "Cin MinAI". Our name goes in directly, in every language (boot check 1, 2026-09-28: "Install Linux Mint").
+# The installer and this file are removed from installed systems: this only changes the live session.
+inst=$rootfs/usr/share/applications/ubiquity.desktop
+if [[ -f $inst ]]; then
+    sed -i 's/RELEASE/Cin-MinAI/g' "$inst"
+    grep -q "^Name=Install Cin-MinAI$" "$inst" || { echo "installer icon: 'Name=Install RELEASE' not found" >&2; exit 1; }
+fi
+
 log "chroot: clean up (build-only files, and logs and caches that differ between runs)"
 chroot "$rootfs" apt-get clean
 cleanup; mounts=()
@@ -143,7 +158,8 @@ chroot "$rootfs" dpkg-query -W --showformat='${binary:Package}\t${Version}\n' > 
 # so: upstream's size + the Installed-Size of what we added (KiB, from dpkg).
 ours=$(chroot "$rootfs" dpkg-query -W --showformat='${Package} ${Installed-Size}\n' \
        | awk '$1 ~ /^cinminai-/ {s += $2} END {print s + 0}')
-echo $(( $(cat "$b/size.upstream") + ours * 1024 )) > "$b/iso/filesystem.size"
+# ... + the guide model, which the installer copies from the stick (cinminai-guide-model's install hook)
+echo $(( $(cat "$b/size.upstream") + ours * 1024 + GUIDE_SIZE )) > "$b/iso/filesystem.size"
 diff "$b/manifest.upstream" "$b/iso/filesystem.manifest" > "$b/manifest.diff" || true
 cat "$b/manifest.diff"
 
@@ -153,24 +169,60 @@ log "squashfs ($comp, block $bsize)"
 mksquashfs "$rootfs" "$b/iso/filesystem.squashfs" -comp "$comp" -b "$bsize" -noappend -no-progress \
     -processors "$(nproc)" 2>&1 | tail -3
 
+log "live boot splash (casper/initrd.lz: our theme instead of Mint's; nothing else changed)"
+xorriso -osirrox on -indev "$iso_in" -extract /casper/initrd.lz "$b/initrd.upstream" >/dev/null 2>&1
+SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH python3 "$here/initrd_splash.py" rebrand "$b/initrd.upstream" "$rootfs" "$b/iso/initrd.lz"
+rm -f "$b/initrd.upstream"
+
 log "md5sum.txt"
 maps=(-map "$b/iso/filesystem.squashfs" /casper/filesystem.squashfs
       -map "$b/iso/filesystem.manifest" /casper/filesystem.manifest
-      -map "$b/iso/filesystem.size" /casper/filesystem.size)
-if [[ $BOOTTEST == 1 ]]; then   # boot the first menu entry after 5 s (the config isn't signed; shim/GRUB are untouched)
-    xorriso -osirrox on -indev "$iso_in" -extract /boot/grub/grub.cfg "$b/iso/grub.cfg" >/dev/null 2>&1
-    chmod u+w "$b/iso/grub.cfg"
-    sed -i '1i set timeout=5' "$b/iso/grub.cfg"
-    maps+=(-map "$b/iso/grub.cfg" /boot/grub/grub.cfg)
+      -map "$b/iso/filesystem.size" /casper/filesystem.size
+      -map "$b/iso/initrd.lz" /casper/initrd.lz)
+# Boot menus in our name (boot check 1, 2026-09-28: the menu still said "Start Linux Mint 22.3 Cinnamon").
+# Titles and labels only: every boot parameter stays upstream's. The configs aren't signed; shim and GRUB
+# themselves are untouched. GRUB for UEFI, isolinux for BIOS.
+cfg=$b/bootcfg
+mkdir -p "$cfg/boot/grub" "$cfg/isolinux"
+for f in boot/grub/grub.cfg isolinux/live.cfg; do
+    xorriso -osirrox on -indev "$iso_in" -extract "/$f" "$cfg/$f" >/dev/null 2>&1
+    chmod u+w "$cfg/$f"
+done
+name="Cin-MinAI $CINMINAI_VERSION"
+sed -i -e "s#Start Linux Mint $MINT_VERSION Cinnamon 64-bit (compatibility mode)#Start $name (compatibility mode: if the screen stays black)#" \
+       -e "s#Start Linux Mint $MINT_VERSION Cinnamon 64-bit#Start $name (based on Linux Mint $MINT_VERSION)#" "$cfg/boot/grub/grub.cfg"
+sed -i -e "s#^menu title Welcome to Linux Mint $MINT_VERSION 64-bit#menu title Welcome to $name (based on Linux Mint $MINT_VERSION)#" \
+       -e "s#menu label Start Linux Mint in compatibility mode#menu label Start Cin-MinAI in compatibility mode#" \
+       -e "s#menu label Start Linux Mint\$#menu label Start Cin-MinAI#" "$cfg/isolinux/live.cfg"
+if grep -n "Linux Mint" "$cfg/boot/grub/grub.cfg" "$cfg/isolinux/live.cfg" | grep -v "based on Linux Mint"; then
+    echo "boot menu: an upstream name is left (above): upstream's menu changed, update the sed lines" >&2; exit 1
 fi
+if [[ $INSTALLTEST == 1 ]]; then
+    # a new first entry: upstream's first one with the unattended installer's options
+    first=$(awk '/^menuentry /{n++} n==1' "$cfg/boot/grub/grub.cfg" | sed '/^}/q')
+    auto=$(printf '%s\n' "$first" \
+        | sed -e '1s#^menuentry "[^"]*"#menuentry "Cin-MinAI automated install test (ERASES the first disk)"#' \
+              -e 's#boot=casper#boot=casper automatic-ubiquity only-ubiquity noprompt file=/cdrom/preseed/cinminai-installtest.seed#')
+    printf '%s\n' "$auto" | grep -q automatic-ubiquity || { echo "install test entry: pattern not found" >&2; exit 1; }
+    { printf '%s\n' "$auto"; cat "$cfg/boot/grub/grub.cfg"; } > "$cfg/grub.new" && mv "$cfg/grub.new" "$cfg/boot/grub/grub.cfg"
+    maps+=(-map "$here/test-packages/installtest.seed" /preseed/cinminai-installtest.seed)
+fi
+if [[ $BOOTTEST == 1 ]]; then   # boot the first menu entry after 5 s
+    sed -i '1i set timeout=5' "$cfg/boot/grub/grub.cfg"
+fi
+maps+=(-map "$cfg/boot/grub/grub.cfg" /boot/grub/grub.cfg -map "$cfg/isolinux/live.cfg" /isolinux/live.cfg)
 maps+=(-map "$model" "/cinminai/models/$GUIDE_FILE")
 grep -q "cinminai/models/$GUIDE_FILE\$" "$b/iso/md5sum.txt" ||
     echo "$(md5sum "$model" | cut -d' ' -f1)  ./cinminai/models/$GUIDE_FILE" >> "$b/iso/md5sum.txt"
-for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.size boot/grub/grub.cfg; do
-    [[ -f $b/iso/$(basename "$f") ]] || continue
+for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.size casper/initrd.lz; do
     sum=$(md5sum "$b/iso/$(basename "$f")" | cut -d' ' -f1)
     sed -i "s#^[0-9a-f]\{32\}  \./$f\$#$sum  ./$f#" "$b/iso/md5sum.txt"
 done
+for f in boot/grub/grub.cfg isolinux/live.cfg; do
+    sum=$(md5sum "$cfg/$f" | cut -d' ' -f1)
+    sed -i "s#^[0-9a-f]\{32\}  \./$f\$#$sum  ./$f#" "$b/iso/md5sum.txt"
+done
+touch -d "@$SOURCE_DATE_EPOCH" "$cfg/boot/grub/grub.cfg" "$cfg/isolinux/live.cfg"
 
 log "write ISO (upstream boot setup replayed; dates from SOURCE_DATE_EPOCH)"
 out=${OUTDIR:-$M1/out}

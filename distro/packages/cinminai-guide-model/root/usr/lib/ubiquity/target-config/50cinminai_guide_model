@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Installer hook (ubiquity runs every executable in /usr/lib/ubiquity/target-config near the end of an
+# install, from the live system, with the new system at /target and the install media at /cdrom): copy the
+# guide model from the stick into the installed system, checked. The ISO carries it next to the live
+# filesystem, not in it (PLAN D48), so the installer's own copy doesn't include it. Never fails the install:
+# without the file the assistant says the model isn't installed, and fetch-guide-model can get it later.
+. /usr/share/cinminai/models/guide.manifest
+src=/cdrom/cinminai/models/$file
+dst=/target/usr/share/cinminai/models/$file
+[ -f "$src" ] || { echo "cinminai: no guide model on the install media"; exit 0; }
+mkdir -p "${dst%/*}"
+if cp "$src" "$dst.part" && echo "$sha256  $dst.part" | sha256sum -c --status -; then
+    mv "$dst.part" "$dst"
+    echo "cinminai: guide model copied and checked"
+else
+    rm -f "$dst.part"
+    echo "cinminai: copying the guide model failed; the installed system can fetch it later"
+fi
+exit 0
