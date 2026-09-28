@@ -29,26 +29,12 @@ say "splash $(readlink -f /etc/alternatives/default.plymouth 2>/dev/null)"
 say "menu_icon $(gsettings get org.cinnamon app-menu-icon-name 2>/dev/null) $(ls /usr/share/icons/hicolor/scalable/apps/cinminai-menu.svg 2>/dev/null)"
 say "menu_applet_icon $(python3 -c 'import json; print(json.load(open("/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"))["menu-icon"]["default"])' 2>&1) (mint original kept: $(ls /usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json.mint 2>/dev/null))"
 say "wallpaper_file $(ls -l /usr/share/backgrounds/cinminai/data-stream.jpg 2>/dev/null | awk '{print $5}') bytes"
-# A screenshot of the live desktop, as the live user sees it, written raw onto the runner's empty 32 MiB
-# "results disk" (header: magic, size, SHA-256; data from byte 512). The serial port dropped bytes, and
-# Hyper-V's own thumbnail call returned "invalid state".
-shot=/tmp/cinminai-boottest.png
 live_user=$(ps -o user= -C cinnamon 2>/dev/null | head -1); live_user=${live_user:-mint}   # whoever runs the desktop
-disk=$(lsblk -bdno NAME,SIZE,TYPE 2>/dev/null | awk '$2 == 33554432 && $3 == "disk" {print "/dev/" $1; exit}')
-if [ -z "$disk" ]; then
-    say "screenshot skipped (no results disk)"
-elif runuser -u "$live_user" -- env DISPLAY=:0 XAUTHORITY="/home/$live_user/.Xauthority" \
-       gnome-screenshot -f "$shot" 2>/dev/null && [ -s "$shot" ]; then
-    size=$(stat -c %s "$shot"); sum=$(sha256sum "$shot" | cut -d' ' -f1)
-    printf 'CINMINAI-SHOT\n%s\n%s\n' "$size" "$sum" | dd of="$disk" bs=512 count=1 conv=sync 2>/dev/null
-    dd if="$shot" of="$disk" bs=512 seek=1 conv=fsync 2>/dev/null
-    say "screenshot on results disk $disk ($size bytes)"
-else
-    say "screenshot failed (gnome-screenshot as $live_user)"
-fi
+uid=$(id -u "$live_user" 2>/dev/null)
+as_user() { runuser -u "$live_user" -- env DISPLAY=:0 XAUTHORITY="/home/$live_user/.Xauthority" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" XDG_RUNTIME_DIR="/run/user/$uid" "$@"; }
 # The assistant, end to end as the live user would reach it: D-Bus activation of cinminai-daemon (systemd
 # --user), the guide read from the stick on the processor, a help lookup, the reply in Mint's names.
-uid=$(id -u "$live_user" 2>/dev/null)
 ask=$(runuser -u "$live_user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
       XDG_RUNTIME_DIR="/run/user/$uid" timeout 600 python3 -m cin_minai.daemon.client --timeout 540 \
       "How do I install a program? On Windows I downloaded an .exe." 2>&1)
@@ -65,7 +51,51 @@ print("assistant_reply " + " / ".join(r.get("reply", "").splitlines())[:400])
 print("assistant_error %s timed_out %s seconds %s" % (r.get("error"), r.get("timed_out"), r.get("seconds")))
 print("assistant_stats " + json.dumps(r.get("stats", {}).get("timings", ""))[:600])
 ' 2>&1 | while read -r l; do say "$l"; done
+# The sidebar, as Super+A would open it: ask a second question there and wait until the daemon is idle again
+# (it answers on the processor), so the screenshot below shows the answer.
+state() { as_user gdbus call --session --dest org.cinminai.Assistant1 --object-path /org/cinminai/Assistant1 \
+          --method org.freedesktop.DBus.Properties.Get org.cinminai.Assistant1 State 2>/dev/null; }
+as_user cinminai-sidebar --ask "Is this computer connected to the internet?" >/dev/null 2>&1 &
+i=0; while [ "$i" -lt 60 ] && state | grep -q "'idle'"; do sleep 1; i=$((i + 1)); done       # asked
+j=0; while [ "$j" -lt 300 ] && ! state | grep -q "'idle'"; do sleep 2; j=$((j + 2)); done     # answered
+sleep 3
+say "sidebar_asked_after_s $i answered_after_s $j state $(state)"
+sidebar_windows=$(as_user xwininfo -root -tree 2>/dev/null | grep -c '"Cin-MinAI Assistant"')
+say "sidebar_windows $sidebar_windows workarea $(as_user xprop -root _NET_WORKAREA 2>/dev/null | cut -d= -f2)"
+# A screenshot of the live desktop, as the live user sees it, written raw onto the runner's empty 32 MiB
+# "results disk" (header: magic, size, SHA-256; data from byte 512). The serial port dropped bytes, and
+# Hyper-V's own thumbnail call returned "invalid state".
+shot=/tmp/cinminai-boottest.png
+disk=$(lsblk -bdno NAME,SIZE,TYPE 2>/dev/null | awk '$2 == 33554432 && $3 == "disk" {print "/dev/" $1; exit}')
+if [ -z "$disk" ]; then
+    say "screenshot skipped (no results disk)"
+elif as_user gnome-screenshot -f "$shot" 2>/dev/null && [ -s "$shot" ]; then
+    size=$(stat -c %s "$shot"); sum=$(sha256sum "$shot" | cut -d' ' -f1)
+    printf 'CINMINAI-SHOT\n%s\n%s\n' "$size" "$sum" | dd of="$disk" bs=512 count=1 conv=sync 2>/dev/null
+    dd if="$shot" of="$disk" bs=512 seek=1 conv=fsync 2>/dev/null
+    say "screenshot on results disk $disk ($size bytes)"
+else
+    say "screenshot failed (gnome-screenshot as $live_user)"
+fi
+# the panel icon and Super+A, set once at the live user's first login (cinminai-desktop-setup)
+setup=$(cat "/home/$live_user/.config/cinminai/desktop-setup.json" 2>/dev/null | tr -d '\n')
+applets=$(as_user gsettings get org.cinnamon enabled-applets 2>/dev/null)
+hotkey=$(as_user gsettings get org.cinnamon.desktop.keybindings.custom-keybinding:/org/cinnamon/desktop/keybindings/custom-keybindings/custom-cinminai/ binding 2>/dev/null)
+say "desktop_setup $setup"
+# what Cinnamon itself shows: the settings alone passed on 2026-09-28 while the screenshot had no icon
+applet_live=$(as_user gdbus call --session --dest org.Cinnamon --object-path /org/Cinnamon --method org.Cinnamon.Eval \
+  'let a = imports.ui.appletManager.getRunningInstancesForUuid("cinminai@cinminai")[0]; a ? ["running", a.actor.visible, a.actor.width].join(" ") : "not running"' 2>&1)
+say "applet_live $applet_live"
+applet_debug=$(as_user gdbus call --session --dest org.Cinnamon --object-path /org/Cinnamon --method org.Cinnamon.Eval \
+  'let A = imports.ui.appletManager, M = imports.ui.main; JSON.stringify({ext: !!imports.ui.extension.getExtension("cinminai@cinminai"), defs: A.definitions.filter(d => d.uuid.indexOf("cinminai") >= 0).map(d => [d.panelId, d.location_label, d.order, d.applet_id, !!d.applet]), panels: Object.keys(M.panelManager.panels).filter(k => M.panelManager.panels[k]), errors: (M._errorLogStack || []).map(e => e.message || String(e)).filter(m => /cinminai|applet/i.test(m)).slice(-6)})' 2>&1)
+say "applet_debug $applet_debug"
+grep -i "cinminai" "/home/$live_user/.xsession-errors" 2>/dev/null | tail -8 | while read -r l; do say "cinnamon_log $l"; done
+say "hotkey $hotkey list $(as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null)"
 res=PASS
+[ "${sidebar_windows:-0}" -ge 1 ] || { say "check_failed sidebar: no window"; res=FAIL; }
+case $applets in *cinminai@cinminai*) ;; *) say "check_failed applet: not in the panel settings"; res=FAIL ;; esac
+case $applet_live in *"running true"*) ;; *) say "check_failed applet: not showing ($applet_live)"; res=FAIL ;; esac
+[ "$hotkey" = "['<Super>a']" ] || { say "check_failed hotkey: got $hotkey"; res=FAIL; }
 [ "$desktop" = yes ] || res=FAIL
 case $ask in *'"lookup_help"'*) ;; *) say "check_failed assistant: no help lookup"; res=FAIL ;; esac
 case $ask in *'Software Manager'*) ;; *) say "check_failed assistant: reply without Software Manager"; res=FAIL ;; esac

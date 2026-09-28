@@ -1,0 +1,12 @@
+Package: cinminai-sidebar
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-3.0, libx11-6, cinminai-daemon (= @VERSION@)
+Description: Cin-MinAI assistant sidebar
+ The window where you talk to the Cin-MinAI assistant: docked on the right edge
+ of the screen, it keeps its own space so other windows don't cover it. Answers
+ appear as they are written, and every check or lookup the assistant does is
+ shown in plain words. Open it from the menu, the panel, or with Super+A.

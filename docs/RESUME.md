@@ -61,8 +61,13 @@ fetch + SHA-256 into installed systems), boot test asks the assistant. Tests: `p
 tests.unit.test_helpcards tests.unit.test_guide tests.unit.test_llamacpp`. Verified on the Mint box from the
 unpacked .debs: CUDA, Vulkan and CPU all answer. Full pipeline (`distro/build-all.sh`): 5.9 GB ISO, all
 `check-iso.sh` checks pass (no CHS cylinder alignment above 4.27 GB: noted, not compared), VM boot test PASS
-with the assistant answering on the processor in 52 s. **Still to do for the Alpha:** sidebar with streaming, applet,
-Super+A (rebuild the `spikes/desktop` shapes as packages); then boot check 1. **Exit:** the live USB boots on
+with the assistant answering on the processor in 52 s. **Sidebar done** (`cinminai-sidebar`, `src/cin_minai/sidebar/`):
+VM boot test opens it and gets an answer (18 s, CPU); Ian's hands-on on the Mint box went well (D49 came out of
+it). **Applet + Super+A done** (`cinminai-applet`: the icon, `/usr/libexec/cinminai-desktop-setup` once per user;
+VM boot test checks the icon is really running). On the Mint box the spike was uninstalled and ours runs from
+`~/cin-minai/alpha/applet-test/` (undo: `undo-applet-test.sh` there). **Next: boot check 1** — write the ISO to
+a USB stick, boot the Mint box from it, and ask a lookup, a system check and a decline; nothing on its disks
+touched (D45). **Exit:** the live USB boots on
 the Mint box, the assistant answers a lookup, a system check and a decline; nothing on its disks touched.
 
 **Open from 2026-09-28 (Ian to decide):** declines go wrong a few turns into a conversation in English and

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Cin-MinAI desktop setup
+Comment=Adds the assistant's panel icon and Super+A, once per user
+Exec=/usr/libexec/cinminai-desktop-setup
+OnlyShowIn=X-Cinnamon;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

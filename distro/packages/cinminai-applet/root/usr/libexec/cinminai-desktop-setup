@@ -1,0 +1,146 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Once per user, at the first Cinnamon login (autostart): put the assistant's icon in the panel and set
+Super+A to open the assistant. Remembered in ~/.config/cinminai/desktop-setup.json: if the user later
+removes the icon or changes the key, nothing is put back (PLAN D38, SPEC Rule 9). If Super+A is already
+taken, it's left alone and the choice is recorded.
+
+Custom keybindings (docs/spikes.md "Desktop surface", finding 2): Cinnamon reads them only when
+`custom-list` changes, so the binding is written first and listed last.
+
+    cinminai-desktop-setup [--force]      (--force: run again, e.g. for a test; never removes anything)
+Environment: CINMINAI_SIDEBAR overrides the command (default /usr/bin/cinminai-sidebar).
+"""
+
+import json
+import os
+import sys
+import time
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+UUID = "cinminai@cinminai"
+KEY = "<Super>a"
+KB_SCHEMA = "org.cinnamon.desktop.keybindings"
+CUSTOM = "custom-cinminai"
+CUSTOM_PATH = f"/org/cinnamon/desktop/keybindings/custom-keybindings/{CUSTOM}/"
+MARK = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "cinminai",
+                    "desktop-setup.json")
+
+
+def running_applets() -> list[str] | None:
+    """The applets Cinnamon has running, or None while Cinnamon isn't up."""
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+        out = bus.call_sync("org.Cinnamon", "/org/Cinnamon", "org.Cinnamon", "GetRunningXletUUIDs",
+                            GLib.Variant("(s)", ("applet",)), GLib.VariantType("(as)"),
+                            Gio.DBusCallFlags.NO_AUTO_START, 5000, None)
+        return list(out.unpack()[0])
+    except GLib.Error:
+        return None
+
+
+def wait_for(test, seconds: float) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if test():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def wait_for_cinnamon() -> bool:
+    """At the first login this runs while Cinnamon is still starting. A setting written after Cinnamon has
+    read its applet list but before it listens for changes is never seen (the live-USB boot test,
+    2026-09-28): wait until its panel applets are running, then write."""
+    return wait_for(lambda: bool(running_applets()), 120)
+
+
+def schema(name: str) -> Gio.Settings | None:
+    src = Gio.SettingsSchemaSource.get_default()
+    return Gio.Settings.new(name) if src and src.lookup(name, True) else None
+
+
+def add_applet() -> str:
+    s = schema("org.cinnamon")
+    if s is None:
+        return "no Cinnamon"
+    applets = list(s.get_strv("enabled-applets"))
+    if any(f":{UUID}:" in a for a in applets):
+        return "already there"
+    panels = [p.split(":")[0] for p in s.get_strv("panels-enabled")] or ["1"]
+    ids = [int(a.rsplit(":", 1)[1]) for a in applets if a.rsplit(":", 1)[-1].isdigit()]
+    # right zone, first position: left of the tray and the clock
+    entry = f"panel{panels[0]}:right:0:{UUID}:{max(ids, default=0) + 1}"
+    s.set_strv("enabled-applets", applets + [entry])
+    Gio.Settings.sync()
+    showing = lambda: UUID in (running_applets() or [])
+    if wait_for(showing, 10):
+        return "added"
+    # not picked up: write it again (Cinnamon reacts to a change, not to a value)
+    s.set_strv("enabled-applets", applets)
+    Gio.Settings.sync()
+    time.sleep(1)
+    s.set_strv("enabled-applets", applets + [entry])
+    Gio.Settings.sync()
+    return "added" if wait_for(showing, 10) else "added, but Cinnamon didn't show it"
+
+
+def key_taken() -> str | None:
+    """Where Super+A is already bound, if anywhere."""
+    want = KEY.lower()
+    for name in (f"{KB_SCHEMA}.wm", f"{KB_SCHEMA}.media-keys"):
+        s = schema(name)
+        if s is None:
+            continue
+        for k in s.props.settings_schema.list_keys():
+            v = s.get_value(k)
+            if v.get_type_string() == "as" and want in (b.lower() for b in v.unpack()):
+                return f"{name} {k}"
+    kb = schema(KB_SCHEMA)
+    for c in (kb.get_strv("custom-list") if kb else []):
+        if c == CUSTOM:
+            continue
+        s = Gio.Settings.new_with_path(f"{KB_SCHEMA}.custom-keybinding",
+                                       f"/org/cinnamon/desktop/keybindings/custom-keybindings/{c}/")
+        if want in (b.lower() for b in s.get_strv("binding")):
+            return f"custom {c}"
+    return None
+
+
+def add_hotkey() -> str:
+    kb = schema(KB_SCHEMA)
+    if kb is None:
+        return "no Cinnamon"
+    if CUSTOM in kb.get_strv("custom-list"):
+        return "already there"
+    taken = key_taken()
+    if taken:
+        return f"Super+A is taken ({taken}); left alone"
+    s = Gio.Settings.new_with_path(f"{KB_SCHEMA}.custom-keybinding", CUSTOM_PATH)
+    s.set_string("name", "Cin-MinAI assistant")
+    s.set_string("command", f"{os.environ.get('CINMINAI_SIDEBAR', '/usr/bin/cinminai-sidebar')} --toggle")
+    s.set_strv("binding", [KEY])
+    Gio.Settings.sync()
+    kb.set_strv("custom-list", list(kb.get_strv("custom-list")) + [CUSTOM])  # last: Cinnamon reads it now
+    return "added"
+
+
+def main() -> None:
+    if os.path.exists(MARK) and "--force" not in sys.argv:
+        return
+    if not wait_for_cinnamon():
+        return  # no Cinnamon (another desktop, or it didn't start): try again at the next login
+    done = {"version": 1, "applet": add_applet(), "hotkey": add_hotkey()}
+    Gio.Settings.sync()
+    os.makedirs(os.path.dirname(MARK), exist_ok=True)
+    with open(MARK, "w", encoding="utf-8") as f:
+        json.dump(done, f, indent=1)
+    print(json.dumps(done))
+
+
+if __name__ == "__main__":
+    main()

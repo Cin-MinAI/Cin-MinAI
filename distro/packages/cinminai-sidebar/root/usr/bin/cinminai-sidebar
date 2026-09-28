@@ -1,0 +1,6 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Cin-MinAI assistant sidebar: cinminai-sidebar [--toggle | --show | --hide | --quit | --ask TEXT]
+from cin_minai.sidebar.app import main
+
+main()

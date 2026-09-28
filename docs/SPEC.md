@@ -44,6 +44,13 @@ Cin-MinAI is a step toward that, taken responsibly:
   community for granted — so security work is public too: reproducible builds and signed packages,
   a published vulnerability policy, security findings and fixes explained, and time taken for
   public discussion when an obstacle needs many people pushing.
+* **Semi-Jarvis: high agency over the computer, low agency over the user's life** (Ian, long-term
+  plan; recorded 2026-09-28). The assistant grows toward doing real work on the machine for the
+  person — but never gains authority over their money, contracts, security choices or other major
+  decisions, and never a standing privileged shell. It is built **inside a local OS on purpose**,
+  rather than as an agent driving cloud models (as OpenClaw does): something with autonomous control
+  over a person's information is safer, and more theirs to control, when it runs on their own
+  machine, under the OS's own sandbox, approvals and audit (§8), with every action visible.
 * **Small enough to be big** (Ian, 2026-09-26): first a capable helper for newcomers that runs on
   the hardware people already own — then bigger. Doing the small thing well is how this grows.
 * **Keep knowledge and hardware in circulation** (Ian, 2026-09-25). Repair know-how, datasheets and

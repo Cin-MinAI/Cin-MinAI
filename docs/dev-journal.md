@@ -41,6 +41,26 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
    bigger image has no MBR cylinder alignment: CHS can describe at most 4.27 GB (1024 × 255 × 32 × 512),
    so no hybrid image of this size can have it. Only pre-LBA BIOS geometry uses it; the check now says so
    and leaves exactly those lines out, only for images over the limit.
+7. **The sidebar, and the first hands-on.** Rebuilt from the M0 spike (its docking kept as it was) around
+   the real daemon: streaming bubbles, a plain-words line for every tool used, the header saying what runs
+   where. In the VM it answered from the processor in 18 s. Then Ian tried it on his own desktop (1080 Ti,
+   4K): updates, antivirus, opening every LibreOffice program and Firefox — answers in about 2 seconds.
+   Asked "can you update from terminal?", it recommended Update Manager and then gave the commands. Ian:
+   "I'll nudge in the right direction, but if you insist on jumping off that cliff I'm not going with
+   you... The model explicitly said use Update Manager, twice. I'm good with that." That became D49. And
+   his reason for opening programs through it: people see where things live and do it themselves next
+   time — "the main goal for this run is making it easier to go from Windows to Linux, period. And the
+   model did that here very well by my judgment."
+8. **The panel icon and Super+A** (`cinminai-applet`): a click opens the assistant; at first login a
+   small setup adds the icon and the key once, and never again if the user changes them. Two traps:
+   on Ian's box the icon said "no such file" — Cinnamon was still running the M0 spike's applet code
+   from memory (same id), pointing at a launcher the spike's uninstall had just removed; a reload of
+   the applet fixed it (and means an updated applet only takes effect at the next login). In the live
+   session the icon never appeared at all, though the boot test passed: the check read the setting,
+   not the panel. Made strict (ask Cinnamon what's running), it failed, and Cinnamon's own list showed
+   why — the setup wrote the setting while Cinnamon was starting, in the moment after it read its
+   applets and before it listened for changes. The setup now waits for Cinnamon's panel, writes, and
+   confirms. Lesson: a test must check what the user sees, not what we wrote.
 
 ### What went wrong (and what we changed)
 

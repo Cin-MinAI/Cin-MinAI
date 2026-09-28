@@ -1,0 +1,7 @@
+{
+    "uuid": "cinminai@cinminai",
+    "name": "Assistant",
+    "description": "The Cin-MinAI assistant: shows whether it's ready, and opens it",
+    "icon": "help-browser",
+    "max-instances": 1
+}

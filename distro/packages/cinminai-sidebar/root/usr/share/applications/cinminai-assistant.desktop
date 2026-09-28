@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Assistant
+GenericName=Cin-MinAI assistant
+Comment=Ask how to do things on this computer, or check how it's doing
+Keywords=help;AI;assistant;guide;how;question;
+Exec=cinminai-sidebar --show
+Icon=help-browser
+Terminal=false
+Categories=Utility;
+StartupNotify=false

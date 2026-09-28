@@ -3,7 +3,9 @@ Version: @VERSION@
 Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
 Depends: cinminai-archive-keyring (= @VERSION@), cinminai-branding (= @VERSION@),
- cinminai-daemon (= @VERSION@), cinminai-llama (= @VERSION@), cinminai-guide-model (= @VERSION@)
+ cinminai-daemon (= @VERSION@), cinminai-sidebar (= @VERSION@), cinminai-applet (= @VERSION@),
+ cinminai-llama (= @VERSION@),
+ cinminai-guide-model (= @VERSION@)
 Section: metapackages
 Priority: optional
 Description: Cin-MinAI desktop (metapackage)
