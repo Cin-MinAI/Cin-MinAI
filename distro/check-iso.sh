@@ -24,11 +24,14 @@ want="cinminai-archive-keyring cinminai-branding cinminai-desktop "
     || bad "manifest: removed $removed, added: $added"
 
 # The boot entries, their types, flags and sizes must match upstream's; their block positions may move
-# (xorriso lays the image out again around the bigger live filesystem), so positions are left out.
+# (xorriso lays the image out again around the bigger live filesystem), so positions are left out — and so
+# is the size of partition 1 (and the GPT range), which covers the whole image and grows with our packages.
+# The EFI partition's size is still compared.
 report() { xorriso -indev "$1" -report_el_torito plain -report_system_area plain 2>/dev/null \
            | grep -v -E 'Volume id|Creation|Modif|Expir|Effective|size|Media summary' \
            | awk '/^El Torito catalog/ {$NF=""; $(NF-1)=""} /^El Torito boot img/ {$NF=""}
-                  /^MBR partition/ && NF>=8 {$(NF-1)=""} /^GPT (start|partname|type)/ {} {print}'; }
+                  /^MBR partition/ && NF>=8 {$(NF-1)=""} /^MBR partition +: +1 / {$NF=""}
+                  /^GPT lba range/ {$NF=""; $(NF-1)=""} {print}'; }
 if cmp -s <(report "$up") <(report "$iso"); then ok "boot setup identical to upstream except block positions (hybrid USB image kept)"
 else bad "boot setup differs from upstream:"; diff <(report "$up") <(report "$iso") | head -20 || true; fi
 

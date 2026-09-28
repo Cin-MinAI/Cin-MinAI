@@ -1,0 +1,31 @@
+# Cin-MinAI defaults (cinminai-branding). Sorted after Mint's mint-artwork.gschema.override, so these keys
+# win and every other Mint default stays. Users can change any of them as usual; nothing is locked.
+# Theme: Mint's own Mint-Y, dark, Aqua accent (#1f9ede, the closest to Signal blue #00A4EC).
+
+[org.cinnamon.desktop.background]
+picture-uri='file:///usr/share/backgrounds/cinminai/data-stream.jpg'
+picture-options='zoom'
+primary-color='#000000'
+secondary-color='#000000'
+
+[org.gnome.desktop.background]
+picture-uri='file:///usr/share/backgrounds/cinminai/data-stream.jpg'
+picture-options='zoom'
+primary-color='#000000'
+secondary-color='#000000'
+
+[org.cinnamon.desktop.interface]
+gtk-theme='Mint-Y-Dark-Aqua'
+icon-theme='Mint-Y-Aqua'
+
+[org.gnome.desktop.interface]
+gtk-theme='Mint-Y-Dark-Aqua'
+icon-theme='Mint-Y-Aqua'
+
+[org.cinnamon.theme]
+name='Mint-Y-Dark-Aqua'
+
+[x.dm.slick-greeter]
+theme-name='Mint-Y-Dark-Aqua'
+icon-theme-name='Mint-Y-Aqua'
+background='/usr/share/backgrounds/cinminai/data-stream.jpg'

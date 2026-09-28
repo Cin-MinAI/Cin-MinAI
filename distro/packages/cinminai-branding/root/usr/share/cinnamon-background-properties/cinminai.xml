@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!DOCTYPE wallpapers SYSTEM "cinnamon-wp-list.dtd">
+<wallpapers>
+<wallpaper deleted="false">
+    <name>Cin-MinAI: Data stream</name>
+    <filename>/usr/share/backgrounds/cinminai/data-stream.jpg</filename>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#000000</pcolor>
+    <scolor>#000000</scolor>
+    <artist>Cin-MinAI, after Ian McClenathan's designs</artist>
+</wallpaper>
+<wallpaper deleted="false">
+    <name>Cin-MinAI: Circuit floor</name>
+    <filename>/usr/share/backgrounds/cinminai/circuit-floor.jpg</filename>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#000000</pcolor>
+    <scolor>#000000</scolor>
+    <artist>Cin-MinAI, after Ian McClenathan's designs</artist>
+</wallpaper>
+<wallpaper deleted="false">
+    <name>Cin-MinAI: Board</name>
+    <filename>/usr/share/backgrounds/cinminai/board.jpg</filename>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#000000</pcolor>
+    <scolor>#000000</scolor>
+    <artist>Cin-MinAI, after Ian McClenathan's designs</artist>
+</wallpaper>
+</wallpapers>

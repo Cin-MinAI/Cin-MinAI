@@ -32,6 +32,12 @@ for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
     [[ -d $dir/root ]] && cp -a "$dir/root/." "$stage/"
     cp "$dir/control" "$stage/DEBIAN/control"
     [[ -f $dir/conffiles ]] && cp "$dir/conffiles" "$stage/DEBIAN/conffiles"
+    for s in preinst postinst prerm postrm triggers; do
+        [[ -f $dir/$s ]] && install -m755 "$dir/$s" "$stage/DEBIAN/$s"
+    done
+    # A package may generate files at build time (e.g. branding renders its images from the SVGs):
+    # build.sh STAGE_DIR REPO_ROOT, run from its own directory.
+    [[ -f $dir/build.sh ]] && ( cd "$dir" && bash ./build.sh "$stage" "$(cd "$here/.." && pwd)" )
     if [[ $name == cinminai-archive-keyring ]]; then
         install -Dm644 /dev/null "$stage/usr/share/keyrings/cinminai-archive-keyring.gpg"
         gpg --export "$SIGNING_KEY" > "$stage/usr/share/keyrings/cinminai-archive-keyring.gpg"
@@ -44,7 +50,8 @@ for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
     sed -i "/^Architecture:/a Installed-Size: $kib" "$stage/DEBIAN/control"
     find "$stage" -type d -exec chmod 755 {} +
     find "$stage" -type f -exec chmod 644 {} +
-    find "$stage" -type f ! -path "$stage/DEBIAN/*" -exec sh -c 'head -c2 "$1" | grep -q "#!"' _ {} \; -exec chmod 755 {} \;
+    find "$stage" -type f -exec sh -c 'head -c2 "$1" | grep -q "#!"' _ {} \; -exec chmod 755 {} \;
+    [[ -f $stage/DEBIAN/triggers ]] && chmod 644 "$stage/DEBIAN/triggers"
     if [[ -f $dir/links ]]; then
         grep -v '^#' "$dir/links" | while read -r link target; do
             [[ -n $link ]] || continue

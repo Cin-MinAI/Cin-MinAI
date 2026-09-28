@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+if [ "$1" = configure ]; then
+    # our boot splash, above Mint's (mint-logo registers 200; a tie keeps theirs); the user can still choose
+    update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
+        /usr/share/plymouth/themes/cinminai/cinminai.plymouth 250
+    # the splash lives in the initramfs: rebuild it on installed systems. Not while the ISO is built
+    # (a chroot): the live system has its own, and the installer builds the new system's.
+    if ! ischroot 2>/dev/null && command -v update-initramfs >/dev/null; then
+        update-initramfs -u || true
+    fi
+fi

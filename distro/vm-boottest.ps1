@@ -32,6 +32,25 @@ $result = 'FAIL'
 
 function Test-Vmms { (Get-Service vmms -ErrorAction SilentlyContinue).Status -eq 'Running' }
 
+function Save-ResultsScreenshot([string] $disk, [string] $png) {
+    # header in the first 512 bytes: CINMINAI-SHOT, size, SHA-256; the PNG from byte 512
+    try {
+        if ((Get-VM -Name $Name).State -ne 'Off') { $lines.Add('screenshot: VM still running, results disk not read'); return }
+        $fs = [IO.File]::OpenRead($disk)
+        try {
+            $head = New-Object byte[] 512; [void]$fs.Read($head, 0, 512)
+            $h = [Text.Encoding]::ASCII.GetString($head).Split([char]10)
+            if ($h[0] -ne 'CINMINAI-SHOT') { $lines.Add('screenshot: none on the results disk'); return }
+            $size = [int]$h[1]; $sum = $h[2].Trim()
+            $bytes = New-Object byte[] $size; $got = 0
+            while ($got -lt $size) { $n = $fs.Read($bytes, $got, $size - $got); if ($n -le 0) { break }; $got += $n }
+        } finally { $fs.Dispose() }
+        $sha = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-', '').ToLower()
+        if ($sha -eq $sum) { [IO.File]::WriteAllBytes($png, $bytes); $lines.Add("screenshot $png (verified)") }
+        else { $lines.Add("screenshot damaged: checksum differs ($got of $size bytes read)") }
+    } catch { $lines.Add("screenshot read failed: $($_.Exception.Message.Split([char]10)[0])") }
+}
+
 function Remove-TestVM {  # never throws: cleanup problems are reported, and the log is always written
     if (-not (Test-Vmms)) {
         $lines.Add("cleanup: Hyper-V's management service (vmms) isn't running - start it (Hyper-V Manager > Start Service), then delete $vmDir")
@@ -60,6 +79,11 @@ try {
     Set-VMFirmware -VMName $Name -FirstBootDevice (Get-VMDvdDrive -VMName $Name)
     Get-VMNetworkAdapter -VMName $Name | Remove-VMNetworkAdapter      # offline, like a first live boot
     Set-VMComPort -VMName $Name -Number 1 -Path "\\.\pipe\$pipe"
+    # an empty 32 MiB "results disk": the guest writes its screenshot onto it (a fixed VHD is the raw disk
+    # plus a 512-byte footer, so it's read straight from the file afterwards; the serial port dropped bytes)
+    $resultsDisk = Join-Path $vmDir 'results.vhd'
+    New-VHD -Path $resultsDisk -SizeBytes 32MB -Fixed | Out-Null
+    Add-VMHardDiskDrive -VMName $Name -Path $resultsDisk
     Set-VM -Name $Name -AutomaticCheckpointsEnabled $false
 
     $start = Get-Date
@@ -87,10 +111,17 @@ try {
         $result = 'FAIL'
     }
     # give the guest a moment to power itself off (the report asks it to)
-    $off = (Get-Date).AddSeconds(60)
+    $off = (Get-Date).AddSeconds(120)
     while ((Get-VM -Name $Name).State -ne 'Off' -and (Get-Date) -lt $off) { Start-Sleep 3 }
+    if ((Get-VM -Name $Name).State -ne 'Off') {
+        # the live system can take over a minute to shut down; the report has finished (and flushed the
+        # results disk), so switching the VM off loses nothing
+        $lines.Add('vm: still shutting down after 120 s - turned off')
+        Stop-VM -Name $Name -TurnOff -Force
+    }
     if (Test-Vmms) { $lines.Add(("vm_state_after {0}" -f (Get-VM -Name $Name).State)) }
     else { $lines.Add("vmms stopped during the test (someone pressed Stop Service?) - the VM ran on unmanaged") }
+    Save-ResultsScreenshot $resultsDisk ($log -replace '\.log$', '-desktop.png')
 }
 catch {
     $lines.Add("runner error: $($_.Exception.Message)")

@@ -1,0 +1,6 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+if [ "$1" = remove ] || [ "$1" = deconfigure ]; then
+    update-alternatives --remove default.plymouth /usr/share/plymouth/themes/cinminai/cinminai.plymouth
+fi

@@ -20,6 +20,30 @@ say "secureboot ${sb:-unknown}"
 say "desktop $desktop"
 systemctl --failed --no-legend --plain 2>/dev/null | while read -r u _; do say "failed_unit $u"; done
 say "apt_source $(cat /etc/apt/sources.list.d/cinminai.list 2>/dev/null)"
+# branding: the defaults the desktop starts with (compiled schemas; root has no personal settings)
+say "wallpaper $(gsettings get org.cinnamon.desktop.background picture-uri 2>/dev/null)"
+say "cinnamon_theme $(gsettings get org.cinnamon.theme name 2>/dev/null)"
+say "gtk_theme $(gsettings get org.cinnamon.desktop.interface gtk-theme 2>/dev/null)"
+say "icon_theme $(gsettings get org.cinnamon.desktop.interface icon-theme 2>/dev/null)"
+say "splash $(readlink -f /etc/alternatives/default.plymouth 2>/dev/null)"
+say "wallpaper_file $(ls -l /usr/share/backgrounds/cinminai/data-stream.jpg 2>/dev/null | awk '{print $5}') bytes"
+# A screenshot of the live desktop, as the live user sees it, written raw onto the runner's empty 32 MiB
+# "results disk" (header: magic, size, SHA-256; data from byte 512). The serial port dropped bytes, and
+# Hyper-V's own thumbnail call returned "invalid state".
+shot=/tmp/cinminai-boottest.png
+live_user=$(ps -o user= -C cinnamon 2>/dev/null | head -1); live_user=${live_user:-mint}   # whoever runs the desktop
+disk=$(lsblk -bdno NAME,SIZE,TYPE 2>/dev/null | awk '$2 == 33554432 && $3 == "disk" {print "/dev/" $1; exit}')
+if [ -z "$disk" ]; then
+    say "screenshot skipped (no results disk)"
+elif runuser -u "$live_user" -- env DISPLAY=:0 XAUTHORITY="/home/$live_user/.Xauthority" \
+       gnome-screenshot -f "$shot" 2>/dev/null && [ -s "$shot" ]; then
+    size=$(stat -c %s "$shot"); sum=$(sha256sum "$shot" | cut -d' ' -f1)
+    printf 'CINMINAI-SHOT\n%s\n%s\n' "$size" "$sum" | dd of="$disk" bs=512 count=1 conv=sync 2>/dev/null
+    dd if="$shot" of="$disk" bs=512 seek=1 conv=fsync 2>/dev/null
+    say "screenshot on results disk $disk ($size bytes)"
+else
+    say "screenshot failed (gnome-screenshot as $live_user)"
+fi
 res=PASS
 [ "$desktop" = yes ] || res=FAIL
 dpkg-query -W cinminai-desktop >/dev/null 2>&1 || res=FAIL
