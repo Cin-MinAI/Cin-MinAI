@@ -197,6 +197,35 @@ sed -i -e "s#^menu title Welcome to Linux Mint $MINT_VERSION 64-bit#menu title W
 if grep -n "Linux Mint" "$cfg/boot/grub/grub.cfg" "$cfg/isolinux/live.cfg" | grep -v "based on Linux Mint"; then
     echo "boot menu: an upstream name is left (above): upstream's menu changed, update the sed lines" >&2; exit 1
 fi
+# Screen first (PLAN D50): the default entry keeps nouveau out, so the firmware's framebuffer draws the
+# screen (on the Mint box's 4K TV, nouveau gave a black screen, with plain Mint too). A second entry keeps
+# upstream's nouveau boot for those who want it; compatibility mode stays as the last resort.
+blk=modprobe.blacklist=nouveau
+first=$(awk '/^menuentry /{n++} n==1' "$cfg/boot/grub/grub.cfg" | sed '/^}/q')
+nouveau_entry=$(printf '%s\n' "$first" | sed -e "1s#^menuentry \"Start $name ([^\"]*)\"#menuentry \"Start $name with the open-source NVIDIA driver (nouveau)\"#")
+printf '%s\n' "$nouveau_entry" | grep -q "open-source NVIDIA driver" || { echo "nouveau entry: pattern not found" >&2; exit 1; }
+awk -v extra="$nouveau_entry" -v blk="$blk" '
+    /^menuentry / { n++ }
+    n == 1 && /^[ \t]*linux[ \t]/ && !done { sub(/ --$/, " " blk " --"); done = 1 }
+    { print }
+    n == 1 && /^}/ && !added { print extra; added = 1 }
+' "$cfg/boot/grub/grub.cfg" > "$cfg/grub.d50" && mv "$cfg/grub.d50" "$cfg/boot/grub/grub.cfg"
+grep -q "$blk --" "$cfg/boot/grub/grub.cfg" || { echo "D50: the default entry doesn't keep nouveau out" >&2; exit 1; }
+# isolinux (BIOS): the same on its first entry, and a label for upstream's
+awk -v blk="$blk" '
+    /^label live$/ { inlive = 1 }
+    inlive && /^[ \t]*append / && !done {
+        orig = $0; sub(/ --$/, " " blk " --"); done = 1; inlive = 0; print
+        print ""
+        print "label nouveau"
+        print "\tmenu label Start Cin-MinAI with nouveau (open-source NVIDIA driver)"
+        print "\tkernel /casper/vmlinuz"
+        print orig
+        next
+    }
+    { print }
+' "$cfg/isolinux/live.cfg" > "$cfg/live.d50" && mv "$cfg/live.d50" "$cfg/isolinux/live.cfg"
+grep -q "$blk --" "$cfg/isolinux/live.cfg" || { echo "D50: the BIOS default entry doesn't keep nouveau out" >&2; exit 1; }
 if [[ $INSTALLTEST == 1 ]]; then
     # a new first entry: upstream's first one with the unattended installer's options
     first=$(awk '/^menuentry /{n++} n==1' "$cfg/boot/grub/grub.cfg" | sed '/^}/q')

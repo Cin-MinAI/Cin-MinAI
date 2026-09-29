@@ -23,6 +23,12 @@ from cin_minai.inference import hardware
 from .config import live_session
 
 HOME = os.path.expanduser("~")
+# the firmware's framebuffer, not a graphics card's driver (boot test 2, 2026-09-29: the check said
+# "simple-framebuffer (open source)" — true, and meaningless to a newcomer)
+BASIC_DISPLAY = {"simple-framebuffer", "simpledrm", "efi-framebuffer", "vesa-framebuffer", "efifb", "vesafb"}
+DRIVER_WORDS = {"i915": "Intel graphics driver i915", "xe": "Intel graphics driver xe",
+                "amdgpu": "AMD graphics driver amdgpu", "radeon": "AMD graphics driver radeon",
+                "nouveau": "nouveau, the open-source NVIDIA driver"}
 
 
 def run(argv: list[str], timeout: float = 5) -> str:
@@ -193,20 +199,28 @@ class Tools:
 
     def _drivers(self) -> dict:
         names = self._gpu_names()
-        in_use = []
+        in_use, basic = [], False
         for g in hardware.gpus():
-            if g.driver == "nvidia":
+            if g.driver in BASIC_DISPLAY:
+                basic = True  # the firmware's framebuffer, not a card's driver (D50: the live USB's default)
+            elif g.driver == "nvidia":
                 v = re.search(r"Kernel Module\s+(?:for x86_64\s+)?(\d+)\.", read("/proc/driver/nvidia/version"))
                 in_use.append(f"nvidia-driver-{v.group(1)}" if v else "nvidia")
             elif g.driver:
-                in_use.append(f"{g.driver} (open source)")
+                in_use.append(f"{DRIVER_WORDS.get(g.driver, g.driver)} (open source)")
+            elif g.vendor == "nvidia":
+                in_use.append("NVIDIA card: no driver yet")
         rec = run(["ubuntu-drivers", "list", "--recommended"], timeout=30).split()
         rec = [r.split(",")[0] for r in rec if r.startswith("nvidia-driver")]
         recommended = rec[0] if rec else "none needed"
         if any(recommended.startswith(u.split(" ")[0]) for u in in_use):
             recommended = "none needed"
-        return {"gpu": ", ".join(names) or "none found", "driver_in_use": ", ".join(in_use) or "none",
-                "recommended": recommended, "open_with": self.label("driver_manager")}
+        out = {"gpu": ", ".join(names) or "none found", "driver_in_use": ", ".join(in_use) or "none",
+               "recommended": recommended, "open_with": self.label("driver_manager")}
+        if basic:
+            out["note"] = ("The screen is drawn in a basic mode, without a graphics driver. Installing the "
+                           "recommended driver in Driver Manager makes the screen and the assistant faster.")
+        return out
 
     def _gpu_names(self) -> list[str]:
         out = []

@@ -42,5 +42,21 @@ class Inspect(unittest.TestCase):
         self.assertIn("own disks are not used", s["note"])
 
 
+class Drivers(unittest.TestCase):
+    def test_basic_display_in_plain_words(self):
+        # boot test 2 (2026-09-29): the live USB without nouveau; the check said "simple-framebuffer (open source)"
+        from cin_minai.inference.hardware import Gpu
+        gpus = [Gpu("other", "simple-framebuffer"), Gpu("intel", "i915"), Gpu("nvidia", "")]
+        t = tools.Tools({"driver_manager": {"en": "Driver Manager"}}, {}, "en")
+        with mock.patch.object(tools.hardware, "gpus", return_value=gpus), \
+             mock.patch.object(tools, "run", side_effect=lambda argv, timeout=5: "nvidia-driver-580, (kernel modules provided by linux-modules-nvidia-580-generic-hwe-24.04)\n" if argv[0] == "ubuntu-drivers" else ""):
+            d = t.inspect("drivers")
+        self.assertNotIn("framebuffer", d["driver_in_use"])
+        self.assertIn("NVIDIA card: no driver yet", d["driver_in_use"])
+        self.assertIn("Intel graphics driver i915", d["driver_in_use"])
+        self.assertEqual(d["recommended"], "nvidia-driver-580")
+        self.assertIn("Driver Manager", d["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

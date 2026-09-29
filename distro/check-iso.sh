@@ -51,6 +51,13 @@ mnt=$(mktemp -d); mount -o loop,ro "$iso" "$mnt"
 if ( cd "$mnt" && grep -q "Start Cin-MinAI" boot/grub/grub.cfg && grep -q "Start Cin-MinAI" isolinux/live.cfg \
      && ! grep -v "based on Linux Mint" boot/grub/grub.cfg isolinux/live.cfg | grep -q "Linux Mint" ); then
     ok "boot menus (UEFI and BIOS) say Cin-MinAI"; else bad "boot menus still name Linux Mint"; fi
+# screen first (D50): the first entry keeps nouveau out, a named entry keeps it, in both menus
+first_g=$(awk '/^menuentry /{n++} n==1' "$mnt/boot/grub/grub.cfg" | grep -c "modprobe.blacklist=nouveau --")
+first_i=$(awk '/^label live$/,/^$/' "$mnt/isolinux/live.cfg" | grep -c "modprobe.blacklist=nouveau --")
+if [[ $first_g == 1 && $first_i == 1 ]] && grep -q "open-source NVIDIA driver (nouveau)" "$mnt/boot/grub/grub.cfg" \
+   && grep -q "^label nouveau" "$mnt/isolinux/live.cfg"; then
+    ok "screen first: default entries without nouveau, a named nouveau entry (UEFI and BIOS)"
+else bad "screen first: boot entries (grub first=$first_g, isolinux live=$first_i)"; fi
 splash=$(python3 "$here/initrd_splash.py" list "$mnt/casper/initrd.lz" 2>&1 | grep "default.plymouth ->")
 case $splash in *themes/cinminai/cinminai.plymouth*) ok "live boot splash is ours ($splash)" ;; *) bad "live boot splash: $splash" ;; esac
 if ( cd "$mnt" && grep -E ' \./(casper/(filesystem\.(squashfs|manifest|size)|initrd\.lz)|boot/grub/grub\.cfg|isolinux/live\.cfg|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then

@@ -1,0 +1,16 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Installer hook (ubiquity target-config): screen first (PLAN D50). If the live USB was started without
+# nouveau (the default entry), the installed system starts the same way, so its first boot renders like
+# the live session did. Chosen the nouveau entry: nothing changes. Installing the NVIDIA driver later
+# (Driver Manager) keeps nouveau out by itself. Never fails the install.
+param=modprobe.blacklist=nouveau
+grep -qw "$param" /proc/cmdline || exit 0
+f=/target/etc/default/grub
+[ -f "$f" ] || { echo "cinminai: no $f"; exit 0; }
+if ! grep -q "^GRUB_CMDLINE_LINUX_DEFAULT=.*$param" "$f"; then
+    sed -i "s/^GRUB_CMDLINE_LINUX_DEFAULT=\"\(.*\)\"/GRUB_CMDLINE_LINUX_DEFAULT=\"\1 $param\"/" "$f"
+fi
+chroot /target update-grub >/dev/null 2>&1 || echo "cinminai: update-grub in the target failed (the installer runs it again)"
+echo "cinminai: nouveau kept out in the installed system ($(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f"))"
+exit 0

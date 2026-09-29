@@ -114,6 +114,24 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
     (unmodified binaries, the licence provided to each recipient); a GPL stance to take for Pascal's
     proprietary module; signed prebuilt modules exist for the ISO's kernel (verified); and the CUDA
     libraries' "only accessed by your application" condition argues for keeping them off the ISO.
+13. **Screen first (D50).** Discussing an offline NVIDIA installer (a licence checkbox before the desktop),
+    Ian brought it back to what matters: "the screen needs to render for any of this to work … they should
+    have a clean line from USB to usable screen, and then … use Mint's existing pipelines." The black
+    screen was the open nouveau driver on the 1080 Ti at 4K (plain Mint did it too when he built the
+    machine). The two-minute test on the existing stick — `modprobe.blacklist=nouveau` added in the GRUB
+    editor — gave a proper 4K desktop, "might have worked better" than compatibility mode; Driver Manager
+    then offered `nvidia-driver-580`, and the assistant looked up how, opened Driver Manager, and — asked
+    "there's 2 drivers, which one is for my computer?" — read it as the two graphics chips, but still
+    named the recommended driver. Now the ISO's default entries keep nouveau out (a named entry keeps it),
+    an installer hook carries that into the installed system, the drivers check says "basic mode" instead
+    of "simple-framebuffer", and the checkbox installer is parked. Photos: `images/screen-first/`.
+    And the shutdown bug (entry 11) went with it: booted this way, Ian's shutdown was "clean … straight to
+    exit logo … and it's Cin-MinAI!" — no "at-spi-registryd not responding". Compatibility mode also
+    switches off ACPI and APIC (`noapic noacpi irqpoll`), and that (or the processor load it brings) is the
+    likely cause; the VM had already ruled the assistant out. One fix, two bugs: why D50 keeps nouveau out
+    and nothing else, and compatibility mode stays only as the last resort.
+
+    ![Driver Manager and the assistant, the live USB without nouveau](images/screen-first/03-driver-manager-and-assistant.jpg)
 
 ### What went wrong (and what we changed)
 

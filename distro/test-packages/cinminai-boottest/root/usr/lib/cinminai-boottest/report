@@ -111,10 +111,14 @@ if [ "$mode" = installed ]; then
     say "installed_model $model_ok $(ls -l "/usr/share/cinminai/models/$file" 2>/dev/null | awk '{print $5}') bytes"
     say "installer_hook $(grep -rh 'cinminai:' /var/log/installer/ 2>/dev/null | tail -1 | cut -c1-160) (logs: $(ls /var/log/installer/ 2>/dev/null | tr '\n' ' '))"
 fi
+# screen first (D50): the default entry keeps nouveau out, live and (through the installer hook) installed
+no_nouveau=no; grep -qw modprobe.blacklist=nouveau /proc/cmdline && ! lsmod | grep -q "^nouveau " && no_nouveau=yes
+say "screen_first $no_nouveau ($(grep -o 'modprobe.blacklist=[^ ]*' /proc/cmdline))"
 installer_icon=$(grep -h "^Name=" "/home/$live_user/Desktop/ubiquity.desktop" 2>/dev/null)
 [ "$mode" = live ] && say "installer_icon $installer_icon"
 res=PASS
 if [ "$mode" = installed ] && [ "$model_ok" != yes ]; then say "check_failed installed model"; res=FAIL; fi
+[ "$no_nouveau" = yes ] || { say "check_failed screen first: nouveau not kept out ($mode)"; res=FAIL; }
 if [ "$mode" = live ] && [ "$installer_icon" != "Name=Install Cin-MinAI" ]; then say "check_failed installer icon"; res=FAIL; fi
 [ "${sidebar_windows:-0}" -ge 1 ] || { say "check_failed sidebar: no window"; res=FAIL; }
 case $applets in *cinminai@cinminai*) ;; *) say "check_failed applet: not in the panel settings"; res=FAIL ;; esac
@@ -152,6 +156,9 @@ sleep 2
 as_user gdbus call --session --dest org.gnome.SessionManager --object-path /org/gnome/SessionManager \
     --method org.cinnamon.SessionManager.EndSessionDialog.Shutdown >/dev/null 2>&1 &
 k=0
+# the system stopping us is itself the sign of a clean shutdown (the installed system shut down faster than
+# the once-a-second check below, 2026-09-29, and the report went silent)
+trap 'say "SHUTDOWN clean after ${k}s (stopped by the shutdown)"; say "CINMINAI-BOOTTEST END"; exit 0' TERM
 while [ "$k" -lt 45 ]; do
     if [ "$(systemctl is-system-running 2>/dev/null)" = stopping ]; then
         say "SHUTDOWN clean after ${k}s"

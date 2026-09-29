@@ -76,8 +76,11 @@ the **install test** (`INSTALLTEST=1` ISO + `vm-boottest.ps1 -Install`, part of 
 unattended and checks the installed system — first PASS 2026-09-28 (model copied and SHA-checked, assistant
 answered, icon, Super+A).
 
-**Next:** Ian's call on NVIDIA/4K (safe-graphics naming / an NVIDIA edition — licence write-up first / driver
-at first boot); boot check 2 (install onto the separate SSD, 580 driver, GPU profile). Smaller: Mint's
+**Screen first (D50, 2026-09-29):** the live USB's default entries boot without nouveau (Ian's stick test: a
+proper 4K desktop where nouveau gave a black screen), a named entry keeps nouveau, an installer hook carries it
+into installed systems; Driver Manager + the guide take it from there. The offline NVIDIA installer is parked
+(`docs/nvidia-edition-licence.md`). **Next:** boot check 2 (install onto the separate SSD, then Driver Manager's
+580 driver, then `cinminai-llama-cuda` for the GPU profile). Smaller: Mint's
 "Welcome to Linux Mint" on first login (rebrand, SPEC §3.2); `casper-md5check.service` failed in the installed
 VM (compare with plain Mint on the Mint box); the cycle-1 list (multi-turn declines, "help me write a
 document" declined bluntly). **Exit:** the live USB boots on
