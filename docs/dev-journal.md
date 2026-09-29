@@ -132,6 +132,13 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
     and nothing else, and compatibility mode stays only as the last resort.
 
     ![Driver Manager and the assistant, the live USB without nouveau](images/screen-first/03-driver-manager-and-assistant.jpg)
+14. **Boot check 2 — installed on real hardware (D45), first part.** Ian installed the image from `f87a39f`
+    onto the Mint box's separate 120 GB SSD: "everything went absolutely smooth. No issues encountered."
+    The install takes a while but never froze; the assistant worked on the live USB while it ran; the
+    installed system boots "pretty quickly", and **Update Manager fetched the NVIDIA 580 driver**
+    ("ran perfect"). One thing left in Mint's name: the installer's slideshow ("Welcome to Linux Mint").
+    Still to note from the checklist: the assistant on the graphics card after the driver, and the other
+    two drives starting as before once reconnected.
 
 ### What went wrong (and what we changed)
 
