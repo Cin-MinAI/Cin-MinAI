@@ -369,6 +369,7 @@ Components (each is one Debian package unless noted):
 | `cinminai-sandbox` | user | bwrap profile + runner (§8.2) |
 | `cinminai-setup` | user (+ admin for driver) | First-boot hardware/model configurator (§9) |
 | `cinminai-llama` | user (the daemon's child, in its unit; PLAN D48) | Pinned llama.cpp build (`llama-server`; CPU and Vulkan backends as modules; CUDA 12 in `cinminai-llama-cuda`) |
+| `cinminai-diag` | root (read-only recorder) + user (session agent) | Diagnostics along the operational tree: activity log, boot records, fault codes with freeze frames, diagnostic trees, a published format any reader can use (§20, D51) |
 | `cinminai-guide-model` | — | Puts the guide model in place from the install media or the download, SHA-256 checked (D23, D46, D48) |
 | `cinminai-branding` | — | Artwork, os-release, plymouth, slideshow |
 | `cinminai-archive-keyring` | — | Our apt key + source list + pins |
@@ -1416,3 +1417,294 @@ The assistant does not get to approve the dangerous action.
 ```
 
 The user owns the computer. The user owns the button.
+
+---
+
+## 20. Diagnostics — an OBD-II for the computer (PLAN D51)
+
+A car keeps its own records and speaks a published standard; any scan tool can read it — the dealer's,
+a cheap handheld, a mechanic's laptop. `cinminai-diag` does that for the computer: it **watches every
+part of the system along one operational tree**, keeps an activity log, sets **standard fault codes**
+with **freeze-frame evidence**, and carries a **diagnostic tree** per code — checks that run by
+themselves, then ranked fixes. Any reader can use it: the guide (tested locally, it must work), a bigger
+local model, a cloud model (D35), an assistant like Claude installed on the machine, or a person on a
+forum. The assistant is one scan tool, not the diagnostic system.
+
+Why (2026-09-29, the first installed system): a kernel update left the NVIDIA driver unsigned under
+Secure Boot; a hard power-off after a crash damaged the root filesystem; the shutdown dialog blamed
+`at-spi-registryd`. The facts were spread over `dkms status`, `modinfo`, `mokutil`, the kernel log, the
+apt history and the initramfs prompt — and the guide, seeing only `inspect_system`, would have sent the
+user to reinstall a driver they already had. A small model can't be trusted to read raw logs; code can.
+**Code reads the system; readers explain it.**
+
+### 20.1 Principles
+
+1. **One operational tree, no blind spots.** Every stage from power-on to daily use to shutdown is a node
+   (§20.2). A node without a monitor is a visible gap in the coverage table, not an invisible one.
+2. **Evidence, not guesses.** Monitors and checks are deterministic programs with typed results. A fault
+   code is set by a rule over evidence, never by a model.
+3. **A published standard.** The formats (§20.4) are versioned (`cinminai-diag/1`) and documented for
+   readers, like SAE's code standard — including a short *reading guide* written for AI readers.
+4. **Its own module.** It runs apart from the desktop and the assistant, so it keeps recording when either
+   is the broken part (and at boot, before both). The recovery mode (D42, §8.7) builds on it.
+5. **As automated as possible, never unilateral.** Monitors, checks and screenshots run by themselves;
+   anything that changes the system is a fix the user approves, through the admin boundary (D3, §8.4), and
+   is verified afterwards (Rule 6). No reader gets a shell: checks and fixes come from fixed catalogues.
+6. **Local and private.** Everything stays on the machine (Rule 1). A report leaves it only when the user
+   exports it, redacted (§12.3), and sees what's in it.
+7. **Planned for the faults we can't reproduce.** An unrecognised failure still gets a code, a full
+   freeze frame and a timeline, so whoever helps next has what they'd ask for.
+8. **More information never hurts** (Ian, 2026-09-29): "even when it's misdirected information —
+   eventually you find your way to the misdirection and realize it was more of a roundabout." We run
+   what we have from the machine that's broken — no meters, no scopes — so everything is recorded and
+   shown, uncertain readings included, each labelled with what it can and can't tell (§20.8). The
+   reader decides how much to show: the guide leads a newcomer with the likeliest finding in plain words;
+   a tinkerer gets every reading, log line and test result to dig through. Nothing is hidden to keep it
+   tidy.
+
+### 20.2 The operational tree
+
+The system as it runs, in order. Each node lists what is watched (**W**), where the evidence comes from
+(**E**), and typical faults (**F**), with worked codes (§20.3). The numbering is the tree; codes use it.
+
+**0 — Power and firmware** *(before Linux; seen from Linux afterwards, or by its absence)*
+- **0.1 Power:** W supply, battery, AC changes, thermal throttling. E `/sys/class/power_supply`,
+  `/sys/class/thermal`, ACPI events in the journal. F battery worn or failing; overheating; brown-outs
+  (sudden power loss shows up as 10.4 at next boot).
+- **0.2 Firmware:** W firmware version, boot mode (UEFI/legacy), Secure Boot state, boot entries and
+  order, TPM. E `/sys/firmware/efi`, `mokutil --sb-state`, `efibootmgr`, `fwupdmgr`, `dmidecode`. F Secure
+  Boot on with unsigned modules (see 2.2); a boot entry pointing at another drive's loader (D47); firmware
+  updates available.
+- **0.3 Hardware inventory:** W CPU and microcode, memory size and errors, storage devices, PCI and USB
+  devices, sensors. E `/proc/cpuinfo`, EDAC, `lspci`, `lsusb`, `lsblk`, `sensors`. F memory errors; a disk
+  that vanished; a device with no driver.
+
+**1 — Boot chain** *(firmware → loader → kernel → initramfs → root)*
+- **1.1 EFI system partition and boot entry:** W the ESP's health, which entry started us. E `efibootmgr`,
+  `/boot/efi`, `fsck.vfat` results. F ESP full or damaged; entry missing after a firmware reset.
+- **1.2 Boot loader (shim → GRUB):** W default entry, kernels offered, boot options, time spent in the menu,
+  the signature chain (shim, GRUB, kernel, MOK list). E `/etc/default/grub`, `grub.cfg`, `/proc/cmdline`,
+  `mokutil --list-enrolled`. F default entry pointing at a kernel that fails (2.2); boot options lost
+  (e.g. D50's `modprobe.blacklist=nouveau`).
+- **1.3 Kernel start:** W version, boot options, taint flags, early errors, boot time. E `uname -r`,
+  `/proc/sys/kernel/tainted`, `journalctl -k -b -p err`, `systemd-analyze`. F kernel panics (seen as a
+  missing boot record); a new kernel series.
+- **1.4 Initramfs:** W modules and microcode it carried, splash, root discovery, disk unlocking, the root
+  filesystem check. E the boot's journal, `lsinitramfs`, the initramfs prompt's text. F **B401** — root
+  filesystem needs a manual check (2026-09-29).
+- **1.5 Root mount and switch-over:** W root mounted read-write, fstab UUIDs match. E `findmnt`,
+  `/etc/fstab`, `blkid`. F fstab UUID mismatch; root read-only after errors.
+
+**2 — System start and core services** *(systemd)*
+- **2.1 systemd:** W targets reached, failed units, degraded state, boot time per unit. E `systemctl
+  --failed`, `systemctl is-system-running`, `systemd-analyze blame`. F a failing unit (e.g. Mint's own
+  `casper-md5check` on installed systems — upstream, recorded as known).
+- **2.2 Kernel modules and drivers:** W which device has which driver, modules refused (signature,
+  version), firmware files missing, blacklists, per-kernel driver coverage (DKMS and prebuilt modules).
+  E `lsmod`, `/sys/bus/pci/devices/*/driver`, `modinfo -F signer`, `dkms status`, the kernel log
+  ("module verification failed", "Key was rejected"), `/etc/modprobe.d`. F **G101** (below); a Wi-Fi card
+  with no firmware.
+- **2.3 Storage and filesystems:** W mounts, free space and inodes, filesystem errors, SMART health, swap,
+  trim. E `df`, `findmnt`, `dumpe2fs` error counts, `smartctl`, the kernel log. F disk nearly full; SMART
+  failing; errors counted on a mounted filesystem.
+- **2.4 Core services:** W journald, logind, D-Bus, polkit, NetworkManager, CUPS, Bluetooth, udisks2,
+  AppArmor, ufw, time sync. E `systemctl status`, their journals, `timedatectl`. F a service crash-looping;
+  clock not synchronised (breaks certificates and updates).
+
+**3 — Graphics and display**
+- **3.1 GPU driver:** W the kernel graphics driver in use (i915, amdgpu, nouveau, nvidia, or the firmware's
+  framebuffer), NVIDIA driver version per kernel, acceleration available. E 2.2's evidence, `/proc/driver/
+  nvidia/version`, `glxinfo -B`, `vulkaninfo --summary`. F **G101**; running on the basic framebuffer by
+  choice (D50) vs by failure.
+- **3.2 Display server:** W Xorg start, driver loaded, modes offered, scale. E `Xorg.0.log`, `xrandr
+  --query` (read-only). F resolution choices greyed out (no mode setting: 3.1).
+- **3.3 Login:** W LightDM and the greeter, autologin, session start. E their journals. F login loop.
+- **3.4 Desktop shell:** W Cinnamon (Muffin) up, fallback mode, crashes, applet errors. E `~/.xsession-
+  errors`, Cinnamon's log (Looking Glass), `org.Cinnamon` on D-Bus. F Cinnamon in fallback mode; an applet
+  failing to load.
+- **3.5 Screens:** W outputs connected, EDID names, hotplug, layout. E `/sys/class/drm/*/status`, EDID.
+  F a screen connected but off; a black screen (seen as "desktop never came up" in the boot record).
+
+**4 — User session**
+- **4.1 Session manager:** W start-up programs, clients that don't answer, shutdown inhibitors.
+  E `cinnamon-session`'s journal, `org.gnome.SessionManager`. F **U101** (below).
+- **4.2 User services and buses:** W `systemd --user` units, the session bus, keyring, the accessibility
+  bus. E `systemctl --user --failed`, their journals. F keyring locked or corrupt.
+- **4.3 Input:** W keyboard layouts, input methods (IBus, Mozc), pointer devices. E `gsettings`, `ibus`.
+- **4.4 Home and settings:** W free space in home, permissions, settings database health. E `df`, `dconf`.
+  F home full; a broken settings file.
+
+**5 — Connectivity**
+- **5.1 Links:** W wired, Wi-Fi (radio switch, driver, firmware, signal), Bluetooth. E `nmcli`, `rfkill`,
+  `iw`. **5.2 Addresses and names:** W DHCP, routes, DNS, internet reachability as NetworkManager sees it.
+  E `nmcli`, `resolvectl`. **5.3 Firewall and VPN:** W ufw state, VPN links. **5.4 Offline mode** (§12.4):
+  W chosen and honoured. F no firmware for a Wi-Fi card; DNS failing while the link is up.
+
+**6 — Software lifecycle**
+- **6.1 Package database:** W dpkg state (half-installed, broken dependencies), locks, interrupted runs.
+  E `dpkg --audit`, `apt-get check`. F an update interrupted by a power loss.
+- **6.2 Sources and keys:** W every source reachable and signed. E `apt-get update` results, `apt-cache
+  policy`. F a source that doesn't exist (2026-09-29: our own `cinminai-apt`, not yet published).
+- **6.3 Updates:** W pending, security, held, last check, reboot required; **what an update will change**
+  (a new kernel series, a driver without a signed module for it). E `apt-get -s dist-upgrade`, `/var/lib/
+  apt/periodic`, `/var/run/reboot-required`, Update Manager's history. F **S301** (below): a kernel update
+  the installed graphics driver doesn't cover.
+- **6.4 Kernels installed:** W which kernels, headers present, which kernel each driver is built and signed
+  for, which kernel the loader starts. E `/lib/modules`, `dkms status`, `modinfo -F signer`. F a kernel
+  without its drivers (G101's cause).
+- **6.5 Other stores:** W Flatpak runtimes and apps. **6.6 Snapshots:** W Timeshift's last snapshot,
+  especially before an update (D29).
+
+**7 — Devices in use**
+- **7.1 Sound:** W PipeWire, the default output, mute, volume. **7.2 Printing and scanning:** W CUPS
+  queues, stuck jobs, SANE. **7.3 Removable storage:** W mounts, safe removal. **7.4 Power states:**
+  W suspend and resume, lid, battery health. E `pactl`, `lpstat`, `udisksctl`, the journal. F sound on the
+  wrong output; a printer paused; resume failing.
+
+**8 — Applications**
+- **8.1 Crashes and hangs:** W core dumps, "not responding" windows. E `coredumpctl`, the journal.
+  **8.2 Defaults:** W default programs and file types. **8.3 Big programs:** W LibreOffice and Firefox
+  profiles (start-up, corruption, policies). F a program crashing at start; a profile locked.
+
+**9 — The assistant stack** *(ours, watched like any other part)*
+- **9.1 The daemon and the model:** W state, profile and why it's reduced (§4.2), graphics memory, model
+  file integrity. E `org.cinminai.Assistant1`, `llama-server`'s log, the model's SHA-256. **9.2 Sidebar,
+  applet, hotkey:** W the checks the boot test runs (icon running, key bound). **9.3 Diagnostics itself:**
+  W the recorder running, its storage, readiness (§20.5).
+
+**10 — Shutdown, restart and the next start**
+- **10.1 Session end:** W clients answering, inhibitors, time taken. F **U101**. **10.2 System stop:**
+  W stop jobs waiting ("a stop job is running…"), time taken. **10.3 Power off / restart** reached.
+  **10.4 Clean or not — seen at the next start:** W the previous boot ended cleanly (journal closed,
+  filesystems clean) or not. E `journalctl --list-boots`, the last boot's final lines, 1.4's fsck result.
+  F **H401** (below). This closes the loop back to **0**.
+
+**Cross-cutting lenses** (read across the tree, not separate nodes): *security* (Secure Boot 0.2/1.2,
+signatures 2.2/6.4, updates 6.3, firewall 5.3, AppArmor 2.4); *change* — the **timeline** (§20.5);
+*performance* (boot time 1.3/2.1, memory pressure, CPU and GPU load, temperatures).
+
+### 20.3 Fault codes
+
+A code is a letter for the part of the tree, the node's number, and a fault number: **`G101`** = graphics
+(3), node 3.1 → fault 01. Letters: `P` power/firmware (0), `B` boot chain (1), `I` system start (2), `G`
+graphics (3), `U` user session (4), `N` connectivity (5), `S` software (6), `D` devices (7), `A`
+applications (8), `X` the assistant (9), `H` shutdown and restart (10). Codes are **pending** when seen
+once and **confirmed** when seen again or when their rule says one is enough; a code **clears** only after
+its fix is verified, or after N clean boots for intermittent ones. `?000` codes per letter mean
+"recognised node, unrecognised fault" — recorded in full.
+
+The first worked codes, all from 2026-09-29:
+
+| Code | Meaning | Detected by |
+|---|---|---|
+| **G101** | The graphics driver is installed but not loaded for the running kernel: its module is unsigned (or signed with a key the firmware doesn't trust) while Secure Boot is on | NVIDIA package installed; no `nvidia` module loaded; `modinfo -F signer` empty for this kernel; Secure Boot enabled; the kernel log's rejection |
+| **S301** | An installed or pending kernel isn't covered by the graphics driver (not built, or not signed) | per-kernel check of 6.4 before and after every update |
+| **B401** | The root filesystem needed a manual check at start | the boot record: initramfs prompt reached, fsck exit status 4 |
+| **H401** | The previous session ended without a clean shutdown | 10.4: the last boot's journal ends without a shutdown, or 1.4 found errors |
+| **U101** | The session's end was held up by a client that didn't answer | the session manager's journal; the boot test's shutdown check |
+
+### 20.4 Records and the published format
+
+- **Activity log** (`/var/log/cinminai-diag/events.jsonl`, and the session's part under the user's
+  state directory): one JSON line per event — time, node, kind (`state`, `change`, `check`, `fault`,
+  `fix`), data. Rotated; kept for a set number of boots.
+- **Boot record** (one per boot): firmware mode, Secure Boot, loader entry, kernel and boot options,
+  initramfs result, targets reached, graphics driver in use, desktop up (and when), how the previous boot
+  ended.
+- **Fault record:** code, status, first and last seen, count, the freeze frame, the tree's progress.
+- **Freeze frame:** versions (kernel, drivers, packages involved), boot options, the relevant log lines,
+  the evidence the rule used, and a **screenshot** when the fault is visual (taken by the session agent,
+  kept locally, listed in the record so the user sees it exists).
+- **Diagnostic trees** (data files, one per code, versioned with the OS like the help cards): the code's
+  plain meaning, the detection rule, **steps** (a check from the catalogue with its expected result, a
+  screenshot, or a question for the user) with branches, and **fixes** — each with plain words, an action
+  from the fixed catalogue, the privilege it needs (none, user, or administrator through polkit),
+  whether it's reversible, and the check that verifies it.
+- **Catalogues:** *checks* are small read-only programs with typed results; *actions* are the fixed
+  verbs fixes may use (§8.4). Readers name them; they never send shell text (Rules 3 and 5).
+- **The interface ("the port")**, all showing the same data: a command, `cinminai-diag` (`status`,
+  `codes`, `show CODE`, `tree CODE`, `run CHECK`, `timeline`, `report [--redact]`); a D-Bus service,
+  `org.cinminai.Diag1`; and a **report** — Markdown for people and AIs, with the JSON beside it — that
+  starts with a short *reading guide*: what the codes mean, what readers may and may not do, how fixes are
+  approved. Schema name and version in every file (`cinminai-diag/1`).
+
+### 20.5 How it runs
+
+- **Where:** a small system service that only reads and records (boot record, journal, packages, disks,
+  firmware state) and never executes a reader's requests; a session agent for what only the session sees
+  (screens, the session manager, screenshots). Readers talk to either; neither runs arbitrary commands.
+- **When:** the boot record at every start (including the one after a crash); continuous event watching
+  (journal, udev, packages); daily checks (disk space, SMART, updates); **around every change** — a
+  snapshot before an update and a check after it, where S301 and G101 are caught (D29's post-check); at
+  shutdown; and on demand.
+- **Readiness:** which checks have run since this boot, so a reader knows what is known and what isn't.
+- **The timeline:** every change (packages, kernels, drivers, settings, boot options) against every boot's
+  outcome — "what changed since it last worked?" in one list. D42's recovery mode reads the same timeline
+  from the USB.
+- **Automation:** when a fault is set, its tree's automated steps run by themselves — the checks and
+  screenshots a helper would ask for — and stop at anything that needs the user or a password. The
+  assistant can then open with the finding: "after yesterday's update your graphics driver didn't load;
+  your previous version still works — shall I…?"
+
+### 20.6 Readers
+
+- **The guide** gets one tool, `diagnose` (codes, a node's state, a tree's next step), and explains in
+  plain words; its eval (cycle 1) adds diagnostic items built from recorded cases. It must work on the
+  guide alone — that's the local test.
+- **Bigger local and cloud models** (D35) read the same report, and more of it; **an assistant installed
+  on the machine** (Claude, Codex, any other) reads the report and the command; **a person** reads the
+  Markdown. Nothing is written for one reader only.
+
+### 20.7 Testing
+
+Every real case becomes a recorded **fixture** — the evidence as it was (command outputs, log lines, boot
+records) — and each fault rule is tested against it mechanically. The first fixtures are 2026-09-29's
+(G101 / S301 on the Mint box's SSD, B401, H401, U101). The VM runs the monitors on every boot test and
+can inject faults the hardware can't be asked for (a full disk, a killed service, an interrupted update).
+Coverage — which nodes of §20.2 have monitors, checks and trees — is published with each release, so
+the blind spots are listed rather than discovered.
+
+### 20.8 Hardware tests — from the system or from the install USB
+
+The monitors of §20.2 *watch*; hardware tests *exercise*: optional, active tests of the parts, so a fault
+that isn't software can be told apart from one that is. They run from the installed system **and from the
+install USB**, as part of the same package: when the installed system won't start, or its results can't be
+trusted, the stick people are asked to keep (D42) boots its own Linux and tests the machine from outside it
+— "is it a bad memory stick or the power supply?" The boot menu gets a **Hardware check** entry (the live
+system started straight into the diagnostics) next to the **Memory test** it already carries (Memtest86+).
+
+**What each test can tell** — stated in the results, so no reader over-trusts one:
+
+| Part | Test | Tells | Can't tell |
+|---|---|---|---|
+| Memory | Memtest86+ from the boot menu (whole memory, outside Linux); `memtester` inside Linux (the free part); kernel memory-error counters (EDAC) | bad cells, a failing stick (with a stick-by-stick retest) | rare timing faults a short run misses |
+| CPU | a load test (`stress-ng`) with temperature, clock and throttling watched; machine-check errors (`rasdaemon`); microcode | errors under load, overheating, throttling, a cooler not doing its job | a slow degradation within spec |
+| GPU (if fitted) | a video-memory test (e.g. `memtest_vulkan`), a render and compute load (Vulkan / CUDA) with temperature, clocks and power watched (`nvidia-smi`, `sensors`) | bad video memory, artefacts, overheating, power limits hit | the display cable (see Screens) |
+| Power supply | motherboard voltage rails (+12 V, +5 V, +3.3 V, CPU core) at rest and **under combined CPU + GPU load**, and whether the machine resets under load | rails sagging or out of range, the classic "turns off under load" | the exact voltages (the board's sensor is approximate; not every board has one) — for that, a multimeter or PSU tester |
+| PCIe | each device's negotiated link speed and width against what it's capable of (`lspci -vv`), bus error counters (AER) | a card running at x4 instead of x16, or at a lower generation; a flaky slot or riser | lanes with nothing plugged in |
+| Storage | SMART / NVMe self-tests (short and long), a read-only surface scan | failing sectors, a drive near the end of its life | anything by writing: tests never write to a disk |
+| Ethernet | link and negotiated speed and duplex (`ethtool`), the port's cable test where the chip supports it, error counters, the chip's self-test where it has one | a bad cable or port, a link stuck at 100 Mb/s | a fault further along the network |
+| USB | every port listed; a guided test — plug a stick into each port in turn — records whether it's seen and at what speed | dead ports, a USB 3 port running at USB 2 speed | power delivery beyond what the port reports |
+| Controllers and input | game controllers, keyboard and pointer (`evtest`), a key-by-key keyboard check | dead keys, drifting sticks, a controller not seen | — |
+| Sound, camera, radios | speaker and microphone loopback, camera capture, a Wi-Fi scan, a Bluetooth scan | outputs, inputs and radios alive | quality |
+| Screens | test patterns (dead pixels, colour, backlight bleed), each output with each cable | dead pixels, a bad cable or port | — |
+| Fans, temperatures, battery | fan speeds, temperatures at rest and under load, battery capacity against design and charge cycles | a stopped fan, a worn battery | — |
+
+**Rules:** non-destructive only (nothing is written to any disk; memory and load tests run in RAM);
+load tests say beforehand what they do (heat, noise, power draw — a laptop plugged in) and run only when
+the user starts them, with time limits and a stop button; results are codes like any other (`P` for
+power, memory, CPU and inventory; `D` for devices; `I` for storage) with freeze frames. **Keeping the
+results from the USB:** the live system runs in memory, so results are shown, can be saved to another USB
+stick, and — with the user's approval, through the same boundary as D42 — written into the installed
+system's diagnostics log, where its own assistant finds them at the next start. More tests, more
+information: the list grows like the diagnostic trees, one tool at a time, each with its "tells / can't
+tell".
+
+### 20.9 First slice
+
+Monitors for the boot record (1, 2.1, 10.4), drivers and kernels (2.2, 3.1, 6.4), updates (6.3) and disk
+(2.3); codes G101, S301, B401, H401, U101 with their trees; the command and the report; the guide's
+`diagnose` tool. Then node by node, in the tree's order. Hardware tests (§20.8) follow, cheapest first —
+the ones that only read what Linux already reports (PCIe link width and speed, SMART self-tests, USB ports
+and their speeds, sensors at rest, the battery), then the **Hardware check** boot entry on the USB, then the
+load tests (CPU, GPU, power-supply rails under load) and the guided ones (USB ports, keyboard, screens).

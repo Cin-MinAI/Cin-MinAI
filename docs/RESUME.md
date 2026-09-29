@@ -79,8 +79,16 @@ answered, icon, Super+A).
 **Screen first (D50, 2026-09-29):** the live USB's default entries boot without nouveau (Ian's stick test: a
 proper 4K desktop where nouveau gave a black screen), a named entry keeps nouveau, an installer hook carries it
 into installed systems; Driver Manager + the guide take it from there. The offline NVIDIA installer is parked
-(`docs/nvidia-edition-licence.md`). **Next:** boot check 2 (install onto the separate SSD, then Driver Manager's
-580 driver, then `cinminai-llama-cuda` for the GPU profile). Smaller: Mint's
+(`docs/nvidia-edition-licence.md`).
+
+**Boot check 2 (2026-09-29, journal 14):** the install onto the 120 GB SSD went smoothly and Update Manager got
+the 580 driver — then a kernel update (6.14 → 7.0.0-34) left the NVIDIA module unsigned under Secure Boot (the
+driver works on 6.14), and a hard power-off damaged the root filesystem (fsck at the initramfs prompt). Open:
+the installer slideshow still says "Welcome to Linux Mint"; the GPU profile on 7.0.
+
+**Next: diagnostics (D51, SPEC §20)** — `cinminai-diag`, an OBD-II for the computer along one operational tree;
+first slice §20.8 (boot record, drivers/kernels, updates, disk; codes G101 S301 B401 H401 U101; the command,
+the report, the guide's `diagnose` tool), with 2026-09-29's evidence as the first fixtures. Smaller: Mint's
 "Welcome to Linux Mint" on first login (rebrand, SPEC §3.2); `casper-md5check.service` failed in the installed
 VM (compare with plain Mint on the Mint box); the cycle-1 list (multi-turn declines, "help me write a
 document" declined bluntly). **Exit:** the live USB boots on
