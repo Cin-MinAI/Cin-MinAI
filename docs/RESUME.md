@@ -1,17 +1,21 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-09-28** (the daemon + llama.cpp session; see "Next" and `docs/dev-journal.md`). Before that:
-2026-09-27 ~21:15 (end of the 26–27 Sept session, commit `20adac1`). For Ian, Claude
-and Codex alike: **read this first.** Reasons behind decisions: `docs/PLAN.md` (D1–D47). How the work went,
-day by day: `docs/dev-journal.md`. The guide model's story: `docs/guide-model-journal.md`.
+Updated **2026-09-29** (end of the 28–29 Sept session: from the assistant's engine to an installed
+Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
+behind decisions: `docs/PLAN.md` (D1–D51). How the work went, day by day: `docs/dev-journal.md`. The guide
+model's story: `docs/guide-model-journal.md`.
 
 ## State right now
 
-- **Repository:** clean, pushed. Nothing is running anywhere.
-- **Mint box** (`mint@192.168.5.70`): teacher stopped, GPU idle; Ian's `qwen14b.service` untouched (active,
-  model unloaded). Our area `~/cin-minai/` is 47 GB (disk 63 GB free, shared — keep it small).
-- **Dev PC:** C: 102 GB free. WSL stopped (it starts on demand; `sweep.sh` shuts it down after training).
-  Hyper-V VMs `cinminai-uefi` and `cinminai-bios` both off.
+- **Repository:** pushed; nothing running on the dev PC (WSL stopped, no VMs but the two M0 ones, off).
+  C: 85 GB free.
+- **The Mint box** now has three systems on three drives: its own Mint (NVMe, with Ian's `qwen14b.service`),
+  Windows (SATA), and **Cin-MinAI installed on the 120 GB SSD** (boot check 2). On the SSD system: kernel
+  6.14.0-37 works with the NVIDIA 580 driver and the assistant on the GPU; **kernel 7.0.0-34 doesn't load the
+  driver** (cause being narrowed down — Secure Boot is off; the evidence command is in the journal's story).
+- **On the Mint box's own Mint** (user `mint`): the test assistant from `~/cin-minai/alpha/` — our panel icon
+  and Super+A are installed in Ian's user (undo: `~/cin-minai/alpha/applet-test/undo-applet-test.sh`); the
+  M0 spike's applet and keybinding are uninstalled. `~/cin-minai/` also holds the eval, models and builds.
 
 ## Where things are
 
@@ -82,8 +86,10 @@ into installed systems; Driver Manager + the guide take it from there. The offli
 (`docs/nvidia-edition-licence.md`).
 
 **Boot check 2 (2026-09-29, journal 14):** the install onto the 120 GB SSD went smoothly and Update Manager got
-the 580 driver — then a kernel update (6.14 → 7.0.0-34) left the NVIDIA module unsigned under Secure Boot (the
-driver works on 6.14), and a hard power-off damaged the root filesystem (fsck at the initramfs prompt). Open:
+the 580 driver — then after a kernel update (6.14 → 7.0.0-34) the NVIDIA driver didn't load on 7.0, though built
+for both (Secure Boot is **off**, so not a signature; cause not yet known — evidence command in the chat of
+2026-09-29), and a hard power-off damaged the root filesystem (fsck at the initramfs prompt). On 6.14 the driver
+works and the assistant runs on the GPU. Open:
 the installer slideshow still says "Welcome to Linux Mint"; the GPU profile on 7.0.
 
 **Next: diagnostics (D51, SPEC §20)** — `cinminai-diag`, an OBD-II for the computer along one operational tree;

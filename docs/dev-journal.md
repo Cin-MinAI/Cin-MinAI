@@ -7,10 +7,19 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
-## 2026-09-28 — the assistant's engine: daemon, llama.cpp, the guide on the ISO
+## 2026-09-28/29 — from the assistant's engine to an installed Cin-MinAI
 
-*Claude (lead) worked alone overnight while Ian slept ("take some time, no rush"): he chose the step
-(daemon + `cinminai-llama` first) and left the rest to the lead. Codex wasn't involved.*
+*Two days. The first night Claude (lead) worked alone while Ian slept ("take some time, no rush"): he chose
+the step (daemon + `cinminai-llama` first) and left the rest to the lead. From the morning of the 28th Ian
+was hands-on — the Mint box, a USB stick, a spare SSD, photos of every screen — and decided each turn.
+Codex reviewed the work and the sidebar conversation and left a continuity note on the Mint box. Gemini
+helped Ian repair the SSD's filesystem at an initramfs prompt.*
+
+**Where we started:** a branded ISO that booted, and a guide model with no way to reach it. **Where we
+ended:** the assistant built into the OS — daemon, llama.cpp, the guide on the ISO, sidebar, panel icon,
+Super+A — answering on the processor from the live USB and on the GPU in an installed system on real
+hardware; the Alpha's live-USB check passed; the first install passed and then met its first real-world
+failure; and out of that failure, the design for a diagnostic system (D51).
 
 ### The flow
 
@@ -137,8 +146,15 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
     The install takes a while but never froze; the assistant worked on the live USB while it ran; the
     installed system boots "pretty quickly", and **Update Manager fetched the NVIDIA 580 driver**
     ("ran perfect"). One thing left in Mint's name: the installer's slideshow ("Welcome to Linux Mint").
-    Still to note from the checklist: the assistant on the graphics card after the driver, and the other
-    two drives starting as before once reconnected.
+    Then the next morning: after an update (which brought kernel 7.0.0-34) the 4K picture was gone, the
+    resolution choices greyed out, and nouveau crashed the machine; the hard power-off left the root
+    filesystem needing a manual `fsck` at the initramfs prompt (fixed, with Gemini's help — the root was
+    `sda2`, not `sda1` as its summary says). Booting the older kernel (6.14) from GRUB's advanced options
+    brought the driver back, and the assistant ran on the GPU. **A wrong turn, recorded:** Ian's first read
+    was "the signature got left behind", and I wrote it into D51 and §20 as the cause — until the evidence
+    showed `SecureBoot disabled`, so a signature can't be it. Corrected everywhere; the cause on 7.0 is
+    still being narrowed down (a version mismatch between the 7.0 module and the driver's other files, the
+    driver not supporting kernel 7.0, or a module never loaded). The whole episode is why D51 exists.
 
 ### What went wrong (and what we changed)
 
@@ -153,6 +169,19 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
   exposure is small; still a rule broken.) Processes there are listed by name only now (`pgrep -l`).
 - **A hoped-for speed gain that wasn't:** the per-CPU modules were expected to speed up the i7-4790K;
   measured, the same speed (the old build already used AVX2). Recorded as portability, not speed.
+- **Tests that passed while the user saw a failure:** the panel icon "passed" while missing (the check read
+  the setting); the shutdown test "hung" three times on dialogs of its own making before it pressed the
+  button a person presses. Each fixed by checking what's on screen or doing what the user does.
+- **A bug of mine in a comment:** changing the RAM rounding, my new comment swallowed the rest of the line,
+  so the system overview silently lost its graphics field — found while reading the code for another fix;
+  a test now checks the overview's fields.
+- **The PC ran out of memory:** WSL kept ~13 GB after the ISO build and an 8 GB VM started on top; Claude
+  Code stopped the run and the test VM was left running. Cleaned up; `build-all.sh` now shuts WSL down
+  before any VM.
+- **A cause written down before the evidence:** "the signature got left behind" went into D51 and §20 as
+  fact; `SecureBoot disabled` disproved it. Corrected everywhere, and recorded here.
+- **Small ones:** PowerShell 5.1 mangled quotes in a commit message (commits now go through a file);
+  a `find` with quotes didn't survive being pasted into a terminal (the next command used none).
 
 ### What we learned
 
@@ -163,6 +192,27 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 - **Measure the product path, not only the model.** Running the public eval with the product's own lookup
   instead of the task's card gave the same 92 %, item for item — useful, but the search words were partly
   written on those queries; the clean held-out number is the honest one.
+- **Real hardware finds what the VM can't.** The VM had no NVIDIA card, no 4K TV, no nouveau, no updates
+  from a real network. Every important finding of the second day — the black screen, the shutdown dialog,
+  the kernel update — came from Ian's machine and his photos.
+- **Screen first.** Nothing else matters to a newcomer if the screen is black (D50). One boot option fixed
+  the black screen and, it turned out, the shutdown dialog too; the rest is Mint's own tools, which worked
+  as they should — the installer "absolutely smooth", Update Manager fetching the driver.
+- **Updates we teach people to install can break what they have.** A new kernel series left the NVIDIA
+  driver behind. Designing that out, and making it diagnosable when it happens, is D51's first job.
+- **More information never hurts** (Ian): even misdirected, it's a roundabout, not a dead end. A mechanic's
+  view of computers — codes, freeze frames, diagnostic trees, the install USB as the last scan tool —
+  became SPEC §20.
+- **Nudge, don't forbid** (D49): the guide gave terminal commands when asked, after recommending Update
+  Manager twice — accepted as the right behaviour.
+
+### Talked about along the way
+
+Why Raspberry Pi systems use Pi Imager (no installer: the setup moves to the writing step; a custom catalogue
+could list Cin-MinAI for the Pi 5 later). The semi-Jarvis idea — high agency over the computer, low agency over
+the user's life, built in a local OS rather than as an agent driving cloud models like OpenClaw (SPEC §1). An
+NVIDIA edition and what its licence allows (written up, parked by D50). Local mirrors (download speed only; they
+change nothing about what's installed). Keeping your install USB, which D51 turns into a hardware scan tool.
 
 ---
 

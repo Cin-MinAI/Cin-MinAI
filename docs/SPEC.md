@@ -1430,9 +1430,11 @@ themselves, then ranked fixes. Any reader can use it: the guide (tested locally,
 local model, a cloud model (D35), an assistant like Claude installed on the machine, or a person on a
 forum. The assistant is one scan tool, not the diagnostic system.
 
-Why (2026-09-29, the first installed system): a kernel update left the NVIDIA driver unsigned under
-Secure Boot; a hard power-off after a crash damaged the root filesystem; the shutdown dialog blamed
-`at-spi-registryd`. The facts were spread over `dkms status`, `modinfo`, `mokutil`, the kernel log, the
+Why (2026-09-29, the first installed system): after a kernel update (6.14 → 7.0) the NVIDIA driver no
+longer loaded, though it was installed and built for both kernels — first taken for a missing signature,
+until the evidence showed Secure Boot was off (the cause is still being narrowed down: exactly why a
+diagnostic record is needed); a hard power-off after a crash damaged the root filesystem; the shutdown
+dialog blamed `at-spi-registryd`. The facts were spread over `dkms status`, `modinfo`, `mokutil`, the kernel log, the
 apt history and the initramfs prompt — and the guide, seeing only `inspect_system`, would have sent the
 user to reinstall a driver they already had. A small model can't be trusted to read raw logs; code can.
 **Code reads the system; readers explain it.**
@@ -1597,8 +1599,8 @@ The first worked codes, all from 2026-09-29:
 
 | Code | Meaning | Detected by |
 |---|---|---|
-| **G101** | The graphics driver is installed but not loaded for the running kernel: its module is unsigned (or signed with a key the firmware doesn't trust) while Secure Boot is on | NVIDIA package installed; no `nvidia` module loaded; `modinfo -F signer` empty for this kernel; Secure Boot enabled; the kernel log's rejection |
-| **S301** | An installed or pending kernel isn't covered by the graphics driver (not built, or not signed) | per-kernel check of 6.4 before and after every update |
+| **G101** | The graphics driver is installed but not loaded for the running kernel. Its tree's branches are the causes: the module unsigned while Secure Boot is on; the module's version different from the driver's other files; the driver not supporting this kernel; the module never built for it | NVIDIA package installed; no `nvidia` module loaded (or `NVRM` errors); per kernel: module present, its version, its signer; Secure Boot state; the kernel log |
+| **S301** | An installed or pending kernel isn't covered by the graphics driver (not built, not signed, or a driver version that doesn't support it) | per-kernel check of 6.4 before and after every update |
 | **B401** | The root filesystem needed a manual check at start | the boot record: initramfs prompt reached, fsck exit status 4 |
 | **H401** | The previous session ended without a clean shutdown | 10.4: the last boot's journal ends without a shutdown, or 1.4 found errors |
 | **U101** | The session's end was held up by a client that didn't answer | the session manager's journal; the boot test's shutdown check |
