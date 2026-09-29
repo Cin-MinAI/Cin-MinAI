@@ -12,6 +12,9 @@ W --cd /mnt/c/Users/Ian/Cin-minAI/distro -e bash -c "bash build-packages.sh && b
 W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e bash -c "bash build-iso.sh && bash check-iso.sh" > $O/br-iso.log 2>&1; echo "iso+checks exit $?" > $O/br-done.log
 W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e env BOOTTEST=1 bash build-iso.sh > $O/br-boottest-build.log 2>&1 || { echo "BOOTTEST BUILD FAILED" >> $O/br-done.log; exit 1; }
 W -e cp /home/brickmii/cinminai-build/m1/out-test/cinminai-0.0.1-amd64-boottest.iso /mnt/c/Users/Ian/cinminai-vm/iso/
+# WSL keeps the memory the builds used (~13 GB); with the 8 GB test VM on top, Windows ran out on
+# 2026-09-28 and Claude Code stopped the run. Hand it back before any VM starts (WSL restarts on demand).
+wsl.exe --shutdown
 powershell.exe -ExecutionPolicy Bypass -NoProfile -File 'C:\Users\Ian\Cin-minAI\distro\vm-boottest.ps1' -Iso 'C:\Users\Ian\cinminai-vm\iso\cinminai-0.0.1-amd64-boottest.iso' > $O/br-vm.log 2>&1
 echo "vm exit $?" >> $O/br-done.log
 # the install test: unattended install onto an empty VM disk, then the report from the installed system
@@ -19,6 +22,7 @@ echo "vm exit $?" >> $O/br-done.log
 if [[ ${INSTALL:-1} == 1 ]]; then
     W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e env INSTALLTEST=1 bash build-iso.sh > $O/br-installtest-build.log 2>&1 || { echo "INSTALLTEST BUILD FAILED" >> $O/br-done.log; exit 1; }
     W -e cp /home/brickmii/cinminai-build/m1/out-test/cinminai-0.0.1-amd64-installtest.iso /mnt/c/Users/Ian/cinminai-vm/iso/
+    wsl.exe --shutdown
     powershell.exe -ExecutionPolicy Bypass -NoProfile -File 'C:\Users\Ian\Cin-minAI\distro\vm-boottest.ps1' -Install -Iso 'C:\Users\Ian\cinminai-vm\iso\cinminai-0.0.1-amd64-installtest.iso' > $O/br-install.log 2>&1
     echo "install exit $?" >> $O/br-done.log
 fi

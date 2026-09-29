@@ -39,6 +39,24 @@ live_user=$(ps -o user= -C cinnamon 2>/dev/null | head -1); live_user=${live_use
 uid=$(id -u "$live_user" 2>/dev/null)
 as_user() { runuser -u "$live_user" -- env DISPLAY=:0 XAUTHORITY="/home/$live_user/.Xauthority" \
             DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" XDG_RUNTIME_DIR="/run/user/$uid" "$@"; }
+# The runner's 32 MiB results disk: before the boot it holds the scenario ("CINMINAI-SCENARIO name"); the
+# report writes screenshots onto it (slot 1 from byte 0, slot 2 from 16 MiB).
+disk=$(lsblk -bdno NAME,SIZE,TYPE 2>/dev/null | awk '$2 == 33554432 && $3 == "disk" {print "/dev/" $1; exit}')
+scenario=$( [ -n "$disk" ] && dd if="$disk" bs=512 count=1 2>/dev/null | tr -d '\0' | sed -n 's/^CINMINAI-SCENARIO //p' | head -1)
+scenario=${scenario:-assistant}
+say "scenario $scenario"
+shot_to() {  # shot_to SLOT_SECTOR NAME: a screenshot as the live user, with its header, at that sector
+    [ -n "$disk" ] || { say "screenshot $2 skipped (no results disk)"; return; }
+    f=/tmp/cinminai-$2.png; rm -f "$f"
+    if as_user gnome-screenshot -f "$f" 2>/dev/null && [ -s "$f" ]; then
+        size=$(stat -c %s "$f"); sum=$(sha256sum "$f" | cut -d' ' -f1)
+        printf 'CINMINAI-SHOT\n%s\n%s\n' "$size" "$sum" | dd of="$disk" bs=512 seek="$1" count=1 conv=sync,notrunc 2>/dev/null
+        dd if="$f" of="$disk" bs=512 seek=$(($1 + 1)) conv=fsync,notrunc 2>/dev/null
+        say "screenshot $2 on results disk ($size bytes)"
+    else
+        say "screenshot $2 failed (gnome-screenshot as $live_user)"
+    fi
+}
 # The assistant, end to end as the live user would reach it: D-Bus activation of cinminai-daemon (systemd
 # --user), the guide read from the stick on the processor, a help lookup, the reply in Mint's names.
 ask=$(runuser -u "$live_user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
@@ -68,21 +86,9 @@ sleep 3
 say "sidebar_asked_after_s $i answered_after_s $j state $(state)"
 sidebar_windows=$(as_user xwininfo -root -tree 2>/dev/null | grep -c '"Cin-MinAI Assistant"')
 say "sidebar_windows $sidebar_windows workarea $(as_user xprop -root _NET_WORKAREA 2>/dev/null | cut -d= -f2)"
-# A screenshot of the live desktop, as the live user sees it, written raw onto the runner's empty 32 MiB
-# "results disk" (header: magic, size, SHA-256; data from byte 512). The serial port dropped bytes, and
-# Hyper-V's own thumbnail call returned "invalid state".
-shot=/tmp/cinminai-boottest.png
-disk=$(lsblk -bdno NAME,SIZE,TYPE 2>/dev/null | awk '$2 == 33554432 && $3 == "disk" {print "/dev/" $1; exit}')
-if [ -z "$disk" ]; then
-    say "screenshot skipped (no results disk)"
-elif as_user gnome-screenshot -f "$shot" 2>/dev/null && [ -s "$shot" ]; then
-    size=$(stat -c %s "$shot"); sum=$(sha256sum "$shot" | cut -d' ' -f1)
-    printf 'CINMINAI-SHOT\n%s\n%s\n' "$size" "$sum" | dd of="$disk" bs=512 count=1 conv=sync 2>/dev/null
-    dd if="$shot" of="$disk" bs=512 seek=1 conv=fsync 2>/dev/null
-    say "screenshot on results disk $disk ($size bytes)"
-else
-    say "screenshot failed (gnome-screenshot as $live_user)"
-fi
+# A screenshot of the desktop as the user sees it, onto the results disk (the serial port dropped bytes, and
+# Hyper-V's own thumbnail call returned "invalid state").
+shot_to 0 desktop
 # the panel icon and Super+A, set once at the live user's first login (cinminai-desktop-setup)
 setup=$(cat "/home/$live_user/.config/cinminai/desktop-setup.json" 2>/dev/null | tr -d '\n')
 applets=$(as_user gsettings get org.cinnamon enabled-applets 2>/dev/null)
@@ -125,6 +131,40 @@ check cinnamon_theme "$(gsettings get org.cinnamon.theme name 2>/dev/null)" "'Mi
 check splash "$(readlink -f /etc/alternatives/default.plymouth 2>/dev/null)" "/usr/share/plymouth/themes/cinminai/cinminai.plymouth"
 check menu_applet_icon "$(python3 -c 'import json; print(json.load(open("/usr/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"))["menu-icon"]["default"])' 2>/dev/null)" "cinminai-menu"
 say "CINMINAI-BOOTTEST RESULT $res"
+
+# Shutting down the way a person does (boot check 1, 2026-09-28: Cinnamon's shutdown dialog said
+# "at-spi-registryd.desktop — Not responding"). The session is asked to power off, as the menu's Shut Down
+# does; a clean shutdown starts stopping the system within seconds. Scenario "noassistant" stops the sidebar
+# and the daemon first, to tell whether they are the cause.
+if [ "$scenario" = noassistant ]; then
+    as_user cinminai-sidebar --quit >/dev/null 2>&1
+    as_user systemctl --user stop cinminai-daemon.service >/dev/null 2>&1
+    sleep 3
+    say "shutdown_test assistant stopped (left: daemon $(pgrep -c -f cinminai-daemon) llama $(pgrep -c llama-server) sidebar $(pgrep -c -f cinminai-sidebar))"
+fi
+say "shutdown_test start (scenario $scenario; running: daemon $(pgrep -c -f cinminai-daemon) llama $(pgrep -c llama-server) sidebar $(pgrep -c -f cinminai-sidebar) registryd $(pgrep -c -f at-spi2-registryd))"
+# as a person does it: the menu's Shut Down opens Cinnamon's confirmation dialog (SessionManager.Shutdown),
+# then its Shut Down button calls EndSessionDialog.Shutdown (Cinnamon's js/ui/endSessionDialog.js). The first
+# two versions of this test stopped at the confirmation dialog (2026-09-28).
+as_user gdbus call --session --dest org.gnome.SessionManager --object-path /org/gnome/SessionManager \
+    --method org.gnome.SessionManager.Shutdown >/dev/null 2>&1 &
+sleep 2
+as_user gdbus call --session --dest org.gnome.SessionManager --object-path /org/gnome/SessionManager \
+    --method org.cinnamon.SessionManager.EndSessionDialog.Shutdown >/dev/null 2>&1 &
+k=0
+while [ "$k" -lt 45 ]; do
+    if [ "$(systemctl is-system-running 2>/dev/null)" = stopping ]; then
+        say "SHUTDOWN clean after ${k}s"
+        say "CINMINAI-BOOTTEST END"
+        exit 0
+    fi
+    sleep 1; k=$((k + 1))
+done
+say "SHUTDOWN stuck after 45s"
+say "shutdown_procs registryd $(ps -o pid=,stat=,etime= -C at-spi2-registryd 2>/dev/null | tr -s ' ' | tr '\n' ';') daemon $(pgrep -c -f cinminai-daemon) llama $(pgrep -c llama-server) sidebar $(pgrep -c -f cinminai-sidebar)"
+journalctl -b --since "-70s" --no-pager 2>/dev/null | grep -i -E "cinnamon-session|at-spi|registryd|inhibit|EndSession|not respond" \
+    | tail -15 | cut -c1-220 | while read -r l; do say "shutdown_log $l"; done
+shot_to 32768 shutdown
 say "CINMINAI-BOOTTEST END"
-sleep 3
-systemctl poweroff
+sleep 2
+systemctl poweroff -i

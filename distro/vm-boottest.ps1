@@ -22,7 +22,10 @@ param(
     # installs onto it unattended and powers off; then the VM boots from that disk and the same report runs
     # in the installed system.
     [switch] $Install,
-    [int] $InstallMinutes = 60
+    [int] $InstallMinutes = 60,
+    # what the report does before its session shutdown test: 'assistant' (as a user leaves it) or
+    # 'noassistant' (sidebar and daemon stopped first; to tell whether they hold up the shutdown)
+    [ValidateSet('assistant', 'noassistant')] [string] $Scenario = 'assistant'
 )
 $ErrorActionPreference = 'Stop'
 if ($Name -in @('cinminai-uefi', 'cinminai-bios')) { throw "refusing to use the M0 VM name $Name" }
@@ -35,18 +38,20 @@ New-Item -ItemType Directory -Force $LogDir | Out-Null
 $log = Join-Path $LogDir ("{0:yyyy-MM-dd_HHmmss}.log" -f (Get-Date))
 $lines = New-Object System.Collections.Generic.List[string]
 $result = 'FAIL'
+$shutdown = $null
 
 function Test-Vmms { (Get-Service vmms -ErrorAction SilentlyContinue).Status -eq 'Running' }
 
-function Save-ResultsScreenshot([string] $disk, [string] $png) {
-    # header in the first 512 bytes: CINMINAI-SHOT, size, SHA-256; the PNG from byte 512
+function Save-ResultsScreenshot([string] $disk, [string] $png, [long] $offset = 0) {
+    # a slot: header in its first 512 bytes (CINMINAI-SHOT, size, SHA-256), the PNG from byte 512 on
     try {
         if ((Get-VM -Name $Name).State -ne 'Off') { $lines.Add('screenshot: VM still running, results disk not read'); return }
         $fs = [IO.File]::OpenRead($disk)
         try {
+            [void]$fs.Seek($offset, 'Begin')
             $head = New-Object byte[] 512; [void]$fs.Read($head, 0, 512)
             $h = [Text.Encoding]::ASCII.GetString($head).Split([char]10)
-            if ($h[0] -ne 'CINMINAI-SHOT') { $lines.Add('screenshot: none on the results disk'); return }
+            if ($h[0] -ne 'CINMINAI-SHOT') { $lines.Add("screenshot: none on the results disk at $offset"); return }
             $size = [int]$h[1]; $sum = $h[2].Trim()
             $bytes = New-Object byte[] $size; $got = 0
             while ($got -lt $size) { $n = $fs.Read($bytes, $got, $size - $got); if ($n -le 0) { break }; $got += $n }
@@ -95,6 +100,10 @@ try {
     # plus a 512-byte footer, so it's read straight from the file afterwards; the serial port dropped bytes)
     $resultsDisk = Join-Path $vmDir 'results.vhd'
     New-VHD -Path $resultsDisk -SizeBytes 32MB -Fixed | Out-Null
+    # the scenario for the report, in the first sector (a fixed VHD's data starts at byte 0)
+    $fs = [IO.File]::OpenWrite($resultsDisk)
+    try { $b = [Text.Encoding]::ASCII.GetBytes("CINMINAI-SCENARIO $Scenario`n"); $fs.Write($b, 0, $b.Length) } finally { $fs.Dispose() }
+    $lines.Add("scenario $Scenario")
     Add-VMHardDiskDrive -VMName $Name -Path $resultsDisk
     Set-VM -Name $Name -AutomaticCheckpointsEnabled $false
 
@@ -127,6 +136,7 @@ try {
             $stamp = '{0,6:N0}s  {1}' -f ((Get-Date) - $start).TotalSeconds, $line
             $lines.Add($stamp); Write-Host $stamp
             if ($line -match '^CINMINAI-BOOTTEST RESULT (\w+)') { $result = $Matches[1] }
+            if ($line -match '^SHUTDOWN (\w+)') { $shutdown = $Matches[1] }
             if ($line -eq 'CINMINAI-BOOTTEST END') { break }
         }
         $pending = $reader.ReadLineAsync()
@@ -147,6 +157,11 @@ try {
     if (Test-Vmms) { $lines.Add(("vm_state_after {0}" -f (Get-VM -Name $Name).State)) }
     else { $lines.Add("vmms stopped during the test (someone pressed Stop Service?) - the VM ran on unmanaged") }
     Save-ResultsScreenshot $resultsDisk ($log -replace '\.log$', '-desktop.png')
+    if ($shutdown -ne 'clean') {
+        Save-ResultsScreenshot $resultsDisk ($log -replace '\.log$', '-shutdown.png') (32768 * 512)
+        $lines.Add("shutdown: $(if ($shutdown) { $shutdown } else { 'no result' }) - the session didn't end by itself")
+        $result = 'FAIL'
+    }
 }
 catch {
     $lines.Add("runner error: $($_.Exception.Message)")

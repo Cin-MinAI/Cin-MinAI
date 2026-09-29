@@ -99,6 +99,17 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
     responding"; the machine shut down after a while. Whether it's ours (the sidebar is a GTK program on
     that bus; the model on the processor) or a Mint live-session quirk isn't known yet — the VM boot test
     never saw it, because its report shuts down with `systemctl poweroff`, which skips that dialog.
+    **Chased (four test versions, three of them wrong in instructive ways):** `cinnamon-session-quit
+    --no-prompt` and `SessionManager.Shutdown` both only open Cinnamon's confirmation dialog, so two runs
+    "hung" on a dialog waiting for a click; the button's real call (`EndSessionDialog.Shutdown`) was found
+    in Cinnamon's own `endSessionDialog.js`. Then the report was stopped along with everything else and went
+    silent (made to survive with `DefaultDependencies=no`); one rerun was killed when Windows ran out of
+    memory (WSL kept ~13 GB after the ISO build, plus the 8 GB VM; `build-all.sh` now shuts WSL down
+    before any VM). Result: in the VM the session shuts down **clean in 3 s with the assistant running and
+    with it stopped** — the assistant doesn't hold it up, and the dialog doesn't appear. What differs on
+    the Mint box: compatibility mode (everything drawn by the processor) while the model used it too; the
+    next evidence has to come from that machine. The boot test now shuts down the way a person does, every
+    run, and fails if the session doesn't end.
 12. **An NVIDIA edition: the licence, read.** `docs/nvidia-edition-licence.md` — permitted with conditions
     (unmodified binaries, the licence provided to each recipient); a GPL stance to take for Pascal's
     proprietary module; signed prebuilt modules exist for the ISO's kernel (verified); and the CUDA

@@ -1,6 +1,9 @@
 [Unit]
 Description=Cin-MinAI boot test report (test ISO only)
 After=graphical.target
+# Not stopped with everything else at shutdown: the report watches the session's own shutdown and must live
+# long enough to say "clean" (2026-09-28: it was stopped first and went silent). Only the final kill ends it.
+DefaultDependencies=no
 
 [Service]
 Type=oneshot
