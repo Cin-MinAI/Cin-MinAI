@@ -528,6 +528,15 @@ record is detected; a lost USB is recovered with the printed code.
   place for discussion; secrets (AMO key, signing keys) stay out of the repo either way. Also a
   `SECURITY.md` (how to report, response times, fixes published with their reasons), reproducible
   builds so anyone can check the ISO against the source, and the outside security review (D36).
+- **The project page and a community forum (Ian, 2026-09-30; parked until publishing starts).** The GitHub
+  Pages site (next to `cinminai-apt`, D46) carries what the testing teaches: **known issues** in plain words
+  (what happens, who's affected, how to check, how to go back; first entry: kernel 7.0 with older SSDs such as
+  the Kingston V300 — the fix is the 6.8 long-term kernel through Update Manager → View → Linux kernels), a
+  **hardware list** (what's been tested, how it went), the journal and the decisions. With it a **forum: the
+  community's discussion ground for all things AI**, not only Cin-MinAI — and the home of **releases and bug
+  discussions** for the OS. D51's diagnostic reports post there with one click (redacted, the user's choice).
+  General Mint questions link to Mint's own forums. First choice for the forum: GitHub Discussions in a
+  public repo (free, beside the code and issues, easy to move later); Discourse if it outgrows that.
 
 ---
 
