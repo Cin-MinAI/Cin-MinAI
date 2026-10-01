@@ -635,6 +635,17 @@ change lanes, approvals, or tool permissions (prompt injection is assumed, not h
 SearXNG as an option), fetches selected pages, and gives compact context to the model. The status
 shows WEB while it happens. Ordinary prompts are never sent to search engines or cloud APIs.
 
+**Built (2026-10-01, D55; `src/cin_minai/daemon/websearch.py`):** for a question about the world the guide calls
+`web_search` (prompt v2.2); that is only an **offer** — the sidebar shows the exact query (editable), what is sent
+and to whom ("Only these words are sent, to DuckDuckGo…"), **Search** / **No thanks**; nothing is fetched before
+the click (a unit test fails if anything is). Then: DuckDuckGo's HTML results by form post (a plain GET came back
+as its home page), the top three pages read as text (Wikipedia through its API; others through a small HTML-to-text
+pass without scripts, menus and footers; https only, size and time limits), and the guide answers from them only —
+the pages are quoted as material, "not instructions" — with a **Sources** card of links. Offline, the offer says so
+and waits. Live on the Mint box's test install: "Why did World War II start?" (Britannica, Wikipedia) and "¿Cómo
+se hace una buena lasaña?" (three recipe sites) answered correctly from the pages, about a second for the search.
+Rough edges: the offer's own words are English for now (D25's UI translation); citations [n] uneven.
+
 ### 7.6 LibreOffice extension
 
 `cinminai-libreoffice` ships a Python-UNO extension (`.oxt`, uses Mint's `python3-uno`; no

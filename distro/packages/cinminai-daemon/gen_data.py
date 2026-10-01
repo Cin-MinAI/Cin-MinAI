@@ -43,9 +43,12 @@ def build(repo: str) -> dict:
     # v2 is the prompt the shipped guide was trained and measured with (MODEL_CARD.md); v2.1 = v2 plus one
     # tool, make_spreadsheet (D53), adopted 2026-09-30 after the A/B: 140/157 vs 141/157, the same tool
     # choices, the new tool never called by mistake. With a document shared the prompt is v2's, unchanged.
-    R.PROMPT = "v2.1"
+    # v2.2 = v2.1 with rule 2 rewritten (world questions -> web_search, writing -> help, advice -> decline) and the
+    # web_search tool (D54, D55), adopted 2026-10-01 after the A/B: 138/157 vs 140/157, the unchanged items better
+    # (123 vs 120 of 137). CINMINAI_GUIDE_PROMPT: a test daemon tries another prompt without changing what ships.
+    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.2")
     guide = {
-        "prompt": "v2.1",
+        "prompt": R.PROMPT,
         "system": R.system_prompt({}),
         "style": R.STYLE_V2,
         "result_format": "Result of {tool}:\n{result}\n\n{style}",

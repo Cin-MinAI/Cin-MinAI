@@ -79,6 +79,10 @@ class TextStream:
 
 PROPOSED = ("I've prepared this change: {summary}. It's shown below — nothing changes until you click Apply, "
             "and one Ctrl+Z in LibreOffice undoes it.")
+SEARCH_OFFER = ("I can look that up on the web. Below is exactly what would be sent; nothing leaves this computer "
+                "until you click Search.")
+SEARCH_OFFLINE = ("I'd need to look that up on the web, and this computer isn't online right now. Connect to the "
+                  "internet, then click Search below.")
 
 
 class Guide:
@@ -87,6 +91,31 @@ class Guide:
         self.backend, self.data, self.help, self.tools, self.cfg = backend, data, help_index, tools, cfg
         self.office = office
         self.history: list[dict] = []
+        self.searches: dict[str, dict] = {}  # offered web searches, by id (D55): nothing is sent before Search
+
+    def search(self, sid: str, query: str, on_text: Callable[[str], None], on_action, cancel: threading.Event) -> dict:
+        """The user clicked Search (SPEC §7.5): fetch, then answer from the pages only, with their numbers."""
+        from . import websearch
+        offer = self.searches.pop(sid, None)
+        if offer is None:
+            raise BackendError("That search was already done or dismissed.")
+        query = (query or offer["query"]).strip()[:200]
+        on_action("web_search", {"query": query}, "running", "")
+        try:
+            found = websearch.gather(query, self.tools.lang)
+        except websearch.SearchError as e:
+            self.searches[sid] = offer  # can be tried again (e.g. once online)
+            raise BackendError(f"The search didn't work: {e}.")
+        on_action("web_search", {"query": query}, "done",
+                  json.dumps({"query": query, "sources": [{k: s[k] for k in ("n", "title", "url")} for s in found["sources"]]},
+                             ensure_ascii=False))
+        prompt = websearch.answer_prompt(offer["question"], found)
+        reply, timings = self.backend.chat([{"role": "user", "content": prompt}], max_tokens=500, on_text=on_text,
+                                           cancel=cancel)
+        # the conversation goes on from here as if the guide had answered (follow-up questions work)
+        self.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
+        return {"reply": reply, "tool": "web_search", "args": {"query": query}, "sources": len(found["sources"]),
+                "timings": [timings]}
 
     def document(self) -> tuple[dict | None, str, dict]:
         """(the shared document or None, the system prompt, the schema): with a document shared, the prompt
@@ -167,6 +196,19 @@ class Guide:
                     on_text(reply)
                 self.history += [user, {"role": "assistant", "content": raw}]
                 return {"reply": reply, "tool": tool, "args": args, "timings": timings}
+            if tool == "web_search":
+                # nothing is sent here: the sidebar shows the query; the user clicks Search (D55, §7.5)
+                import uuid
+                sid = uuid.uuid4().hex[:12]
+                query = str(args.get("query", "")).strip()[:200] or text[:200]
+                self.searches = {sid: {"query": query, "question": text}}  # only the newest offer stands
+                online = self.tools.online()
+                on_action(tool, {"query": query}, "proposal", json.dumps({"id": sid, "query": query, "online": online,
+                                                                          "provider": "DuckDuckGo"}, ensure_ascii=False))
+                reply = SEARCH_OFFER if online else SEARCH_OFFLINE
+                on_text(reply)
+                self.history += [user, {"role": "assistant", "content": raw}]
+                return {"reply": reply, "tool": tool, "args": {"query": query}, "proposal": sid, "timings": timings}
             try:
                 if tool in edits:
                     # an edit is never made here: it becomes a preview the user applies or discards (§7.8)

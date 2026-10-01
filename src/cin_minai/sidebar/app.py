@@ -360,6 +360,12 @@ class Sidebar(Gtk.Application):
             self.reply.set_text(self.reply.get_text() + args[1])
         elif signal == "Action" and args[1] == "outline" and args[3] == "proposal":
             self.outline_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "web_search" and args[3] == "proposal":
+            self.search_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "web_search" and args[3] == "running":
+            self.progress_line(f"Searching the web for: {json.loads(args[2] or '{}').get('query', '')}")
+        elif signal == "Action" and args[1] == "web_search" and args[3] == "done":
+            self.sources_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "journal" and args[3] == "done":
             self.progress_line(words.journal_written(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "draft":
@@ -576,8 +582,58 @@ class Sidebar(Gtk.Application):
         self.chat.pack_start(card, False, False, 0)
         card.show_all()
 
-    def start_job(self, method: str, arg: str, waiting: str) -> None:
-        """WriteUp / WriteDraft: like a question, but nothing typed: the reply streams into a new bubble."""
+    # --- web search (D55) ---------------------------------------------------------------------------------
+    def search_card(self, offer: dict) -> None:
+        """The query that would be sent, editable; nothing is sent until Search (SPEC §7.5)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label="Search the web for:", xalign=0)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        query = Gtk.Entry(text=offer.get("query", ""))
+        box.pack_start(query, False, False, 0)
+        note = Gtk.Label(label=words.search_note(offer), xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        go = Gtk.Button(label="Search")
+        go.get_style_context().add_class("suggested-action")
+        no = Gtk.Button(label="No thanks")
+
+        def search(button) -> None:
+            go.set_sensitive(False)
+            no.set_sensitive(False)
+            query.set_sensitive(False)
+            self.start_job("Search", (offer.get("id", ""), query.get_text().strip()), "Looking it up…", "(ss)")
+
+        def dismiss(button) -> None:
+            box.destroy()  # nothing was sent
+
+        go.connect("clicked", search)
+        no.connect("clicked", dismiss)
+        buttons.pack_start(go, False, False, 0)
+        buttons.pack_start(no, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def sources_card(self, found: dict) -> None:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.get_style_context().add_class("command")
+        head = Gtk.Label(label="Sources", xalign=0)
+        head.get_style_context().add_class("note")
+        box.pack_start(head, False, False, 0)
+        for s in found.get("sources", []):
+            link = Gtk.LinkButton(uri=s.get("url", ""), label=words.source_line(s))
+            link.set_halign(Gtk.Align.START)
+            link.get_child().set_line_wrap(True)
+            link.get_child().set_max_width_chars(30)
+            box.pack_start(link, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def start_job(self, method: str, arg, waiting: str, fmt: str = "(s)") -> None:
+        """WriteUp / WriteDraft / Search: like a question, but nothing typed: the reply streams into a new bubble."""
         if not self.proxy or self.rid is not None:
             return
         self.reply = self.bubble("assistant", waiting)
@@ -593,7 +649,8 @@ class Sidebar(Gtk.Application):
                 self.finish_reply(error=e.message)
             self.update_header()
 
-        self.proxy.call(method, GLib.Variant("(s)", (arg,)), Gio.DBusCallFlags.NONE, 3600000, None, started)
+        args = arg if isinstance(arg, tuple) else (arg,)
+        self.proxy.call(method, GLib.Variant(fmt, args), Gio.DBusCallFlags.NONE, 3600000, None, started)
         self.update_header()
 
     def outline_card(self, outline: dict) -> None:

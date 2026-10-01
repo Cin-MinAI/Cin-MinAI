@@ -229,3 +229,18 @@ def entry_label(e: dict) -> str:
 def journal_written(e: dict) -> str:
     return ("Entry written and locked" if e.get("private") else f"Entry written: {e.get('title', '')}") + \
         f" ({e.get('words', 0)} words)"
+
+
+# --- web search (D55, SPEC §7.5) ---------------------------------------------------------------------------
+
+def search_note(offer: dict) -> str:
+    if not offer.get("online", True):
+        return "This computer is offline. Connect to the internet first; nothing is sent until you click Search."
+    return (f"Only these words are sent, to {offer.get('provider', 'the search engine')}. The pages it finds are "
+            "read to answer you. Nothing about you or this computer is sent.")
+
+
+def source_line(s: dict) -> str:
+    import urllib.parse
+    host = urllib.parse.urlsplit(s.get("url", "")).hostname or ""
+    return f"[{s.get('n')}] {s.get('title', '')} — {host}"

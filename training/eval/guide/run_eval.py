@@ -101,7 +101,9 @@ OPTIONAL[(None, "make_spreadsheet")] = {"rows"}
 
 def tools_for(doc: str | None) -> dict:
     # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
-    extra = CREATE_TOOLS if PROMPT == "v2.1" and not doc else {}
+    extra = {}
+    if PROMPT in ("v2.1", "v2.2") and not doc:
+        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT == "v2.2" else {})}
     return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
@@ -163,6 +165,24 @@ Tools:
 STYLE_V2 = ("Now write your reply to the user as plain text (not JSON), in the language of their message: "
             "one short sentence, then numbered steps if there are two or more, using the names exactly as "
             "they appear above.")
+# Prompt v2.2 (2026-10-01, D54 + D55): v2.1 with rule 2 rewritten — knowledge questions go to web_search (the
+# user sees the query and clicks Search before anything is sent), writing is in scope, advice that decides for
+# the person stays declined. Only rule 2 changes (asserted); one tool more.
+_RULE2_V2 = ("2. Anything else — history, politics, school subjects, maths, health, law, money advice, news, weather, "
+             "sports, recipes, or writing texts for people: call decline directly (no lookup), kindly, in one or two "
+             "sentences, and say what you can help with.")
+_RULE2_V22 = ("2. Questions about the world — history, politics, school subjects, maths, science, recipes, news, "
+              "weather, sports: call web_search with a short search query in the user's language (nothing is sent "
+              "until the user agrees; you answer from the pages they let you fetch). Writing — stories, poems, "
+              "letters, essays, speeches: help, and write it with answer. Advice that decides for the person — "
+              "health and medicine, law, money and investments: call decline, kindly, in one or two sentences, and "
+              "say what you can help with.")
+assert SYSTEM_V2.count(_RULE2_V2) == 1
+SYSTEM_V22 = SYSTEM_V2.replace(_RULE2_V2, _RULE2_V22)
+WEB_TOOLS = {
+    "web_search": ({"query": S}, "search the web for a question about the world: a short search query in the user's "
+                                 "language (the user sees it and agrees before anything is sent)"),
+}
 PROMPT = "v1"
 HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
 
@@ -186,7 +206,8 @@ def system_prompt(task: dict) -> str:
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    return (SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM).format(document=document, tools=tools)
+    system = SYSTEM_V22 if PROMPT == "v2.2" and not doc else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM
+    return system.format(document=document, tools=tools)
 
 
 # --- items: one per (task, language) --------------------------------------------------------------
@@ -214,6 +235,9 @@ def items() -> list[dict]:
             if "result" in t:
                 it["result"] = json.loads(resolve(json.dumps(t["result"], ensure_ascii=False), lang))
             it["must"] = [[resolve(a, lang) for a in group] for group in t.get("must", [])]
+            if PROMPT == "v2.2" and "v22" in t:
+                # D54/D55: no longer a decline; the action is checked, the decline's reply checks don't apply
+                it.update(expect=t["v22"]["expect"], must=[], must_not=[], b_skip=True)
             out.append(it)
     return out
 
@@ -347,7 +371,7 @@ def run_item(srv: Server, it: dict) -> dict:
                      {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE_V2 if PROMPT.startswith('v2') else STYLE}"}]
         reply, tb = srv.chat(messages, None, 600)
         rec["t_b"] = round(tb, 2)
-    if reply is not None and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret")):
+    if reply is not None and not it.get("b_skip") and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret")):
         rec["reply"] = reply
         rec["b_fails"] = stage_b(it, reply)
         rec["b_ok"] = not rec["b_fails"]
@@ -380,7 +404,7 @@ def main() -> None:
     ap.add_argument("--url"), ap.add_argument("--model", default=""), ap.add_argument("--api-key-env")
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")

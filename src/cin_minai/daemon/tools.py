@@ -93,6 +93,12 @@ class Tools:
             out["commands_note"] = "Give only the commands listed here, exactly as written."
         return out
 
+    def online(self) -> bool:
+        """NetworkManager says the internet is reachable ("full"); without NetworkManager, assume yes and let
+        the search say if it can't connect."""
+        state = run(["nmcli", "-t", "-f", "CONNECTIVITY", "general"]).strip()
+        return state in ("full", "") or state == "unknown"
+
     def diagnose(self) -> dict:
         """The diagnostics' short view (cinminai-diag, D51), reused for DIAG_TTL seconds. CINMINAI_DIAG_FIXTURE
         reads a recorded case instead of this machine (tests, the boot test)."""

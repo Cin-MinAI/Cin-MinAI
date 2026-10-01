@@ -89,11 +89,21 @@ class GuideTest(unittest.TestCase):
         with open(CORPUS, encoding="utf-8") as f:
             session = json.loads(f.readline())
         trained = session["messages"][0]["content"]
-        # prompt v2.1 (2026-09-30, D53): the trained v2 prompt plus exactly one tool line at the end
+        # prompt v2.2 (2026-10-01, D54/D55): the trained v2 prompt with rule 2 rewritten, plus two tool lines at the
+        # end (make_spreadsheet, web_search) — nothing else differs
+        import importlib.util
+        saved, sys.argv = sys.argv, ["run_eval.py"]
+        spec = importlib.util.spec_from_file_location("re2", os.path.join(ROOT, "training", "eval", "guide", "run_eval.py"))
+        r = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(r)
+        sys.argv = saved
         system = DATA["guide.json"]["system"]
-        self.assertEqual(DATA["guide.json"]["prompt"], "v2.1")
-        self.assertTrue(system.startswith(trained + "\n- make_spreadsheet: "), system[len(trained) - 40:len(trained) + 60])
-        self.assertEqual(system.count("\n"), trained.count("\n") + 1)
+        self.assertEqual(DATA["guide.json"]["prompt"], "v2.2")
+        self.assertEqual(trained.count(r._RULE2_V2), 1)
+        expected = trained.replace(r._RULE2_V2, r._RULE2_V22)
+        self.assertTrue(system.startswith(expected + "\n- make_spreadsheet: "), system[len(expected) - 40:len(expected) + 60])
+        self.assertIn("\n- web_search: ", system)
+        self.assertEqual(system.count("\n"), trained.count("\n") + 2)
 
     def test_schema_asks_for_the_tool_first(self):
         # llama.cpp writes properties in schema order; "args" before "tool" made the model fill in

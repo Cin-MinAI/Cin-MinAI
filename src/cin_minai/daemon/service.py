@@ -40,6 +40,10 @@ XML = f"""
     <!-- a proposed document edit (Action state "proposal", its result has the id): apply it, or discard it -->
     <method name="Decide"><arg type="s" name="proposal" direction="in"/><arg type="b" name="apply" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
+    <!-- an offered web search (Action "web_search" state "proposal", its result has the id): the user clicked
+         Search, with the query they saw (or edited). Nothing is sent before this call (D55, SPEC §7.5) -->
+    <method name="Search"><arg type="s" name="offer" direction="in"/><arg type="s" name="query" direction="in"/>
+      <arg type="u" name="id" direction="out"/></method>
     <!-- stop using the shared LibreOffice document (sharing itself is switched in LibreOffice's menu) -->
     <method name="ForgetDocument"/>
     <!-- writing projects (D54): while one is open, Ask goes to the writing partner, which gathers ideas as notes -->
@@ -237,6 +241,18 @@ class Service:
                 inv.return_dbus_error(f"{IFACE}.Error.Journal", str(e))
                 return
             inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method == "Search":
+            sid, query = params.unpack()
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+
+            def search(on_text, on_action, sid=sid, query=query):
+                out = self.guide.search(sid, query, on_text, on_action, self.cancel)
+                return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"])}
+            self.job(self.next_id, search)
         elif method == "JournalWrite":
             (private,) = params.unpack()
             if self.busy or self.journal is None:
