@@ -39,13 +39,19 @@ IDEAS = [
 def quality(path: str) -> dict:
     """Repeated paragraphs (the same, or 85 % the same words, as an earlier one), scene openings that repeat
     the previous scene's ending, and CJK characters in the text."""
-    import html
+    import xml.etree.ElementTree as ET
+    import zipfile
     from cin_minai.daemon.writer import CJK, _same
-    xml = subprocess.run(["unzip", "-p", path, "content.xml"], capture_output=True, text=True).stdout
-    paras = [html.unescape(re.sub(r"<[^>]+>", "", p)) for p in re.findall(r"<text:p[^>]*>(.*?)</text:p>", xml)]
-    body = [p for p in paras[1:] if p.strip() != "*   *   *"]
+    # the document's own paragraphs (a regex over content.xml merged empty paragraphs in a file LibreOffice had
+    # saved, and counted 4 repeats that weren't there, 2026-10-01); scene breaks kept to find the echoes
+    t = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+    with zipfile.ZipFile(path) as z:
+        root = ET.fromstring(z.read("content.xml"))
+    paras = [re.sub(r"\s+", " ", "".join(e.itertext())).strip() for e in root.iter() if e.tag in (t + "p", t + "h")]
+    paras = ["*   *   *" if p.replace("*", "").strip() == "" and "*" in p else p for p in paras if p]
+    body = [p for p in paras[1:] if p != "*   *   *"]
     repeats = sum(1 for i, p in enumerate(body) if any(_same(p, q) for q in body[:i]))
-    echoes = sum(1 for i, p in enumerate(paras) if i > 1 and paras[i - 1].strip() == "*   *   *" and _same(p, paras[i - 2]))
+    echoes = sum(1 for i, p in enumerate(paras) if i > 1 and paras[i - 1] == "*   *   *" and _same(p, paras[i - 2]))
     return {"paragraphs": len(body), "words": sum(len(p.split()) for p in body), "repeated_paragraphs": repeats,
             "scene_openings_repeating_the_last_ending": echoes, "cjk_chars": sum(len(m) for m in CJK.findall(" ".join(body)))}
 

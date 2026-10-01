@@ -14,6 +14,7 @@ runs where, and why it's reduced if it is. Nothing here reaches the network.
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 import gi
@@ -923,5 +924,31 @@ class Sidebar(Gtk.Application):
         return 0
 
 
+LOG_MAX = 256 * 1024
+
+
+def keep_log() -> None:
+    """Errors go to ~/.cache/cinminai/sidebar.log: the panel starts the sidebar with its output on /dev/null, and a
+    multi-chapter fault on 2026-10-01 left nothing behind. PyGObject reports callback errors via sys.excepthook."""
+    import time
+    import traceback
+    folder = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai")
+    try:
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, "sidebar.log")
+        if os.path.exists(path) and os.path.getsize(path) > LOG_MAX:
+            os.replace(path, path + ".1")
+        sys.stderr = open(path, "a", buffering=1, encoding="utf-8", errors="replace")
+    except OSError:
+        return
+
+    def hook(kind, value, tb) -> None:
+        sys.stderr.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} sidebar error:\n"
+                         + "".join(traceback.format_exception(kind, value, tb)))
+    sys.excepthook = hook
+    sys.stderr.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} sidebar started: {' '.join(sys.argv[1:])}\n")
+
+
 def main() -> None:
+    keep_log()
     sys.exit(Sidebar().run(sys.argv))
