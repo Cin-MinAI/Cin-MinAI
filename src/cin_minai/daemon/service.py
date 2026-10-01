@@ -44,6 +44,9 @@ XML = f"""
          Search, with the query they saw (or edited). Nothing is sent before this call (D55, SPEC §7.5) -->
     <method name="Search"><arg type="s" name="offer" direction="in"/><arg type="s" name="query" direction="in"/>
       <arg type="u" name="id" direction="out"/></method>
+    <!-- "Put in Writer": a new Writer document in Documents with this text (an answer), opened; never overwrites -->
+    <method name="MakeDocument"><arg type="s" name="title" direction="in"/><arg type="s" name="text" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
     <!-- stop using the shared LibreOffice document (sharing itself is switched in LibreOffice's menu) -->
     <method name="ForgetDocument"/>
     <!-- writing projects (D54): while one is open, Ask goes to the writing partner, which gathers ideas as notes -->
@@ -241,6 +244,19 @@ class Service:
                 inv.return_dbus_error(f"{IFACE}.Error.Journal", str(e))
                 return
             inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method == "MakeDocument":
+            title, text = params.unpack()
+            try:
+                from . import odt
+                folder = os.path.join(os.path.expanduser("~"), "Documents")
+                title = (title or "").strip()[:80] or "From the assistant"
+                path = odt.write(folder, title, title, [text], header="")
+            except OSError as e:
+                inv.return_dbus_error(f"{IFACE}.Error.Document", f"couldn't save the document: {e.strerror or e}")
+                return
+            self.open_file(path)
+            inv.return_value(GLib.Variant("(s)", (json.dumps({"file": path, "shown": "~/" + os.path.relpath(
+                path, os.path.expanduser("~"))}, ensure_ascii=False),)))
         elif method == "Search":
             sid, query = params.unpack()
             if self.busy:

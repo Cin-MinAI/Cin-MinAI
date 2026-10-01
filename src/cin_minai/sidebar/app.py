@@ -176,6 +176,36 @@ class Sidebar(Gtk.Application):
     def hello(self) -> None:
         self.bubble("assistant", "Hello! I can help you use this computer: finding things, how-to steps, "
                                  "and checking how it's doing. What would you like to do?")
+        # the writing modes, visible where a newcomer looks (2026-10-01: behind the header's New icon, not found)
+        row = Gtk.Box(spacing=6)
+        for label, cb in (("Start a writing project", lambda b: self.new_project()),
+                          ("Open the journal", lambda b: self.open_journal())):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", cb)
+            row.pack_start(b, False, False, 0)
+        self.chat.pack_start(row, False, False, 0)
+        row.show_all()
+
+    def writer_button(self, text: str) -> None:
+        """"Put in Writer" under an answer: a new Writer document with it (2026-10-01: "it won't write in Writer")."""
+        b = Gtk.Button(label="Put in Writer")
+        b.set_relief(Gtk.ReliefStyle.NONE)
+        b.set_tooltip_text("Make a new Writer document with this answer and open it")
+        b.get_style_context().add_class("action")
+
+        def make(button) -> None:
+            first = text.strip().splitlines()[0] if text.strip() else ""
+            title = words.document_title(first)
+            out = self.daemon_json("MakeDocument", title, text)
+            if out:
+                button.set_label(f"Saved {out['shown']}")
+                button.set_sensitive(False)
+
+        b.connect("clicked", make)
+        row = Gtk.Box()
+        row.pack_start(b, False, False, 0)
+        self.chat.pack_start(row, False, False, 0)
+        row.show_all()
 
     def bubble(self, kind: str, text: str) -> Gtk.Label:
         label = Gtk.Label(label=text, xalign=0, wrap=True, selectable=True, max_width_chars=30)
@@ -793,6 +823,8 @@ class Sidebar(Gtk.Application):
         if self.reply is not None and not error:
             for card in words.merge_cards(self.cards, words.commands_in_text(self.reply.get_text())):
                 self.command_card(card)
+            if self.reply_started and words.worth_a_document(self.reply.get_text()):
+                self.writer_button(self.reply.get_text())
         self.cards = []
         if self.reply is not None:
             if error:

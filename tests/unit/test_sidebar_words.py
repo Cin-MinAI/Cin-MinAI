@@ -103,5 +103,19 @@ class ProposalCard(unittest.TestCase):
         self.assertNotIn("Sees", words.status_line("idle", {"model": "x"})[2])
 
 
+class PutInWriter(unittest.TestCase):
+    """2026-10-01 hands-on: "it won't write in Writer" — a button under real answers."""
+
+    def test_real_answers_only(self):
+        poem = "Autumn's gentle touch begins, as leaves turn gold and crimson shine. " * 3
+        self.assertTrue(words.worth_a_document(poem))
+        self.assertFalse(words.worth_a_document("Your Wi-Fi is switched off."))
+        self.assertFalse(words.worth_a_document("I can look that up on the web. " + "Below is exactly what would be sent " * 5))
+
+    def test_title_from_the_first_line(self):
+        self.assertEqual(words.document_title("**Autumn Leaves:**"), "Autumn Leaves")
+        self.assertEqual(words.document_title(""), "From the assistant")
+
+
 if __name__ == "__main__":
     unittest.main()

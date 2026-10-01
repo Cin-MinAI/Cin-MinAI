@@ -244,3 +244,19 @@ def source_line(s: dict) -> str:
     import urllib.parse
     host = urllib.parse.urlsplit(s.get("url", "")).hostname or ""
     return f"[{s.get('n')}] {s.get('title', '')} — {host}"
+
+
+# --- "Put in Writer" ------------------------------------------------------------------------------------
+
+def worth_a_document(text: str) -> bool:
+    """A real answer (a poem, steps, the PC's specs), not a one-liner or an offer the user still has to click."""
+    t = text.strip()
+    if len(t.split()) < 25:
+        return False
+    return not t.startswith(("I can look that up", "I'd need to look that up", "I've prepared this change"))
+
+
+def document_title(first_line: str) -> str:
+    t = first_line.strip().strip("#*:").strip()
+    words_ = t.split()
+    return " ".join(words_[:8]).rstrip(",.;:") if words_ else "From the assistant"

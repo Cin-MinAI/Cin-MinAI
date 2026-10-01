@@ -540,6 +540,7 @@ record is detected; a lost USB is recovered with the printed code.
   discussions** for the OS. D51's diagnostic reports post there with one click (redacted, the user's choice).
   General Mint questions link to Mint's own forums. First choice for the forum: GitHub Discussions in a
   public repo (free, beside the code and issues, easy to move later); Discourse if it outgrows that.
+- **Making physical things (Ian, 2026-10-01, in a test journal entry): "an all in one OS with an assistant that helps create programs and eventually physical things with 3D printers and CNC machines."** The tinkerer's direction (D28 personas): the assistant drives the slicer / CAM tools the user installs, with the same approvals as everything else — every print or cut previewed and started by the user (D3), machines never moved by the assistant on its own. Parked until the MVP and voice/remote are in place.
 - **The long-term direction: run the computer by voice or remotely (Ian, 2026-09-30).** "Eventually I want this OS to let the user basically run a bunch of stuff by voice or remotely." Voice is planned (§3 step 5, SPEC §10.6); remote use — from a phone or another computer, the same approvals and the same audit (D3, §12) — is new and parked here. Both build on the same tools and approvals as the sidebar, never a second path in.
 
 ---
