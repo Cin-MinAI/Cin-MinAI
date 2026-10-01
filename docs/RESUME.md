@@ -106,8 +106,11 @@ no-terminal steps first, commands with what they do and how to undo), tested on 
 (`problems_found`); with the recorded 7.0 case it answered three newcomer questions with the right fix (switch to the
 long-term kernel in Update Manager). The sidebar shows commands as cards with Copy (D53). Not yet built: packaged
 and boot-tested (`build-all.sh`), the root system service (SMART, boot record, in-memory event log), B401/U101,
-translations. **Next (Ian, 2026-09-30: "both together, start with the diagnose tool"):** consolidate Debian / Ubuntu /
-Mint troubleshooting into more trees and help cards (sources cited); then the LibreOffice toolkit (D20) into the Alpha.
+translations. **Research round done (2026-09-30):** 15 more codes from Debian / Ubuntu / Mint troubleshooting
+(P101 P301 P302 B301 G102 A101 X101 N101 N102 D301 D302 I303 S102 U201 S601; SPEC §20.3), 23 in all, 32 diag
+tests; the guide answered a Windows-drive (Fast Startup) and a Wi-Fi-off question right on the first try. **Next:**
+the LibreOffice toolkit (D20) into the Alpha; then package + boot-test the diagnostics; the root service; help
+cards for symptoms the rules can't see (sound on HDMI, printers, Bluetooth).
 
 **Next: diagnostics (D51, SPEC §20)** — `cinminai-diag`, an OBD-II for the computer along one operational tree;
 first slice §20.8 (boot record, drivers/kernels, updates, disk; codes G101 S301 B401 H401 U101; the command,

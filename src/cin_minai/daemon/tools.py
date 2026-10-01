@@ -23,8 +23,10 @@ from cin_minai.inference import hardware
 from .config import live_session
 
 # which diagnostic codes (cinminai-diag, SPEC §20) belong with which inspect_system topic
-DIAG_TOPICS = {"overview": None, "drivers": {"G101", "S301", "S401"}, "display": {"G101", "S401"},
-               "storage": {"I301", "I302", "S401"}, "updates": {"S101", "S301", "S401"}}
+DIAG_TOPICS = {"overview": None, "drivers": {"G101", "G102", "S301", "S401"}, "display": {"G101", "G102", "S401"},
+               "storage": {"I301", "I302", "I303", "D301", "D302", "S401"},
+               "updates": {"S101", "S102", "S301", "S401", "I303"}, "network": {"N101", "N102"},
+               "sound": {"U201"}, "battery": {"P101"}}
 DIAG_TTL = 60  # seconds a reading is reused: the checks read ten boots' kernel logs (~2 s)
 
 HOME = os.path.expanduser("~")

@@ -1615,6 +1615,32 @@ Added with the first slice (2026-09-30, from the kernel 7.0 case on the Mint box
 | **I101** | A system service failed (known-harmless ones, e.g. `casper-md5check` on installed systems, are marked so, not hidden) | `systemctl --failed` |
 | **S101** | The package database has unfinished work (an interrupted update) | `dpkg --audit` |
 
+**From the research of 2026-09-30** (Debian / Ubuntu / Linux Mint troubleshooting; sources in `trees.json` per fix):
+
+| Code | Meaning | Detected by |
+|---|---|---|
+| **P101** | The processor got too hot and throttled itself | `Core/Package temperature above threshold, cpu clock throttled` |
+| **P301** | The processor reported a hardware error (machine check) | `mce: [Hardware Error]` |
+| **P302** | Memory ran out; the kernel closed a program (named) | `Out of memory: Killed process N (name)` |
+| **B301** | The kernel hit an internal error (oops, BUG, panic) | the kernel's own messages — *not* a program's `traps:` / `segfault` line |
+| **G102** | The graphics card dropped off the bus, hung, or its driver reported an error | NVIDIA `Xid`, graded: 79 off the bus; 8, 61, 62, 109, 119, 120 the card stopped; others a driver message; AMD `ring … timeout`, Intel `GPU HANG` |
+| **A101** | A program crashed (named) | `traps: name[pid] general protection fault`, `name[pid]: segfault at` |
+| **X101** | The assistant's model server crashed; branch: in boots with disk errors | the same, for `llama-server` |
+| **N101** | Wi-Fi switched off: software (airplane mode) or a hardware switch | `/sys/class/rfkill` |
+| **N102** | Wi-Fi hardware but no Wi-Fi device: missing firmware (named) or no driver | `lspci` network controller, no `/sys/class/net/*/wireless`, `Direct firmware load … failed` |
+| **D301** | A Windows (NTFS) drive opens read-only: left "dirty", usually by Windows' Fast Startup | `ntfs3: …: volume is dirty` |
+| **D302** | A USB device keeps failing to connect (port named) | `device descriptor read/64, error -71`, over-current |
+| **I303** | A disk (or /boot) is (nearly) full | `df` |
+| **S102** | Packages with broken dependencies | `apt-get check` |
+| **U201** | A service in the user's session failed | `systemctl --user --failed` |
+| **S601** | No automatic Timeshift snapshots — **advice**, offered, never a fault (D30); unknown if unreadable | `/etc/timeshift/timeshift.json` |
+
+What the real data taught, first run (the Mint box's SSD): a **program's crash looked like a kernel error** (`traps:
+llama-server … general protection fault`) until the pattern excluded it, and it surfaced a finding nobody had spotted —
+the assistant's model server crashing in both 7.0 boots where files read back with zeros (X101); and **35 × NVIDIA Xid 32
+from `modprobe`, a second before a shutdown**, is the driver unloading, not a hung card — Xids are graded. A missing or
+unreadable file is "unknown", never "not set up". A rule is only kept once it's right on a real machine.
+
 G101 gained the branch **the driver file reads back damaged** (`ZSTD-decompression failed`, `dkms`: *Diff between built and
 installed module*) — on 2026-09-30 that was the disk's link, not the driver. Findings are ranked **cause before symptom**
 (S401 → I301 → I302 → G101), so a reader that shows only the first one shows the real fix.

@@ -18,10 +18,11 @@ import subprocess
 
 
 class LiveSource:
-    def run(self, argv: list[str], timeout: float = 20) -> str:
+    def run(self, argv: list[str], timeout: float = 20, stderr: bool = False) -> str:
         try:
-            return subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
-                                  env={**os.environ, "LC_ALL": "C.UTF-8"}).stdout
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
+                               env={**os.environ, "LC_ALL": "C.UTF-8"})
+            return r.stdout + (r.stderr if stderr else "")
         except (OSError, subprocess.SubprocessError):
             return ""
 
@@ -40,19 +41,25 @@ class FixtureSource:
     """Answers from a recorded case. A command or file the case doesn't have reads as empty, like a
     missing tool on a real machine."""
 
-    def __init__(self, path: str) -> None:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+    def __init__(self, path: str | dict) -> None:
+        if isinstance(path, dict):
+            data = path
+        else:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
         self.cmds, self.files = data.get("cmd", {}), data.get("file", {})
+        self.globs = data.get("glob")  # what each pattern found, when recorded; older cases: from the files
         self.note = data.get("note", "")
 
-    def run(self, argv: list[str], timeout: float = 20) -> str:
+    def run(self, argv: list[str], timeout: float = 20, stderr: bool = False) -> str:
         return self.cmds.get(" ".join(argv), "")
 
     def read(self, path: str) -> str:
         return self.files.get(path, "")
 
     def glob(self, pattern: str) -> list[str]:
+        if self.globs is not None and pattern in self.globs:
+            return list(self.globs[pattern])
         rx = re.compile("^" + re.escape(pattern).replace(r"\*", "[^/]*") + "$")
         return sorted(p for p in self.files if rx.match(p))
 
@@ -66,9 +73,10 @@ class Recorder:
         self.host = socket.gethostname()
         self.cmds: dict[str, str] = {}
         self.files: dict[str, str] = {}
+        self.globs: dict[str, list[str]] = {}
 
-    def run(self, argv: list[str], timeout: float = 20) -> str:
-        out = self.live.run(argv, timeout)
+    def run(self, argv: list[str], timeout: float = 20, stderr: bool = False) -> str:
+        out = self.live.run(argv, timeout, stderr)
         if argv[:1] == ["journalctl"] and "--list-boots" not in argv:
             # only the lines a probe reads: no log-ins, addresses or programs' messages in a test case
             out = "".join(l for l in out.splitlines(keepends=True) if self.keep_line(l))
@@ -83,11 +91,13 @@ class Recorder:
 
     def glob(self, pattern: str) -> list[str]:
         found = self.live.glob(pattern)
+        self.globs[pattern] = found
         for p in found:
             self.files.setdefault(p, "")
         return found
 
     def save(self, path: str, note: str) -> None:
         with open(path, "w", encoding="utf-8", newline="\n") as f:
-            json.dump({"note": note, "cmd": self.cmds, "file": self.files}, f, indent=1, ensure_ascii=False)
+            json.dump({"note": note, "cmd": self.cmds, "file": self.files, "glob": self.globs}, f, indent=1,
+                      ensure_ascii=False)
             f.write("\n")

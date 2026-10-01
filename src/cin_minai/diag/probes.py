@@ -38,9 +38,45 @@ RX = {
     "shutdown": re.compile(r"systemd-shutdown|Journal stopped|Reached target .*(Power-Off|Reboot|Shutdown)"),
 }
 
+# kernel-log events counted per boot; group 1 (if any) is the detail kept (a process, a port, an Xid number).
+# Sources: Red Hat 414373 (thermal), Arch wiki Machine-check_exception, kernel OOM killer, NVIDIA Xid docs,
+# freedesktop bugs 98874/99986 (GPU hangs), Launchpad 2042716 (firmware), ntfs3 driver, USB EPROTO.
+EVENTS = {
+    "thermal": re.compile(r"(?:Core|Package) temperature above threshold, cpu clock throttled"),
+    "mce": re.compile(r"mce: \[Hardware Error\]"),
+    "oom": re.compile(r"Out of memory: Killed process \d+ \(([^)]+)\)"),
+    "nvidia_xid": re.compile(r"NVRM: Xid \([^)]*\): (\d+)"),
+    "gpu_hang": re.compile(r"(amdgpu\S* .*ring \S+ timeout|i915 \S+ .*GPU HANG|GPU has fallen off the bus)"),
+    # the kernel's own errors; a program's crash ("traps: name[pid] general protection fault") is app_crash
+    "oops": re.compile(r"^(?!.*\btraps: )(?!.*\]: segfault at).*\b(Oops: |BUG: |kernel BUG at|"
+                       r"general protection fault(?:, probably|: \d{4} \[#)|Kernel panic)"),
+    "app_crash": re.compile(r"traps: ([^\s\[]+)\[\d+\] (?:general protection fault|trap)|([^\s\[]+)\[\d+\]: segfault at"),
+    "firmware_missing": re.compile(r"Direct firmware load for (\S+) failed with error"),
+    "ntfs_dirty": re.compile(r"ntfs3(?:\((\w+)\)|: (\w+)):.*(?:volume is dirty|chkdsk)"),
+    "usb_error": re.compile(r"usb (\d+-[\d.]+): (?:device descriptor read/\d+, error -\d+|device not accepting address|"
+                            r"Cannot enable\. Maybe the USB cable is bad)|(over-current change)"),
+}
+
 
 def keep_line(line: str) -> bool:
-    return any(rx.search(line) for rx in RX.values())
+    return any(rx.search(line) for rx in RX.values()) or any(rx.search(line) for rx in EVENTS.values())
+
+
+def events(lines: list[str]) -> dict:
+    out: dict[str, dict] = {}
+    for line in lines:
+        for name, rx in EVENTS.items():
+            m = rx.search(line)
+            if not m:
+                continue
+            e = out.setdefault(name, {"count": 0, "details": [], "lines": []})
+            e["count"] += 1
+            d = next((g for g in m.groups() if g), None) if m.groups() else None
+            if d and d not in e["details"] and len(e["details"]) < 8:
+                e["details"].append(d)
+            if len(e["lines"]) < 3:
+                e["lines"].append(line[:240])
+    return out
 
 
 def _kernel_log(src, boot: str) -> list[str]:
@@ -116,6 +152,7 @@ def read_boot(src, boot: dict) -> dict:
             hit = False
         if hit and len(b["evidence"]) < 12:
             b["evidence"].append(line[:240])
+    b["events"] = events(lines)
     if boot["offset"] != 0:
         tail = src.run(["journalctl", "-b", boot["id"], "-q", "--no-pager", "-n", "40", "-o", "cat"])
         b["clean_end"] = bool(RX["shutdown"].search(tail))
@@ -163,6 +200,48 @@ def root_mount(src) -> dict:
     return {}
 
 
+def space(src) -> list[dict]:
+    """Free space on the system disk, home and /boot when they're separate (2.3, 4.4)."""
+    out, seen = [], set()
+    for line in src.run(["df", "-P", "-B1", "/", "/home", "/boot"]).splitlines()[1:]:
+        f = line.split()
+        if len(f) >= 6 and f[0] not in seen and f[1].isdigit():
+            seen.add(f[0])
+            size, avail = int(f[1]), int(f[3])
+            out.append({"mount": f[5], "device": f[0], "size_gb": round(size / 1e9, 1),
+                        "free_gb": round(avail / 1e9, 1), "free_pct": round(100 * avail / size) if size else 0})
+    return out
+
+
+def wifi(src) -> dict:
+    """Wi-Fi hardware, the devices it gave, and its switches (5.1). rfkill: soft = turned off in software
+    (airplane mode, the settings), hard = a physical switch or key."""
+    hw = [l for l in src.run(["lspci", "-mm"]).splitlines() if re.search(r'"Network controller"', l)]
+    devs = [p.split("/")[4] for p in src.glob("/sys/class/net/*/wireless")]
+    switches = []
+    for r in src.glob("/sys/class/rfkill/rfkill*"):
+        if src.read(f"{r}/type").strip() == "wlan":
+            switches.append({"name": src.read(f"{r}/name").strip(), "soft": src.read(f"{r}/soft").strip() == "1",
+                             "hard": src.read(f"{r}/hard").strip() == "1"})
+    names = [re.findall(r'"([^"]*)"', l)[2] if len(re.findall(r'"([^"]*)"', l)) > 2 else l for l in hw]
+    return {"hardware": names, "devices": devs, "switches": switches}
+
+
+def timeshift(src) -> dict:
+    path = "/etc/timeshift/timeshift.json"
+    raw = src.read(path)
+    if not raw:
+        # there but unreadable is "unknown", not "not set up" (never claim what we couldn't read)
+        return {"configured": None} if src.glob(path) else {"configured": False}
+    try:
+        import json
+        c = json.loads(raw)
+    except ValueError:
+        return {"configured": False}
+    sched = [k[len("schedule_"):] for k, v in c.items() if k.startswith("schedule_") and str(v).lower() == "true"]
+    return {"configured": bool(c.get("backup_device_uuid")), "schedule": sched}
+
+
 def collect(src) -> dict:
     boots = [read_boot(src, b) for b in boot_list(src)]
     modules = {l.split()[0] for l in src.read("/proc/modules").splitlines() if l.strip()}
@@ -180,6 +259,12 @@ def collect(src) -> dict:
         "failed_units": [l.split()[0] for l in src.run(["systemctl", "--failed", "--no-legend", "--plain"]).splitlines()
                          if l.strip()],
         "dpkg_audit": src.run(["dpkg", "--audit"]).strip(),
+        "apt_check": src.run(["apt-get", "check", "-q", "-o", "Debug::NoLocking=1"], stderr=True).strip(),
+        "user_failed_units": [l.split()[0] for l in
+                              src.run(["systemctl", "--user", "--failed", "--no-legend", "--plain"]).splitlines() if l.strip()],
+        "space": space(src),
+        "wifi": wifi(src),
+        "timeshift": timeshift(src),
         "reboot_required": bool(src.read("/var/run/reboot-required")),
         "boots": boots,
         "not_read": ["SMART (needs the system service, as root)"],

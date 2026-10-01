@@ -14,29 +14,88 @@
    },
    "fixes": {
     "unsigned": [
-     {"words": "Let the driver's key be enrolled at the next start.", "steps": ["Open Driver Manager and reinstall the recommended driver; it asks for a one-time password.", "Restart. A blue screen titled \"Perform MOK management\" appears: choose Enroll MOK, Continue, Yes, type that password, then Reboot."], "needs": "admin", "reversible": true, "verify": "the driver loads after the restart (nvidia-smi shows the card)", "source": "Ubuntu wiki, UEFI/SecureBoot"}
+     {
+      "words": "Let the driver's key be enrolled at the next start.",
+      "steps": [
+       "Open Driver Manager and reinstall the recommended driver; it asks for a one-time password.",
+       "Restart. A blue screen titled \"Perform MOK management\" appears: choose Enroll MOK, Continue, Yes, type that password, then Reboot."
+      ],
+      "needs": "admin",
+      "reversible": true,
+      "verify": "the driver loads after the restart (nvidia-smi shows the card)",
+      "source": "Ubuntu wiki, UEFI/SecureBoot"
+     }
     ],
     "not_built": [
-     {"words": "Build the driver for this kernel.", "steps": ["Open Driver Manager, pick the recommended driver again, click Apply Changes, then restart."], "command": "sudo apt install linux-headers-{kernel} && sudo dkms autoinstall -k {kernel}", "explain": "Installs the kernel's build files and builds every add-on driver (here: NVIDIA) for kernel {kernel}. Changes only driver files for that kernel.", "undo": "Nothing to undo: it builds what should have been there.", "needs": "admin", "reversible": true, "verify": "dkms status lists {module} as installed for {kernel}", "source": "dkms(8)"}
+     {
+      "words": "Build the driver for this kernel.",
+      "steps": [
+       "Open Driver Manager, pick the recommended driver again, click Apply Changes, then restart."
+      ],
+      "command": "sudo apt install linux-headers-{kernel} && sudo dkms autoinstall -k {kernel}",
+      "explain": "Installs the kernel's build files and builds every add-on driver (here: NVIDIA) for kernel {kernel}. Changes only driver files for that kernel.",
+      "undo": "Nothing to undo: it builds what should have been there.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "dkms status lists {module} as installed for {kernel}",
+      "source": "dkms(8)"
+     }
     ],
     "file_damaged": [
-     {"words": "First make sure the disk is healthy (ask: is my disk OK?). Then put a fresh copy of the driver in place.", "command": "sudo dkms install --force {module} -k {kernel}", "explain": "Builds the NVIDIA driver again for kernel {kernel} and replaces the damaged copy. Nothing else changes.", "undo": "Nothing to undo: it's the same driver version.", "needs": "admin", "reversible": true, "verify": "after a restart, nvidia-smi shows the card", "source": "dkms(8); the 2026-09-30 case"}
+     {
+      "words": "First make sure the disk is healthy (ask: is my disk OK?). Then put a fresh copy of the driver in place.",
+      "command": "sudo dkms install --force {module} -k {kernel}",
+      "explain": "Builds the NVIDIA driver again for kernel {kernel} and replaces the damaged copy. Nothing else changes.",
+      "undo": "Nothing to undo: it's the same driver version.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "after a restart, nvidia-smi shows the card",
+      "source": "dkms(8); the 2026-09-30 case"
+     }
     ],
     "driver_refused": [
-     {"words": "Start the previous kernel, which worked, while this is looked into.", "steps": ["Restart. When the menu appears (hold Shift, or tap Esc, while the computer starts), choose Advanced options, then the older kernel."], "needs": "none", "reversible": true, "verify": "the driver loads on the older kernel", "source": "Ubuntu documentation, GRUB"}
+     {
+      "words": "Start the previous kernel, which worked, while this is looked into.",
+      "steps": [
+       "Restart. When the menu appears (hold Shift, or tap Esc, while the computer starts), choose Advanced options, then the older kernel."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "the driver loads on the older kernel",
+      "source": "Ubuntu documentation, GRUB"
+     }
     ],
     "unknown": [
-     {"words": "Start the previous kernel, and share the report (cinminai-diag report) with whoever helps.", "needs": "none", "reversible": true, "verify": "", "source": ""}
+     {
+      "words": "Start the previous kernel, and share the report (cinminai-diag report) with whoever helps.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "",
+      "source": ""
+     }
     ]
    }
   },
   "S301": {
    "title": "An installed kernel has no graphics driver",
    "meaning": "Kernel {kernels} is installed but the NVIDIA driver isn't built for it. Starting that kernel would leave the screen in basic mode.",
-   "causes": {"not_built": "The driver wasn't built when the kernel was installed (missing build files, or the build failed)."},
-   "fixes": {"not_built": [
-    {"words": "Build the driver for that kernel before restarting into it.", "command": "sudo apt install linux-headers-{kernel} && sudo dkms autoinstall -k {kernel}", "explain": "Installs the kernel's build files and builds the NVIDIA driver for kernel {kernel}. Nothing changes for the kernel you're running now.", "undo": "Nothing to undo.", "needs": "admin", "reversible": true, "verify": "dkms status lists the driver as installed for {kernel}", "source": "dkms(8)"}
-   ]}
+   "causes": {
+    "not_built": "The driver wasn't built when the kernel was installed (missing build files, or the build failed)."
+   },
+   "fixes": {
+    "not_built": [
+     {
+      "words": "Build the driver for that kernel before restarting into it.",
+      "command": "sudo apt install linux-headers-{kernel} && sudo dkms autoinstall -k {kernel}",
+      "explain": "Installs the kernel's build files and builds the NVIDIA driver for kernel {kernel}. Nothing changes for the kernel you're running now.",
+      "undo": "Nothing to undo.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "dkms status lists the driver as installed for {kernel}",
+      "source": "dkms(8)"
+     }
+    ]
+   }
   },
   "I301": {
    "title": "A disk's connection is reporting errors",
@@ -47,10 +106,30 @@
    },
    "fixes": {
     "one_kernel": [
-     {"words": "Switch to the kernel that works (Update Manager, View, Linux kernels). Until then, make this kernel send smaller pieces to the disk, the way older kernels do.", "command": "echo 1280 | sudo tee /sys/block/{disk}/queue/max_sectors_kb", "explain": "Limits each write to {disk} to 1280 KiB (it's {max_sectors_kb} now). Nothing is written to the disk by this. It lasts only until the next restart, so don't restart after it.", "undo": "A restart undoes it.", "needs": "admin", "reversible": true, "verify": "no new errors for the disk in the next heavy copy or update", "source": "Linux block layer (queue/max_sectors_kb); the 2026-09-30 case, PLAN D52"}
+     {
+      "words": "Switch to the kernel that works (Update Manager, View, Linux kernels). Until then, make this kernel send smaller pieces to the disk, the way older kernels do.",
+      "command": "echo 1280 | sudo tee /sys/block/{disk}/queue/max_sectors_kb",
+      "explain": "Limits each write to {disk} to 1280 KiB (it's {max_sectors_kb} now). Nothing is written to the disk by this. It lasts only until the next restart, so don't restart after it.",
+      "undo": "A restart undoes it.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "no new errors for the disk in the next heavy copy or update",
+      "source": "Linux block layer (queue/max_sectors_kb); the 2026-09-30 case, PLAN D52"
+     }
     ],
     "every_kernel": [
-     {"words": "Check the disk's own health record, then the cable.", "steps": ["Open Disks, choose the disk, open the menu (⋮) and choose SMART Data & Self-Tests.", "If \"UDMA CRC Error Count\" goes up over a few days: replace the SATA cable and use another port.", "If reallocated, pending or uncorrectable sectors go up: the disk is wearing out. Copy your important files elsewhere now."], "needs": "none", "reversible": true, "verify": "no new link errors after the change", "source": "smartctl(8) attribute 199; the 2026-09-30 case"}
+     {
+      "words": "Check the disk's own health record, then the cable.",
+      "steps": [
+       "Open Disks, choose the disk, open the menu (⋮) and choose SMART Data & Self-Tests.",
+       "If \"UDMA CRC Error Count\" goes up over a few days: replace the SATA cable and use another port.",
+       "If reallocated, pending or uncorrectable sectors go up: the disk is wearing out. Copy your important files elsewhere now."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no new link errors after the change",
+      "source": "smartctl(8) attribute 199; the 2026-09-30 case"
+     }
     ]
    }
   },
@@ -63,46 +142,594 @@
    },
    "fixes": {
     "write_errors": [
-     {"words": "Copy your important files somewhere safe, then let the disk check run at the next start.", "steps": ["Restart normally (from the menu, not the power button).", "If a text screen ends with (initramfs), type the command below and press Enter, then type exit."], "command": "fsck -y {device}", "explain": "Checks and repairs the disk's filing records. It can't bring back the contents of files that weren't written; reinstall or re-copy those.", "undo": "None needed; it only repairs.", "needs": "admin", "reversible": false, "verify": "the computer starts normally", "source": "e2fsck(8); the 2026-09-29 case"}
+     {
+      "words": "Copy your important files somewhere safe, then let the disk check run at the next start.",
+      "steps": [
+       "Restart normally (from the menu, not the power button).",
+       "If a text screen ends with (initramfs), type the command below and press Enter, then type exit."
+      ],
+      "command": "fsck -y {device}",
+      "explain": "Checks and repairs the disk's filing records. It can't bring back the contents of files that weren't written; reinstall or re-copy those.",
+      "undo": "None needed; it only repairs.",
+      "needs": "admin",
+      "reversible": false,
+      "verify": "the computer starts normally",
+      "source": "e2fsck(8); the 2026-09-29 case"
+     }
     ],
     "read_only_now": [
-     {"words": "Don't keep working on a read-only disk. Restart from the menu so the disk check can run.", "steps": ["Save what you can to a USB stick on another computer if it matters.", "Restart from the menu. If the (initramfs) screen appears, type the command and press Enter, then exit."], "command": "fsck -y {device}", "explain": "Checks and repairs the disk's filing records at start.", "undo": "None needed.", "needs": "admin", "reversible": false, "verify": "after the restart, saving a file works", "source": "e2fsck(8)"}
+     {
+      "words": "Don't keep working on a read-only disk. Restart from the menu so the disk check can run.",
+      "steps": [
+       "Save what you can to a USB stick on another computer if it matters.",
+       "Restart from the menu. If the (initramfs) screen appears, type the command and press Enter, then exit."
+      ],
+      "command": "fsck -y {device}",
+      "explain": "Checks and repairs the disk's filing records at start.",
+      "undo": "None needed.",
+      "needs": "admin",
+      "reversible": false,
+      "verify": "after the restart, saving a file works",
+      "source": "e2fsck(8)"
+     }
     ]
    }
   },
   "S401": {
    "title": "The problems follow one kernel",
    "meaning": "Kernel {kernel} had problems in {bad_boots} of {boots_on_kernel} starts; kernel {good_kernels} had none on this computer. A newer kernel isn't always better for older hardware.",
-   "causes": {"kernel_regression": "Something in kernel {kernel} doesn't suit this computer."},
-   "fixes": {"kernel_regression": [
-    {"words": "Switch to the long-term kernel, without the terminal.", "steps": ["Open Update Manager, then View → Linux kernels.", "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep {good_kernel}.", "Remove kernel {kernel} in the same window, then restart."], "needs": "admin", "reversible": true, "verify": "uname -r shows the kernel you chose, and the problems are gone", "source": "Linux Mint user guide, Update Manager; the 2026-09-30 case"},
-    {"words": "For one start only: pick the kernel at the start menu.", "steps": ["Restart. Hold Shift (or tap Esc) while the computer starts, choose Advanced options, then {good_kernel}."], "command": "uname -r", "explain": "Shows which kernel is running now. It only reads.", "undo": "Nothing to undo.", "needs": "none", "reversible": true, "verify": "", "source": "Ubuntu documentation, GRUB"}
-   ]}
+   "causes": {
+    "kernel_regression": "Something in kernel {kernel} doesn't suit this computer."
+   },
+   "fixes": {
+    "kernel_regression": [
+     {
+      "words": "Switch to the long-term kernel, without the terminal.",
+      "steps": [
+       "Open Update Manager, then View → Linux kernels.",
+       "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep {good_kernel}.",
+       "Remove kernel {kernel} in the same window, then restart."
+      ],
+      "needs": "admin",
+      "reversible": true,
+      "verify": "uname -r shows the kernel you chose, and the problems are gone",
+      "source": "Linux Mint user guide, Update Manager; the 2026-09-30 case"
+     },
+     {
+      "words": "For one start only: pick the kernel at the start menu.",
+      "steps": [
+       "Restart. Hold Shift (or tap Esc) while the computer starts, choose Advanced options, then {good_kernel}."
+      ],
+      "command": "uname -r",
+      "explain": "Shows which kernel is running now. It only reads.",
+      "undo": "Nothing to undo.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "",
+      "source": "Ubuntu documentation, GRUB"
+     }
+    ]
+   }
   },
   "H401": {
    "title": "The computer didn't shut down cleanly last time",
    "meaning": "The last session ({ended}) ended without a shutdown: a crash, a power cut, or the power button held down. That can damage files that were being written.",
-   "causes": {"unclean": "The previous session's record stops without a shutdown."},
-   "fixes": {"unclean": [
-    {"words": "When the computer freezes, try the keyboard before the power button.", "steps": ["Press Ctrl+Alt+F3 for a text screen; log in and type sudo reboot.", "If even that doesn't respond: hold Alt and SysRq (Print Screen) and press, slowly, R E I S U B — a safe forced restart.", "A short press of the power button asks the system to shut down cleanly; only holding it cuts the power."], "needs": "none", "reversible": true, "verify": "", "source": "Linux kernel documentation, sysrq; the 2026-09-29 case"}
-   ]}
+   "causes": {
+    "unclean": "The previous session's record stops without a shutdown."
+   },
+   "fixes": {
+    "unclean": [
+     {
+      "words": "When the computer freezes, try the keyboard before the power button.",
+      "steps": [
+       "Press Ctrl+Alt+F3 for a text screen; log in and type sudo reboot.",
+       "If even that doesn't respond: hold Alt and SysRq (Print Screen) and press, slowly, R E I S U B — a safe forced restart.",
+       "A short press of the power button asks the system to shut down cleanly; only holding it cuts the power."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "",
+      "source": "Linux kernel documentation, sysrq; the 2026-09-29 case"
+     }
+    ]
+   }
   },
   "I101": {
    "title": "A system service failed",
    "meaning": "These services failed to start or stopped with an error: {units}.",
-   "causes": {"failed_unit": "A service reported a failure; its own log says why.",
-              "known": "Known and harmless: {known}."},
-   "fixes": {"known": [], "failed_unit": [
-    {"words": "Look at the service's own message.", "command": "systemctl status {units}", "explain": "Shows whether the service runs and its last log lines. It only reads.", "undo": "Nothing to undo.", "needs": "none", "reversible": true, "verify": "", "source": "systemctl(1)"}
-   ]}
+   "causes": {
+    "failed_unit": "A service reported a failure; its own log says why.",
+    "known": "Known and harmless: {known}."
+   },
+   "fixes": {
+    "known": [],
+    "failed_unit": [
+     {
+      "words": "Look at the service's own message.",
+      "command": "systemctl status {units}",
+      "explain": "Shows whether the service runs and its last log lines. It only reads.",
+      "undo": "Nothing to undo.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "",
+      "source": "systemctl(1)"
+     }
+    ]
+   }
   },
   "S101": {
    "title": "An update was left unfinished",
    "meaning": "The package database says an installation didn't finish (for example after a power cut during an update).",
-   "causes": {"interrupted": "An install or update was interrupted."},
-   "fixes": {"interrupted": [
-    {"words": "Let it finish.", "steps": ["Open Update Manager: it offers to fix it."], "command": "sudo dpkg --configure -a", "explain": "Finishes setting up packages that were unpacked but not configured. It doesn't download or remove anything.", "undo": "Nothing to undo.", "needs": "admin", "reversible": true, "verify": "dpkg --audit prints nothing", "source": "dpkg(1)"}
-   ]}
+   "causes": {
+    "interrupted": "An install or update was interrupted."
+   },
+   "fixes": {
+    "interrupted": [
+     {
+      "words": "Let it finish.",
+      "steps": [
+       "Open Update Manager: it offers to fix it."
+      ],
+      "command": "sudo dpkg --configure -a",
+      "explain": "Finishes setting up packages that were unpacked but not configured. It doesn't download or remove anything.",
+      "undo": "Nothing to undo.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "dpkg --audit prints nothing",
+      "source": "dpkg(1)"
+     }
+    ]
+   }
+  },
+  "P101": {
+   "title": "The processor got too hot",
+   "meaning": "The processor reached its temperature limit {count} times and slowed itself down to cool off. The computer feels slow when that happens, and heat can make it freeze or switch off.",
+   "causes": {
+    "throttled": "Not enough cooling: dust in the fans or vents, a blocked air path (a laptop on a soft surface), a fan that stopped, or dried-out thermal paste."
+   },
+   "fixes": {
+    "throttled": [
+     {
+      "words": "Give it air, and clean the cooling.",
+      "steps": [
+       "Put a laptop on a hard, flat surface; keep the vents free.",
+       "With the computer off and unplugged: blow the dust out of the vents and fans (short bursts of compressed air; hold the fan still).",
+       "If it keeps happening: a fan may have stopped, or the thermal paste may need renewing. That's a job for a repair shop or a confident tinkerer."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no new overheating messages under the same work",
+      "source": "Red Hat solution 414373; kernel therm_throt"
+     }
+    ]
+   }
+  },
+  "P301": {
+   "title": "The hardware reported an error",
+   "meaning": "The processor reported {count} hardware errors (machine checks). They can come from unstable power, memory, the processor itself, or settings like overclocking.",
+   "causes": {
+    "hardware_error": "A hardware fault the processor caught: most often memory, power, heat, or an overclock."
+   },
+   "fixes": {
+    "hardware_error": [
+     {
+      "words": "Test the memory, and undo any overclock.",
+      "steps": [
+       "Restart and choose Memory test in the start menu (or from the Cin-MinAI USB stick); let it run a full pass.",
+       "If the computer's settings (BIOS) have an overclock or memory profile (XMP/EXPO) turned on, try it off.",
+       "If errors continue with everything at standard settings: the power supply or the processor may be failing."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no new hardware errors",
+      "source": "Arch wiki, Machine-check exception; rasdaemon"
+     }
+    ]
+   }
+  },
+  "P302": {
+   "title": "The computer ran out of memory",
+   "meaning": "Memory ran out {count} times and the system closed a program to keep going: {details}.",
+   "causes": {
+    "out_of_memory": "More was open than the memory holds: many browser tabs, a big program, or a large AI model."
+   },
+   "fixes": {
+    "out_of_memory": [
+     {
+      "words": "Keep fewer big things open at once.",
+      "steps": [
+       "Close tabs and programs you aren't using; System Monitor (in the Menu) shows what uses the most memory.",
+       "If it's the assistant's model: choose a smaller one, or let it unload when idle.",
+       "If it happens often: more memory (RAM) is the lasting fix."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no programs closed for lack of memory",
+      "source": "Linux kernel OOM killer; systemd-oomd(8)"
+     }
+    ]
+   }
+  },
+  "G102": {
+   "title": "The graphics card or its driver reported a problem",
+   "meaning": "The graphics card hung or stopped responding {count} times (NVIDIA codes: {xids}). The screen freezes when that happens.",
+   "causes": {
+    "fell_off_bus": "The card dropped off its connection to the computer (NVIDIA Xid 79). On a desktop that's usually power (the supply or its cables) or heat; sometimes the card's slot.",
+    "hang": "The graphics card stopped answering and was reset. It can be a driver bug, heat, or an unstable overclock.",
+    "driver_message": "The NVIDIA driver reported an error (code {xids}) that doesn't by itself mean the card stopped: often a program's own fault, or the driver being unloaded at shutdown. Once is usually harmless; it matters if it repeats while you work."
+   },
+   "fixes": {
+    "fell_off_bus": [
+     {
+      "words": "Check the card's power and seating.",
+      "steps": [
+       "Turn the computer off and unplug it. Reseat the graphics card and its power cables (all of them, firmly).",
+       "Make sure the power supply is strong enough for the card; avoid splitters and adapters.",
+       "Check the card's fans spin and the case has airflow."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no new 'fallen off the bus' messages under load",
+      "source": "NVIDIA Xid documentation; Netdata guide to Xid 79"
+     }
+    ],
+    "hang": [
+     {
+      "words": "Update or change the driver, and rule out heat.",
+      "steps": [
+       "Open Update Manager and install the updates; then Driver Manager: try the recommended driver.",
+       "If it started after a kernel update: start the previous kernel (Advanced options in the start menu).",
+       "Undo any graphics overclock; check the card's fans."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no new hangs",
+      "source": "freedesktop.org bugs 98874, 99986"
+     }
+    ],
+    "driver_message": [
+     {
+      "words": "Nothing to do unless it repeats while you work; then update the driver.",
+      "steps": [
+       "If the screen froze or a program closed at that moment: open Update Manager and install the updates, then check Driver Manager for the recommended driver."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "",
+      "source": "NVIDIA Xid catalog"
+     }
+    ]
+   }
+  },
+  "B301": {
+   "title": "The kernel hit an internal error",
+   "meaning": "The kernel (the core of the system) reported an internal error {count} times. A crash or freeze can follow.",
+   "causes": {
+    "kernel_error": "A bug in the kernel or a driver, or a hardware fault it ran into."
+   },
+   "fixes": {
+    "kernel_error": [
+     {
+      "words": "If it started after an update, go back to the kernel that worked; then share the report.",
+      "steps": [
+       "Restart, open Advanced options in the start menu, and choose the previous kernel.",
+       "Save the report (cinminai-diag report) and share it when you ask for help: the evidence lines are what helpers need."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "no new kernel errors",
+      "source": "Linux kernel documentation, bug-hunting"
+     }
+    ]
+   }
+  },
+  "N101": {
+   "title": "Wi-Fi is switched off",
+   "meaning": "The Wi-Fi ({names}) is switched off, so no networks show up.",
+   "causes": {
+    "hard": "A physical switch or a key (often Fn with an antenna symbol) turned the Wi-Fi off. Software can't turn it back on.",
+    "soft": "It's turned off in the system: airplane mode, or Wi-Fi switched off in the network settings."
+   },
+   "fixes": {
+    "hard": [
+     {
+      "words": "Turn the Wi-Fi switch or key back on.",
+      "steps": [
+       "Look for a Wi-Fi switch on the side or front, or a key with an antenna symbol (often pressed together with Fn).",
+       "Some laptops have it in their settings (BIOS) instead."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "Wi-Fi networks show up",
+      "source": "Linux kernel rfkill documentation"
+     }
+    ],
+    "soft": [
+     {
+      "words": "Turn Wi-Fi on.",
+      "steps": [
+       "Click the network icon in the panel (bottom right) and switch Wi-Fi on; turn airplane mode off if it's on."
+      ],
+      "command": "rfkill unblock wifi",
+      "explain": "Turns the Wi-Fi radio back on (only the software switch).",
+      "undo": "rfkill block wifi turns it off again.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "Wi-Fi networks show up",
+      "source": "rfkill(8)"
+     }
+    ]
+   }
+  },
+  "N102": {
+   "title": "The Wi-Fi card has no working driver",
+   "meaning": "This computer has Wi-Fi hardware ({hardware}), but the system made no Wi-Fi device from it, so there's no Wi-Fi.",
+   "causes": {
+    "firmware": "The card needs a firmware file the system doesn't have: {firmware}.",
+    "driver": "The card has no driver in this system (some need one installed separately)."
+   },
+   "fixes": {
+    "firmware": [
+     {
+      "words": "Get the missing firmware with the updates.",
+      "steps": [
+       "Connect with a cable (or a phone's USB tethering) for a moment.",
+       "Open Update Manager and install all updates: newer firmware comes with the linux-firmware package.",
+       "If it's still missing: Driver Manager may offer a driver; otherwise the card may need a newer kernel (Update Manager, View, Linux kernels)."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "Wi-Fi networks show up after a restart",
+      "source": "Launchpad bug 2042716; Ubuntu linux-firmware"
+     }
+    ],
+    "driver": [
+     {
+      "words": "Look for a driver.",
+      "steps": [
+       "Connect with a cable or a phone's USB tethering for a moment.",
+       "Open Driver Manager: it lists drivers for hardware that needs one.",
+       "If none is offered, ask with the report: the card's name tells helpers which driver it needs."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "Wi-Fi networks show up",
+      "source": "Linux Mint user guide, Driver Manager"
+     }
+    ]
+   }
+  },
+  "D301": {
+   "title": "A Windows drive opens only for reading",
+   "meaning": "The Windows drive {device} was left marked as \"in use\" (dirty), so Linux opens it read-only, or not at all, to protect your files.",
+   "causes": {
+    "windows_fast_startup": "Windows' Fast Startup (on by default) doesn't fully shut Windows down: it leaves its drives marked as in use. A Windows crash or hibernation does the same."
+   },
+   "fixes": {
+    "windows_fast_startup": [
+     {
+      "words": "Shut Windows down fully, and turn off Fast Startup.",
+      "steps": [
+       "Start Windows. Open Control Panel, Power Options, Choose what the power buttons do, Change settings that are currently unavailable, untick Turn on fast startup, Save.",
+       "If Windows asks or the drive still won't open: in Windows, run the disk check (This PC, right-click the drive, Properties, Tools, Check).",
+       "Shut Windows down (not restart into Linux from hibernation), then start Cin-MinAI."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "the drive opens with write access",
+      "source": "ntfs3 driver behaviour; Manjaro NTFS primer; Microsoft Fast Startup"
+     }
+    ]
+   }
+  },
+  "D302": {
+   "title": "A USB device keeps failing to connect",
+   "meaning": "A USB device on port {details} failed to connect or lost its connection {count} times.",
+   "causes": {
+    "wire_errors": "The signal on the USB wire was garbled: often a worn cable, a loose port, a hub without enough power, or the device itself."
+   },
+   "fixes": {
+    "wire_errors": [
+     {
+      "words": "Try another cable and port.",
+      "steps": [
+       "Plug the device straight into the computer (not through a hub), in another port; on a desktop, use a port at the back.",
+       "Try another cable, especially for phones and external disks.",
+       "For an external hard disk: use its own power supply if it has one."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "the device stays connected",
+      "source": "USB error -71 (EPROTO): Linux USB documentation, Arch forums"
+     }
+    ]
+   }
+  },
+  "I303": {
+   "title": "The disk is (nearly) full",
+   "meaning": "{mount} has {free_gb} GB free of {size_gb} GB ({free_pct} %). When it's full, updates fail, programs can't save, and logging in can fail.",
+   "causes": {
+    "nearly_full": "Files have built up: downloads, videos, old system snapshots, or cached updates.",
+    "full": "It's full: save nothing important until space is freed.",
+    "boot_full": "The small boot area is full of old kernels, so kernel updates can't install."
+   },
+   "fixes": {
+    "nearly_full": [
+     {
+      "words": "Free some space.",
+      "steps": [
+       "Open Disk Usage Analyzer (in the Menu) to see what takes the space; the biggest folders are usually Videos, Downloads and Pictures.",
+       "Empty the Trash.",
+       "If Timeshift keeps snapshots on this disk, delete older ones in Timeshift."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "more than 5 % free",
+      "source": "Linux Mint user guide; Ubuntu documentation, disk usage"
+     }
+    ],
+    "full": [
+     {
+      "words": "Free space now.",
+      "steps": [
+       "Empty the Trash, and move large videos or downloads to a USB disk.",
+       "Delete old Timeshift snapshots in Timeshift if it stores them here."
+      ],
+      "command": "sudo apt clean",
+      "explain": "Deletes downloaded update files that are already installed. It removes no programs or settings.",
+      "undo": "Nothing to undo: they're downloaded again if ever needed.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "more than 5 % free",
+      "source": "apt-get(8)"
+     }
+    ],
+    "boot_full": [
+     {
+      "words": "Remove old kernels.",
+      "steps": [
+       "Open Update Manager, View, Linux kernels, and remove kernels older than the two newest (keep the one you're running)."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "kernel updates install",
+      "source": "Linux Mint user guide, Update Manager"
+     }
+    ]
+   }
+  },
+  "S102": {
+   "title": "Some packages are broken",
+   "meaning": "Some installed packages have dependencies that aren't met, so installs and updates stop until it's fixed.",
+   "causes": {
+    "broken_dependencies": "An install was interrupted, or a package from outside the normal sources needs something it can't get."
+   },
+   "fixes": {
+    "broken_dependencies": [
+     {
+      "words": "Let the package manager repair it.",
+      "steps": [
+       "Open Update Manager: it often offers to fix this itself."
+      ],
+      "command": "sudo apt --fix-broken install",
+      "explain": "Installs what's missing (or removes what can't work) so the packages fit together again. It lists everything before it asks you to confirm.",
+      "undo": "Read the list before you type Y: anything it would remove can be installed again later.",
+      "needs": "admin",
+      "reversible": true,
+      "verify": "apt-get check reports nothing",
+      "source": "apt(8); Debian Reference, package management"
+     }
+    ]
+   }
+  },
+  "U201": {
+   "title": "A service in your session failed",
+   "meaning": "These parts of your desktop session stopped with an error: {units}.",
+   "causes": {
+    "failed_unit": "A background part of your session (sound, the keyring, a helper) failed; its own log says why."
+   },
+   "fixes": {
+    "failed_unit": [
+     {
+      "words": "Log out and back in; if it repeats, look at its message.",
+      "command": "systemctl --user status {units}",
+      "explain": "Shows whether it runs and its last log lines. It only reads.",
+      "undo": "Nothing to undo.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "",
+      "source": "systemctl(1)"
+     }
+    ]
+   }
+  },
+  "S601": {
+   "title": "No automatic system snapshots",
+   "meaning": "Timeshift, which can take you back to a working system after a bad update, isn't set to take snapshots by itself.",
+   "causes": {
+    "not_set_up": "Timeshift hasn't been set up yet.",
+    "no_schedule": "Timeshift is set up, but no schedule is on."
+   },
+   "fixes": {
+    "not_set_up": [
+     {
+      "words": "Set up Timeshift (recommended, your choice).",
+      "steps": [
+       "Open Timeshift from the Menu and follow its setup: RSYNC, a disk with room (another disk is best), and daily plus boot snapshots.",
+       "Your personal files aren't included by default; it protects the system."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "Timeshift lists a snapshot",
+      "source": "Timeshift documentation (Linux Mint)"
+     }
+    ],
+    "no_schedule": [
+     {
+      "words": "Turn on a schedule in Timeshift (recommended, your choice).",
+      "steps": [
+       "Open Timeshift, Settings, Schedule: tick Daily and Boot."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "Timeshift lists new snapshots",
+      "source": "Timeshift documentation (Linux Mint)"
+     }
+    ]
+   }
+  },
+  "A101": {
+   "title": "A program crashed",
+   "meaning": "These programs crashed: {programs}.",
+   "causes": {
+    "crashed": "A program hit an error it couldn't recover from. Once can be a bug; repeated crashes of many programs can point to memory or the disk."
+   },
+   "fixes": {
+    "crashed": [
+     {
+      "words": "Open it again; if it keeps crashing, update it.",
+      "steps": [
+       "Install the updates in Update Manager.",
+       "If many different programs crash: test the memory (Memory test in the start menu)."
+      ],
+      "needs": "none",
+      "reversible": true,
+      "verify": "it stays open",
+      "source": "Linux kernel traps/segfault reports"
+     }
+    ]
+   }
+  },
+  "X101": {
+   "title": "The assistant's model server crashed",
+   "meaning": "The program that runs the assistant's model crashed in {boots_n} starts (kernel {kernels}), so the assistant couldn't answer then.",
+   "causes": {
+    "with_disk_errors": "It crashed in starts where files were read back damaged or the disk had errors: a damaged read of the model file fits. The disk and kernel findings are the cause to fix.",
+    "crashed": "It crashed for a reason the record doesn't show; the assistant's own log has more."
+   },
+   "fixes": {
+    "with_disk_errors": [
+     {
+      "words": "Fix the disk or kernel problem first; the assistant comes back with it.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "the assistant answers after a restart",
+      "source": "the 2026-09-30 case (Mint box, kernel 7.0)"
+     }
+    ],
+    "crashed": [
+     {
+      "words": "Restart the assistant; if it repeats, share the report.",
+      "command": "systemctl --user restart cinminai-daemon",
+      "explain": "Starts the assistant again (and its model server with it).",
+      "undo": "Nothing to undo.",
+      "needs": "none",
+      "reversible": true,
+      "verify": "the assistant answers",
+      "source": "Cin-MinAI daemon (SPEC §4.1)"
+     }
+    ]
+   }
   }
  }
 }

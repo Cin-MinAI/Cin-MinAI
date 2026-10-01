@@ -49,6 +49,7 @@ for p in [p for p in files if p.startswith("/boot/vmlinuz-")]:
     del files[p]
 files["/boot/vmlinuz-6.14.0-37-generic"] = ""
 files["/boot/vmlinuz-7.0.0-34-generic"] = ""
+case.setdefault("glob", {})["/boot/vmlinuz-*"] = ["/boot/vmlinuz-6.14.0-37-generic", "/boot/vmlinuz-7.0.0-34-generic"]
 files["/sys/block/sda/queue/max_sectors_kb"] = "4096\n"
 case["note"] = ("Assembled from real outputs: the 2026-09-30 22:30 recording, with the boot of 20:01:30 (kernel 7.0, "
                 "SATA link errors, driver file unreadable) as now; see make_7.0_case.py.")

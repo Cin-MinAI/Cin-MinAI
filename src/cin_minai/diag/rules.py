@@ -201,12 +201,195 @@ def s101(ev: dict) -> dict | None:
             "evidence": ev["dpkg_audit"].splitlines()[:8], "boots": []}
 
 
-RULES = [g101, s301, i301, i302, s401, h401, i101, s101]
-ORDER = {"active": 0, "seen": 1, "cleared": 2}
+# --- kernel-log events (probes.EVENTS), researched 2026-09-30 ---------------------------------------------
+
+def _event(ev: dict, name: str) -> tuple[list[dict], dict]:
+    """The boots that logged an event, and the event merged over them."""
+    boots = [b for b in ev["boots"] if b.get("events", {}).get(name)]
+    merged = {"count": 0, "details": [], "lines": []}
+    for b in boots:
+        e = b["events"][name]
+        merged["count"] += e["count"]
+        merged["details"] += [d for d in e["details"] if d not in merged["details"]]
+        merged["lines"] += e["lines"]
+    return boots, merged
+
+
+def _event_fault(ev: dict, code: str, node: str, name: str, cause: str, facts: dict | None = None) -> dict | None:
+    boots, e = _event(ev, name)
+    if not boots:
+        return None
+    return {"code": code, "status": "active" if boots[-1]["offset"] == 0 else "seen", "node": node, "cause": cause,
+            "facts": {"count": e["count"], "details": ", ".join(e["details"]), "boots_n": len(boots), **(facts or {})},
+            "evidence": e["lines"][:6], "boots": [_short(b) for b in boots]}
+
+
+def p101(ev: dict) -> dict | None:
+    """The processor got too hot and slowed itself down (0.1)."""
+    return _event_fault(ev, "P101", "0.1", "thermal", "throttled")
+
+
+def p301(ev: dict) -> dict | None:
+    """The processor reported a hardware error (machine check) (0.3)."""
+    return _event_fault(ev, "P301", "0.3", "mce", "hardware_error")
+
+
+def p302(ev: dict) -> dict | None:
+    """Memory ran out and the kernel closed a program (0.3)."""
+    return _event_fault(ev, "P302", "0.3", "oom", "out_of_memory")
+
+
+# NVIDIA Xid numbers that mean the card itself stopped (NVIDIA's Xid catalog): 79 off the bus; 8, 109 timeouts;
+# 61, 62, 119, 120 its internal processor. Others (e.g. 32 at driver unload, 13/31/43/45 from a program's own
+# error) are the driver reporting, usually harmless once — recorded as such, not as a hung card (2026-09-30:
+# 35 x Xid 32 from modprobe in the second before a shutdown).
+XID_SERIOUS = {"8", "61", "62", "109", "119", "120"}
+
+
+def g102(ev: dict) -> dict | None:
+    """The graphics card hung, or dropped off the PCIe bus (3.1)."""
+    xid_boots, xid = _event(ev, "nvidia_xid")
+    hang_boots, hang = _event(ev, "gpu_hang")
+    if not xid_boots and not hang_boots:
+        return None
+    fell = "79" in xid["details"] or any("fallen off the bus" in l for l in hang["lines"] + xid["lines"])
+    serious = fell or hang_boots or set(xid["details"]) & XID_SERIOUS
+    cause = "fell_off_bus" if fell else "hang" if serious else "driver_message"
+    boots = sorted({b["offset"]: b for b in xid_boots + hang_boots}.values(), key=lambda b: b["offset"])
+    return {"code": "G102", "status": "active" if boots[-1]["offset"] == 0 else "seen", "node": "3.1",
+            "cause": cause,
+            "facts": {"xids": ", ".join(xid["details"]) or "none", "count": xid["count"] + hang["count"]},
+            "evidence": (xid["lines"] + hang["lines"])[:6], "boots": [_short(b) for b in boots]}
+
+
+def b301(ev: dict) -> dict | None:
+    """The kernel hit an internal error (an oops, a BUG, a panic) (1.3)."""
+    return _event_fault(ev, "B301", "1.3", "oops", "kernel_error")
+
+
+ASSISTANT_PROCS = {"llama-server"}
+
+
+def a101(ev: dict) -> dict | None:
+    """A program crashed (8.1). The assistant's own server is X101."""
+    boots, e = _event(ev, "app_crash")
+    names = [n for n in e["details"] if n not in ASSISTANT_PROCS]
+    if not names:
+        return None
+    lines = [l for l in e["lines"] if not any(p + "[" in l for p in ASSISTANT_PROCS)]
+    boots = [b for b in boots if any(n in b["events"]["app_crash"]["details"] for n in names)]
+    return {"code": "A101", "status": "active" if boots[-1]["offset"] == 0 else "seen", "node": "8.1",
+            "cause": "crashed", "facts": {"programs": ", ".join(names), "boots_n": len(boots)},
+            "evidence": lines[:6], "boots": [_short(b) for b in boots]}
+
+
+def x101(ev: dict) -> dict | None:
+    """The assistant's model server crashed (9.1). On 2026-09-30 it did in the 7.0 boots, where files read
+    back with zeros: a damaged read of the model file fits."""
+    boots = [b for b in ev["boots"] if ASSISTANT_PROCS & set(b.get("events", {}).get("app_crash", {}).get("details", []))]
+    if not boots:
+        return None
+    disk = [b for b in boots if _bad(b)]
+    lines = [l for b in boots for l in b["events"]["app_crash"]["lines"] if any(p + "[" in l for p in ASSISTANT_PROCS)]
+    return {"code": "X101", "status": "active" if boots[-1]["offset"] == 0 else "seen", "node": "9.1",
+            "cause": "with_disk_errors" if disk else "crashed",
+            "facts": {"boots_n": len(boots), "kernels": ", ".join(sorted({b["kernel"] for b in boots if b["kernel"]}))},
+            "evidence": lines[:6], "boots": [_short(b) for b in boots]}
+
+
+def n101(ev: dict) -> dict | None:
+    """Wi-Fi is switched off (5.1)."""
+    sw = ev.get("wifi", {}).get("switches", [])
+    if not any(s["soft"] or s["hard"] for s in sw):
+        return None
+    hard = any(s["hard"] for s in sw)
+    return {"code": "N101", "status": "active", "node": "5.1", "cause": "hard" if hard else "soft",
+            "facts": {"names": ", ".join(s["name"] for s in sw if s["soft"] or s["hard"])},
+            "evidence": [f"rfkill {s['name']}: soft={'on' if s['soft'] else 'off'} hard={'on' if s['hard'] else 'off'}"
+                         for s in sw], "boots": []}
+
+
+def n102(ev: dict) -> dict | None:
+    """There's Wi-Fi hardware but no Wi-Fi device: no driver, or its firmware is missing (5.1)."""
+    w = ev.get("wifi", {})
+    if not w.get("hardware") or w.get("devices"):
+        return None
+    now = ev["boots"][-1] if ev["boots"] else {}
+    fw = now.get("events", {}).get("firmware_missing", {})
+    return {"code": "N102", "status": "active", "node": "5.1", "cause": "firmware" if fw else "driver",
+            "facts": {"hardware": ", ".join(w["hardware"]), "firmware": ", ".join(fw.get("details", []))},
+            "evidence": fw.get("lines", [])[:4] + [f"network hardware: {h}" for h in w["hardware"]], "boots": []}
+
+
+def d301(ev: dict) -> dict | None:
+    """A Windows (NTFS) drive won't open for writing: it was left "dirty", usually by Windows' Fast Startup (7.3)."""
+    f = _event_fault(ev, "D301", "7.3", "ntfs_dirty", "windows_fast_startup")
+    if f:
+        f["facts"]["device"] = f["facts"]["details"].split(", ")[0] or "the Windows drive"
+    return f
+
+
+def d302(ev: dict) -> dict | None:
+    """A USB device keeps failing to connect (7.3)."""
+    return _event_fault(ev, "D302", "7.3", "usb_error", "wire_errors")
+
+
+def i303(ev: dict) -> dict | None:
+    """A disk is (nearly) full (2.3)."""
+    low = []
+    for s in ev.get("space", []):
+        boot = s["mount"] == "/boot"
+        if (boot and s["free_gb"] < 0.15) or (not boot and s["size_gb"] > 3 and (s["free_gb"] < 2 or s["free_pct"] < 5)):
+            low.append(s)
+    if not low:
+        return None
+    s = min(low, key=lambda s: s["free_gb"])
+    cause = "boot_full" if s["mount"] == "/boot" else "full" if s["free_gb"] < 0.5 else "nearly_full"
+    return {"code": "I303", "status": "active", "node": "2.3", "cause": cause,
+            "facts": {"mount": s["mount"], "free_gb": s["free_gb"], "free_pct": s["free_pct"], "size_gb": s["size_gb"]},
+            "evidence": [f"{x['mount']} ({x['device']}): {x['free_gb']} GB free of {x['size_gb']} GB ({x['free_pct']} %)"
+                         for x in low], "boots": []}
+
+
+def s102(ev: dict) -> dict | None:
+    """Packages with broken dependencies: installs and updates stop until it's fixed (6.1)."""
+    out = ev.get("apt_check", "")
+    if not ("E:" in out or "Unmet dependencies" in out or "broken" in out.lower()):
+        return None
+    return {"code": "S102", "status": "active", "node": "6.1", "cause": "broken_dependencies", "facts": {},
+            "evidence": out.splitlines()[:6], "boots": []}
+
+
+def u201(ev: dict) -> dict | None:
+    """A service in the user's own session failed (4.2)."""
+    units = ev.get("user_failed_units", [])
+    if not units:
+        return None
+    return {"code": "U201", "status": "active", "node": "4.2", "cause": "failed_unit",
+            "facts": {"units": ", ".join(units)}, "evidence": units[:8], "boots": []}
+
+
+def s601(ev: dict) -> dict | None:
+    """No automatic system snapshots (Timeshift): advice, offered, never a fault (D30) (6.6)."""
+    t = ev.get("timeshift", {})
+    if t.get("configured") is None or (t.get("configured") and t.get("schedule")):
+        return None  # unknown (couldn't read it, or not recorded), or set up with a schedule
+    return {"code": "S601", "status": "advice", "node": "6.6",
+            "cause": "not_set_up" if not t.get("configured") else "no_schedule", "facts": {},
+            "evidence": ["/etc/timeshift/timeshift.json: " + ("no backup disk chosen" if not t.get("configured")
+                                                              else "no schedule turned on")], "boots": []}
+
+
+RULES = [g101, s301, i301, i302, s401, h401, i101, s101,
+         p101, p301, p302, g102, b301, a101, x101, n101, n102, d301, d302, i303, s102, u201, s601]
+ORDER = {"active": 0, "seen": 1, "cleared": 2, "advice": 3}
 # causes before their symptoms: a kernel that doesn't suit the machine (S401) explains the disk link (I301),
-# which explains failed writes (I302), which explain a damaged driver file (G101). A reader that shows only
-# the first findings must get the one with the real fix.
-DEPTH = {"S401": 0, "I301": 1, "I302": 2, "S101": 3, "G101": 4, "S301": 5, "H401": 6, "I101": 7}
+# which explains failed writes (I302), which explain a damaged driver file (G101). A full disk (I303) breaks
+# updates and logins; hardware errors (P301) and heat (P101) explain hangs (G102) and kernel errors (B301).
+# A reader that shows only the first findings must get the one with the real fix.
+DEPTH = {"S401": 0, "P301": 1, "I301": 2, "I303": 3, "P101": 4, "I302": 5, "S102": 6, "S101": 7, "G102": 8,
+         "G101": 9, "S301": 10, "B301": 11, "P302": 12, "N101": 13, "N102": 14, "D301": 15, "D302": 16,
+         "H401": 17, "X101": 18, "A101": 19, "U201": 20, "I101": 21, "S601": 22}
 
 
 def evaluate(ev: dict) -> list[dict]:
