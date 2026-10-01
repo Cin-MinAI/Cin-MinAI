@@ -225,6 +225,7 @@ def circle_lines(info: dict) -> list[str]:
 
 STEP_NAMES = {"you": "You", "need": "Need", "go": "Go", "search": "Search", "find": "Find", "take": "Take",
               "return": "Return", "change": "Change"}
+QUOTES = "\"'“”„«» "  # the model's own quote marks around a quote (2026-10-01: ""Elena, the founder…"")
 STATUS_MARKS = {"written": "✓", "partly written": "◐", "planned": "·", "missing": "○"}
 
 
@@ -238,8 +239,9 @@ def review_lines(review: dict) -> list[str]:
     """The review before a chapter (D57), in the order a writer reads it."""
     out = ["The story circle:"]
     for k, s in review.get("steps", {}).items():
+        shown = f' — "{s["evidence"].strip(QUOTES)}"' if s.get("status") in ("written", "partly written") and s.get("evidence") else ""
         out.append(f"  {STATUS_MARKS.get(s.get('status'), '·')} {STEP_NAMES.get(k, k)} ({s.get('status', '')}): "
-                   f"{s.get('what', '')}")
+                   f"{s.get('what', '')}{shown}")
     if review.get("characters"):
         out.append("The characters:")
         out += [f"  • {c.get('name', '')}, at {STEP_NAMES.get(c.get('step'), c.get('step', ''))}: {c.get('where', '')}"

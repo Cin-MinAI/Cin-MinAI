@@ -72,25 +72,32 @@ class Document(unittest.TestCase):
         self.assertEqual(odt.estimate_lines(["word " * 25]), 3)  # 25 words, 10 a line
 
 
+READ = ("Elena works late at her desk in the glass office. She wants to know the truth about the soldier. "
+        "That night Elena leaves the city with the soldier in his truck.")
+EVIDENCE = {"you": "Elena works late at her desk in the glass office", "need": "wants to know the truth about the soldier",
+            "go": "Elena leaves the city with the soldier in his truck"}
+
+
 class Scripted:
     """A model that answers by what it's asked for; records every prompt."""
 
     def __init__(self, scene_words=60):
         self.sent, self.scene_words, self.n = [], scene_words, 0
-        self.written, self.reads = set(), []  # what the review finds written; the chapter parts it was asked to read
+        self.written, self.reads, self.evidence = set(), [], {}  # what the review finds written; the chapter parts it was asked to read
 
     def __call__(self, messages, schema=None, max_tokens=600, on_text=None, cancel=None, sampling=None):
         self.sent.append({"messages": messages, "schema": schema, "sampling": sampling})
         last = messages[-1]["content"]
         if schema and "questions" in schema.get("properties", {}):  # the review (D57)
-            return json.dumps({"steps": {k: {"status": "written" if k in self.written else "missing",
+            return json.dumps({"steps": {k: {"evidence": self.evidence.get(k, EVIDENCE.get(k, "")) if k in self.written else "",
+                                             "status": "written" if k in self.written else "missing",
                                              "what": f"{k} is here"} for k in schema["properties"]["steps"]["required"]},
                                "characters": [{"name": "Elena", "step": "go", "where": "out of her world"}],
                                "missing": ["what Elena wants"],
                                "questions": ["The soldier fights her in chapter 1; on purpose?"]}), {}
         if last.startswith("Summarize this part"):
             self.reads.append(last)
-            return "Part read.", {}
+            return READ, {}
         if schema and "chapter_title" in json.dumps(schema):  # the plan: the steps it's given, minItems scenes each
             steps = schema["properties"]["steps"]
             return json.dumps({"chapter_title": "The Bottle", "steps": {
@@ -99,8 +106,6 @@ class Scripted:
         if schema:
             return json.dumps({"facts": ["The message is from his younger self."], "characters": [], "places": [],
                                "ideas": [], "circle": {"you": ["Elias, a retired lighthouse keeper."]}}), {}
-        if last.startswith("Summarize this chapter"):
-            return "The whole chapter happened.", {}
         if last.startswith("Summarize"):
             return "Something happened.", {}
         if "Now write scene" in last:
@@ -226,13 +231,13 @@ class Circle(unittest.TestCase):
         self.assertIn("Later chapters will cover Go, Search, Find, Take, Return, Change", self.m.sent[-1]["messages"][0]["content"])
         res = self.w.draft(self.p, o, lambda *a: None, threading.Event())
         self.assertTrue(os.path.basename(res["file"]).startswith("Chapter 1 — "))
-        self.assertEqual(self.p.data["drafts"][-1]["summary"], "The whole chapter happened.")
+        self.assertEqual(self.p.data["drafts"][-1]["summary"], "Something happened. " * 5 + "Something happened.")
         self.assertEqual(self.p.data["next_chapter"], 2)  # a finished chapter moves on
         o2 = self.w.outline(self.p)
         self.assertEqual(o2["steps"], ["go", "search"])
         plan_prompt = self.m.sent[-1]["messages"][0]["content"]
         self.assertIn("Earlier chapters covered You, Need.", plan_prompt)
-        self.assertIn('Chapter 1, "The Bottle": The whole chapter happened.', plan_prompt)
+        self.assertIn('Chapter 1, "The Bottle": Something happened.', plan_prompt)
         self.w.draft(self.p, o2, lambda *a: None, threading.Event())
         scene = [s["messages"][-1]["content"] for s in self.m.sent if "Now write scene" in s["messages"][-1]["content"]][-1]
         self.assertIn("chapter 2 of 4", scene)
@@ -268,7 +273,7 @@ class Circle(unittest.TestCase):
         self.p.set_shape("chapters", 4)
         self.m.written = {"you", "need"}  # the model claims so, but there's no chapter yet
         r = self.w.review(self.p)
-        self.assertEqual({s["status"] for s in r["steps"].values()}, {"planned", "missing"})
+        self.assertLessEqual({s["status"] for s in r["steps"].values()}, {"planned", "missing"})
         self.assertEqual((r["chapter"], r["next_steps"]), (1, ["you", "need"]))
         self.assertIn("No chapters are written yet", self.m.sent[-1]["messages"][0]["content"])
         self.assertEqual(self.p.data["review"]["questions"], ["The soldier fights her in chapter 1; on purpose?"])
@@ -282,7 +287,7 @@ class Circle(unittest.TestCase):
         self.w.review(self.p)
         self.assertEqual(len(self.m.reads), 1)
         self.assertIn("Julian betrays Elena at the harbour.", self.m.reads[0])
-        self.assertIn('Chapter 1, "The Bottle": Part read.', self.m.sent[-1]["messages"][0]["content"])
+        self.assertIn('Chapter 1, "The Bottle": Elena works late', self.m.sent[-1]["messages"][0]["content"])
         self.w.review(self.p)
         self.assertEqual(len(self.m.reads), 1)  # unchanged file: read once
         with open(res["file"], "ab"):
@@ -303,6 +308,27 @@ class Circle(unittest.TestCase):
         self.assertIn("Where the story is (the review before this chapter):\n- You: written: you is here", prompt)
         self.assertIn("Still missing: what Elena wants", prompt)
         self.assertIn("What the writer said before this chapter (it decides): Julian stays on her side.", prompt)
+
+    def test_written_needs_the_chapters_own_words(self):
+        self.p.set_shape("chapters", 4)
+        self.p.add_notes({"circle": {"take": ["She loses her company."]}})
+        self.w.draft(self.p, self.w.outline(self.p), lambda *a: None, threading.Event())
+        self.m.written = {"you", "need", "go", "find", "take", "change"}
+        self.m.evidence = {"find": "Elena finds the Martian city under the harbour",       # not in the chapter
+                           "take": "Elena works late at her desk in the glass office",     # You's words again
+                           "change": "the truth"}                                          # too short to show anything
+        r = self.w.review(self.p)
+        self.assertEqual([k for k, s in r["steps"].items() if s["status"] == "written"], ["you", "need", "go"])
+        self.assertEqual(r["taken_back"], ["find", "take", "change"])
+        self.assertEqual((r["steps"]["take"]["status"], r["steps"]["find"]["status"]), ("planned", "missing"))
+        self.assertEqual(r["next_steps"], ["search", "find"])
+
+    def test_a_quote_may_be_smoothed_a_little(self):
+        from cin_minai.daemon.writer import _tokens, found_in
+        src = _tokens(READ)
+        self.assertTrue(found_in("Elena works late at her desk in the office", src))  # one word dropped
+        self.assertFalse(found_in("Elena sleeps late at home in her bed", src))
+        self.assertFalse(found_in("anything", src))
 
     def test_next_steps(self):
         from cin_minai.daemon.writer import next_steps

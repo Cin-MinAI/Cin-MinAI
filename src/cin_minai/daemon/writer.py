@@ -135,11 +135,6 @@ ended. Same language as the scene.
 
 {scene}"""
 
-CHAPTER_SUMMARY_PROMPT = """Summarize this chapter in three sentences for the writer's memory: what happened, \
-where each main character stands at its end, and what is still open. Same language as the scenes.
-
-{scenes}"""
-
 
 # the review before every chapter (PLAN D57): the story as it is now, against the circle and the notes
 STATUSES = ("written", "partly written", "planned", "missing")
@@ -147,9 +142,11 @@ REVIEW_SCHEMA = {"type": "object", "additionalProperties": False,
                  "required": ["steps", "characters", "missing", "questions"],
                  "properties": {
                      "steps": {"type": "object", "additionalProperties": False, "required": list(STEPS),
+                               # the evidence first: the status is chosen after the model looked for the words
                                "properties": {k: {"type": "object", "additionalProperties": False,
-                                                  "required": ["status", "what"],
-                                                  "properties": {"status": {"enum": list(STATUSES)},
+                                                  "required": ["evidence", "status", "what"],
+                                                  "properties": {"evidence": {"type": "string"},
+                                                                 "status": {"enum": list(STATUSES)},
                                                                  "what": {"type": "string"}}} for k in STEPS}},
                      "characters": {"type": "array", "maxItems": 4, "items": {
                          "type": "object", "additionalProperties": False, "required": ["name", "step", "where"],
@@ -164,12 +161,14 @@ goal, an injury, a death). Same language as the text. Only what's in the text.
 
 {text}"""
 REVIEW_PROMPT = """You are reviewing the user's story "{title}" before {next} is planned. The story follows Dan \
-Harmon's Story Circle:
-{circle}
+Harmon's Story Circle; a step has happened only when this is true of the main character:
+{tests}
 
-For each step, say where the story is: "written" if it already happened in the chapters written so far, \
-"partly written" if it started there but isn't finished, "planned" if only the writer's notes have it, \
-"missing" if nothing has it yet; and in one sentence what it is, or what's missing. For up to four main \
+For each step, first "evidence": copy, word for word, the words from the chapters below that show the step \
+happening (one sentence or part of one, each step its own), or "" if there are none. Then the status: \
+"written" only with evidence, "partly written" if the evidence shows it starting but not finished, "planned" \
+if only the writer's notes have it, "missing" if nothing has it yet; and in one sentence what it is, or what's \
+missing. A goal someone takes on is Need, not Find, Take or Change. For up to four main \
 characters: their name, the step of their own circle they're at, and one sentence on where they are now. Then \
 what the story is still missing that a reader would need, and questions for the writer where the chapters and \
 the notes disagree, or where a character acts against who they were — ask, don't judge: the writer may want \
@@ -179,6 +178,52 @@ The writer's notes:
 {notes}
 
 {chapters}"""
+
+
+# what has to be true for a step to have happened (D57: "Take: she has taken on the goal" passed as written)
+STEP_TESTS = {
+    "you": "the main character is shown in their ordinary life before the trouble starts",
+    "need": "the main character wants something of their own, shown or said",
+    "go": "they leave their familiar world for an unfamiliar situation",
+    "search": "out there they struggle and adapt, tested more than once",
+    "find": "they get the thing they wanted",
+    "take": "they pay a heavy price for it: a loss, a wound, a sacrifice",
+    "return": "they go back to where they started",
+    "change": "they are shown to be different from who they were at the start",
+}
+REVIEW_TESTS = "\n".join(f"{i}. {STEP[k]['name']}: {STEP_TESTS[k]}." for i, k in enumerate(STEPS, 1))
+
+
+def _tokens(s: str) -> list[str]:
+    return re.findall(r"\w+", s.lower())
+
+
+def found_in(evidence: str, source: list[str], min_words: int = 4) -> bool:
+    """The evidence is really in the text (D57): at least min_words words, and 80 % of them as one run in the
+    source (a quote, give or take a word the model smoothed)."""
+    import difflib
+    ev = _tokens(evidence)
+    if len(ev) < min_words:
+        return False
+    m = difflib.SequenceMatcher(None, ev, source, autojunk=False).find_longest_match(0, len(ev), 0, len(source))
+    return m.size >= max(min_words, int(0.8 * len(ev)))
+
+
+def check_evidence(review: dict, source_text: str, circle: dict) -> list[str]:
+    """A step is written only with its own words from the chapters: without them (or with another step's), it's
+    "planned" if the notes have it, else "missing". Returns the steps it took back."""
+    source, used, taken = _tokens(source_text), [], []
+    for k in STEPS:
+        s = review["steps"].get(k)
+        if not s or s["status"] not in ("written", "partly written"):
+            continue
+        ev = s.get("evidence", "")
+        if not found_in(ev, source) or any(_same(ev, u) for u in used):
+            s["status"] = "planned" if circle.get(k) else "missing"
+            taken.append(k)
+        else:
+            used.append(ev)
+    return taken
 
 
 def _parts(paras: list[str], words: int = READ_WORDS) -> list[str]:
@@ -314,15 +359,13 @@ class Writer:
         nxt = (f"chapter {chapter} of {project.data['chapters']}" if chapter else
                "the story (the whole circle in one chapter)")
         raw, _ = self.chat([{"role": "user", "content": REVIEW_PROMPT.format(
-            title=project.title, next=nxt, circle=CIRCLE_TEXT, notes=project.notes_text(), chapters=chapters)}],
+            title=project.title, next=nxt, tests=REVIEW_TESTS, notes=project.notes_text(), chapters=chapters)}],
             schema=REVIEW_SCHEMA, max_tokens=1400, cancel=cancel)
         review = json.loads(raw)
         for k in ("missing", "questions"):  # the same question four times (2026-10-01)
             review[k] = [q for i, q in enumerate(review[k]) if not any(_same(q, p) for p in review[k][:i])]
-        if not read:  # nothing written yet can't be "written", whatever the model says
-            for s in review["steps"].values():
-                if s["status"] in ("written", "partly written"):
-                    s["status"] = "planned"
+        # written only with the chapters' own words (D57); before chapter 1 there are none, so nothing is
+        review["taken_back"] = check_evidence(review, chapters if read else "", project.circle)
         review.update({"chapter": chapter, "of": project.data["chapters"] if chapter else None,
                        "chapters_read": [d["chapter"] for d in read],
                        "next_steps": list(next_steps(review, chapter, project.data["chapters"]))})
@@ -427,14 +470,8 @@ class Writer:
         name = f"Chapter {chapter} — {outline['chapter_title']}" if chapter else outline["chapter_title"]
         path = odt.write(project.folder, name, name, scenes, header=f"Rough draft — {project.title}")
         words = sum(len(t.split()) for t in scenes)
-        summary = ""
-        if chapter and summaries and not cancel.is_set():  # what the next chapter is told about this one
-            try:
-                summary, _ = self.chat([{"role": "user", "content": CHAPTER_SUMMARY_PROMPT.format(
-                    scenes="\n".join(summaries))}], max_tokens=200, cancel=cancel)
-            except Cancelled:
-                pass
-            summary = summary.strip() or " ".join(summaries)
+        # the scenes' summaries, until the review reads the file itself (D57: the writer may edit it first)
+        summary = " ".join(summaries) if chapter else ""
         project.add_draft(path, outline["chapter_title"], words, chapter=chapter, steps=outline.get("steps", ()),
                           summary=summary, finished=len(scenes) == total and not cancel.is_set())
         return {"file": path, "scenes": len(scenes), "of": total, "words": words, "lines": odt.estimate_lines(scenes),

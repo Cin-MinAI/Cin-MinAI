@@ -81,7 +81,7 @@ def main() -> int:
             t0 = time.monotonic()
             review = w.review(p, cancel)  # D57: before every chapter
             print(f"REVIEW ({time.monotonic() - t0:.0f} s), chapters read {review['chapters_read']}, "
-                  f"next steps {review['next_steps']}")
+                  f"next steps {review['next_steps']}, taken back for want of evidence {review.get('taken_back')}")
             from cin_minai.sidebar import words
             print("\n".join("  " + line for line in words.review_lines(review)))
             t0 = time.monotonic()

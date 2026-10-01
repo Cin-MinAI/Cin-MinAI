@@ -787,8 +787,18 @@ The assistant takes in information for as long as the user wants, then writes it
   need isn't defined" — the place for the writer's answer). **Before chapter 2 the guide marked all eight steps
   "written"** after one chapter ("Take: she has taken on the goal"), so chapter 2 was planned as the ending; it also
   asked one question four times (now de-duplicated) and quoted a "sky turned to glass" that isn't in the notes.
-  Next: each "written" must come with the words from the chapter that show it, checked by our code (a step without
-  them isn't written); then rerun.
+* **Evidence (2026-10-01, built and rerun):** each step comes with `evidence` first (the chapter's words, copied),
+  then its status; the prompt says what has to be true for each step (`STEP_TESTS`: "Take: they pay a heavy price: a
+  loss, a wound, a sacrifice"; "a goal someone takes on is Need"). Our code (`check_evidence`) keeps "written" only
+  when 80 % of a 4+-word quote is one run in the chapter text, and each step needs its own quote; otherwise the step
+  is "planned" (the notes have it) or "missing". The card shows the quote. **Rerun, same notes:** before chapter 2
+  the check took back Go, Find, Take, Return and Change (You and Need kept, with real quotes; Search kept on a quote
+  where Elena literally searches the web — the next chapter still starts at Go), so chapter 2 covered **Go, Search**;
+  chapter 1 kept to You and Need (6 scenes, 3,776 words); chapter 2 (8 scenes, 5,181 words, 0 repeats) went
+  underground and on, without replaying the first meeting, and the soldier stayed her ally (uneasy, as the notes'
+  "stalks her" suggests). The review's questions were real ones ("your notes say he warns her by email; the chapter
+  only has a cryptic message — is it him?"). Still: chapter 2's first scene replays chapter 1's last messages, and the
+  Martians keep getting red eyes (the notes say only red hair).
 * **Then:** nested circles (act, scene, each main character); the form (screenplay, stage play) as the output, the
   circle the structure; sources (a shared book read in parts into notes, then e.g. a character analysis).
 
