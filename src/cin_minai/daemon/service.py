@@ -10,6 +10,7 @@ The model runs on worker threads; the bus never waits on it (GLib.idle_add hands
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -20,6 +21,8 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 
 from .guide import Guide
 from .office import LO, OfficeError
+from .projects import ROOT as PROJECTS, Project
+from .writer import Writer
 
 NAME = "org.cinminai.Assistant1"
 PATH = "/org/cinminai/Assistant1"
@@ -38,6 +41,16 @@ XML = f"""
       <arg type="s" name="json" direction="out"/></method>
     <!-- stop using the shared LibreOffice document (sharing itself is switched in LibreOffice's menu) -->
     <method name="ForgetDocument"/>
+    <!-- writing projects (D54): while one is open, Ask goes to the writing partner, which gathers ideas as notes -->
+    <method name="ProjectNew"><arg type="s" name="title" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <method name="ProjectOpen"><arg type="s" name="folder" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <method name="ProjectClose"/>
+    <method name="ProjectList"><arg type="s" name="json" direction="out"/></method>
+    <method name="ProjectInfo"><arg type="s" name="json" direction="out"/></method>
+    <!-- plan the chapter: an Action "outline" with state "proposal" (its result has the id); wish: what to change -->
+    <method name="WriteUp"><arg type="s" name="wish" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <!-- write the planned chapter: Action "draft" running (progress) then done (the file); Cancel stops it -->
+    <method name="WriteDraft"><arg type="s" name="outline" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <signal name="Token"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
     <!-- a tool the guide used: state running | done; result is the tool's output (JSON or help text) -->
     <signal name="Action"><arg type="u" name="id"/><arg type="s" name="tool"/><arg type="s" name="args"/>
@@ -49,7 +62,8 @@ XML = f"""
     <!-- one line for the applet and the sidebar header -->
     <property name="Model" type="s" access="read"/>
     <!-- model, build (cuda|vulkan|cpu), context, reduced (why, in words; "" = full), detail, backend_state,
-         document (the shared LibreOffice document the assistant sees; "" = none) -->
+         document (the shared LibreOffice document the assistant sees; "" = none),
+         project (the open writing project's title; "" = none) -->
     <property name="Status" type="a{{sv}}" access="read"/>
     <property name="Awareness" type="a{{sb}}" access="readwrite"/>
     <property name="LastStats" type="s" access="read"/>
@@ -76,6 +90,9 @@ class Service:
         self.cancel = threading.Event()
         self.preload = preload
         self.document = ""  # title of the shared LibreOffice document, for the sidebar header (§7.6)
+        self.project: Project | None = None  # the open writing project (D54)
+        self.writer = Writer(backend.chat)
+        self.outlines: dict[str, dict] = {}
 
     # --- bus plumbing ------------------------------------------------------------------------------
     def acquired(self, conn: Gio.DBusConnection, name: str) -> None:
@@ -114,7 +131,8 @@ class Service:
                 "model": GLib.Variant("s", st.model), "build": GLib.Variant("s", st.build),
                 "context": GLib.Variant("u", st.context), "reduced": GLib.Variant("s", st.reduced),
                 "detail": GLib.Variant("s", st.detail), "backend_state": GLib.Variant("s", st.state),
-                "document": GLib.Variant("s", self.document)}),
+                "document": GLib.Variant("s", self.document),
+                "project": GLib.Variant("s", self.project.title if self.project else "")}),
             "Awareness": lambda: GLib.Variant("a{sb}", self.awareness),
             "LastStats": lambda: GLib.Variant("s", self.last_stats),
         }[prop]()
@@ -192,6 +210,27 @@ class Service:
                 office.forget(doc["id"])
             self.refresh_document()
             inv.return_value(None)
+        elif method in ("ProjectNew", "ProjectOpen", "ProjectClose", "ProjectList", "ProjectInfo"):
+            try:
+                out = self.project_call(method, *params.unpack())
+            except (OSError, ValueError, KeyError) as e:
+                inv.return_dbus_error(f"{IFACE}.Error.Project", str(e))
+                return
+            inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method in ("WriteUp", "WriteDraft"):
+            (arg,) = params.unpack()
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            if self.project is None:
+                inv.return_dbus_error(f"{IFACE}.Error.Project", "no writing project is open")
+                return
+            if method == "WriteDraft" and arg not in self.outlines:
+                inv.return_dbus_error(f"{IFACE}.Error.Project", "that plan is gone; make a new one")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            (self.write_up if method == "WriteUp" else self.write_draft)(self.next_id, arg)
         elif method == "Unload":
             if self.busy or self.loading:
                 inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
@@ -240,6 +279,106 @@ class Service:
         return False
 
     def ask(self, rid: int, text: str) -> None:
+        if self.project is not None:  # a writing project is open: the writing partner gathers (D54)
+            project = self.project
+
+            def gather(on_text, on_action):
+                reply = self.writer.reply(project, text, on_text, self.cancel)
+                return {"tool": "gather", "reply_chars": len(reply), "notes": sum(len(v) for v in project.notes.values())}
+            self.job(rid, gather)
+            return
+
+        def answer(on_text, on_action):
+            out = self.guide.turn(text, on_text, on_action, self.cancel)
+            return {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]), "timings": out["timings"]}
+        self.job(rid, answer)
+
+    # --- writing projects (D54) -------------------------------------------------------------------------
+    def project_call(self, method: str, *args):
+        if method == "ProjectNew":
+            self.project = Project.new(args[0] or "Untitled", "story")
+        elif method == "ProjectOpen":
+            folder = os.path.realpath(args[0])
+            if os.path.dirname(folder) != os.path.realpath(PROJECTS):
+                raise ValueError("not a writing project folder")
+            self.project = Project.open(folder)
+        elif method == "ProjectClose":
+            self.project = None
+            self.outlines.clear()
+            self.changed("Status")
+            return None
+        elif method == "ProjectList":
+            return Project.list()
+        if method != "ProjectInfo":
+            self.outlines.clear()
+            self.changed("Status")
+        p = self.project
+        return None if p is None else {"title": p.title, "folder": p.folder, "notes": p.notes, "drafts": p.data["drafts"],
+                                        "messages": len(p.data["messages"])}
+
+    def write_up(self, rid: int, wish: str) -> None:
+        project = self.project
+
+        def plan(on_text, on_action):
+            outline = self.writer.outline(project, wish, self.cancel)
+            oid = f"o{rid}"
+            self.outlines = {oid: outline}  # only the newest plan can be written
+            on_action("outline", {"wish": wish}, "proposal", json.dumps({**outline, "id": oid}, ensure_ascii=False))
+            on_text(f"Here's a plan for \"{outline['chapter_title']}\" in {len(outline['scenes'])} scenes. Click "
+                    "Write it to write the draft, or say what should change and click Plan again.")
+            return {"tool": "outline", "scenes": len(outline["scenes"])}
+        self.job(rid, plan)
+
+    def write_draft(self, rid: int, oid: str) -> None:
+        project, outline = self.project, self.outlines[oid]
+
+        def write(on_text, on_action):
+            cookie = self.inhibit_sleep(True)  # a sleeping screen left the 1080 Ti 6x slower (2026-10-01)
+            try:
+                res = self.writer.draft(project, outline, lambda n, total, what: on_action(
+                    "draft", {"scene": n, "of": total}, "running", json.dumps({"scene": n, "of": total, "title": what},
+                                                                              ensure_ascii=False)), self.cancel)
+            finally:
+                self.inhibit_sleep(False, cookie)
+            if res.get("file"):
+                rel = os.path.relpath(res["file"], os.path.expanduser("~"))
+                on_action("draft", {}, "done", json.dumps({**res, "shown": "~/" + rel}, ensure_ascii=False))
+                self.open_file(res["file"])
+                pages = -(-res["lines"] // 28)
+                on_text(("I stopped as you asked. " if res["stopped"] else "") +
+                        f"The rough draft is ready: {res['scenes']} scenes, about {res['words']} words "
+                        f"(roughly {pages} pages). It's open in Writer and saved as ~/{rel}.")
+            else:
+                on_text("Stopped before anything was written.")
+            return {"tool": "draft", **{k: res.get(k) for k in ("scenes", "words", "lines", "stopped")}}
+        self.job(rid, write)
+
+    def inhibit_sleep(self, on: bool, cookie: int = 0) -> int:
+        """Keep the screen awake during a long job (org.gnome.SessionManager, which Cinnamon's session provides)."""
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+            if on:
+                v = bus.call_sync("org.gnome.SessionManager", "/org/gnome/SessionManager", "org.gnome.SessionManager",
+                                  "Inhibit", GLib.Variant("(susu)", ("cinminai-daemon", 0, "Writing a draft", 8)),
+                                  None, Gio.DBusCallFlags.NONE, 3000, None)
+                return v.unpack()[0]
+            if cookie:
+                bus.call_sync("org.gnome.SessionManager", "/org/gnome/SessionManager", "org.gnome.SessionManager",
+                              "Uninhibit", GLib.Variant("(u)", (cookie,)), None, Gio.DBusCallFlags.NONE, 3000, None)
+        except GLib.Error as e:
+            log(f"screen-sleep inhibit: {e.message}")
+        return 0
+
+    @staticmethod
+    def open_file(path: str) -> None:
+        try:
+            Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(path).get_uri(), None)
+        except GLib.Error as e:
+            log(f"open {path}: {e.message}")
+
+    # --- jobs -------------------------------------------------------------------------------------------
+    def job(self, rid: int, fn) -> None:
+        """Run fn(on_text, on_action) -> stats on a worker thread: one at a time, cancellable, never silent."""
         self.busy = True
         self.cancel.clear()
         self.set_state("loading" if self.backend.status().state != "ready" else "thinking")
@@ -257,9 +396,7 @@ class Service:
             t0 = time.monotonic()
             error, stats = None, {}
             try:
-                out = self.guide.turn(text, on_text, on_action, self.cancel)
-                stats = {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]),
-                         "timings": out["timings"]}
+                stats = fn(on_text, on_action)
             except Cancelled:
                 stats = {"cancelled": True}
             except BackendError as e:

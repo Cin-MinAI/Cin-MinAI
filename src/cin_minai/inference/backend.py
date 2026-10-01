@@ -42,6 +42,8 @@ class InferenceBackend:
         raise NotImplementedError
 
     def chat(self, messages: list[dict], *, schema: dict | None = None, max_tokens: int = 600,
-             on_text: Callable[[str], None] | None = None, cancel: threading.Event | None = None) -> tuple[str, dict]:
-        """One reply; streams text pieces to on_text. Returns (full text, timings)."""
+             on_text: Callable[[str], None] | None = None, cancel: threading.Event | None = None,
+             sampling: dict | None = None) -> tuple[str, dict]:
+        """One reply; streams text pieces to on_text. Returns (full text, timings). sampling: temperature,
+        top_p, … for writing; tool calls leave it out."""
         raise NotImplementedError

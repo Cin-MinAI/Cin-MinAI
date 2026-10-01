@@ -722,6 +722,33 @@ The file lives in his Documents folder, never online. The assistant suggests a U
 small model doesn't have to work out the next empty row. Other templates (household budget, simple
 bills list) follow the same pattern.
 
+### 7.12 Writing projects (PLAN D54, D55)
+
+The assistant takes in information for as long as the user wants, then writes it up when asked. Built for the Alpha
+(2026-10-01): `src/cin_minai/daemon/projects.py`, `writer.py`, `odt.py`.
+
+* **A project** is a folder in `Documents/Writing/<title>/`: `project.json` (notes and the conversation, saved
+  atomically after every change) and the drafts beside it. The sidebar's **New ▾** starts or opens one; while it's
+  open, the header shows `Writing: <title>` with **Notes**, **Write it up** and close.
+* **Gathering:** each message gets a short reply — what was understood, then one question that helps the story
+  (who, where, why, how it should feel) — and the facts in it become **notes**: facts (true in the story's world),
+  characters, places, ideas (incl. tone). The user is the writer: their own plans ("I want to write a book") aren't
+  story facts (the first run made "Elias wants to write a book" out of it).
+* **Write it up:** an **outline card** (6–8 scenes, each with what happens) with **Write it** / **Plan again** (with
+  what should change). Then the draft, scene by scene, each written with the notes as fixed facts, the whole plan,
+  a summary of each earlier scene and **the previous scene's last paragraph word for word**, and told to stay inside
+  its scene — with only summaries, scene 4 re-found the bottle scene 3 had found. The sidebar shows "Writing scene
+  n of N"; Stop keeps what's written.
+* **The document** is a new `.odt` (never an overwrite), opened in Writer: A5, 12 pt serif on a 0.62 cm line pitch
+  (about 28 lines a page), "Rough draft — <title>" in the header, scene breaks, the model's `*emphasis*` as italics.
+  At most ~600 lines (Ian's limit), ~650 words a scene.
+* **Measured (the guide on the 1080 Ti, 2026-10-01):** 6–7 scenes, 4,000–4,400 words, 15–17 pages, in about 2½
+  minutes; the key fact ("the message is from his younger self") held through notes, outline and draft. While a
+  draft is written the daemon keeps the screen awake (the session manager's idle inhibitor): with the screen asleep
+  the card stayed in its low power state and ran 6× slower.
+* **Next:** sources (a shared book read in parts into notes, then e.g. a character analysis), other forms (a movie
+  script), and the journal (D55) on the same engine.
+
 ---
 
 ## 8. Action boundary

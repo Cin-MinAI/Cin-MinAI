@@ -179,3 +179,38 @@ ASKED = {  # LibreOffice's Assistant menu -> the question the sidebar asks (SPEC
     "explain-formula": "Explain the formula in the selected cell in simple words.",
     "summarize": "Summarize this document in a few sentences.",
 }
+
+
+# --- writing projects (D54) ----------------------------------------------------------------------------
+
+PROJECT_HELLO = ("Tell me about your story: the people, the places, what happens, how it should feel. I'll keep "
+                 "notes. When you're ready, click Write it up.")
+
+
+def project_bar(title: str) -> str:
+    return f"Writing: {title}" if title else ""
+
+
+def outline_lines(outline: dict) -> list[str]:
+    return [f"{i}. {s.get('title', '')}: {s.get('what_happens', '')}" for i, s in enumerate(outline.get("scenes", []), 1)]
+
+
+def draft_progress(p: dict) -> str:
+    return f"Writing scene {p.get('scene')} of {p.get('of')}: {p.get('title', '')}"
+
+
+def draft_done(res: dict) -> str:
+    pages = -(-int(res.get("lines", 0)) // 28)
+    return f"Saved {res.get('shown', '')}: {res.get('words', 0)} words, about {pages} pages"
+
+
+NOTE_LABELS = {"facts": "Facts", "characters": "Characters", "places": "Places", "ideas": "Ideas"}
+
+
+def notes_lines(notes: dict) -> list[str]:
+    out = []
+    for k, label in NOTE_LABELS.items():
+        if notes.get(k):
+            out.append(f"{label}:")
+            out += [f"  • {n}" for n in notes[k]]
+    return out or ["No notes yet: tell me about your story."]

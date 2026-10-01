@@ -312,11 +312,14 @@ class LlamaCppBackend(InferenceBackend):
             except OSError:
                 pass
 
-    def chat(self, messages, *, schema=None, max_tokens=600, on_text=None, cancel=None):
+    def chat(self, messages, *, schema=None, max_tokens=600, on_text=None, cancel=None, sampling=None):
         self.load()
         body = {"model": self.model_name(), "messages": messages, "stream": True, "max_tokens": max_tokens,
                 "temperature": float(self.cfg.get("temperature", 0)), "cache_prompt": True,
                 "chat_template_kwargs": {"enable_thinking": False}}
+        if sampling:  # writing (writer.py): a little randomness; tool calls stay at the configured temperature
+            body.update({k: v for k, v in sampling.items() if k in ("temperature", "top_p", "top_k", "min_p",
+                                                                     "repeat_penalty", "presence_penalty")})
         if schema:
             body["response_format"] = {"type": "json_schema", "json_schema": {"name": "call", "schema": schema}}
         conn = UnixHTTPConnection(self.sock, float(self.cfg.get("request_timeout_s", 600)))

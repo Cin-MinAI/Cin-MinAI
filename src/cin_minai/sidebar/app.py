@@ -95,7 +95,7 @@ class Sidebar(Gtk.Application):
         top.pack_start(self.state_label, False, False, 0)
         texts.pack_start(top, False, False, 0)
         texts.pack_start(self.model_label, False, False, 0)
-        new = self.icon_button("document-new-symbolic", "New conversation", self.on_new)
+        new = self.icon_button("document-new-symbolic", "New…", self.on_new_menu)
         close = self.icon_button("window-close-symbolic", "Hide (Esc or Super+A)", lambda b: self.hide())
         header = Gtk.Box(name="header", spacing=4)
         header.pack_start(texts, True, True, 0)
@@ -103,6 +103,20 @@ class Sidebar(Gtk.Application):
         header.pack_end(new, False, False, 0)
         privacy = Gtk.Label(xalign=0, name="privacy", wrap=True, max_width_chars=30,
                             label="Runs on this computer. What you type stays here.")
+
+        # the writing project bar (D54): shown while a project is open
+        self.project_label = Gtk.Label(xalign=0, wrap=True, max_width_chars=22)
+        self.project_label.get_style_context().add_class("what")
+        notes = Gtk.Button(label="Notes")
+        notes.connect("clicked", lambda b: self.show_notes())
+        writeup = Gtk.Button(label="Write it up")
+        writeup.get_style_context().add_class("suggested-action")
+        writeup.connect("clicked", lambda b: self.start_job("WriteUp", "", "Planning the chapter…"))
+        close_project = self.icon_button("window-close-symbolic", "Close the writing project", lambda b: self.close_project())
+        self.project_box = Gtk.Box(spacing=4, name="project")
+        self.project_box.pack_start(self.project_label, True, True, 0)
+        for w in (close_project, writeup, notes):
+            self.project_box.pack_end(w, False, False, 0)
 
         # the conversation
         self.chat = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, name="chat")
@@ -122,12 +136,13 @@ class Sidebar(Gtk.Application):
         inputs.pack_end(self.go, False, False, 0)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for w, expand in ((header, False), (privacy, False), (Gtk.Separator(), False),
+        for w, expand in ((header, False), (privacy, False), (self.project_box, False), (Gtk.Separator(), False),
                           (self.scroll, True), (Gtk.Separator(), False), (inputs, False)):
             box.pack_start(w, expand, expand, 0)
         win.add(box)
         box.show_all()
         self.stop.hide()
+        self.project_box.hide()
         self.set_header("offline", {})
         self.connect_daemon()
 
@@ -247,6 +262,10 @@ class Sidebar(Gtk.Application):
         ctx.add_class(dot)
         self.state_label.set_text(first)
         self.model_label.set_text(second)
+        project = status.get("project", "")
+        self.project_label.set_text(words.project_bar(project))
+        self.project_box.set_visible(bool(project))
+        self.entry.set_placeholder_text("Tell me about your story…" if project else "Ask…")
         busy = self.rid is not None
         self.stop.set_visible(busy)
         self.go.set_visible(not busy)
@@ -286,15 +305,21 @@ class Sidebar(Gtk.Application):
         if self.proxy:
             self.proxy.call("Cancel", None, Gio.DBusCallFlags.NONE, -1, None, None)
 
-    def on_new(self, button) -> None:
+    def on_new(self, button, project: bool = False) -> None:
+        """A fresh conversation; project=True: one inside the writing project just opened (D54)."""
         if self.rid is not None:
             self.on_stop(button)
         if self.proxy:
             self.proxy.call("Reset", None, Gio.DBusCallFlags.NONE, -1, None, None)
+            if not project and (self.prop("Status", {}) or {}).get("project"):
+                self.proxy.call("ProjectClose", None, Gio.DBusCallFlags.NONE, -1, None, None)
         for child in self.chat.get_children():
             child.destroy()
         self.reply, self.rid = None, None
-        self.hello()
+        if project:
+            self.bubble("assistant", words.PROJECT_HELLO)
+        else:
+            self.hello()
         self.update_header()
         self.entry.grab_focus()
 
@@ -308,6 +333,11 @@ class Sidebar(Gtk.Application):
                 self.reply.set_text("")
                 self.reply.get_style_context().remove_class("waiting")
             self.reply.set_text(self.reply.get_text() + args[1])
+        elif signal == "Action" and args[1] == "outline" and args[3] == "proposal":
+            self.outline_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "draft":
+            p = json.loads(args[4] or "{}")
+            self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
         elif signal == "Action" and args[3] == "proposal":
             self.proposal_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[3] == "done":
@@ -317,6 +347,142 @@ class Sidebar(Gtk.Application):
             self.finish_reply(error=args[1])
         elif signal == "Done":
             self.finish_reply()
+
+    # --- writing projects (D54) ---------------------------------------------------------------------------
+    def on_new_menu(self, button) -> None:
+        menu = Gtk.Menu()
+        item = Gtk.MenuItem(label="New conversation")
+        item.connect("activate", lambda i: self.on_new(None))
+        menu.append(item)
+        item = Gtk.MenuItem(label="New writing project…")
+        item.connect("activate", lambda i: self.new_project())
+        menu.append(item)
+        projects = self.daemon_json("ProjectList") or []
+        if projects:
+            sub = Gtk.Menu()
+            for p in projects:
+                it = Gtk.MenuItem(label=p["title"])
+                it.connect("activate", lambda i, folder=p["folder"]: self.open_project(folder))
+                sub.append(it)
+            opener = Gtk.MenuItem(label="Open a writing project")
+            opener.set_submenu(sub)
+            menu.append(opener)
+        menu.show_all()
+        menu.popup_at_widget(button, Gdk.Gravity.SOUTH_EAST, Gdk.Gravity.NORTH_EAST, None)
+
+    def daemon_json(self, method: str, *args: str):
+        if not self.proxy:
+            return None
+        try:
+            v = self.proxy.call_sync(method, GLib.Variant("(" + "s" * len(args) + ")", args) if args else None,
+                                     Gio.DBusCallFlags.NONE, 10000, None)
+        except GLib.Error as e:
+            Gio.DBusError.strip_remote_error(e)
+            self.bubble("error", e.message)
+            return None
+        return json.loads(v.unpack()[0]) if v and v.unpack() else None
+
+    def new_project(self) -> None:
+        dialog = Gtk.Dialog(title="New writing project", transient_for=self.win, modal=True)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Start", Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        entry = Gtk.Entry(placeholder_text="A working title, e.g. The Bottle", activates_default=True)
+        box = dialog.get_content_area()
+        box.set_spacing(6)
+        box.pack_start(Gtk.Label(label="What should we call it? You can change it later.", xalign=0), False, False, 6)
+        box.pack_start(entry, False, False, 6)
+        dialog.show_all()
+        ok = dialog.run() == Gtk.ResponseType.OK
+        title = entry.get_text().strip()
+        dialog.destroy()
+        if ok and self.daemon_json("ProjectNew", title or "Untitled") is not None:
+            self.on_new(None, project=True)
+
+    def open_project(self, folder: str) -> None:
+        info = self.daemon_json("ProjectOpen", folder)
+        if info is not None:
+            self.on_new(None, project=True)
+            n = sum(len(v) for v in info.get("notes", {}).values())
+            self.bubble("assistant", f"Back to \"{info['title']}\": {n} notes so far. Tell me more, or click Write it up.")
+
+    def close_project(self) -> None:
+        if self.proxy:
+            self.proxy.call("ProjectClose", None, Gio.DBusCallFlags.NONE, -1, None, None)
+        self.on_new(None)
+
+    def show_notes(self) -> None:
+        info = self.daemon_json("ProjectInfo")
+        if info is None:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=f"Notes for \"{info['title']}\"", xalign=0)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        for line in words.notes_lines(info.get("notes", {})):
+            box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def start_job(self, method: str, arg: str, waiting: str) -> None:
+        """WriteUp / WriteDraft: like a question, but nothing typed: the reply streams into a new bubble."""
+        if not self.proxy or self.rid is not None:
+            return
+        self.reply = self.bubble("assistant", waiting)
+        self.reply.get_style_context().add_class("waiting")
+        self.reply_started = False
+        self.rid = -1
+
+        def started(proxy, result) -> None:
+            try:
+                (self.rid,) = proxy.call_finish(result).unpack()
+            except GLib.Error as e:
+                Gio.DBusError.strip_remote_error(e)
+                self.finish_reply(error=e.message)
+            self.update_header()
+
+        self.proxy.call(method, GLib.Variant("(s)", (arg,)), Gio.DBusCallFlags.NONE, 3600000, None, started)
+        self.update_header()
+
+    def outline_card(self, outline: dict) -> None:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=outline.get("chapter_title", "The plan"), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        for line in words.outline_lines(outline):
+            box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
+        change = Gtk.Entry(placeholder_text="What should change? (optional)")
+        box.pack_start(change, False, False, 2)
+        buttons = Gtk.Box(spacing=6)
+        write = Gtk.Button(label="Write it")
+        write.get_style_context().add_class("suggested-action")
+        again = Gtk.Button(label="Plan again")
+
+        def go(button, method: str) -> None:
+            write.set_sensitive(False)
+            again.set_sensitive(False)
+            if method == "WriteDraft":
+                self.start_job("WriteDraft", outline.get("id", ""), "Writing the draft… (you can keep using the computer)")
+            else:
+                self.start_job("WriteUp", change.get_text().strip(), "Planning again…")
+
+        write.connect("clicked", go, "WriteDraft")
+        again.connect("clicked", go, "WriteUp")
+        buttons.pack_start(write, False, False, 0)
+        buttons.pack_start(again, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def progress_line(self, text: str) -> None:
+        """One line that follows the draft (scene n of N), then says where it was saved."""
+        if getattr(self, "progress", None) is None or self.progress.get_parent() is None:
+            self.progress = Gtk.Label(xalign=0, wrap=True, max_width_chars=30)
+            self.progress.get_style_context().add_class("action")
+            self.chat.pack_start(self.progress, False, False, 0)
+            self.progress.show()
+        self.progress.set_text(text)
 
     def proposal_card(self, pv: dict) -> None:
         """A document edit the assistant prepared: before -> after, Apply / Discard (SPEC §7.8). Nothing
