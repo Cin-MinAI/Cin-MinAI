@@ -223,12 +223,44 @@ def circle_lines(info: dict) -> list[str]:
     return out
 
 
+STEP_NAMES = {"you": "You", "need": "Need", "go": "Go", "search": "Search", "find": "Find", "take": "Take",
+              "return": "Return", "change": "Change"}
+STATUS_MARKS = {"written": "✓", "partly written": "◐", "planned": "·", "missing": "○"}
+
+
+def review_title(review: dict) -> str:
+    if review.get("chapter"):
+        return f"Before chapter {review['chapter']} of {review.get('of')}: where the story is"
+    return "Before writing: where the story is"
+
+
+def review_lines(review: dict) -> list[str]:
+    """The review before a chapter (D57), in the order a writer reads it."""
+    out = ["The story circle:"]
+    for k, s in review.get("steps", {}).items():
+        out.append(f"  {STATUS_MARKS.get(s.get('status'), '·')} {STEP_NAMES.get(k, k)} ({s.get('status', '')}): "
+                   f"{s.get('what', '')}")
+    if review.get("characters"):
+        out.append("The characters:")
+        out += [f"  • {c.get('name', '')}, at {STEP_NAMES.get(c.get('step'), c.get('step', ''))}: {c.get('where', '')}"
+                for c in review["characters"]]
+    if review.get("missing"):
+        out.append("Still missing:")
+        out += [f"  • {m}" for m in review["missing"]]
+    if review.get("questions"):
+        out.append("Questions for you:")
+        out += [f"  • {q}" for q in review["questions"]]
+    nxt = review.get("next_steps", [])
+    if review.get("chapter") and nxt:
+        out.append(f"Chapter {review['chapter']} would cover: " + ", ".join(STEP_NAMES.get(k, k) for k in nxt) + ".")
+    return out
+
+
 def next_chapter_line(info: dict) -> str:
     if info.get("shape") != "chapters":
-        return "Write it up plans the whole circle in one chapter."
-    names = {s["key"]: s["name"] for s in info.get("steps", [])}
-    return (f"Write it up plans chapter {info.get('next_chapter')} of {info.get('chapters')}: "
-            + ", ".join(names.get(k, k) for k in info.get("next_steps", [])) + ".")
+        return "Write it up reviews your notes, then plans the whole circle in one chapter."
+    return (f"Write it up reads the story so far, shows where it is on the circle, then plans chapter "
+            f"{info.get('next_chapter')} of {info.get('chapters')}.")
 
 
 def draft_progress(p: dict) -> str:

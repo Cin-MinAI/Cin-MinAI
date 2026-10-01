@@ -79,7 +79,13 @@ def main() -> int:
             p.set_shape("chapter")
         for _ in range(int(os.environ.get("WRITER_CHAPTERS", "1"))):
             t0 = time.monotonic()
-            outline = w.outline(p)
+            review = w.review(p, cancel)  # D57: before every chapter
+            print(f"REVIEW ({time.monotonic() - t0:.0f} s), chapters read {review['chapters_read']}, "
+                  f"next steps {review['next_steps']}")
+            from cin_minai.sidebar import words
+            print("\n".join("  " + line for line in words.review_lines(review)))
+            t0 = time.monotonic()
+            outline = w.outline(p, os.environ.get("WRITER_ANSWERS", ""), cancel, review=review)
             print(f"OUTLINE ({time.monotonic() - t0:.0f} s): chapter {outline['chapter']} of {outline['of']}, "
                   f"{outline['chapter_title']!r}, steps {outline['steps']}")
             for i, s in enumerate(outline["scenes"], 1):

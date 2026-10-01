@@ -775,6 +775,20 @@ The assistant takes in information for as long as the user wants, then writes it
   the meeting again, despite the summary) and the soldier turned enemy. Next: a fixed cast in the plan (name, who,
   side), "already shown, don't show again" for earlier chapters, fewer scenes per step over chapters, sentence-level
   echo trimming.
+* **The review before every chapter (PLAN D57), built 2026-10-01:** **Write it up** now reads the chapters before
+  this one as the files are now (`odt.read`, in ~1,500-word parts, each summarized; cached by the file's mtime and
+  size, so the writer's own edits are read again), then fills a review (`REVIEW_SCHEMA`: each step written / partly
+  written / planned / missing with one sentence, up to four characters with their step, what's missing, questions
+  where the chapters and the notes disagree). The sidebar shows it as a card with an answer field and **Plan the
+  chapter** (D-Bus `PlanChapter`); the answers become notes and go to the plan as "what the writer said (it
+  decides)". The next chapter starts at the first step not written, the steps left paced over the chapters left
+  (`next_steps`); before chapter 1 nothing can be "written". Characters keep their side "unless the writer changes it".
+* **Measured (same notes, 4 chapters, 2026-10-01 17:15):** the review before chapter 1 is right (all missing; "her
+  need isn't defined" — the place for the writer's answer). **Before chapter 2 the guide marked all eight steps
+  "written"** after one chapter ("Take: she has taken on the goal"), so chapter 2 was planned as the ending; it also
+  asked one question four times (now de-duplicated) and quoted a "sky turned to glass" that isn't in the notes.
+  Next: each "written" must come with the words from the chapter that show it, checked by our code (a step without
+  them isn't written); then rerun.
 * **Then:** nested circles (act, scene, each main character); the form (screenplay, stage play) as the output, the
   circle the structure; sources (a shared book read in parts into notes, then e.g. a character analysis).
 

@@ -62,6 +62,22 @@ def paragraphs(text: str) -> list[str]:
     return out
 
 
+def read(path: str) -> list[str]:
+    """The paragraphs of an .odt as it is now — ours, or after the writer edited and saved it in Writer (D57).
+    Our header line and scene breaks are left out."""
+    import xml.etree.ElementTree as ET
+    with zipfile.ZipFile(path) as z:
+        root = ET.fromstring(z.read("content.xml"))
+    t = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+    out = []
+    for el in root.iter():
+        if el.tag in (t + "p", t + "h"):
+            s = re.sub(r"\s+", " ", "".join(el.itertext())).strip()
+            if s and s != "*   *   *" and s.replace("*", "").strip():
+                out.append(s)
+    return out
+
+
 def estimate_lines(texts: list[str]) -> int:
     return sum(max(1, -(-len(p.split()) // WORDS_PER_LINE)) for t in texts for p in paragraphs(t))
 

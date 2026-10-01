@@ -57,8 +57,12 @@ XML = f"""
     <method name="ProjectInfo"><arg type="s" name="json" direction="out"/></method>
     <!-- the story's shape (D56): {"shape": "chapter"|"chapters", "chapters": 2-8, "next_chapter": n}, any of them -->
     <method name="ProjectSet"><arg type="s" name="settings" direction="in"/><arg type="s" name="json" direction="out"/></method>
-    <!-- plan the chapter: an Action "outline" with state "proposal" (its result has the id); wish: what to change -->
+    <!-- "Write it up" (D57): review the story as it is now before the next chapter: an Action "review" with state
+         "proposal" (where the story is on the circle, characters, what's missing, questions) -->
     <method name="WriteUp"><arg type="s" name="wish" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <!-- plan the chapter after the review: an Action "outline" with state "proposal" (its result has the id);
+         answers: the writer's answers to the review and what should change (they become notes) -->
+    <method name="PlanChapter"><arg type="s" name="answers" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- write the planned chapter: Action "draft" running (progress) then done (the file); Cancel stops it -->
     <method name="WriteDraft"><arg type="s" name="outline" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- the journal (D55): while it's open, Ask goes to the interviewer; today's conversation stays in memory -->
@@ -279,7 +283,7 @@ class Service:
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
             self.journal_write(self.next_id, private)
-        elif method in ("WriteUp", "WriteDraft"):
+        elif method in ("WriteUp", "PlanChapter", "WriteDraft"):
             (arg,) = params.unpack()
             if self.busy:
                 inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
@@ -292,7 +296,8 @@ class Service:
                 return
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
-            (self.write_up if method == "WriteUp" else self.write_draft)(self.next_id, arg)
+            {"WriteUp": self.write_up, "PlanChapter": self.plan_chapter, "WriteDraft": self.write_draft}[method](
+                self.next_id, arg)
         elif method == "Unload":
             if self.busy or self.loading:
                 inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
@@ -442,13 +447,34 @@ class Service:
         self.job(rid, write)
 
     def write_up(self, rid: int, wish: str) -> None:
+        """The review before every chapter (D57)."""
+        project = self.project
+
+        def review(on_text, on_action):
+            r = self.writer.review(project, self.cancel)
+            on_action("review", {}, "proposal", json.dumps(r, ensure_ascii=False))
+            what = f"chapter {r['chapter']}" if r.get("chapter") else "the story"
+            asks = len(r.get("questions", []))
+            on_text(f"Here's where the story stands before {what}. "
+                    + (f"I have {asks} question{'s' if asks != 1 else ''} for you. " if asks else "")
+                    + "Answer or add anything you like, then click Plan the chapter.")
+            return {"tool": "review", "questions": asks, "next_steps": r["next_steps"]}
+        self.job(rid, review)
+
+    def plan_chapter(self, rid: int, answers: str) -> None:
         project = self.project
 
         def plan(on_text, on_action):
-            outline = self.writer.outline(project, wish, self.cancel)
+            if answers.strip():  # the writer's words become notes: they decide (D57)
+                project.remember("user", answers.strip())
+                self.writer.take_notes(project, answers, self.cancel)
+            r = project.data.get("review")
+            if r is None or r.get("chapter") != project.this_chapter()[0]:
+                r = self.writer.review(project, self.cancel)
+            outline = self.writer.outline(project, answers, self.cancel, review=r)
             oid = f"o{rid}"
             self.outlines = {oid: outline}  # only the newest plan can be written
-            on_action("outline", {"wish": wish}, "proposal", json.dumps({**outline, "id": oid}, ensure_ascii=False))
+            on_action("outline", {"answers": answers}, "proposal", json.dumps({**outline, "id": oid}, ensure_ascii=False))
             what = (f"chapter {outline['chapter']} of {outline['of']}, \"{outline['chapter_title']}\", "
                     f"{len(outline['scenes'])} scenes for the steps {', '.join(s.title() for s in outline['steps'])}"
                     if outline.get("chapter") else

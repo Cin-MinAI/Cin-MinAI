@@ -17,6 +17,7 @@ chapter of a story over chapters is told what the earlier chapters did (their su
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from typing import Callable
@@ -105,7 +106,8 @@ Harmon's Story Circle, eight steps:
 {circle}
 {scope} For each step, give {per_step}: a short title and two or three sentences on what happens in it. Use \
 the writer's notes: every fact in them stays true, and every character keeps who they are and whose side \
-they're on. Each scene moves the story forward; never retell what an earlier scene or chapter already told.
+they're on, unless the writer changes it. Each scene moves the story forward; never retell what an earlier scene \
+or chapter already told.
 
 {notes}
 {so_far}{wish}"""
@@ -125,8 +127,8 @@ The story so far:
 Now write scene {n} of {total}, "{scene}", in full: about {words} words of story prose. This scene is the \
 circle's step "{step}": {means}. Write only what happens in this scene ({what}); stop at its end and don't \
 start on later scenes. Continue from exactly where the story is now: don't repeat or retell anything the \
-reader already knows. Keep every fact above true, and every character who they are and on their side. No \
-headings, no notes, no title — just the prose."""
+reader already knows. Keep every fact above true, and every character who they are and on their side unless \
+the writer changed it. No headings, no notes, no title — just the prose."""
 
 SUMMARY_PROMPT = """Summarize this scene in two sentences for the writer's memory: what happened and how it \
 ended. Same language as the scene.
@@ -137,6 +139,70 @@ CHAPTER_SUMMARY_PROMPT = """Summarize this chapter in three sentences for the wr
 where each main character stands at its end, and what is still open. Same language as the scenes.
 
 {scenes}"""
+
+
+# the review before every chapter (PLAN D57): the story as it is now, against the circle and the notes
+STATUSES = ("written", "partly written", "planned", "missing")
+REVIEW_SCHEMA = {"type": "object", "additionalProperties": False,
+                 "required": ["steps", "characters", "missing", "questions"],
+                 "properties": {
+                     "steps": {"type": "object", "additionalProperties": False, "required": list(STEPS),
+                               "properties": {k: {"type": "object", "additionalProperties": False,
+                                                  "required": ["status", "what"],
+                                                  "properties": {"status": {"enum": list(STATUSES)},
+                                                                 "what": {"type": "string"}}} for k in STEPS}},
+                     "characters": {"type": "array", "maxItems": 4, "items": {
+                         "type": "object", "additionalProperties": False, "required": ["name", "step", "where"],
+                         "properties": {"name": {"type": "string"}, "step": {"enum": list(STEPS)},
+                                        "where": {"type": "string"}}}},
+                     "missing": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
+                     "questions": {"type": "array", "maxItems": 4, "items": {"type": "string"}}}}
+READ_WORDS = 1500  # a chapter is read in parts this long (the context is 8K on the card)
+READ_PROMPT = """Summarize this part of chapter {n} of the user's story "{title}" in three or four sentences for \
+the writer's memory: what happens, who does what, and anything that changes for a character (a new side, a new \
+goal, an injury, a death). Same language as the text. Only what's in the text.
+
+{text}"""
+REVIEW_PROMPT = """You are reviewing the user's story "{title}" before {next} is planned. The story follows Dan \
+Harmon's Story Circle:
+{circle}
+
+For each step, say where the story is: "written" if it already happened in the chapters written so far, \
+"partly written" if it started there but isn't finished, "planned" if only the writer's notes have it, \
+"missing" if nothing has it yet; and in one sentence what it is, or what's missing. For up to four main \
+characters: their name, the step of their own circle they're at, and one sentence on where they are now. Then \
+what the story is still missing that a reader would need, and questions for the writer where the chapters and \
+the notes disagree, or where a character acts against who they were — ask, don't judge: the writer may want \
+it. Use only the writer's notes and the chapters below; don't invent. In the writer's language.
+
+The writer's notes:
+{notes}
+
+{chapters}"""
+
+
+def _parts(paras: list[str], words: int = READ_WORDS) -> list[str]:
+    parts, cur, n = [], [], 0
+    for p in paras:
+        cur.append(p)
+        n += len(p.split())
+        if n >= words:
+            parts.append("\n\n".join(cur))
+            cur, n = [], 0
+    if cur:
+        parts.append("\n\n".join(cur))
+    return parts
+
+
+def next_steps(review: dict, chapter: int | None, chapters: int) -> tuple[str, ...]:
+    """Where the next chapter starts: the first step the review doesn't find written (D57); the steps left are
+    paced over the chapters left. A story in one chapter is always the whole circle."""
+    if chapter is None:
+        return STEPS
+    st = review.get("steps", {})
+    start = next((i for i, k in enumerate(STEPS) if st.get(k, {}).get("status") != "written"), len(STEPS))
+    left = STEPS[start:] or STEPS[-1:]  # all written but chapters left: the last step goes on
+    return left[:-(-len(left) // max(1, chapters - chapter + 1))]
 
 
 def outline_schema(steps: tuple[str, ...], lo: int, hi: int) -> dict:
@@ -171,6 +237,20 @@ def _names(steps) -> str:
     return ", ".join(STEP[k]["name"] for k in steps)
 
 
+def review_text(review: dict | None) -> str:
+    """The review, as the plan is told it (D57)."""
+    if not review:
+        return ""
+    lines = ["Where the story is (the review before this chapter):"]
+    lines += [f"- {STEP[k]['name']}: {s['status']}: {s['what']}" for k, s in review.get("steps", {}).items() if k in STEP]
+    if review.get("characters"):
+        lines.append("Where the main characters are: " + "; ".join(
+            f"{c['name']} ({STEP.get(c['step'], {}).get('name', c['step'])}): {c['where']}" for c in review["characters"]))
+    if review.get("missing"):
+        lines.append("Still missing: " + "; ".join(review["missing"]))
+    return "\n".join(lines) + "\n"
+
+
 class Writer:
     def __init__(self, chat: Callable) -> None:
         self.chat = chat
@@ -202,10 +282,62 @@ class Writer:
             return 0
 
     # --- the write-up -------------------------------------------------------------------------------------
-    def outline(self, project: Project, wish: str = "", cancel: threading.Event | None = None) -> dict:
+    def read_chapters(self, project: Project, chapter: int | None, cancel: threading.Event | None = None) -> list[dict]:
+        """The chapters before this one as the files are now, the writer's own edits included (D57): each read
+        in parts and summarized, cached until the file changes. A chapter whose file is gone is left out."""
+        out = []
+        for d in project.chapters_before(chapter) if chapter else []:
+            path = os.path.join(project.folder, d["file"])
+            try:
+                st = os.stat(path)
+                key = f"{st.st_mtime_ns}:{st.st_size}"
+                if d.get("read", {}).get("key") != key:
+                    paras = odt.read(path)[1:]  # without the title
+                    sums = [self.chat([{"role": "user", "content": READ_PROMPT.format(
+                        n=d["chapter"], title=project.title, text=part)}], max_tokens=220, cancel=cancel)[0].strip()
+                        for part in _parts(paras)]
+                    d["read"] = {"key": key, "summary": " ".join(s for s in sums if s)}
+                    project.save()
+            except (OSError, KeyError, ValueError):  # gone, renamed, or not an .odt any more
+                continue
+            out.append(d)
+        return out
+
+    def review(self, project: Project, cancel: threading.Event | None = None) -> dict:
+        """Before every chapter (D57): where the story stands on the circle, where each main character is, what's
+        missing, and questions where the written story and the notes disagree. Kept with the project."""
+        chapter, _ = project.this_chapter()
+        read = self.read_chapters(project, chapter, cancel)
+        chapters = ("The chapters written so far, as they are now:\n" + "\n".join(
+            f"Chapter {d['chapter']}, \"{d['title']}\": {d['read']['summary']}" for d in read)) if read else \
+            "No chapters are written yet: nothing is \"written\" or \"partly written\"."
+        nxt = (f"chapter {chapter} of {project.data['chapters']}" if chapter else
+               "the story (the whole circle in one chapter)")
+        raw, _ = self.chat([{"role": "user", "content": REVIEW_PROMPT.format(
+            title=project.title, next=nxt, circle=CIRCLE_TEXT, notes=project.notes_text(), chapters=chapters)}],
+            schema=REVIEW_SCHEMA, max_tokens=1400, cancel=cancel)
+        review = json.loads(raw)
+        for k in ("missing", "questions"):  # the same question four times (2026-10-01)
+            review[k] = [q for i, q in enumerate(review[k]) if not any(_same(q, p) for p in review[k][:i])]
+        if not read:  # nothing written yet can't be "written", whatever the model says
+            for s in review["steps"].values():
+                if s["status"] in ("written", "partly written"):
+                    s["status"] = "planned"
+        review.update({"chapter": chapter, "of": project.data["chapters"] if chapter else None,
+                       "chapters_read": [d["chapter"] for d in read],
+                       "next_steps": list(next_steps(review, chapter, project.data["chapters"]))})
+        project.data["review"] = review
+        project.save()
+        return review
+
+    def outline(self, project: Project, wish: str = "", cancel: threading.Event | None = None,
+                review: dict | None = None) -> dict:
         """The plan for the next chapter: the circle's steps it covers, each with its scenes. Returned flat
-        ("scenes", each with its "step") so the draft and the sidebar walk one list."""
+        ("scenes", each with its "step") so the draft and the sidebar walk one list. With a review (D57), the
+        chapter starts where the review found the story, and is told what's missing."""
         chapter, steps = project.this_chapter()
+        if review is not None and review.get("chapter") == chapter:
+            steps = tuple(review["next_steps"])
         lo, hi = scenes_per_step(len(steps))
         if chapter is None:
             what, scope = "the user's story as one chapter", "This chapter is the whole story: all eight steps, in order."
@@ -220,8 +352,8 @@ class Writer:
         per_step = f"{lo} scene" if lo == hi == 1 else f"{lo} scenes" if lo == hi else f"{lo} to {hi} scenes"
         prompt = OUTLINE_PROMPT.format(what=what, title=project.title, circle=CIRCLE_TEXT, scope=scope,
                                        per_step=per_step, notes=project.notes_text(),
-                                       so_far=self.chapters_so_far(project, chapter),
-                                       wish=f"\nWhat the writer asked for: {wish}" if wish else "")
+                                       so_far=self.chapters_so_far(project, chapter) + review_text(review),
+                                       wish=f"\nWhat the writer said before this chapter (it decides): {wish}" if wish else "")
         raw, _ = self.chat([{"role": "user", "content": prompt}], schema=outline_schema(steps, lo, hi),
                            max_tokens=1400, cancel=cancel)
         plan = json.loads(raw)
@@ -239,7 +371,8 @@ class Writer:
         if not before:
             return ""
         return "The story so far, chapter by chapter:\n" + "\n".join(
-            f"Chapter {d['chapter']}, \"{d['title']}\" ({_names(d.get('steps', []))}): {d.get('summary') or '(no summary)'}"
+            f"Chapter {d['chapter']}, \"{d['title']}\": "
+            + (d.get("read", {}).get("summary") or d.get("summary") or "(no summary)")  # as the file is now (D57)
             for d in before) + "\n"
 
     def draft(self, project: Project, outline: dict, on_progress: Callable[[int, int, str], None],

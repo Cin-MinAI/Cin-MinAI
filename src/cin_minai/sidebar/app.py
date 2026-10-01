@@ -111,7 +111,7 @@ class Sidebar(Gtk.Application):
         notes.connect("clicked", lambda b: self.show_notes())
         writeup = Gtk.Button(label="Write it up")
         writeup.get_style_context().add_class("suggested-action")
-        writeup.connect("clicked", lambda b: self.start_job("WriteUp", "", "Planning the chapter…"))
+        writeup.connect("clicked", lambda b: self.start_job("WriteUp", "", "Reading the story so far…"))
         close_project = self.icon_button("window-close-symbolic", "Close the writing project", lambda b: self.close_project())
         self.project_box = Gtk.Box(spacing=4, name="project")
         self.project_box.pack_start(self.project_label, True, True, 0)
@@ -390,6 +390,8 @@ class Sidebar(Gtk.Application):
             self.reply.set_text(self.reply.get_text() + args[1])
         elif signal == "Action" and args[1] == "outline" and args[3] == "proposal":
             self.outline_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "review" and args[3] == "proposal":
+            self.review_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "web_search" and args[3] == "proposal":
             self.search_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "web_search" and args[3] == "running":
@@ -722,6 +724,31 @@ class Sidebar(Gtk.Application):
         self.proxy.call(method, GLib.Variant(fmt, args), Gio.DBusCallFlags.NONE, 3600000, None, started)
         self.update_header()
 
+    def review_card(self, review: dict) -> None:
+        """Before every chapter (D57): where the story is on the circle, what's missing, questions; the writer's
+        answers go with Plan the chapter and become notes."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.review_title(review), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        for line in words.review_lines(review):
+            box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
+        answers = Gtk.Entry(placeholder_text="Your answers, or anything to add (optional)")
+        box.pack_start(answers, False, False, 2)
+        plan = Gtk.Button(label="Plan the chapter")
+        plan.get_style_context().add_class("suggested-action")
+
+        def go(button) -> None:
+            plan.set_sensitive(False)
+            answers.set_sensitive(False)
+            self.start_job("PlanChapter", answers.get_text().strip(), "Planning the chapter…")
+        plan.connect("clicked", go)
+        answers.connect("activate", go)
+        box.pack_start(plan, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
     def outline_card(self, outline: dict) -> None:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
@@ -743,10 +770,10 @@ class Sidebar(Gtk.Application):
             if method == "WriteDraft":
                 self.start_job("WriteDraft", outline.get("id", ""), "Writing the draft… (you can keep using the computer)")
             else:
-                self.start_job("WriteUp", change.get_text().strip(), "Planning again…")
+                self.start_job("PlanChapter", change.get_text().strip(), "Planning again…")
 
         write.connect("clicked", go, "WriteDraft")
-        again.connect("clicked", go, "WriteUp")
+        again.connect("clicked", go, "PlanChapter")
         buttons.pack_start(write, False, False, 0)
         buttons.pack_start(again, False, False, 0)
         box.pack_start(buttons, False, False, 0)

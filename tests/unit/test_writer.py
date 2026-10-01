@@ -77,10 +77,20 @@ class Scripted:
 
     def __init__(self, scene_words=60):
         self.sent, self.scene_words, self.n = [], scene_words, 0
+        self.written, self.reads = set(), []  # what the review finds written; the chapter parts it was asked to read
 
     def __call__(self, messages, schema=None, max_tokens=600, on_text=None, cancel=None, sampling=None):
         self.sent.append({"messages": messages, "schema": schema, "sampling": sampling})
         last = messages[-1]["content"]
+        if schema and "questions" in schema.get("properties", {}):  # the review (D57)
+            return json.dumps({"steps": {k: {"status": "written" if k in self.written else "missing",
+                                             "what": f"{k} is here"} for k in schema["properties"]["steps"]["required"]},
+                               "characters": [{"name": "Elena", "step": "go", "where": "out of her world"}],
+                               "missing": ["what Elena wants"],
+                               "questions": ["The soldier fights her in chapter 1; on purpose?"]}), {}
+        if last.startswith("Summarize this part"):
+            self.reads.append(last)
+            return "Part read.", {}
         if schema and "chapter_title" in json.dumps(schema):  # the plan: the steps it's given, minItems scenes each
             steps = schema["properties"]["steps"]
             return json.dumps({"chapter_title": "The Bottle", "steps": {
@@ -222,7 +232,7 @@ class Circle(unittest.TestCase):
         self.assertEqual(o2["steps"], ["go", "search"])
         plan_prompt = self.m.sent[-1]["messages"][0]["content"]
         self.assertIn("Earlier chapters covered You, Need.", plan_prompt)
-        self.assertIn('Chapter 1, "The Bottle" (You, Need): The whole chapter happened.', plan_prompt)
+        self.assertIn('Chapter 1, "The Bottle": The whole chapter happened.', plan_prompt)
         self.w.draft(self.p, o2, lambda *a: None, threading.Event())
         scene = [s["messages"][-1]["content"] for s in self.m.sent if "Now write scene" in s["messages"][-1]["content"]][-1]
         self.assertIn("chapter 2 of 4", scene)
@@ -252,6 +262,66 @@ class Circle(unittest.TestCase):
             json.dump(d, f)
         q = Project.open(self.p.folder)
         self.assertEqual((q.this_chapter()[0], len(q.this_chapter()[1]), q.open_step()), (None, 8, "you"))
+
+    # --- the review before every chapter (D57) ---------------------------------------------------------------
+    def test_before_the_first_chapter_nothing_is_written(self):
+        self.p.set_shape("chapters", 4)
+        self.m.written = {"you", "need"}  # the model claims so, but there's no chapter yet
+        r = self.w.review(self.p)
+        self.assertEqual({s["status"] for s in r["steps"].values()}, {"planned", "missing"})
+        self.assertEqual((r["chapter"], r["next_steps"]), (1, ["you", "need"]))
+        self.assertIn("No chapters are written yet", self.m.sent[-1]["messages"][0]["content"])
+        self.assertEqual(self.p.data["review"]["questions"], ["The soldier fights her in chapter 1; on purpose?"])
+
+    def test_the_review_reads_the_chapter_as_the_writer_left_it(self):
+        self.p.set_shape("chapters", 4)
+        res = self.w.draft(self.p, self.w.outline(self.p), lambda *a: None, threading.Event())
+        # the writer rewrites the chapter in Writer and saves it
+        edited = odt.write(tempfile.mkdtemp(), "x", "The Bottle", ["Julian betrays Elena at the harbour."])
+        os.replace(edited, res["file"])
+        self.w.review(self.p)
+        self.assertEqual(len(self.m.reads), 1)
+        self.assertIn("Julian betrays Elena at the harbour.", self.m.reads[0])
+        self.assertIn('Chapter 1, "The Bottle": Part read.', self.m.sent[-1]["messages"][0]["content"])
+        self.w.review(self.p)
+        self.assertEqual(len(self.m.reads), 1)  # unchanged file: read once
+        with open(res["file"], "ab"):
+            pass
+        os.utime(res["file"], ns=(1, 1))
+        self.w.review(self.p)
+        self.assertEqual(len(self.m.reads), 2)  # changed: read again
+
+    def test_the_next_chapter_starts_where_the_review_found_the_story(self):
+        self.p.set_shape("chapters", 4)
+        self.w.draft(self.p, self.w.outline(self.p), lambda *a: None, threading.Event())
+        self.m.written = {"you", "need", "go"}  # chapter 1 ran ahead into Go
+        r = self.w.review(self.p)
+        self.assertEqual(r["next_steps"], ["search", "find"])  # 5 steps left over 3 chapters
+        o = self.w.outline(self.p, "Julian stays on her side.", review=r)
+        self.assertEqual(o["steps"], ["search", "find"])
+        prompt = self.m.sent[-1]["messages"][0]["content"]
+        self.assertIn("Where the story is (the review before this chapter):\n- You: written: you is here", prompt)
+        self.assertIn("Still missing: what Elena wants", prompt)
+        self.assertIn("What the writer said before this chapter (it decides): Julian stays on her side.", prompt)
+
+    def test_next_steps(self):
+        from cin_minai.daemon.writer import next_steps
+        all_written = {"steps": {k: {"status": "written"} for k in ("you", "need", "go", "search", "find", "take",
+                                                                       "return", "change")}}
+        self.assertEqual(next_steps(all_written, 4, 4), ("change",))
+        self.assertEqual(len(next_steps({}, None, 4)), 8)
+        self.assertEqual(next_steps({}, 4, 4), ("you", "need", "go", "search", "find", "take", "return", "change"))
+        partly = {"steps": {"you": {"status": "written"}, "need": {"status": "partly written"}}}
+        self.assertEqual(next_steps(partly, 2, 4), ("need", "go", "search"))  # 7 left over 3
+
+    def test_sidebar_review_words(self):
+        from cin_minai.sidebar import words
+        self.p.set_shape("chapters", 4)
+        lines = words.review_lines(self.w.review(self.p))
+        self.assertEqual(lines[0], "The story circle:")
+        self.assertIn("  ○ You (missing): you is here", lines)
+        self.assertIn("Questions for you:", lines)
+        self.assertEqual(lines[-1], "Chapter 1 would cover: You, Need.")
 
     def test_sidebar_words(self):
         from cin_minai.sidebar import words
