@@ -71,15 +71,27 @@ def main() -> int:
                 reply = w.reply(p, text, lambda t: None, cancel)
                 print(f"> {text}\n  {reply}\n")
             print(f"gathering: {time.monotonic() - t0:.0f} s\nNOTES:\n{p.notes_text()}\n")
-        t0 = time.monotonic()
-        outline = w.outline(p)
-        print(f"OUTLINE ({time.monotonic() - t0:.0f} s): {outline['chapter_title']}")
-        for i, s in enumerate(outline["scenes"], 1):
-            print(f"  {i}. {s['title']}: {s['what_happens']}")
-        t0 = time.monotonic()
-        res = w.draft(p, outline, lambda n, total, what: print(f"  writing scene {n}/{total}: {what}", flush=True), cancel)
-        dt = time.monotonic() - t0
-        print(f"\nDRAFT: {json.dumps(res, ensure_ascii=False)}  ({dt:.0f} s, {res['words'] / max(dt, 1) * 60:.0f} words/min)")
+        # the story's shape (D56): WRITER_SHAPE=chapters:4 writes WRITER_CHAPTERS (default 1) chapters of 4
+        shape = os.environ.get("WRITER_SHAPE", "chapter")
+        if shape.startswith("chapters"):
+            p.set_shape("chapters", int(shape.partition(":")[2] or 4), 1)
+        else:
+            p.set_shape("chapter")
+        for _ in range(int(os.environ.get("WRITER_CHAPTERS", "1"))):
+            t0 = time.monotonic()
+            outline = w.outline(p)
+            print(f"OUTLINE ({time.monotonic() - t0:.0f} s): chapter {outline['chapter']} of {outline['of']}, "
+                  f"{outline['chapter_title']!r}, steps {outline['steps']}")
+            for i, s in enumerate(outline["scenes"], 1):
+                print(f"  {i}. [{s.get('step_name')}] {s['title']}: {s['what_happens']}")
+            t0 = time.monotonic()
+            res = w.draft(p, outline, lambda n, total, what: print(f"  writing scene {n}/{total}: {what}", flush=True),
+                          cancel)
+            dt = time.monotonic() - t0
+            print(f"\nDRAFT: {json.dumps(res, ensure_ascii=False)}  ({dt:.0f} s, "
+                  f"{res['words'] / max(dt, 1) * 60:.0f} words/min)\nQUALITY: {json.dumps(quality(res['file']))}")
+            if outline["chapter"]:
+                print(f"CHAPTER SUMMARY: {p.data['drafts'][-1]['summary']}\n")
         pdf = subprocess.run(["soffice", "--headless", f"-env:UserInstallation=file://{out}/lo-profile",
                               "--convert-to", "pdf", "--outdir", out, res["file"]], capture_output=True, text=True, timeout=180)
         pdfs = [f for f in os.listdir(out) if f.endswith(".pdf")]

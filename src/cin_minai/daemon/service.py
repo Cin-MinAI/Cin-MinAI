@@ -22,7 +22,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
-from .projects import ROOT as PROJECTS, Project
+from .projects import CIRCLE, ROOT as PROJECTS, Project
 from .writer import Writer
 
 NAME = "org.cinminai.Assistant1"
@@ -55,6 +55,8 @@ XML = f"""
     <method name="ProjectClose"/>
     <method name="ProjectList"><arg type="s" name="json" direction="out"/></method>
     <method name="ProjectInfo"><arg type="s" name="json" direction="out"/></method>
+    <!-- the story's shape (D56): {"shape": "chapter"|"chapters", "chapters": 2-8, "next_chapter": n}, any of them -->
+    <method name="ProjectSet"><arg type="s" name="settings" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- plan the chapter: an Action "outline" with state "proposal" (its result has the id); wish: what to change -->
     <method name="WriteUp"><arg type="s" name="wish" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- write the planned chapter: Action "draft" running (progress) then done (the file); Cancel stops it -->
@@ -230,7 +232,7 @@ class Service:
                 office.forget(doc["id"])
             self.refresh_document()
             inv.return_value(None)
-        elif method in ("ProjectNew", "ProjectOpen", "ProjectClose", "ProjectList", "ProjectInfo"):
+        elif method in ("ProjectNew", "ProjectOpen", "ProjectClose", "ProjectList", "ProjectInfo", "ProjectSet"):
             try:
                 out = self.project_call(method, *params.unpack())
             except (OSError, ValueError, KeyError) as e:
@@ -379,12 +381,22 @@ class Service:
             return None
         elif method == "ProjectList":
             return Project.list()
+        elif method == "ProjectSet":
+            if self.project is None:
+                raise ValueError("no writing project is open")
+            s = json.loads(args[0] or "{}")
+            self.project.set_shape(s.get("shape"), s.get("chapters"), s.get("next_chapter"))
         if method != "ProjectInfo":
-            self.outlines.clear()
+            self.outlines.clear()  # a plan was for the shape and chapter it was made for
             self.changed("Status")
         p = self.project
-        return None if p is None else {"title": p.title, "folder": p.folder, "notes": p.notes, "drafts": p.data["drafts"],
-                                        "messages": len(p.data["messages"])}
+        if p is None:
+            return None
+        chapter, steps = p.this_chapter()
+        return {"title": p.title, "folder": p.folder, "notes": p.notes, "drafts": p.data["drafts"],
+                "messages": len(p.data["messages"]), "circle": p.circle, "shape": p.data["shape"],
+                "chapters": p.data["chapters"], "next_chapter": chapter, "next_steps": list(steps),
+                "steps": [{"key": k, "name": n, "means": m} for k, n, m, _ in CIRCLE]}
 
     # --- the journal (D55) -----------------------------------------------------------------------------
     def journal_call(self, method: str, *args):
@@ -437,8 +449,12 @@ class Service:
             oid = f"o{rid}"
             self.outlines = {oid: outline}  # only the newest plan can be written
             on_action("outline", {"wish": wish}, "proposal", json.dumps({**outline, "id": oid}, ensure_ascii=False))
-            on_text(f"Here's a plan for \"{outline['chapter_title']}\" in {len(outline['scenes'])} scenes. Click "
-                    "Write it to write the draft, or say what should change and click Plan again.")
+            what = (f"chapter {outline['chapter']} of {outline['of']}, \"{outline['chapter_title']}\", "
+                    f"{len(outline['scenes'])} scenes for the steps {', '.join(s.title() for s in outline['steps'])}"
+                    if outline.get("chapter") else
+                    f"\"{outline['chapter_title']}\": the whole story circle in {len(outline['scenes'])} scenes")
+            on_text(f"Here's a plan for {what}. Click Write it to write the draft, or say what should change and "
+                    "click Plan again.")
             return {"tool": "outline", "scenes": len(outline["scenes"])}
         self.job(rid, plan)
 

@@ -192,7 +192,43 @@ def project_bar(title: str) -> str:
 
 
 def outline_lines(outline: dict) -> list[str]:
-    return [f"{i}. {s.get('title', '')}: {s.get('what_happens', '')}" for i, s in enumerate(outline.get("scenes", []), 1)]
+    """The plan by the story circle's steps (D56): each step's name, then its scenes."""
+    out, step = [], None
+    for i, s in enumerate(outline.get("scenes", []), 1):
+        if s.get("step_name") and s["step_name"] != step:
+            step = s["step_name"]
+            out.append(f"{step}:")
+        out.append(f"{'  ' if step else ''}{i}. {s.get('title', '')}: {s.get('what_happens', '')}")
+    return out
+
+
+# --- the story circle (D56) ------------------------------------------------------------------------------
+
+SHAPES = ["A story in one chapter"] + [f"A story over {n} chapters" for n in range(2, 9)]
+
+
+def shape_index(info: dict) -> int:
+    return 0 if info.get("shape") != "chapters" else max(0, min(7, int(info.get("chapters", 4)) - 1))
+
+
+def shape_settings(index: int) -> dict:
+    return {"shape": "chapter"} if index <= 0 else {"shape": "chapters", "chapters": index + 1}
+
+
+def circle_lines(info: dict) -> list[str]:
+    circle = info.get("circle", {})
+    out = ["The story circle (Dan Harmon's):"]
+    for i, s in enumerate(info.get("steps", []), 1):
+        out.append(f"  {i}. {s['name']} ({s['means']}): " + (" ".join(circle.get(s["key"], [])) or "not yet"))
+    return out
+
+
+def next_chapter_line(info: dict) -> str:
+    if info.get("shape") != "chapters":
+        return "Write it up plans the whole circle in one chapter."
+    names = {s["key"]: s["name"] for s in info.get("steps", [])}
+    return (f"Write it up plans chapter {info.get('next_chapter')} of {info.get('chapters')}: "
+            + ", ".join(names.get(k, k) for k in info.get("next_steps", [])) + ".")
 
 
 def draft_progress(p: dict) -> str:

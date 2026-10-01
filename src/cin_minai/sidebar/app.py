@@ -457,11 +457,19 @@ class Sidebar(Gtk.Application):
         box.set_spacing(6)
         box.pack_start(Gtk.Label(label="What should we call it? You can change it later.", xalign=0), False, False, 6)
         box.pack_start(entry, False, False, 6)
+        shape = Gtk.ComboBoxText()  # D56: the whole story circle in one chapter, or over chapters
+        for label in words.SHAPES:
+            shape.append_text(label)
+        shape.set_active(0)
+        box.pack_start(Gtk.Label(label="How long? (You can change this in Notes.)", xalign=0), False, False, 2)
+        box.pack_start(shape, False, False, 6)
         dialog.show_all()
         ok = dialog.run() == Gtk.ResponseType.OK
-        title = entry.get_text().strip()
+        title, settings = entry.get_text().strip(), words.shape_settings(shape.get_active())
         dialog.destroy()
         if ok and self.daemon_json("ProjectNew", title or "Untitled") is not None:
+            if settings["shape"] != "chapter":
+                self.daemon_json("ProjectSet", json.dumps(settings))
             self.on_new(None, project=True)
 
     def open_project(self, folder: str) -> None:
@@ -485,8 +493,39 @@ class Sidebar(Gtk.Application):
         head = Gtk.Label(label=f"Notes for \"{info['title']}\"", xalign=0)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
-        for line in words.notes_lines(info.get("notes", {})):
+        for line in words.notes_lines(info.get("notes", {})) + words.circle_lines(info):
             box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
+        # the story's shape (D56): the whole circle in one chapter, or a piece of it per chapter
+        shape = Gtk.ComboBoxText()
+        for label in words.SHAPES:
+            shape.append_text(label)
+        shape.set_active(words.shape_index(info))
+        chapter = Gtk.ComboBoxText()
+        for n in range(1, int(info.get("chapters", 4)) + 1):
+            chapter.append_text(f"Next: chapter {n}")
+        chapter.set_active(int(info.get("next_chapter") or 1) - 1)
+        chapter.set_no_show_all(info.get("shape") != "chapters")
+        line = Gtk.Label(label=words.next_chapter_line(info), xalign=0, wrap=True, max_width_chars=30)
+
+        def changed(widget) -> None:
+            settings = words.shape_settings(shape.get_active())
+            if widget is chapter and chapter.get_active() >= 0:
+                settings["next_chapter"] = chapter.get_active() + 1
+            new = self.daemon_json("ProjectSet", json.dumps(settings))
+            if new:
+                line.set_text(words.next_chapter_line(new))
+                if widget is shape:  # the chapter list follows the number of chapters
+                    chapter.handler_block(chapter_id)
+                    chapter.remove_all()
+                    for n in range(1, int(new.get("chapters", 4)) + 1):
+                        chapter.append_text(f"Next: chapter {n}")
+                    chapter.set_active(int(new.get("next_chapter") or 1) - 1)
+                    chapter.handler_unblock(chapter_id)
+                    chapter.set_visible(new.get("shape") == "chapters")
+        shape.connect("changed", changed)
+        chapter_id = chapter.connect("changed", changed)
+        for w in (shape, chapter, line):
+            box.pack_start(w, False, False, 2)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
 

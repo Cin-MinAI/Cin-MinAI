@@ -758,10 +758,25 @@ The assistant takes in information for as long as the user wants, then writes it
   draft is written the daemon keeps the screen awake (the session manager's idle inhibitor): with the screen asleep
   the card stayed in its low power state and ran 6× slower.
 * **Loops (hands-on 2026-10-01, "Grandman Stan"):** a scene repeated whole paragraphs three times, a scene opened with the previous one's ending, and two Chinese characters slipped in. Fixed: llama.cpp's DRY sampler and a light presence penalty while writing, the previous ending marked "already written; begin right after it", and a clean-up pass per scene (a paragraph 85 % the same as an earlier one, or as the previous ending, is dropped; CJK characters removed unless the story is Japanese). The same notes rewritten: 6 repeated paragraphs, 1 echo and 2 CJK characters → 0, 18 pages in 2¼ minutes.
-* **Next — the Story Circle (PLAN D56):** stories gathered, outlined and drafted along Dan Harmon's eight steps
-  (You, Need, Go, Search, Find, Take, Return, Change), notes filed by step, the outline card as the circle, nested
-  circles (story, act, chapter, scene, each main character); the form (prose, screenplay, stage play) is the output,
-  the circle the structure. Then sources (a shared book read in parts into notes, then e.g. a character analysis).
+* **The Story Circle (PLAN D56), built 2026-10-01:** Dan Harmon's eight steps (You, Need, Go, Search, Find, Take,
+  Return, Change), in our own words, in `projects.py` (`CIRCLE`). The notes keep a `circle` of their own, and the
+  partner asks about the first empty step. A project's **shape**: *a story in one chapter* (the outline is all eight
+  steps, one scene each: the grammar can't leave one out) or *a story over 2–8 chapters* (an even split of the
+  steps, 6–8 scenes a chapter; each chapter is told which steps came before and which come later, and gets the
+  earlier chapters' summaries; a finished chapter moves on to the next one, a stopped one doesn't). Every scene is
+  told its step. Sidebar: the outline card grouped by step; the Notes card shows the circle and the shape (also in
+  the New project dialog); D-Bus `ProjectSet`. Files: `Chapter n — <title>.odt`.
+* **Measured (the guide on the 1080 Ti, Ian's "The Coming War" notes, 2026-10-01):** one chapter: 8 scenes,
+  5,147 words, 20 pages in 146 s, 0 repeats, a real arc (her familiar world → the soldier's warning → the cost →
+  she takes the lead), the soldier stays her ally throughout (before the circle he changed sides halfway). Still
+  wrong: the soldier gets a name only in scene 4, one scene opens by retelling the previous ending in new words,
+  "Need" isn't the heroine's own want, and Martians grow red skin and glowing eyes against the notes. Over 4 chapters:
+  chapter 1 (You, Need, 8 scenes) ran ahead into Go and then padded; **chapter 2 retold chapter 1** (the email and
+  the meeting again, despite the summary) and the soldier turned enemy. Next: a fixed cast in the plan (name, who,
+  side), "already shown, don't show again" for earlier chapters, fewer scenes per step over chapters, sentence-level
+  echo trimming.
+* **Then:** nested circles (act, scene, each main character); the form (screenplay, stage play) as the output, the
+  circle the structure; sources (a shared book read in parts into notes, then e.g. a character analysis).
 
 ### 7.13 The journal (PLAN D55)
 

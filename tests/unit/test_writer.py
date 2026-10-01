@@ -81,12 +81,16 @@ class Scripted:
     def __call__(self, messages, schema=None, max_tokens=600, on_text=None, cancel=None, sampling=None):
         self.sent.append({"messages": messages, "schema": schema, "sampling": sampling})
         last = messages[-1]["content"]
-        if schema and "chapter_title" in json.dumps(schema):
-            return json.dumps({"chapter_title": "The Bottle", "scenes": [
-                {"title": f"Scene {i}", "what_happens": f"thing {i} happens"} for i in range(1, 7)]}), {}
+        if schema and "chapter_title" in json.dumps(schema):  # the plan: the steps it's given, minItems scenes each
+            steps = schema["properties"]["steps"]
+            return json.dumps({"chapter_title": "The Bottle", "steps": {
+                k: [{"title": f"{k} {i}", "what_happens": f"{k} thing {i} happens"}
+                    for i in range(1, steps["properties"][k]["minItems"] + 1)] for k in steps["required"]}}), {}
         if schema:
             return json.dumps({"facts": ["The message is from his younger self."], "characters": [], "places": [],
-                               "ideas": []}), {}
+                               "ideas": [], "circle": {"you": ["Elias, a retired lighthouse keeper."]}}), {}
+        if last.startswith("Summarize this chapter"):
+            return "The whole chapter happened.", {}
         if last.startswith("Summarize"):
             return "Something happened.", {}
         if "Now write scene" in last:
@@ -114,11 +118,12 @@ class Pipeline(unittest.TestCase):
         self.p.add_notes({"facts": ["The message is from his younger self."]})
         res = self.w.draft(self.p, self.w.outline(self.p), lambda *a: None, threading.Event())
         scenes = [s["messages"][-1]["content"] for s in self.m.sent if "Now write scene" in s["messages"][-1]["content"]]
-        self.assertEqual(len(scenes), 6)
+        self.assertEqual(len(scenes), 8)  # a story in one chapter: the whole circle, one scene a step
         self.assertTrue(all("The message is from his younger self." in s for s in scenes))
         self.assertNotIn("already written", scenes[0])
         self.assertIn("already written; begin right after them and don't repeat them:\n\"Opening of scene 2.", scenes[2])
-        self.assertEqual((res["scenes"], res["stopped"]), (6, False))
+        self.assertIn('the circle\'s step "Take": and pay a heavy price for it', scenes[5])
+        self.assertEqual((res["scenes"], res["stopped"]), (8, False))
         self.assertTrue(os.path.isfile(res["file"]))
         self.assertEqual(self.p.data["drafts"][0]["title"], "The Bottle")
 
@@ -161,8 +166,101 @@ class Pipeline(unittest.TestCase):
     def test_the_line_budget_caps_the_chapter(self):
         w = Writer(Scripted(scene_words=2500))  # a model that won't stop: 250 lines a scene
         res = w.draft(self.p, w.outline(self.p), lambda *a: None, threading.Event())
-        self.assertLess(res["scenes"], 6)
+        self.assertLess(res["scenes"], 8)
         self.assertLessEqual(res["lines"], 600 + 260)  # the budget stops it after the scene that crosses 600
+
+
+class Circle(unittest.TestCase):
+    """Dan Harmon's Story Circle (PLAN D56): a story in one chapter, or a piece of the circle per chapter."""
+
+    def setUp(self):
+        self.p = Project.new("The Coming War", root=tempfile.mkdtemp())
+        self.m = Scripted()
+        self.w = Writer(self.m)
+
+    def test_steps_split_over_chapters(self):
+        from cin_minai.daemon.projects import STEPS, chapter_steps
+        for n in range(2, 9):
+            parts = [chapter_steps(k, n) for k in range(1, n + 1)]
+            self.assertEqual(sum(parts, ()), STEPS)  # every step once, in order
+        self.assertEqual([len(chapter_steps(k, 3)) for k in (1, 2, 3)], [3, 3, 2])
+        self.assertEqual(chapter_steps(2, 4), ("go", "search"))
+
+    def test_scenes_per_step(self):
+        from cin_minai.daemon.writer import scenes_per_step
+        self.assertEqual(scenes_per_step(8), (1, 1))
+        self.assertEqual(scenes_per_step(2), (3, 4))
+        self.assertEqual(scenes_per_step(3), (2, 2))
+        self.assertEqual(scenes_per_step(1), (6, 8))
+
+    def test_the_partner_asks_about_the_next_empty_step(self):
+        self.w.reply(self.p, "Elias is a retired lighthouse keeper.", lambda t: None, threading.Event())
+        self.assertIn('next empty step is "You"', self.m.sent[0]["messages"][0]["content"])
+        self.assertEqual(self.p.circle["you"], ["Elias, a retired lighthouse keeper."])  # the notes filled it
+        self.assertEqual(self.p.open_step(), "need")
+        self.w.reply(self.p, "More.", lambda t: None, threading.Event())
+        self.assertIn('next empty step is "Need"', self.m.sent[2]["messages"][0]["content"])
+        self.assertIn("The story's circle so far:\n- You", self.p.notes_text())
+
+    def test_one_chapter_plan_is_the_whole_circle(self):
+        o = self.w.outline(self.p)
+        self.assertEqual([s["step"] for s in o["scenes"]], ["you", "need", "go", "search", "find", "take", "return", "change"])
+        self.assertIsNone(o["chapter"])
+        self.assertIn("This chapter is the whole story", self.m.sent[-1]["messages"][0]["content"])
+
+    def test_a_story_over_chapters(self):
+        self.p.set_shape("chapters", 4)
+        o = self.w.outline(self.p)
+        self.assertEqual((o["chapter"], o["steps"]), (1, ["you", "need"]))
+        self.assertEqual(len(o["scenes"]), 6)  # 3 scenes a step
+        self.assertIn("Later chapters will cover Go, Search, Find, Take, Return, Change", self.m.sent[-1]["messages"][0]["content"])
+        res = self.w.draft(self.p, o, lambda *a: None, threading.Event())
+        self.assertTrue(os.path.basename(res["file"]).startswith("Chapter 1 — "))
+        self.assertEqual(self.p.data["drafts"][-1]["summary"], "The whole chapter happened.")
+        self.assertEqual(self.p.data["next_chapter"], 2)  # a finished chapter moves on
+        o2 = self.w.outline(self.p)
+        self.assertEqual(o2["steps"], ["go", "search"])
+        plan_prompt = self.m.sent[-1]["messages"][0]["content"]
+        self.assertIn("Earlier chapters covered You, Need.", plan_prompt)
+        self.assertIn('Chapter 1, "The Bottle" (You, Need): The whole chapter happened.', plan_prompt)
+        self.w.draft(self.p, o2, lambda *a: None, threading.Event())
+        scene = [s["messages"][-1]["content"] for s in self.m.sent if "Now write scene" in s["messages"][-1]["content"]][-1]
+        self.assertIn("chapter 2 of 4", scene)
+        self.assertIn("The story so far, chapter by chapter:\nChapter 1", scene)
+        self.p.set_shape(next_chapter=4)
+        self.assertIn("This is the last chapter", (self.w.outline(self.p), self.m.sent[-1]["messages"][0]["content"])[1])
+
+    def test_the_models_chapter_number_is_dropped(self):
+        from cin_minai.daemon.writer import CHAPTER_WORD
+        for t in ("Chapter 1: The Warning", "Capítulo 2 — The Warning", "Kapitel drei: The Warning", "第3章 The Warning"):
+            self.assertEqual(CHAPTER_WORD.sub("", t), "The Warning")
+        self.assertEqual(CHAPTER_WORD.sub("", "The Warning"), "The Warning")
+
+    def test_a_stopped_chapter_doesnt_move_on(self):
+        self.p.set_shape("chapters", 4)
+        cancel = threading.Event()
+        self.w.draft(self.p, self.w.outline(self.p), lambda n, t, w: n == 2 and cancel.set(), cancel)
+        self.assertEqual(self.p.data["next_chapter"], 1)
+
+    def test_old_projects_open(self):
+        path = os.path.join(self.p.folder, "project.json")
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        for k in ("circle", "shape", "chapters", "next_chapter"):
+            d.pop(k)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        q = Project.open(self.p.folder)
+        self.assertEqual((q.this_chapter()[0], len(q.this_chapter()[1]), q.open_step()), (None, 8, "you"))
+
+    def test_sidebar_words(self):
+        from cin_minai.sidebar import words
+        o = self.w.outline(self.p)
+        lines = words.outline_lines(o)
+        self.assertEqual(lines[:2], ["You:", "  1. you 1: you thing 1 happens"])
+        self.assertEqual(words.shape_settings(0), {"shape": "chapter"})
+        self.assertEqual(words.shape_settings(3), {"shape": "chapters", "chapters": 4})
+        self.assertEqual(words.shape_index({"shape": "chapters", "chapters": 4}), 3)
 
 
 if __name__ == "__main__":
