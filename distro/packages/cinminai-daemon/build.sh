@@ -7,7 +7,7 @@ set -euo pipefail
 stage=$1 repo=$2
 py=$stage/usr/lib/python3/dist-packages/cin_minai
 install -d "$py"
-for pkg in daemon inference; do
+for pkg in daemon inference diag; do
     cp -r "$repo/src/cin_minai/$pkg" "$py/"
 done
 find "$py" -name __pycache__ -prune -exec rm -rf {} +

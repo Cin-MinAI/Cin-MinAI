@@ -47,6 +47,9 @@ CSS = b"""
 .bubble.error { background: alpha(#e01b24, 0.15); }
 .waiting { opacity: 0.65; font-style: italic; }
 .action { font-size: 88%; opacity: 0.75; }
+.command { padding: 6px 8px; border-radius: 8px; border: 1px solid alpha(@theme_fg_color, 0.2); }
+.command .code { font-family: monospace; }
+.command .note { font-size: 88%; opacity: 0.8; }
 #input { padding: 6px 8px 8px 8px; }
 """
 
@@ -60,6 +63,7 @@ class Sidebar(Gtk.Application):
         self.reply: Gtk.Label | None = None
         self.reply_started = False
         self.pending_ask: str | None = None
+        self.cards: list[dict] = []        # commands from the tools' results, shown under the answer (D53)
 
     # --- window ------------------------------------------------------------------------------------
     def build(self) -> None:
@@ -299,12 +303,44 @@ class Sidebar(Gtk.Application):
             self.reply.set_text(self.reply.get_text() + args[1])
         elif signal == "Action" and args[3] == "done":
             self.action_line(*words.action(args[1], json.loads(args[2] or "{}"), args[4]))
+            self.cards += words.commands_in_result(args[4])
         elif signal == "Error":
             self.finish_reply(error=args[1])
         elif signal == "Done":
             self.finish_reply()
 
+    def command_card(self, card: dict) -> None:
+        """A command the person can copy and run themselves, with what it does and how to undo it (D53)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("command")
+        top = Gtk.Box(spacing=6)
+        code = Gtk.Label(label=card["command"], xalign=0, wrap=True, selectable=True, max_width_chars=28)
+        code.set_line_wrap_mode(2)
+        code.get_style_context().add_class("code")
+        copy = Gtk.Button(label="Copy")
+        copy.set_tooltip_text("Copy the command; paste it in the Terminal with Ctrl+Shift+V")
+
+        def on_copy(b) -> None:
+            Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(card["command"], -1)
+            b.set_label("Copied")
+            GLib.timeout_add_seconds(2, lambda: b.set_label("Copy") or False)
+
+        copy.connect("clicked", on_copy)
+        top.pack_start(code, True, True, 0)
+        top.pack_end(copy, False, False, 0)
+        box.pack_start(top, False, False, 0)
+        for text in words.card_notes(card):
+            note = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+            note.get_style_context().add_class("note")
+            box.pack_start(note, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
     def finish_reply(self, error: str | None = None) -> None:
+        if self.reply is not None and not error:
+            for card in words.merge_cards(self.cards, words.commands_in_text(self.reply.get_text())):
+                self.command_card(card)
+        self.cards = []
         if self.reply is not None:
             if error:
                 self.reply.set_text(error)

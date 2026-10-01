@@ -13,4 +13,6 @@ Description: Cin-MinAI assistant (the daemon)
  the graphics card or the processor at each start, keeps graphics memory free
  for the desktop, and says so when it has to run smaller. This version has the
  guide's read-only tools: the built-in help, checking this computer, and opening
- programs. Nothing is sent over the network.
+ programs. It carries the diagnostics too (cinminai-diag): fault codes with plain
+ explanations and fixes, read from the kernel log, drivers, disks and packages.
+ Nothing is sent over the network.

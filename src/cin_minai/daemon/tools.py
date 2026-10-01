@@ -22,6 +22,11 @@ from cin_minai.inference import hardware
 
 from .config import live_session
 
+# which diagnostic codes (cinminai-diag, SPEC §20) belong with which inspect_system topic
+DIAG_TOPICS = {"overview": None, "drivers": {"G101", "S301", "S401"}, "display": {"G101", "S401"},
+               "storage": {"I301", "I302", "S401"}, "updates": {"S101", "S301", "S401"}}
+DIAG_TTL = 60  # seconds a reading is reused: the checks read ten boots' kernel logs (~2 s)
+
 HOME = os.path.expanduser("~")
 # the firmware's framebuffer, not a graphics card's driver (boot test 2, 2026-09-29: the check said
 # "simple-framebuffer (open source)" — true, and meaningless to a newcomer)
@@ -61,6 +66,7 @@ class Tools:
     def __init__(self, labels: dict, desktop: dict, lang: str | None = None) -> None:
         self.labels, self.desktop = labels, desktop
         self.lang = lang or desktop_lang()
+        self._diag: tuple[float, dict] | None = None
 
     def label(self, key: str) -> str:
         row = self.labels.get(key, {})
@@ -72,9 +78,42 @@ class Tools:
         if fn is None:
             return {"error": f"unknown topic {topic}"}
         try:
-            return fn()
+            out = fn()
         except Exception as e:  # a broken probe must not take the answer down
             return {"error": f"couldn't read {topic}: {type(e).__name__}"}
+        problems = self.problems(topic)
+        if problems:
+            # the guide explains these like any other fact (trained: "what it means + offer the action");
+            # the sidebar shows each command as a card with Copy (D53)
+            out["problems_found"] = problems
+            if len(problems) > 1:
+                out["problems_note"] = "The first problem causes the others: start with its fix."
+            out["commands_note"] = "Give only the commands listed here, exactly as written."
+        return out
+
+    def diagnose(self) -> dict:
+        """The diagnostics' short view (cinminai-diag, D51), reused for DIAG_TTL seconds. CINMINAI_DIAG_FIXTURE
+        reads a recorded case instead of this machine (tests, the boot test)."""
+        import time
+        if self._diag and time.monotonic() - self._diag[0] < DIAG_TTL:
+            return self._diag[1]
+        from cin_minai.diag import probes, report, rules
+        from cin_minai.diag.source import FixtureSource, LiveSource
+        fixture = os.environ.get("CINMINAI_DIAG_FIXTURE")
+        ev = probes.collect(FixtureSource(fixture) if fixture else LiveSource())
+        view = report.guide_view(report.build(ev, rules.evaluate(ev)), limit=None)  # filtered per topic below
+        self._diag = (time.monotonic(), view)
+        return view
+
+    def problems(self, topic: str) -> list[dict]:
+        if topic not in DIAG_TOPICS or live_session():
+            return []  # the live USB has no history to read (D42 reads the installed system's)
+        try:
+            faults = self.diagnose()["faults"]
+        except Exception:  # diagnostics must never take an answer down
+            return []
+        want = DIAG_TOPICS[topic]
+        return [f for f in faults if f["now"] and (want is None or f["code"] in want)][:2]
 
     def _overview(self) -> dict:
         rel = read("/etc/cinminai-release")

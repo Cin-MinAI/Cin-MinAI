@@ -6,6 +6,7 @@ No GTK here, so it can be tested anywhere. English for the Alpha; translations c
 from __future__ import annotations
 
 import json
+import re
 
 TOPICS = {
     "overview": "what kind of computer this is", "storage": "the disk space", "network": "the network",
@@ -28,7 +29,11 @@ def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
     if tool == "lookup_help":
         return "system-search-symbolic", "Looked it up in the built-in help"
     if tool == "inspect_system":
-        return "computer-symbolic", f"Checked {TOPICS.get(args.get('topic', ''), 'this computer')} (changes nothing)"
+        what = f"Checked {TOPICS.get(args.get('topic', ''), 'this computer')} (changes nothing)"
+        n = len(_problems(result))
+        if n:
+            what += f" — found {n} problem{'s' if n > 1 else ''}"
+        return ("dialog-warning-symbolic" if n else "computer-symbolic"), what
     if tool == "open_app":
         try:
             opened = json.loads(result).get("opened") if result else None
@@ -63,3 +68,52 @@ def waiting(state: str, build: str) -> str:
     if build == "cpu":
         return "Reading your question… (on the processor this can take up to a minute)"
     return "Reading your question…"
+
+
+# --- commands to copy (PLAN D53) -----------------------------------------------------------------------
+
+FENCE = re.compile(r"```[a-z]*\n(.+?)\n?```", re.S)
+INLINE = re.compile(r"`((?:sudo |systemctl |apt |dkms |uname|fsck |echo \d+ \| sudo )[^`\n]+)`")
+
+
+def _problems(result: str) -> list[dict]:
+    try:
+        r = json.loads(result) if result else {}
+    except ValueError:
+        return []
+    return r.get("problems_found", []) if isinstance(r, dict) else []
+
+
+def commands_in_result(result: str) -> list[dict]:
+    """Commands the diagnostics handed over with a tool result: {"command", "explain", "undo"}."""
+    return [{"command": p["command"], "explain": p.get("command_explained", ""), "undo": p.get("undo", "")}
+            for p in _problems(result) if p.get("command")]
+
+
+def commands_in_text(text: str) -> list[dict]:
+    """Commands the guide wrote itself: a fenced block, or a command in backticks."""
+    found = [m.strip() for m in FENCE.findall(text)] + INLINE.findall(text)
+    return [{"command": c, "explain": "", "undo": ""} for c in found if c]
+
+
+def merge_cards(*lists: list[dict]) -> list[dict]:
+    """One card per command, the first (the one with an explanation) wins."""
+    out, seen = [], set()
+    for card in (c for lst in lists for c in lst):
+        key = " ".join(card["command"].split())
+        if key not in seen:
+            seen.add(key)
+            out.append(card)
+    return out
+
+
+def card_notes(card: dict) -> list[str]:
+    notes = []
+    if card.get("explain"):
+        notes.append(f"What it does: {card['explain']}")
+    if card.get("undo"):
+        notes.append(f"To undo: {card['undo']}")
+    if card["command"].lstrip().startswith("sudo") or "| sudo" in card["command"]:
+        notes.append("It asks for your password: that's you saying yes.")
+    notes.append("Copy, then paste it in the Terminal with Ctrl+Shift+V and press Enter.")
+    return notes

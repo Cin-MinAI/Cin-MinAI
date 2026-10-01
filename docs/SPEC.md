@@ -1605,6 +1605,20 @@ The first worked codes, all from 2026-09-29:
 | **H401** | The previous session ended without a clean shutdown | 10.4: the last boot's journal ends without a shutdown, or 1.4 found errors |
 | **U101** | The session's end was held up by a client that didn't answer | the session manager's journal; the boot test's shutdown check |
 
+Added with the first slice (2026-09-30, from the kernel 7.0 case on the Mint box; `src/cin_minai/diag/`):
+
+| Code | Meaning | Detected by |
+|---|---|---|
+| **I301** | A disk's link reports errors (failed commands, link resets). Branches: only on one kernel (→ S401), or on every kernel (the cable, port, plug or disk) | kernel log per boot: `ataN.00: exception`, `SError`, the drive's own `ICRC ABRT`, failed command sizes, `limiting SATA link speed` |
+| **I302** | Writes to a filesystem failed: data may be lost, the filesystem may go read-only | `I/O error … (WRITE)`, `EXT4-fs warning/error`, `potential data loss`, aborted journal, root mounted read-only |
+| **S401** | The faults follow one kernel: on boots with kernel K, none on boots with another | the boots' kernels against their I301/I302/G101 evidence; **cleared** once K is removed |
+| **I101** | A system service failed (known-harmless ones, e.g. `casper-md5check` on installed systems, are marked so, not hidden) | `systemctl --failed` |
+| **S101** | The package database has unfinished work (an interrupted update) | `dpkg --audit` |
+
+G101 gained the branch **the driver file reads back damaged** (`ZSTD-decompression failed`, `dkms`: *Diff between built and
+installed module*) — on 2026-09-30 that was the disk's link, not the driver. Findings are ranked **cause before symptom**
+(S401 → I301 → I302 → G101), so a reader that shows only the first one shows the real fix.
+
 ### 20.4 Records and the published format
 
 - **Activity log** (`/var/log/cinminai-diag/events.jsonl`, and the session's part under the user's
@@ -1640,6 +1654,10 @@ The first worked codes, all from 2026-09-29:
   snapshot before an update and a check after it, where S301 and G101 are caught (D29's post-check); at
   shutdown; and on demand.
 - **Readiness:** which checks have run since this boot, so a reader knows what is known and what isn't.
+- **Evidence about a failing disk can't live only on that disk** (2026-09-30): in the 7.0 boots where the SSD failed
+  hardest, the system log's own writes failed, so the persisted log lacks the very errors seen live. The recorder keeps
+  the current boot's disk and filesystem events in memory (`/run`) and writes them once the disk is healthy again, or to
+  another disk (the ESP, a USB stick) — and a report says when a boot's log ends early.
 - **The timeline:** every change (packages, kernels, drivers, settings, boot options) against every boot's
   outcome — "what changed since it last worked?" in one list. D42's recovery mode reads the same timeline
   from the USB.
@@ -1652,7 +1670,13 @@ The first worked codes, all from 2026-09-29:
 
 - **The guide** gets one tool, `diagnose` (codes, a node's state, a tree's next step), and explains in
   plain words; its eval (cycle 1) adds diagnostic items built from recorded cases. It must work on the
-  guide alone — that's the local test.
+  guide alone — that's the local test. **Until `diagnose` is trained** (cycle 1), the shipped guide gets the
+  active findings with `inspect_system`: the topic's codes ride along as `problems_found` (problem, cause, the
+  first fix, its command with what it does and how to undo it). Tested 2026-09-30 on the 1080 Ti with the
+  recorded 7.0 case: asked "my graphics stopped working after the update", "is my disk OK?" and "my USB sticks
+  say read-only", the guide answered each time with the fix found by hand — switch to the long-term kernel in
+  Update Manager — after two wording fixes in the trees (no code numbers in user-facing text; "your main disk",
+  not "sda"). The sidebar shows each command as a **card with Copy**, what it does and how to undo it (D53).
 - **Bigger local and cloud models** (D35) read the same report, and more of it; **an assistant installed
   on the machine** (Claude, Codex, any other) reads the report and the command; **a person** reads the
   Markdown. Nothing is written for one reader only.
@@ -1703,6 +1727,14 @@ information: the list grows like the diagnostic trees, one tool at a time, each 
 tell".
 
 ### 20.9 First slice
+
+**Built 2026-09-30** (`src/cin_minai/diag/`, `cinminai-diag` in the daemon package; tests `tests/unit/test_diag.py` on
+the two recorded cases in `tests/fixtures/diag/`): probes for the boot record, drivers and kernels, the disk and its
+link, and packages, as an unprivileged user in `adm`; codes G101, S301, I301, I302, S401, H401, I101, S101; the command
+(`status`, `report`, `show`, `guide`, `capture`) and the Markdown/JSON report. Still to come in the slice: the system
+service (as root: SMART, the boot record at every start, the in-memory event log), B401 and U101, and the trees in the
+six languages.
+
 
 Monitors for the boot record (1, 2.1, 10.4), drivers and kernels (2.2, 3.1, 6.4), updates (6.3) and disk
 (2.3); codes G101, S301, B401, H401, U101 with their trees; the command and the report; the guide's

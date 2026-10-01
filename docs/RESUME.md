@@ -99,6 +99,16 @@ under load, and the driver reads as zeros at startup though correct on disk. Nex
 udev rule at startup; then `libata.force` boot options; then the HDD. Open: the installer slideshow still says
 "Welcome to Linux Mint".
 
+**Diagnostics, first slice built (2026-09-30, D51/D53, SPEC §20.9):** `src/cin_minai/diag/` + `cinminai-diag`
+(status / report / show / guide / capture), codes G101 S301 I301 I302 S401 H401 I101 S101 with trees (plain words,
+no-terminal steps first, commands with what they do and how to undo), tested on two recorded cases from the Mint box
+(`tests/fixtures/diag/`, 20 tests). The shipped guide gets active findings through `inspect_system`
+(`problems_found`); with the recorded 7.0 case it answered three newcomer questions with the right fix (switch to the
+long-term kernel in Update Manager). The sidebar shows commands as cards with Copy (D53). Not yet built: packaged
+and boot-tested (`build-all.sh`), the root system service (SMART, boot record, in-memory event log), B401/U101,
+translations. **Next (Ian, 2026-09-30: "both together, start with the diagnose tool"):** consolidate Debian / Ubuntu /
+Mint troubleshooting into more trees and help cards (sources cited); then the LibreOffice toolkit (D20) into the Alpha.
+
 **Next: diagnostics (D51, SPEC §20)** — `cinminai-diag`, an OBD-II for the computer along one operational tree;
 first slice §20.8 (boot record, drivers/kernels, updates, disk; codes G101 S301 B401 H401 U101; the command,
 the report, the guide's `diagnose` tool), with the evidence of 2026-09-29/30 as the first fixtures. Smaller: Mint's
@@ -135,7 +145,11 @@ lets me add up the total spent each month"* — declined. Expected before D20's 
 yet, open Calc (`open_app`), walk through it (Date / Item / Amount; a total per month with `SUMIFS`, or a
 sheet per month with `SUM`), "works like Excel"; after D20: build it with a preview, one Ctrl+Z. (2) Tonight's
 kernel 7.0 fault: the guide sees only `inspect_system`, not the kernel log, dkms, SMART or link errors — D51's
-`diagnose` tool is the fix; the case becomes a test. Both into the eval and the training sessions.
+`diagnose` tool is the fix; the case becomes a test. Both into the eval and the training sessions. (3) The guide
+with the diagnostics (2026-09-30): invented a command not in the result (`smartctl`), skipped the first finding for a
+display question, and said "restart to apply" after a command that a restart undoes — fixed for now with hints in the
+data ("the first problem causes the others", "only the commands listed", "don't restart after it"); train
+`diagnose` and these habits in cycle 1.
 
 Complaint-style how-tos → `lookup_help` in the sessions (the held-out transition loss); formulas in a cell
 the user names; German numbered steps; report turns "what it means + offer the action"; the vague set scores

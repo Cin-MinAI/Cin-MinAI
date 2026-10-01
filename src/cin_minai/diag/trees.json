@@ -1,0 +1,108 @@
+{
+ "schema": "cinminai-diag/1 trees",
+ "note": "One entry per code (SPEC §20.3-20.4). {name} is filled from the fault's facts. Fixes list the no-terminal way first (D22); a command is something the person copies and runs themselves, with what it does and how to undo it (D49, D53). Sources: the 2026-09-29/30 case on the Mint box (journal), Debian/Ubuntu/Mint documentation as cited per fix.",
+ "codes": {
+  "G101": {
+   "title": "The graphics driver is installed but not running",
+   "meaning": "The NVIDIA driver ({driver}) is installed, but it isn't loaded for the running kernel ({kernel}). The screen falls back to a basic mode and the assistant can't use the graphics card.",
+   "causes": {
+    "unsigned": "Secure Boot is on and the driver isn't signed with a key this computer trusts.",
+    "not_built": "The driver was never built for kernel {kernel}.",
+    "file_damaged": "The driver file for kernel {kernel} reads back damaged. That usually means the disk or its connection had trouble, not the driver itself.",
+    "driver_refused": "The driver started but refused to run (see the evidence).",
+    "unknown": "The cause isn't one this tree knows yet; the evidence is recorded in full."
+   },
+   "fixes": {
+    "unsigned": [
+     {"words": "Let the driver's key be enrolled at the next start.", "steps": ["Open Driver Manager and reinstall the recommended driver; it asks for a one-time password.", "Restart. A blue screen titled \"Perform MOK management\" appears: choose Enroll MOK, Continue, Yes, type that password, then Reboot."], "needs": "admin", "reversible": true, "verify": "the driver loads after the restart (nvidia-smi shows the card)", "source": "Ubuntu wiki, UEFI/SecureBoot"}
+    ],
+    "not_built": [
+     {"words": "Build the driver for this kernel.", "steps": ["Open Driver Manager, pick the recommended driver again, click Apply Changes, then restart."], "command": "sudo apt install linux-headers-{kernel} && sudo dkms autoinstall -k {kernel}", "explain": "Installs the kernel's build files and builds every add-on driver (here: NVIDIA) for kernel {kernel}. Changes only driver files for that kernel.", "undo": "Nothing to undo: it builds what should have been there.", "needs": "admin", "reversible": true, "verify": "dkms status lists {module} as installed for {kernel}", "source": "dkms(8)"}
+    ],
+    "file_damaged": [
+     {"words": "First make sure the disk is healthy (ask: is my disk OK?). Then put a fresh copy of the driver in place.", "command": "sudo dkms install --force {module} -k {kernel}", "explain": "Builds the NVIDIA driver again for kernel {kernel} and replaces the damaged copy. Nothing else changes.", "undo": "Nothing to undo: it's the same driver version.", "needs": "admin", "reversible": true, "verify": "after a restart, nvidia-smi shows the card", "source": "dkms(8); the 2026-09-30 case"}
+    ],
+    "driver_refused": [
+     {"words": "Start the previous kernel, which worked, while this is looked into.", "steps": ["Restart. When the menu appears (hold Shift, or tap Esc, while the computer starts), choose Advanced options, then the older kernel."], "needs": "none", "reversible": true, "verify": "the driver loads on the older kernel", "source": "Ubuntu documentation, GRUB"}
+    ],
+    "unknown": [
+     {"words": "Start the previous kernel, and share the report (cinminai-diag report) with whoever helps.", "needs": "none", "reversible": true, "verify": "", "source": ""}
+    ]
+   }
+  },
+  "S301": {
+   "title": "An installed kernel has no graphics driver",
+   "meaning": "Kernel {kernels} is installed but the NVIDIA driver isn't built for it. Starting that kernel would leave the screen in basic mode.",
+   "causes": {"not_built": "The driver wasn't built when the kernel was installed (missing build files, or the build failed)."},
+   "fixes": {"not_built": [
+    {"words": "Build the driver for that kernel before restarting into it.", "command": "sudo apt install linux-headers-{kernel} && sudo dkms autoinstall -k {kernel}", "explain": "Installs the kernel's build files and builds the NVIDIA driver for kernel {kernel}. Nothing changes for the kernel you're running now.", "undo": "Nothing to undo.", "needs": "admin", "reversible": true, "verify": "dkms status lists the driver as installed for {kernel}", "source": "dkms(8)"}
+   ]}
+  },
+  "I301": {
+   "title": "A disk's connection is reporting errors",
+   "meaning": "The connection to {disk_words} failed {exceptions} times: commands sent to the disk failed ({failed}) and the link was reset. The errors point at {signal}. Failed writes can leave files damaged.",
+   "causes": {
+    "one_kernel": "It happens with kernel {kernels_bad}, not with {kernels_clean}. Newer kernels send bigger pieces of data at a time (failed pieces here: up to {largest_failed_kib} KiB); an older disk or a borderline cable can choke on them.",
+    "every_kernel": "It happens with every kernel, so it's the hardware: the cable, the port, the power plug, or the disk."
+   },
+   "fixes": {
+    "one_kernel": [
+     {"words": "Switch to the kernel that works (Update Manager, View, Linux kernels). Until then, make this kernel send smaller pieces to the disk, the way older kernels do.", "command": "echo 1280 | sudo tee /sys/block/{disk}/queue/max_sectors_kb", "explain": "Limits each write to {disk} to 1280 KiB (it's {max_sectors_kb} now). Nothing is written to the disk by this. It lasts only until the next restart, so don't restart after it.", "undo": "A restart undoes it.", "needs": "admin", "reversible": true, "verify": "no new errors for the disk in the next heavy copy or update", "source": "Linux block layer (queue/max_sectors_kb); the 2026-09-30 case, PLAN D52"}
+    ],
+    "every_kernel": [
+     {"words": "Check the disk's own health record, then the cable.", "steps": ["Open Disks, choose the disk, open the menu (⋮) and choose SMART Data & Self-Tests.", "If \"UDMA CRC Error Count\" goes up over a few days: replace the SATA cable and use another port.", "If reallocated, pending or uncorrectable sectors go up: the disk is wearing out. Copy your important files elsewhere now."], "needs": "none", "reversible": true, "verify": "no new link errors after the change", "source": "smartctl(8) attribute 199; the 2026-09-30 case"}
+    ]
+   }
+  },
+  "I302": {
+   "title": "Writing to the disk failed",
+   "meaning": "Some writes to the disk failed{aborted_words}. Files written at that time may be damaged, and the system may switch the disk to read-only to protect it.",
+   "causes": {
+    "write_errors": "Writes failed because the disk's connection had errors.",
+    "read_only_now": "The system disk ({device}) is read-only right now: nothing can be saved, updates and drivers can't install, and USB sticks show as read-only too."
+   },
+   "fixes": {
+    "write_errors": [
+     {"words": "Copy your important files somewhere safe, then let the disk check run at the next start.", "steps": ["Restart normally (from the menu, not the power button).", "If a text screen ends with (initramfs), type the command below and press Enter, then type exit."], "command": "fsck -y {device}", "explain": "Checks and repairs the disk's filing records. It can't bring back the contents of files that weren't written; reinstall or re-copy those.", "undo": "None needed; it only repairs.", "needs": "admin", "reversible": false, "verify": "the computer starts normally", "source": "e2fsck(8); the 2026-09-29 case"}
+    ],
+    "read_only_now": [
+     {"words": "Don't keep working on a read-only disk. Restart from the menu so the disk check can run.", "steps": ["Save what you can to a USB stick on another computer if it matters.", "Restart from the menu. If the (initramfs) screen appears, type the command and press Enter, then exit."], "command": "fsck -y {device}", "explain": "Checks and repairs the disk's filing records at start.", "undo": "None needed.", "needs": "admin", "reversible": false, "verify": "after the restart, saving a file works", "source": "e2fsck(8)"}
+    ]
+   }
+  },
+  "S401": {
+   "title": "The problems follow one kernel",
+   "meaning": "Kernel {kernel} had problems in {bad_boots} of {boots_on_kernel} starts; kernel {good_kernels} had none on this computer. A newer kernel isn't always better for older hardware.",
+   "causes": {"kernel_regression": "Something in kernel {kernel} doesn't suit this computer."},
+   "fixes": {"kernel_regression": [
+    {"words": "Switch to the long-term kernel, without the terminal.", "steps": ["Open Update Manager, then View → Linux kernels.", "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep {good_kernel}.", "Remove kernel {kernel} in the same window, then restart."], "needs": "admin", "reversible": true, "verify": "uname -r shows the kernel you chose, and the problems are gone", "source": "Linux Mint user guide, Update Manager; the 2026-09-30 case"},
+    {"words": "For one start only: pick the kernel at the start menu.", "steps": ["Restart. Hold Shift (or tap Esc) while the computer starts, choose Advanced options, then {good_kernel}."], "command": "uname -r", "explain": "Shows which kernel is running now. It only reads.", "undo": "Nothing to undo.", "needs": "none", "reversible": true, "verify": "", "source": "Ubuntu documentation, GRUB"}
+   ]}
+  },
+  "H401": {
+   "title": "The computer didn't shut down cleanly last time",
+   "meaning": "The last session ({ended}) ended without a shutdown: a crash, a power cut, or the power button held down. That can damage files that were being written.",
+   "causes": {"unclean": "The previous session's record stops without a shutdown."},
+   "fixes": {"unclean": [
+    {"words": "When the computer freezes, try the keyboard before the power button.", "steps": ["Press Ctrl+Alt+F3 for a text screen; log in and type sudo reboot.", "If even that doesn't respond: hold Alt and SysRq (Print Screen) and press, slowly, R E I S U B — a safe forced restart.", "A short press of the power button asks the system to shut down cleanly; only holding it cuts the power."], "needs": "none", "reversible": true, "verify": "", "source": "Linux kernel documentation, sysrq; the 2026-09-29 case"}
+   ]}
+  },
+  "I101": {
+   "title": "A system service failed",
+   "meaning": "These services failed to start or stopped with an error: {units}.",
+   "causes": {"failed_unit": "A service reported a failure; its own log says why.",
+              "known": "Known and harmless: {known}."},
+   "fixes": {"known": [], "failed_unit": [
+    {"words": "Look at the service's own message.", "command": "systemctl status {units}", "explain": "Shows whether the service runs and its last log lines. It only reads.", "undo": "Nothing to undo.", "needs": "none", "reversible": true, "verify": "", "source": "systemctl(1)"}
+   ]}
+  },
+  "S101": {
+   "title": "An update was left unfinished",
+   "meaning": "The package database says an installation didn't finish (for example after a power cut during an update).",
+   "causes": {"interrupted": "An install or update was interrupted."},
+   "fixes": {"interrupted": [
+    {"words": "Let it finish.", "steps": ["Open Update Manager: it offers to fix it."], "command": "sudo dpkg --configure -a", "explain": "Finishes setting up packages that were unpacked but not configured. It doesn't download or remove anything.", "undo": "Nothing to undo.", "needs": "admin", "reversible": true, "verify": "dpkg --audit prints nothing", "source": "dpkg(1)"}
+   ]}
+  }
+ }
+}

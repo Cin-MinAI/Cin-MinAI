@@ -46,5 +46,34 @@ class Words(unittest.TestCase):
         self.assertNotIn("minute", words.waiting("thinking", "cuda"))
 
 
+class CommandCards(unittest.TestCase):
+    """D53: commands to copy, with what they do."""
+
+    RESULT = json.dumps({"problems_found": [{"code": "I301", "command": "echo 1280 | sudo tee /sys/block/sda/queue/max_sectors_kb",
+                                             "command_explained": "Limits each write.", "undo": "Restart."}]})
+
+    def test_check_line_says_problems_were_found(self):
+        icon, text = words.action("inspect_system", {"topic": "storage"}, self.RESULT)
+        self.assertEqual(icon, "dialog-warning-symbolic")
+        self.assertIn("found 1 problem", text)
+
+    def test_cards_from_result_and_text_merge(self):
+        text = "Run:\n```\necho 1280 | sudo tee /sys/block/sda/queue/max_sectors_kb\n```\nThen `uname -r` to check."
+        cards = words.merge_cards(words.commands_in_result(self.RESULT), words.commands_in_text(text))
+        self.assertEqual([c["command"] for c in cards],
+                         ["echo 1280 | sudo tee /sys/block/sda/queue/max_sectors_kb", "uname -r"])
+        self.assertEqual(cards[0]["explain"], "Limits each write.")  # the explained one wins
+
+    def test_notes_say_what_undo_and_password(self):
+        notes = words.card_notes(words.commands_in_result(self.RESULT)[0])
+        self.assertTrue(any(n.startswith("What it does") for n in notes))
+        self.assertTrue(any("undo" in n for n in notes))
+        self.assertTrue(any("password" in n for n in notes))
+        self.assertFalse(any("password" in n for n in words.card_notes({"command": "uname -r"})))
+
+    def test_plain_text_has_no_cards(self):
+        self.assertEqual(words.commands_in_text("Open Update Manager and click Install."), [])
+
+
 if __name__ == "__main__":
     unittest.main()

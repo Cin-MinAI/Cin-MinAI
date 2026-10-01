@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Cin-MinAI diagnostics (SPEC §20): cinminai-diag [status | report [--json] | show CODE | guide | capture FILE]
+# It only reads. `cinminai-diag report` is the one to share when asking for help.
+import sys
+
+from cin_minai.diag.__main__ import main
+
+sys.exit(main(sys.argv[1:]))

@@ -58,5 +58,40 @@ class Drivers(unittest.TestCase):
         self.assertIn("Driver Manager", d["note"])
 
 
+class Diagnostics(unittest.TestCase):
+    """D51/D53: active findings ride along with inspect_system, so the shipped guide explains them."""
+
+    CASE = os.path.join(ROOT, "tests", "fixtures", "diag", "2026-09-30-v300-during-7.0.json")
+
+    def inspect(self, topic: str, fixture: str = CASE) -> dict:
+        t = tools.Tools({}, {}, "en")
+        with mock.patch.dict(os.environ, {"CINMINAI_DIAG_FIXTURE": fixture}), \
+             mock.patch.object(tools, "live_session", return_value=False), \
+             mock.patch.object(tools.Tools, "_" + topic, return_value={"open_with": "x"}, create=True):
+            return t.inspect(topic)
+
+    def test_storage_carries_the_kernel_and_the_link(self):
+        p = self.inspect("storage")["problems_found"]
+        self.assertEqual([f["code"] for f in p], ["S401", "I301"])
+        self.assertIn("command", p[1])
+
+    def test_drivers_carry_the_driver_fault(self):
+        self.assertIn("G101", [f["code"] for f in self.inspect("drivers")["problems_found"]])
+
+    def test_unrelated_topic_stays_clean(self):
+        self.assertNotIn("problems_found", self.inspect("network"))
+
+    def test_history_only_adds_nothing(self):
+        after = os.path.join(ROOT, "tests", "fixtures", "diag", "2026-09-30-v300-after-6.8.json")
+        self.assertNotIn("problems_found", self.inspect("storage", after))
+
+    def test_live_usb_adds_nothing(self):
+        t = tools.Tools({}, {}, "en")
+        with mock.patch.dict(os.environ, {"CINMINAI_DIAG_FIXTURE": self.CASE}), \
+             mock.patch.object(tools, "live_session", return_value=True), \
+             mock.patch.object(tools.Tools, "_storage", return_value={}):
+            self.assertNotIn("problems_found", t.inspect("storage"))
+
+
 if __name__ == "__main__":
     unittest.main()
