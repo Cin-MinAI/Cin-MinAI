@@ -55,7 +55,7 @@ XML = f"""
     <method name="ProjectClose"/>
     <method name="ProjectList"><arg type="s" name="json" direction="out"/></method>
     <method name="ProjectInfo"><arg type="s" name="json" direction="out"/></method>
-    <!-- the story's shape (D56): {"shape": "chapter"|"chapters", "chapters": 2-8, "next_chapter": n}, any of them -->
+    <!-- the story's shape (D56), as JSON: shape ("chapter" or "chapters"), chapters (2-8), next_chapter; any of them -->
     <method name="ProjectSet"><arg type="s" name="settings" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- "Write it up" (D57): review the story as it is now before the next chapter: an Action "review" with state
          "proposal" (where the story is on the circle, characters, what's missing, questions) -->
