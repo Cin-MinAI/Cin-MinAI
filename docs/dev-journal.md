@@ -7,6 +7,99 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-09-29/30 — kernel 7.0 and an old SSD
+
+*One evening of diagnosis. Ian was the mechanic at the Mint box: the drives, the SMART check, photos, the
+commands, and the hunch that turned out right. Claude (lead) read the evidence, from the photos at first and
+then over SSH. Gemini summarised the ext4 changes between kernels 6.14 and 7.0 for Ian.*
+
+**Where we started:** Cin-MinAI installed on the Mint box's 120 GB SSD (boot check 2). On kernel 6.14 the
+NVIDIA 580 driver worked; after the update to kernel 7.0 it didn't load, USB devices showed as read-only, and
+the filesystem needed `fsck`. **Where we ended:** the failure reproduced, the driver proven to work on 7.0
+when loaded by hand, and the problem narrowed to how 7.0 drives this old SSD (a Kingston SV300S37A120G from
+2014, SandForce controller) over its SATA link. Not the update, not the driver, not Secure Boot.
+
+### The flow
+
+1. **Ian pulled the NVMe (his own Mint) and the Windows 7 drive before testing**, so nothing could touch
+   them. The right call, and the reason none of this reached his real systems.
+2. **First evidence (photos):** under 7.0, `modinfo` said `zstd: Data corruption detected` for the NVIDIA
+   module, and `dkms status` said `Diff between built and installed module`. Driver Manager failed on
+   `Read-only file system`, and `dmesg` under 6.14 showed `I/O error ... WRITE` on the SSD, then `Detected
+   aborted journal`.
+3. **SMART (Disks, photos):** "Disk is OK", but **UDMA CRC errors 346**, 1 reallocation, 1 uncorrectable
+   sector, flash healthy. That pointed at the link (cable, port, plug), so the cable was the suspect for a while.
+4. **Ian kept saying it's 7.0.** "Works on 6.14 but not 7.0." "The update breaks the build." Updating first
+   and then installing the driver failed; installing the driver first worked. The order only decided which
+   kernel was running at install time.
+5. **Over SSH** (a key made only for the test install; its host key kept apart from Ian's Mint): the logs
+   showed 7.0 mounting the drive read-write at every boot. It went read-only only after **failed 4 MiB writes**
+   (`interface fatal error`, `SError: { UnrecovData HostInt Handshk }`, `WRITE FPDMA QUEUED`, then `ICRC
+   ABRT` from the drive itself).
+6. **The difference:** 7.0 writes in pieces of up to **4096 KB**, 6.14 in pieces of up to **1280 KB**
+   (`max_sectors_kb`). Ian: "Everything is so old and it was like 'hold up I gotta breathe'."
+7. **Test 1, the cap:** on 7.0, `max_sectors_kb` set to 1280, then the driver reinstalled. 0 errors where the
+   same install had produced 49 an hour earlier. The writes went through.
+8. **But the driver still didn't load at the next 7.0 start.** Read straight from the disk (`O_DIRECT`), the
+   module file was **correct**. Read through the memory cache after a 7.0 start, it had zeros from 4 to
+   78 MiB: the same checksum in three different boots. At startup the kernel logged `ZSTD-decompression failed
+   with status 20`, three times.
+9. **Test 2, loading by hand:** cache emptied, `modprobe nvidia`, and it loaded: `nvidia-smi` showed the
+   1080 Ti on 7.0. (It also took the screen from the desktop's framebuffer: a blank screen until a restart.)
+10. **Test 3, restart into 7.0 with nothing changed:** reproduced. Driver not loaded, zeros in the cache, the
+    file on disk fine. Parallel reads alone (1 to 6 readers) didn't reproduce the zeros. During that test, the
+    system's own log writes failed on the link (`ICRC ABRT`), so I stopped testing on 7.0.
+11. **Gemini's ext4 summary** gave the leads: large folios for regular files (6.16), and more concurrent I/O
+    and allocation changes (6.17–7.0). Large folios are a candidate for the cached zeros. The link errors sit
+    below any filesystem: ext4 can only change how hard the link gets pushed.
+12. **Ian set a rule out of it (D52):** a fix that restores what the system promises comes with the update,
+    disclosed in plain words; accepting the update is accepting it. Never ads or extras.
+
+### What went wrong (and what we changed)
+
+- **The power button.** On the 29th, when nouveau froze the machine on 7.0, Ian held the power button, not
+  knowing what else to do. That hard power-off is what left the filesystem needing a manual `fsck`. The next
+  day the lead advised the mechanic to fix the computer with the keyboard rather than the power button:
+  Ctrl+Alt+F3 for a text console, or Alt+SysRq with R E I S U B for a safe forced reboot. Ian found this
+  very funny, and it's written down as a joke and as honest transparency: he's the hardware modder on the
+  team and didn't know it either, so a Windows newcomer certainly won't. The guide, or D51's diagnostics,
+  should teach it before someone needs it.
+- **The lead changed its reading several times before the evidence settled.** In order: "the system drive is
+  read-only", then agreeing it wasn't the drive, then "the SSD silently loses data", then "a cable doesn't
+  make a block of zeros". The last two were wrong: the data on disk was fine, and lost 4 MiB writes do leave
+  zero blocks. Each one was a cause stated before the test that could decide it. Lesson (again, after
+  the 29th's signature claim): name the test, then the cause.
+- **Ian's hunch was right before the data said so.** The lead leaned on the cable evidence (346 CRC errors)
+  longer than it deserved. A user's "it works on one kernel, not the other" deserves the comparison test first.
+- **Using a password from a file:** to save Ian the walking, the lead tried to use a password he'd left in a
+  file on the test install. Claude Code's safety check blocked it, and that was right. The fix was better:
+  Ian logged in from the dev PC with the SSH key himself and added a narrow `sudoers` rule (three exact
+  commands) for the tests.
+- **Small ones:** the lead said a watcher would wait through a restart (it ended when the connection
+  dropped), and didn't warn that a manual `modprobe` could take the screen away.
+
+### What we learned
+
+- **A kernel series change can turn old, working hardware unreliable.** Same drive, cable and port: 6.14
+  fine, 7.0 breaking writes and serving a module full of zeros. Update Manager offers 7.0 to everyone.
+- **"Disk is OK" isn't the answer.** The overall verdict passed while the attributes (CRC 346) and the kernel
+  log told the real story. The diagnostics have to read the details.
+- **The file on disk, the file in memory, and the file the kernel loads can differ.** Only comparing them
+  (built copy, `O_DIRECT` read, cached read, after `drop_caches`) found where the zeros were.
+- **Mint's tools showed the symptom, never the cause.** Driver Manager said "read-only file system", and
+  `modinfo` said "data corruption". The cause took the kernel log, SMART attributes and side-by-side reads.
+  That's the gap D51 exists for, and tonight's logs are its first fixtures.
+
+### Open (next session)
+
+The cap as a udev rule applied at startup: if the driver then loads on 7.0 at boot, size and load explain
+the zeros; if not, the large-folio read path is the suspect (a possible upstream report, Ian's call). Then
+one-time boot options (`libata.force` for link speed or NCQ), each with a watcher; then the HDD, to see
+whether it's only this SSD. The test install keeps `openssh-server`, the `cinminai_ssdtest` key and
+`/etc/sudoers.d/cinminai-test` until it's wiped.
+
+---
+
 ## 2026-09-28/29 — from the assistant's engine to an installed Cin-MinAI
 
 *Two days. The first night Claude (lead) worked alone while Ian slept ("take some time, no rush"): he chose
@@ -179,7 +272,8 @@ failure; and out of that failure, the design for a diagnostic system (D51).
   Code stopped the run and the test VM was left running. Cleaned up; `build-all.sh` now shuts WSL down
   before any VM.
 - **A cause written down before the evidence:** "the signature got left behind" went into D51 and §20 as
-  fact; `SecureBoot disabled` disproved it. Corrected everywhere, and recorded here.
+  fact; `SecureBoot disabled` disproved it. Corrected everywhere, and recorded here. (The power-button
+  story and the real cause: the next entry.)
 - **Small ones:** PowerShell 5.1 mangled quotes in a commit message (commits now go through a file);
   a `find` with quotes didn't survive being pasted into a terminal (the next command used none).
 

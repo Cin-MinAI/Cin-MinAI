@@ -1432,8 +1432,8 @@ forum. The assistant is one scan tool, not the diagnostic system.
 
 Why (2026-09-29, the first installed system): after a kernel update (6.14 → 7.0) the NVIDIA driver no
 longer loaded, though it was installed and built for both kernels — first taken for a missing signature,
-until the evidence showed Secure Boot was off (the cause is still being narrowed down: exactly why a
-diagnostic record is needed); a hard power-off after a crash damaged the root filesystem; the shutdown
+until the evidence showed Secure Boot was off (the cause, found on 2026-09-30, sat two layers down: kernel 7.0 pushing an old
+SSD's SATA link harder than it could take — exactly why a diagnostic record is needed); a hard power-off after a crash damaged the root filesystem; the shutdown
 dialog blamed `at-spi-registryd`. The facts were spread over `dkms status`, `modinfo`, `mokutil`, the kernel log, the
 apt history and the initramfs prompt — and the guide, seeing only `inspect_system`, would have sent the
 user to reinstall a driver they already had. A small model can't be trusted to read raw logs; code can.

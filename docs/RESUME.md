@@ -11,8 +11,11 @@ model's story: `docs/guide-model-journal.md`.
   C: 85 GB free.
 - **The Mint box** now has three systems on three drives: its own Mint (NVMe, with Ian's `qwen14b.service`),
   Windows (SATA), and **Cin-MinAI installed on the 120 GB SSD** (boot check 2). On the SSD system: kernel
-  6.14.0-37 works with the NVIDIA 580 driver and the assistant on the GPU; **kernel 7.0.0-34 doesn't load the
-  driver** (cause being narrowed down — Secure Boot is off; the evidence command is in the journal's story).
+  6.14.0-37 works with the NVIDIA 580 driver and the assistant on the GPU; **under kernel 7.0.0-34 this old SSD's
+  SATA link fails under load** (4 MiB writes, `ICRC ABRT`) and the driver fails at startup (zeros in the cached
+  module; the file on disk is fine, `modprobe` by hand works) — journal 2026-09-29/30. Left on the SSD system for
+  the tests: `openssh-server`, the `cinminai_ssdtest` key, `/etc/sudoers.d/cinminai-test`. The NVMe and Windows
+  drives are unplugged; Ian reconnects them.
 - **On the Mint box's own Mint** (user `mint`): the test assistant from `~/cin-minai/alpha/` — our panel icon
   and Super+A are installed in Ian's user (undo: `~/cin-minai/alpha/applet-test/undo-applet-test.sh`); the
   M0 spike's applet and keybinding are uninstalled. `~/cin-minai/` also holds the eval, models and builds.
@@ -87,14 +90,16 @@ into installed systems; Driver Manager + the guide take it from there. The offli
 
 **Boot check 2 (2026-09-29, journal 14):** the install onto the 120 GB SSD went smoothly and Update Manager got
 the 580 driver — then after a kernel update (6.14 → 7.0.0-34) the NVIDIA driver didn't load on 7.0, though built
-for both (Secure Boot is **off**, so not a signature; cause not yet known — evidence command in the chat of
-2026-09-29), and a hard power-off damaged the root filesystem (fsck at the initramfs prompt). On 6.14 the driver
-works and the assistant runs on the GPU. Open:
-the installer slideshow still says "Welcome to Linux Mint"; the GPU profile on 7.0.
+for both (Secure Boot is **off**, so not a signature), and a hard power-off damaged the root filesystem (fsck at
+the initramfs prompt). On 6.14 the driver works and the assistant runs on the GPU. **Diagnosed 2026-09-30**
+(journal): kernel 7.0 and the old Kingston V300 SSD — 7.0 writes 4 MiB pieces (6.14: 1.25 MiB), the link fails
+under load, and the driver reads as zeros at startup though correct on disk. Next on it: the 1280 cap as a
+udev rule at startup; then `libata.force` boot options; then the HDD. Open: the installer slideshow still says
+"Welcome to Linux Mint".
 
 **Next: diagnostics (D51, SPEC §20)** — `cinminai-diag`, an OBD-II for the computer along one operational tree;
 first slice §20.8 (boot record, drivers/kernels, updates, disk; codes G101 S301 B401 H401 U101; the command,
-the report, the guide's `diagnose` tool), with 2026-09-29's evidence as the first fixtures. Smaller: Mint's
+the report, the guide's `diagnose` tool), with the evidence of 2026-09-29/30 as the first fixtures. Smaller: Mint's
 "Welcome to Linux Mint" on first login (rebrand, SPEC §3.2); `casper-md5check.service` failed in the installed
 VM (compare with plain Mint on the Mint box); the cycle-1 list (multi-turn declines, "help me write a
 document" declined bluntly). **Exit:** the live USB boots on
