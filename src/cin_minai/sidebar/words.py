@@ -235,13 +235,42 @@ def review_title(review: dict) -> str:
     return "Before writing: where the story is"
 
 
-def review_lines(review: dict) -> list[str]:
-    """The review before a chapter (D57), in the order a writer reads it."""
-    out = ["The story circle:"]
-    for k, s in review.get("steps", {}).items():
-        shown = f' — "{s["evidence"].strip(QUOTES)}"' if s.get("status") in ("written", "partly written") and s.get("evidence") else ""
-        out.append(f"  {STATUS_MARKS.get(s.get('status'), '·')} {STEP_NAMES.get(k, k)} ({s.get('status', '')}): "
-                   f"{s.get('what', '')}{shown}")
+def review_step(k: str, s: dict) -> str:
+    shown = f' — "{s["evidence"].strip(QUOTES)}"' if s.get("status") in ("written", "partly written") and s.get("evidence") else ""
+    return f"{STEP_NAMES.get(k, k)} ({s.get('status', '')}): {s.get('what', '')}{shown}"
+
+
+def review_steps(review: dict) -> list[tuple[str, str, bool]]:
+    """The card's tick boxes (D57): (step, its line, ticked = the review found it written). The writer's ticks
+    decide where the chapter starts."""
+    return [(k, review_step(k, s), s.get("status") == "written") for k, s in review.get("steps", {}).items()]
+
+
+def would_cover(review: dict, ticked) -> list[str]:
+    """Where the chapter starts with these ticks: the first step not ticked, the steps left paced over the chapters
+    left — the same rule as the daemon's (writer.next_steps; a test keeps them equal)."""
+    order = list(STEP_NAMES)
+    chapter, of = review.get("chapter"), review.get("of") or 1
+    if not chapter:
+        return order
+    start = next((i for i, k in enumerate(order) if k not in ticked), len(order))
+    left = order[start:] or order[-1:]
+    return left[:-(-len(left) // max(1, of - chapter + 1))]
+
+
+def cover_line(review: dict, steps: list[str]) -> str:
+    if not review.get("chapter"):
+        return ""
+    return f"Chapter {review['chapter']} would cover: " + ", ".join(STEP_NAMES.get(k, k) for k in steps) + "."
+
+
+def review_lines(review: dict, steps: bool = True) -> list[str]:
+    """The review before a chapter (D57), in the order a writer reads it; steps=False leaves out the circle and
+    the chapter line (the card shows them as tick boxes and a line that follows them)."""
+    out = []
+    if steps:
+        out.append("The story circle:")
+        out += [f"  {STATUS_MARKS.get(s.get('status'), '·')} {review_step(k, s)}" for k, s in review.get("steps", {}).items()]
     if review.get("characters"):
         out.append("The characters:")
         out += [f"  • {c.get('name', '')}, at {STEP_NAMES.get(c.get('step'), c.get('step', ''))}: {c.get('where', '')}"
@@ -253,8 +282,8 @@ def review_lines(review: dict) -> list[str]:
         out.append("Questions for you:")
         out += [f"  • {q}" for q in review["questions"]]
     nxt = review.get("next_steps", [])
-    if review.get("chapter") and nxt:
-        out.append(f"Chapter {review['chapter']} would cover: " + ", ".join(STEP_NAMES.get(k, k) for k in nxt) + ".")
+    if steps and review.get("chapter") and nxt:
+        out.append(cover_line(review, nxt))
     return out
 
 

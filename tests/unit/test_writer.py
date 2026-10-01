@@ -151,8 +151,31 @@ class Pipeline(unittest.TestCase):
         out, fixed = clean_scene(text, end, cjk_ok=False)
         self.assertEqual(out.split("\n\n"), ["A new thing happened at the lanes.", loop, "The friends cheered.",
                                              "The sound was sharp and like glass."])
-        self.assertEqual(fixed, {"repeats_dropped": 3, "cjk_removed": 1})
+        self.assertEqual(fixed, {"repeats_dropped": 3, "sentences_dropped": 0, "glued_cut": 0, "cjk_removed": 1})
         self.assertIn("清脆", clean_scene("彼は清脆な音を聞いた。", "", cjk_ok=True)[0])  # a Japanese story keeps it
+
+    def test_clean_scene_catches_the_glued_repeat(self):
+        """The real ending of "Grandman Stan" chapter 1 (2026-10-01): DRY blocked the repeat, so the model glued it."""
+        from cin_minai.daemon.writer import clean_scene
+        end = ("His friends nodded, their eyes filled with determination. They looked at each other, then back at "
+               "Stan, ready to help him find what he needed.")
+        glued = ("His friends nodded, their eyes filledwith determination. They looked at eachother, then backat "
+                 "Stan, readytohelphimfindwhatheneeded.")
+        text = "\n\n".join(['"I need these," Stan said. "I need something that fits."', glued])
+        out, fixed = clean_scene(text, "", cjk_ok=False, earlier=["The shop smelled of wax.", end])
+        self.assertEqual(out, '"I need these," Stan said. "I need something that fits."')  # quotes kept
+        self.assertEqual(fixed["repeats_dropped"], 1)
+        # a glued run that isn't a repeat is cut at the glue, the rest of the paragraph stays
+        out, fixed = clean_scene("He sat down. They wantedtohelphimfindsomethingthatfit and more. Then it rained.",
+                                 "", cjk_ok=False, earlier=["They wanted to help him find something that would fit."])
+        self.assertEqual(out, "He sat down. They. Then it rained.")
+        self.assertEqual(fixed["glued_cut"], 1)
+        # a sentence repeated inside a new paragraph is dropped, the new sentences stay
+        new = "Stan grinned, grabbed the last pair of orange shoes from the shelf, and his friends cheered loudly."
+        out, fixed = clean_scene(new + " Ready to help him find what he needed, they all stood up at once.",
+                                 "", cjk_ok=False, earlier=["Ready to help him find what he needed, they all stood up at once."])
+        self.assertEqual((out, fixed["sentences_dropped"]), (new, 1))
+        self.assertEqual(clean_scene("Die Donaudampfschifffahrtsgesellschaft fuhr ab.", "", False)[1]["glued_cut"], 0)
 
     def test_stop_keeps_what_was_written(self):
         cancel = threading.Event()
@@ -203,10 +226,11 @@ class Circle(unittest.TestCase):
 
     def test_scenes_per_step(self):
         from cin_minai.daemon.writer import scenes_per_step
-        self.assertEqual(scenes_per_step(8), (1, 1))
-        self.assertEqual(scenes_per_step(2), (3, 4))
+        self.assertEqual(scenes_per_step(8, whole=True), (1, 1))
+        self.assertEqual(scenes_per_step(2), (2, 3))  # a piece of the circle: 2-3 scenes a step, never 4
         self.assertEqual(scenes_per_step(3), (2, 2))
-        self.assertEqual(scenes_per_step(1), (6, 8))
+        self.assertEqual(scenes_per_step(1), (2, 3))
+        self.assertEqual(scenes_per_step(4), (2, 2))
 
     def test_the_partner_asks_about_the_next_empty_step(self):
         self.w.reply(self.p, "Elias is a retired lighthouse keeper.", lambda t: None, threading.Event())
@@ -227,11 +251,11 @@ class Circle(unittest.TestCase):
         self.p.set_shape("chapters", 4)
         o = self.w.outline(self.p)
         self.assertEqual((o["chapter"], o["steps"]), (1, ["you", "need"]))
-        self.assertEqual(len(o["scenes"]), 6)  # 3 scenes a step
+        self.assertEqual(len(o["scenes"]), 4)  # 2 scenes a step (the scripted model gives the minimum)
         self.assertIn("Later chapters will cover Go, Search, Find, Take, Return, Change", self.m.sent[-1]["messages"][0]["content"])
         res = self.w.draft(self.p, o, lambda *a: None, threading.Event())
         self.assertTrue(os.path.basename(res["file"]).startswith("Chapter 1 — "))
-        self.assertEqual(self.p.data["drafts"][-1]["summary"], "Something happened. " * 5 + "Something happened.")
+        self.assertEqual(self.p.data["drafts"][-1]["summary"], "Something happened. " * 3 + "Something happened.")
         self.assertEqual(self.p.data["next_chapter"], 2)  # a finished chapter moves on
         o2 = self.w.outline(self.p)
         self.assertEqual(o2["steps"], ["go", "search"])
@@ -348,6 +372,37 @@ class Circle(unittest.TestCase):
         self.assertIn("  ○ You (missing): you is here", lines)
         self.assertIn("Questions for you:", lines)
         self.assertEqual(lines[-1], "Chapter 1 would cover: You, Need.")
+
+    def test_the_writers_ticks_decide_where_the_chapter_starts(self):
+        self.p.set_shape("chapters", 4)
+        self.p.add_notes({"circle": {"change": ["Stan learns to laugh at himself."]}})
+        self.w.draft(self.p, self.w.outline(self.p), lambda *a: None, threading.Event())
+        self.p.set_shape(next_chapter=3)
+        self.m.written = {"you", "need", "go"}
+        r = self.w.review(self.p)
+        self.assertEqual(r["next_steps"], ["search", "find", "take", "return", "change"][:3])  # 5 left over 2 chapters
+        # the writer says Change isn't written ("Stan remains defiant" isn't a change), and ticks Search
+        r = self.w.set_written(self.p, r, ["you", "need", "go", "search"])
+        self.assertEqual(r["next_steps"], ["find", "take"])
+        self.assertTrue(r["steps"]["search"]["by_writer"])
+        r = self.w.set_written(self.p, r, ["you"])  # unticked: back to the notes' state
+        self.assertEqual(r["steps"]["go"]["status"], "missing")
+        self.assertEqual(self.p.data["review"]["next_steps"], r["next_steps"])
+
+    def test_the_card_previews_what_the_daemon_will_do(self):
+        from cin_minai.daemon.writer import next_steps
+        from cin_minai.sidebar import words
+        order = list(words.STEP_NAMES)
+        for chapter, of in ((1, 4), (2, 4), (3, 3), (2, 8)):
+            for n in range(0, 9):
+                for ticked in {tuple(order[:n]), tuple(order[1:n + 1])}:
+                    review = {"chapter": chapter, "of": of,
+                              "steps": {k: {"status": "written" if k in ticked else "missing"} for k in order}}
+                    self.assertEqual(words.would_cover(review, set(ticked)), list(next_steps(review, chapter, of)),
+                                     (chapter, of, ticked))
+        rows = words.review_steps({"steps": {"you": {"status": "written", "what": "w", "evidence": '"He sat."'}}})
+        self.assertEqual(rows, [("you", 'You (written): w — "He sat."', True)])
+        self.assertNotIn("The story circle:", words.review_lines({"steps": {}, "chapter": 1}, steps=False))
 
     def test_sidebar_words(self):
         from cin_minai.sidebar import words

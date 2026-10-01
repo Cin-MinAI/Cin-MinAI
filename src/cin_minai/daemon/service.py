@@ -61,7 +61,8 @@ XML = f"""
          "proposal" (where the story is on the circle, characters, what's missing, questions) -->
     <method name="WriteUp"><arg type="s" name="wish" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- plan the chapter after the review: an Action "outline" with state "proposal" (its result has the id);
-         answers: the writer's answers to the review and what should change (they become notes) -->
+         answers: the writer's answers to the review and what should change (they become notes), as text, or
+         JSON with "answers" and "written" (the steps the writer ticked: they decide where the chapter starts) -->
     <method name="PlanChapter"><arg type="s" name="answers" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- write the planned chapter: Action "draft" running (progress) then done (the file); Cancel stops it -->
     <method name="WriteDraft"><arg type="s" name="outline" direction="in"/><arg type="u" name="id" direction="out"/></method>
@@ -461,8 +462,15 @@ class Service:
             return {"tool": "review", "questions": asks, "next_steps": r["next_steps"]}
         self.job(rid, review)
 
-    def plan_chapter(self, rid: int, answers: str) -> None:
+    def plan_chapter(self, rid: int, arg: str) -> None:
+        """arg: the writer's answers as text, or JSON {"answers": text, "written": [steps they ticked]} from the
+        review card (D57: their ticks decide where the chapter starts)."""
         project = self.project
+        try:
+            a = json.loads(arg) if arg.lstrip().startswith("{") else None
+        except ValueError:
+            a = None
+        answers, written = (str(a.get("answers", "")), a.get("written")) if isinstance(a, dict) else (arg, None)
 
         def plan(on_text, on_action):
             if answers.strip():  # the writer's words become notes: they decide (D57)
@@ -471,6 +479,8 @@ class Service:
             r = project.data.get("review")
             if r is None or r.get("chapter") != project.this_chapter()[0]:
                 r = self.writer.review(project, self.cancel)
+            if isinstance(written, list):
+                r = self.writer.set_written(project, r, written)
             outline = self.writer.outline(project, answers, self.cancel, review=r)
             oid = f"o{rid}"
             self.outlines = {oid: outline}  # only the newest plan can be written

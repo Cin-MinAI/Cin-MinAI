@@ -41,29 +41,77 @@ def _words(p: str) -> set[str]:
     return set(re.findall(r"\w+", p.lower()))
 
 
+def _letters(p: str) -> str:
+    """The text without spaces or punctuation: a repeat with its words glued together is still a repeat."""
+    return re.sub(r"[\W_]+", "", p.lower())
+
+
 def _same(a: str, b: str) -> bool:
-    """Two paragraphs that say the same thing: equal, or 85 % of the same words."""
+    """Two paragraphs that say the same thing: equal, 85 % of the same words, or the same letters once spaces
+    are taken out. DRY blocks a repeated word sequence, and the model got round it by dropping the spaces:
+    "their eyes filledwith determination … readytohelphimfindwhatheneeded" ("Grandman Stan", 2026-10-01)."""
     wa, wb = _words(a), _words(b)
     if not wa or not wb:
         return a.strip() == b.strip()
-    return len(wa & wb) / max(len(wa), len(wb)) >= 0.85
+    if len(wa & wb) / max(len(wa), len(wb)) >= 0.85:
+        return True
+    la, lb = _letters(a), _letters(b)
+    short, long_ = sorted((la, lb), key=len)
+    return len(short) >= 40 and len(short) >= 0.85 * len(long_) and short in long_  # a part: the sentence check
 
 
-def clean_scene(text: str, previous_end: str, cjk_ok: bool) -> tuple[str, dict]:
-    """What the model wrote, without its loops: paragraphs that repeat an earlier one (or the previous scene's
-    ending, which it was shown) are dropped, and stray Chinese characters in a non-CJK story are removed
-    ("sharp and清脆 like glass", 2026-10-01)."""
-    kept, dropped, cjk = [], 0, 0
+SENTENCE = re.compile(r"(?<=[.!?…])\s+|(?<=[.!?…][\"'”’»)])\s+")  # the closing quote stays with its sentence
+LONG = re.compile(r"[^\W\d_]{16,}")  # a long run of letters: glued words, or a real long word (German compounds)
+
+
+def glued(run: str, vocab: set[str]) -> bool:
+    """A run of letters that splits entirely into 3+ words the story already uses ("readytohelphimfind…"); a
+    real long word ("Donaudampfschifffahrtsgesellschaft") doesn't."""
+    run = run.lower()
+    best = [0] + [None] * len(run)  # best[i]: fewest words that make run[:i]
+    for i in range(1, len(run) + 1):
+        for j in range(max(0, i - 20), i):
+            if best[j] is not None and run[j:i] in vocab and (best[i] is None or best[j] + 1 < best[i]):
+                best[i] = best[j] + 1
+    return best[-1] is not None and best[-1] >= 3
+
+
+def clean_scene(text: str, previous_end: str, cjk_ok: bool, earlier: list[str] = ()) -> tuple[str, dict]:
+    """What the model wrote, without its loops: paragraphs that repeat an earlier one (in this scene, in the
+    chapter's earlier scenes, or the previous scene's ending, which it was shown) are dropped; so are sentences
+    that repeat an earlier sentence letter for letter (glued or not); text from a run of glued words to the end
+    of its sentence is cut; stray Chinese characters in a non-CJK story are removed ("sharp and清脆 like glass")."""
+    kept, dropped, sentences, cut, cjk = [], 0, 0, 0, 0
+    before = [p for p in earlier if p] + ([previous_end] if previous_end else [])
+    seen = {_letters(s) for p in before for s in SENTENCE.split(p) if len(_letters(s)) >= 30}
+    vocab = {w for p in [*before, text] for w in re.findall(r"[^\W\d_]+", p.lower())
+             if 2 <= len(w) < 16 or w in ("a", "i")}  # the long runs themselves are what's being checked
     for p in odt.paragraphs(text):
         if not cjk_ok and CJK.search(p):
             cjk += len(CJK.findall(p))
             p = re.sub(r"\s{2,}", " ", CJK.sub(" ", p)).replace(" ,", ",").replace(" .", ".").strip()
-        if (previous_end and _same(p, previous_end)) or any(_same(p, k) for k in kept):
+        if any(_same(p, k) for k in before) or any(_same(p, k) for k in kept):
             dropped += 1
             continue
-        if p:
+        out = []
+        for s in SENTENCE.split(p):
+            m = next((m for m in LONG.finditer(s) if glued(m.group(), vocab)), None)
+            if m and not cjk_ok:
+                cut += 1
+                s = s[:m.start()].rstrip(" ,;:—-")
+                s = s + "." if s and s[-1] not in ".!?…\"'”" else s
+            letters = _letters(s)
+            if len(letters) >= 30 and letters in seen:
+                sentences += 1
+                continue
+            if letters:
+                seen.add(letters)
+                out.append(s)
+        p = " ".join(out).strip()
+        if p and len(_letters(p)) >= 3:
             kept.append(p)
-    return "\n\n".join(kept), {"repeats_dropped": dropped, "cjk_removed": cjk}
+    return "\n\n".join(kept), {"repeats_dropped": dropped, "sentences_dropped": sentences, "glued_cut": cut,
+                               "cjk_removed": cjk}
 MAX_SCENES = 8
 WORDS_PER_SCENE = 650          # 8 scenes ~ 5,200 words ~ 520 lines ~ 18 A5 pages (odt.py)
 MAX_LINES = 600                # Ian: "600 lines max"
@@ -125,8 +173,8 @@ The story so far:
 {so_far}
 {last}
 Now write scene {n} of {total}, "{scene}", in full: about {words} words of story prose. This scene is the \
-circle's step "{step}": {means}. Write only what happens in this scene ({what}); stop at its end and don't \
-start on later scenes. Continue from exactly where the story is now: don't repeat or retell anything the \
+circle's step "{step}": {means}.{not_yet} Write only what happens in this scene ({what}); stop at its end \
+and don't start on later scenes. Continue from exactly where the story is now: don't repeat or retell anything the \
 reader already knows. Keep every fact above true, and every character who they are and on their side unless \
 the writer changed it. No headings, no notes, no title — just the prose."""
 
@@ -261,10 +309,13 @@ def outline_schema(steps: tuple[str, ...], lo: int, hi: int) -> dict:
                                                     for k in steps}}}}
 
 
-def scenes_per_step(steps: int) -> tuple[int, int]:
-    """6 to 8 scenes a chapter when the steps allow it: one step each for the whole circle, 3-4 for two steps."""
-    hi = max(1, MAX_SCENES // steps)
-    return min(-(-6 // steps), hi), hi
+def scenes_per_step(steps: int, whole: bool = False) -> tuple[int, int]:
+    """The whole circle in one chapter: one scene a step. A piece of it per chapter: 2-3 scenes a step — with 3-4
+    the plan ran ahead into the next steps to fill them (2026-10-01: "Grandman Stan" ended after 3 of 4 chapters)."""
+    if whole:
+        return 1, max(1, MAX_SCENES // steps)
+    hi = min(3, max(1, MAX_SCENES // steps))
+    return min(2, hi), hi
 
 
 def _last_paragraph(text: str) -> str:
@@ -373,6 +424,23 @@ class Writer:
         project.save()
         return review
 
+    @staticmethod
+    def set_written(project: Project, review: dict, written) -> dict:
+        """The writer's own call on the review card (D57): the steps they tick are written, the others aren't
+        (an unticked "partly written" stays partly). Where the next chapter starts follows their ticks — the
+        review once took "Stan remains defiant" for Change."""
+        written = {k for k in written if k in STEPS}
+        for k in STEPS:
+            s = review.setdefault("steps", {}).setdefault(k, {"status": "missing", "what": "", "evidence": ""})
+            if k in written and s["status"] != "written":
+                s["status"], s["by_writer"] = "written", True
+            elif k not in written and s["status"] == "written":
+                s["status"], s["by_writer"] = ("planned" if project.circle.get(k) else "missing"), True
+        review["next_steps"] = list(next_steps(review, review.get("chapter"), project.data["chapters"]))
+        project.data["review"] = review
+        project.save()
+        return review
+
     def outline(self, project: Project, wish: str = "", cancel: threading.Event | None = None,
                 review: dict | None = None) -> dict:
         """The plan for the next chapter: the circle's steps it covers, each with its scenes. Returned flat
@@ -381,7 +449,7 @@ class Writer:
         chapter, steps = project.this_chapter()
         if review is not None and review.get("chapter") == chapter:
             steps = tuple(review["next_steps"])
-        lo, hi = scenes_per_step(len(steps))
+        lo, hi = scenes_per_step(len(steps), whole=chapter is None)
         if chapter is None:
             what, scope = "the user's story as one chapter", "This chapter is the whole story: all eight steps, in order."
         else:
@@ -390,7 +458,8 @@ class Writer:
             what = f"chapter {chapter} of {n}"
             scope = (f"The story runs over {n} chapters, and this is chapter {chapter}: it covers the steps "
                      f"{_names(steps)}." + (f" Earlier chapters covered {_names(done)}." if done else "") +
-                     (f" Later chapters will cover {_names(later)}: don't get there yet." if later else
+                     (f" Later chapters will cover {_names(later)}: don't get there yet — no scene here may show "
+                      f"{STEP[later[0]]['name']} ({STEP_TESTS[later[0]]})." if later else
                       " This is the last chapter: the circle closes here."))
         per_step = f"{lo} scene" if lo == hi == 1 else f"{lo} scenes" if lo == hi else f"{lo} to {hi} scenes"
         prompt = OUTLINE_PROMPT.format(what=what, title=project.title, circle=CIRCLE_TEXT, scope=scope,
@@ -429,6 +498,9 @@ class Writer:
         chapter_line = (f"chapter {chapter} of {outline.get('of')}, \"{outline['chapter_title']}\"" if chapter
                         else f"\"{outline['chapter_title']}\" (the whole story in one chapter)")
         earlier = self.chapters_so_far(project, chapter)
+        later = STEPS[STEPS.index(outline["steps"][-1]) + 1:] if chapter and outline.get("steps") else ()
+        not_yet = (f' Not in this chapter: "{STEP[later[0]]["name"]}" ({STEP_TESTS[later[0]]}) comes in a later '
+                   f"chapter, so it mustn't happen yet." if later else "")
         budget = MAX_LINES
         for n, s in enumerate(outline["scenes"], 1):
             if cancel.is_set():
@@ -441,6 +513,7 @@ class Writer:
                                          plan_head="This chapter's plan, by the circle's steps",
                                          plan=plan_text(outline), n=n, total=total, scene=s["title"],
                                          step=step["name"], means=step["means"], what=s["what_happens"], words=words,
+                                         not_yet=not_yet,
                                          so_far=(earlier + ("In this chapter:\n" + this_chapter if this_chapter else ""))
                                          or "(this is the first scene)",
                                          last=(f'\nThe story so far ends with these words — already written; begin '
@@ -451,7 +524,8 @@ class Writer:
                                     sampling=WRITE)
             except Cancelled:  # Stop mid-scene: keep the scenes already written
                 break
-            text, fixed = clean_scene(text, _last_paragraph(scenes[-1]) if scenes else "", cjk_ok)
+            text, fixed = clean_scene(text, _last_paragraph(scenes[-1]) if scenes else "", cjk_ok,
+                                      earlier=[p for t in scenes for p in odt.paragraphs(t)])
             for k, v in fixed.items():
                 cleanup[k] = cleanup.get(k, 0) + v
             scenes.append(text)

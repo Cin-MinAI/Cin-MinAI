@@ -52,8 +52,14 @@ def quality(path: str) -> dict:
     body = [p for p in paras[1:] if p != "*   *   *"]
     repeats = sum(1 for i, p in enumerate(body) if any(_same(p, q) for q in body[:i]))
     echoes = sum(1 for i, p in enumerate(paras) if i > 1 and paras[i - 1] == "*   *   *" and _same(p, paras[i - 2]))
+    from cin_minai.daemon.writer import LONG, SENTENCE, _letters, glued
+    sentences = [_letters(s) for p in body for s in SENTENCE.split(p) if len(_letters(s)) >= 30]
+    vocab = {w for p in body for w in re.findall(r"[^\W\d_]+", p.lower()) if 2 <= len(w) < 16 or w in ("a", "i")}
     return {"paragraphs": len(body), "words": sum(len(p.split()) for p in body), "repeated_paragraphs": repeats,
-            "scene_openings_repeating_the_last_ending": echoes, "cjk_chars": sum(len(m) for m in CJK.findall(" ".join(body)))}
+            "repeated_sentences": len(sentences) - len(set(sentences)),
+            "scene_openings_repeating_the_last_ending": echoes, "cjk_chars": sum(len(m) for m in CJK.findall(" ".join(body))),
+            # words run together ("readytohelphimfindwhatheneeded", 2026-10-01): the garbled ending Ian saw
+            "glued_words": sum(1 for p in body for m in LONG.finditer(p) if glued(m.group(), vocab))}
 
 
 def main() -> int:

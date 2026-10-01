@@ -733,8 +733,24 @@ class Sidebar(Gtk.Application):
         head = Gtk.Label(label=words.review_title(review), xalign=0, wrap=True, max_width_chars=30)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
-        for line in words.review_lines(review):
+        # the circle as tick boxes: ticked = already written; the writer's ticks decide where the chapter starts
+        box.pack_start(Gtk.Label(label="The story circle — tick what's already written:", xalign=0, wrap=True,
+                                 max_width_chars=30), False, False, 0)
+        ticks = {}
+        cover = Gtk.Label(xalign=0, wrap=True, max_width_chars=30)
+
+        def follow(*_) -> None:
+            cover.set_text(words.cover_line(review, words.would_cover(review, {k for k, b in ticks.items() if b.get_active()})))
+        for key, line, written in words.review_steps(review):
+            b = Gtk.CheckButton(active=written)
+            b.add(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=28))
+            b.connect("toggled", follow)
+            ticks[key] = b
+            box.pack_start(b, False, False, 0)
+        for line in words.review_lines(review, steps=False):
             box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
+        follow()
+        box.pack_start(cover, False, False, 2)
         answers = Gtk.Entry(placeholder_text="Your answers, or anything to add (optional)")
         box.pack_start(answers, False, False, 2)
         plan = Gtk.Button(label="Plan the chapter")
@@ -743,7 +759,11 @@ class Sidebar(Gtk.Application):
         def go(button) -> None:
             plan.set_sensitive(False)
             answers.set_sensitive(False)
-            self.start_job("PlanChapter", answers.get_text().strip(), "Planning the chapter…")
+            for b in ticks.values():
+                b.set_sensitive(False)
+            self.start_job("PlanChapter", json.dumps({"answers": answers.get_text().strip(),
+                                                      "written": [k for k, b in ticks.items() if b.get_active()]}),
+                           "Planning the chapter…")
         plan.connect("clicked", go)
         answers.connect("activate", go)
         box.pack_start(plan, False, False, 0)
