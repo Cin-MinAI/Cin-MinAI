@@ -20,7 +20,7 @@ fail=0; ok() { echo "PASS  $*"; }; bad() { echo "FAIL  $*"; fail=1; }
 
 diff=$M1/out/$OUT_ISO.manifest-diff
 removed=$(grep -c '^<' "$diff" || true); added=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort | tr '\n' ' ')
-want="cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-llama cinminai-sidebar "
+want="cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sidebar "
 [[ $removed == 0 && $added == "$want" ]] && ok "manifest: only our packages added ($added)" \
     || bad "manifest: removed $removed, added: $added"
 
