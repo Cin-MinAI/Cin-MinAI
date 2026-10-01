@@ -18,6 +18,7 @@ from cin_minai.inference.llamacpp import LlamaCppBackend
 from . import config
 from .guide import Guide
 from .helpcards import HelpIndex
+from .office import Office, dbus_call
 from .tools import Tools
 
 
@@ -33,7 +34,11 @@ def build(cfg: dict, lang: str | None = None) -> tuple[LlamaCppBackend, Guide]:
         help_data = json.load(f)
     backend = LlamaCppBackend(cfg["inference"], log)
     tools = Tools(help_data["labels"], help_data["desktop"], lang)
-    return backend, Guide(backend, guide_data, HelpIndex(help_data), tools, cfg["guide"])
+    try:
+        office = Office(dbus_call())  # LibreOffice documents the user shared (D20)
+    except ImportError:  # no PyGObject: --ask on a bare system
+        office = None
+    return backend, Guide(backend, guide_data, HelpIndex(help_data), tools, cfg["guide"], office)
 
 
 def main() -> None:

@@ -27,6 +27,7 @@ from .dock import Dock  # noqa: E402
 
 APP_ID = "org.cinminai.Sidebar"
 DAEMON = ("org.cinminai.Assistant1", "/org/cinminai/Assistant1", "org.cinminai.Assistant1")
+LIBREOFFICE = ("org.cinminai.LibreOffice1", "/org/cinminai/LibreOffice1", "org.cinminai.LibreOffice1")
 WIDTH = 380  # logical px
 
 CSS = b"""
@@ -50,6 +51,10 @@ CSS = b"""
 .command { padding: 6px 8px; border-radius: 8px; border: 1px solid alpha(@theme_fg_color, 0.2); }
 .command .code { font-family: monospace; }
 .command .note { font-size: 88%; opacity: 0.8; }
+.proposal { padding: 8px; border-radius: 8px; border: 1px solid alpha(@theme_selected_bg_color, 0.6); }
+.proposal .what { font-weight: bold; }
+.proposal .before { opacity: 0.6; }
+.proposal .cell { font-family: monospace; font-size: 88%; padding: 1px 4px; border: 1px solid alpha(@theme_fg_color, 0.12); }
 #input { padding: 6px 8px 8px 8px; }
 """
 
@@ -215,6 +220,8 @@ class Sidebar(Gtk.Application):
         self.proxy.connect("g-properties-changed", lambda *a: self.update_header())
         self.proxy.connect("notify::g-name-owner", lambda *a: self.update_header())
         self.proxy.connect("g-signal", self.on_signal)
+        self.proxy.get_connection().signal_subscribe(LIBREOFFICE[0], LIBREOFFICE[2], "Asked", LIBREOFFICE[1], None,
+                                                     Gio.DBusSignalFlags.NONE, self.on_libreoffice)
         self.update_header()
         if self.pending_ask:
             text, self.pending_ask = self.pending_ask, None
@@ -301,6 +308,8 @@ class Sidebar(Gtk.Application):
                 self.reply.set_text("")
                 self.reply.get_style_context().remove_class("waiting")
             self.reply.set_text(self.reply.get_text() + args[1])
+        elif signal == "Action" and args[3] == "proposal":
+            self.proposal_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[3] == "done":
             self.action_line(*words.action(args[1], json.loads(args[2] or "{}"), args[4]))
             self.cards += words.commands_in_result(args[4])
@@ -308,6 +317,75 @@ class Sidebar(Gtk.Application):
             self.finish_reply(error=args[1])
         elif signal == "Done":
             self.finish_reply()
+
+    def proposal_card(self, pv: dict) -> None:
+        """A document edit the assistant prepared: before -> after, Apply / Discard (SPEC §7.8). Nothing
+        changes until Apply; LibreOffice refuses it if the document changed since the preview."""
+        parts = words.preview_parts(pv)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.get_style_context().add_class("proposal")
+        what = Gtk.Label(label=parts["title"], xalign=0, wrap=True, max_width_chars=30)
+        what.get_style_context().add_class("what")
+        box.pack_start(what, False, False, 0)
+        for label, value, cls in (("Now", parts["before"], "before"), ("After", parts["after"], "after")):
+            if not value:
+                continue
+            head = Gtk.Label(label=label, xalign=0)
+            head.get_style_context().add_class(cls)
+            box.pack_start(head, False, False, 0)
+            if parts["kind"] == "grid":
+                g = Gtk.Grid(column_spacing=0, row_spacing=0)
+                for r, row in enumerate(value):
+                    for c, v in enumerate(row):
+                        cell = Gtk.Label(label=v, xalign=0)
+                        cell.get_style_context().add_class("cell")
+                        cell.get_style_context().add_class(cls)
+                        g.attach(cell, c, r, 1, 1)
+                box.pack_start(g, False, False, 0)
+            else:
+                text = Gtk.Label(label=value, xalign=0, wrap=True, selectable=True, max_width_chars=30)
+                text.set_line_wrap_mode(2)
+                text.get_style_context().add_class(cls)
+                box.pack_start(text, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        apply = Gtk.Button(label="Apply")
+        apply.get_style_context().add_class("suggested-action")
+        discard = Gtk.Button(label="Discard")
+        result = Gtk.Label(xalign=0, wrap=True, max_width_chars=30)
+
+        def decide(button, yes: bool) -> None:
+            apply.set_sensitive(False)
+            discard.set_sensitive(False)
+
+            def done(proxy, res) -> None:
+                try:
+                    (out,) = proxy.call_finish(res).unpack()
+                    result.set_text(words.decided(json.loads(out), None))
+                except GLib.Error as e:
+                    Gio.DBusError.strip_remote_error(e)
+                    result.set_text(words.decided(None, e.message))
+                result.show()
+
+            self.proxy.call("Decide", GLib.Variant("(sb)", (pv.get("id", ""), yes)), Gio.DBusCallFlags.NONE,
+                            30000, None, done)
+
+        apply.connect("clicked", decide, True)
+        discard.connect("clicked", decide, False)
+        buttons.pack_start(apply, False, False, 0)
+        buttons.pack_start(discard, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        box.pack_start(result, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+        result.hide()
+
+    def on_libreoffice(self, conn, sender, path, iface, signal, params) -> None:
+        """LibreOffice's Assistant menu: open the sidebar, and ask (or wait for the question)."""
+        _doc, action, _context = params.unpack()
+        self.show()
+        question = words.ASKED.get(action)
+        if question and self.rid is None:
+            self.ask(question)
 
     def command_card(self, card: dict) -> None:
         """A command the person can copy and run themselves, with what it does and how to undo it (D53)."""

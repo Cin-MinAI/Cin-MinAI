@@ -286,6 +286,31 @@ class Tools:
             return {"opened": None, "error": f"couldn't open {self.label(app)}: {e}"}
         return {"opened": self.label(app)}
 
+    def make_spreadsheet(self, args: dict) -> dict:
+        """A new spreadsheet in Documents, opened in Calc (SPEC §7.9, D53). Our code writes every formula;
+        it never overwrites a file. Filling it in needs the user to share it (D20): the result says how."""
+        from . import sheets
+        folder = os.path.join(HOME, "Documents")
+        try:
+            made = sheets.make(folder, str(args.get("title") or "Spreadsheet"), list(args.get("columns") or []),
+                               [list(map(str, r)) for r in (args.get("rows") or []) if isinstance(r, list)],
+                               str(args.get("total") or "none"))
+        except OSError as e:
+            return {"created": None, "error": f"couldn't create the file: {e.strerror or e}"}
+        opened = False
+        try:
+            from gi.repository import Gio
+            opened = Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(made["file"]).get_uri(), None)
+        except Exception:
+            pass
+        return {"created": "~/Documents/" + os.path.basename(made["file"]), "opened_in": self.label("calc") if opened else None,
+                "columns": made["columns"], "sheets": made["sheets"],
+                "totals": {"sum": "a total of the amount column, beside the list",
+                           "by_month": "a total for each month on the sheet \"Totals by month\"",
+                           "none": "none"}[made["total"]],
+                "next": "To let the assistant fill it in, choose Assistant, then Share this document with the "
+                        "assistant, in LibreOffice's menu."}
+
     def request_install(self, package: str) -> dict:
         return {"installed": False,
                 "note": "Installing through the assistant comes in a later version of Cin-MinAI. The user can "

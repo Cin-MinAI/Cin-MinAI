@@ -647,6 +647,16 @@ has the document model of Writer, Calc, and Impress, and talks to the daemon ove
 * Invoking any of them shares that document with the assistant for the conversation; the sidebar
   shows `Sees: document "<title>"`, removable with one click.
 * The extension reports which document window is focused, for the hotkey's context (§5.3).
+* **Built (2026-09-30):** `cinminai-libreoffice` installs the extension unpacked as a *bundled* extension
+  (`/usr/lib/libreoffice/share/extensions/cinminai/`: dpkg owns every file, no `unopkg` in maintainer
+  scripts); source `src/libreoffice-extension/` (from the M0 spike). The daemon (`office.py`) builds the
+  document context in **exactly** the trained format — checked character for character against
+  `run_eval.py`'s prompt v2, from a real LibreOffice — so the shipped guide edits without retraining; the
+  current document is the most recently shared one; the sidebar header shows `Sees: document "…"`
+  (`ForgetDocument` stops using it; sharing itself stays in LibreOffice's menu). With the real guide on the
+  1080 Ti, the eval's five expenses-sheet questions all pass end to end (`tests/integration/
+  check_libreoffice.py --guide`), after one toolkit fix: cells that fit the range turned sideways are turned
+  (C1:C2 given as one row of two).
 
 ### 7.7 Toolkit
 
@@ -680,6 +690,15 @@ the parts it needs, within the context budget (§11).
 "Make me a spreadsheet of…" requests run a separate headless LibreOffice inside the sandbox (§8.2)
 with only the workspace mounted; the result is offered to the user to open or save. This never
 touches the user's running LibreOffice.
+
+**In the Alpha (2026-09-30, D53): `make_spreadsheet`, no LibreOffice process at all.** The model says what
+the sheet is for — a title, the column names, example rows, and the kind of total (none, a sum, or a total for
+each month) — and `src/cin_minai/daemon/sheets.py` writes the `.ods` itself with the standard library: every
+formula is ours (a `SUM` beside the list; `SUMIFS` per month on a "Totals by month" sheet with a year total),
+dates and amounts typed, nothing executed. It's always a **new** file in Documents (`… (2).ods`, never an
+overwrite), opened in Calc; Calc computes the totals as it opens (checked in a real LibreOffice). Filling it
+in is the user's next choice: the reply says how to share it (§7.6). The tool is in prompt **v2.1** (v2 plus
+this one tool), adopted only if the public eval shows no loss against v2 (D33).
 
 ### 7.10 Document content is untrusted
 

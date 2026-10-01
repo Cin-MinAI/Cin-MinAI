@@ -43,6 +43,14 @@ def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
                ("dialog-warning-symbolic", "Tried to open a program, but couldn't")
     if tool == "request_install":
         return "dialog-information-symbolic", "Installing through the assistant comes in a later version"
+    if tool == "make_spreadsheet":
+        try:
+            made = json.loads(result).get("created") if result else None
+        except ValueError:
+            made = None
+        if made:
+            return "x-office-spreadsheet-symbolic", f"Made a new spreadsheet: {made}"
+        return "dialog-warning-symbolic", "Tried to make a spreadsheet, but couldn't"
     return "dialog-information-symbolic", f"Used {tool}"
 
 
@@ -54,6 +62,8 @@ def status_line(state: str, status: dict) -> tuple[str, str, str]:
     ctx = status.get("context", 0)
     model = status.get("model", "") or "Cin-MinAI guide"
     second = model + (f" · {where}" if where else "") + (f" · {ctx // 1024}K" if ctx else "")
+    if status.get("document"):
+        second += "\n" + sees(status["document"])
     if status.get("reduced"):
         second += f"\n{status['reduced']}"
     elif state == "error" and status.get("detail"):
@@ -117,3 +127,55 @@ def card_notes(card: dict) -> list[str]:
         notes.append("It asks for your password: that's you saying yes.")
     notes.append("Copy, then paste it in the Terminal with Ctrl+Shift+V and press Enter.")
     return notes
+
+
+# --- document edits: the preview card (SPEC §7.8) ------------------------------------------------------
+
+GRID_ROWS, GRID_COLS, CELL_CHARS = 8, 5, 14
+
+
+def _cell(v) -> str:
+    s = "" if v is None else str(v)
+    if s.endswith(".0") and s[:-2].lstrip("-").isdigit():
+        s = s[:-2]
+    return s if len(s) <= CELL_CHARS else s[:CELL_CHARS - 1] + "…"
+
+
+def grid(rows) -> list[list[str]]:
+    """A range for the card: at most GRID_ROWS x GRID_COLS, with … where it's cut."""
+    out = [[_cell(v) for v in r[:GRID_COLS]] + (["…"] if len(r) > GRID_COLS else []) for r in rows[:GRID_ROWS]]
+    if len(rows) > GRID_ROWS:
+        out.append(["…"])
+    return out
+
+
+def preview_parts(pv: dict) -> dict:
+    """{"title", "kind": "text" | "grid" | "slide", "before", "after"} for the card."""
+    before, after = pv.get("before"), pv.get("after")
+    title = pv.get("summary", "A change to your document")
+    if isinstance(after, list):
+        return {"title": title, "kind": "grid", "before": grid(before or []), "after": grid(after)}
+    if isinstance(after, dict):
+        show = lambda d: "\n".join(x for x in ((d or {}).get("title", ""), (d or {}).get("body", "")) if x)
+        return {"title": title, "kind": "slide", "before": show(before), "after": show(after)}
+    return {"title": title, "kind": "text", "before": str(before or ""), "after": str(after or "")}
+
+
+def decided(result: dict | None, error: str | None) -> str:
+    if error:
+        return f"Not changed: {error}"
+    if result and result.get("applied"):
+        return "Done. Press Ctrl+Z in LibreOffice to undo it in one step."
+    return "Discarded. Your document is unchanged."
+
+
+def sees(document: str) -> str:
+    return f'Sees: document "{document}"' if document else ""
+
+
+ASKED = {  # LibreOffice's Assistant menu -> the question the sidebar asks (SPEC §7.6)
+    "ask-selection": None,  # the user types the question
+    "rewrite-selection": "Rewrite the selected text so it reads better.",
+    "explain-formula": "Explain the formula in the selected cell in simple words.",
+    "summarize": "Summarize this document in a few sentences.",
+}

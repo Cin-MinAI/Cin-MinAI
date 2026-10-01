@@ -75,5 +75,33 @@ class CommandCards(unittest.TestCase):
         self.assertEqual(words.commands_in_text("Open Update Manager and click Install."), [])
 
 
+
+class ProposalCard(unittest.TestCase):
+    """SPEC §7.8: a document edit shown before it happens."""
+
+    def test_grid_for_ranges_is_cut_to_fit(self):
+        pv = {"summary": "Write 10×7 cells at A1", "before": [[""] * 7] * 10, "after": [[f"r{r}c{c}" for c in range(7)] for r in range(10)]}
+        p = words.preview_parts(pv)
+        self.assertEqual(p["kind"], "grid")
+        self.assertEqual(len(p["after"]), words.GRID_ROWS + 1)  # + the … row
+        self.assertEqual(p["after"][0][-1], "…")
+        self.assertEqual(words.preview_parts({"before": [[388.0]], "after": [["=SUM(B2:B7)"]]})["before"], [["388"]])
+
+    def test_text_and_slide(self):
+        self.assertEqual(words.preview_parts({"before": "teh", "after": "the"})["kind"], "text")
+        s = words.preview_parts({"before": {"title": "", "body": ""}, "after": {"title": "Join us", "body": ""}})
+        self.assertEqual((s["kind"], s["after"]), ("slide", "Join us"))
+
+    def test_outcome_words(self):
+        self.assertIn("Ctrl+Z", words.decided({"applied": True}, None))
+        self.assertIn("unchanged", words.decided({"applied": False}, None))
+        self.assertIn("changed since", words.decided(None, "the document changed since the preview"))
+
+    def test_header_says_what_it_sees(self):
+        second = words.status_line("idle", {"model": "Cin-MinAI guide", "document": "Budget.ods"})[2]
+        self.assertIn('Sees: document "Budget.ods"', second)
+        self.assertNotIn("Sees", words.status_line("idle", {"model": "x"})[2])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,7 @@ from gi.repository import Gio, GLib
 from cin_minai.inference.backend import BackendError, Cancelled, InferenceBackend
 
 from .guide import Guide
+from .office import LO, OfficeError
 
 NAME = "org.cinminai.Assistant1"
 PATH = "/org/cinminai/Assistant1"
@@ -32,6 +33,11 @@ XML = f"""
     <method name="Reset"/>
     <method name="Load"/>
     <method name="Unload"/>
+    <!-- a proposed document edit (Action state "proposal", its result has the id): apply it, or discard it -->
+    <method name="Decide"><arg type="s" name="proposal" direction="in"/><arg type="b" name="apply" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <!-- stop using the shared LibreOffice document (sharing itself is switched in LibreOffice's menu) -->
+    <method name="ForgetDocument"/>
     <signal name="Token"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
     <!-- a tool the guide used: state running | done; result is the tool's output (JSON or help text) -->
     <signal name="Action"><arg type="u" name="id"/><arg type="s" name="tool"/><arg type="s" name="args"/>
@@ -42,7 +48,8 @@ XML = f"""
     <property name="State" type="s" access="read"/>
     <!-- one line for the applet and the sidebar header -->
     <property name="Model" type="s" access="read"/>
-    <!-- model, build (cuda|vulkan|cpu), context, reduced (why, in words; "" = full), detail, backend_state -->
+    <!-- model, build (cuda|vulkan|cpu), context, reduced (why, in words; "" = full), detail, backend_state,
+         document (the shared LibreOffice document the assistant sees; "" = none) -->
     <property name="Status" type="a{{sv}}" access="read"/>
     <property name="Awareness" type="a{{sb}}" access="readwrite"/>
     <property name="LastStats" type="s" access="read"/>
@@ -68,12 +75,20 @@ class Service:
         self.loading = False    # a load started by Load or the preload; questions wait for it
         self.cancel = threading.Event()
         self.preload = preload
+        self.document = ""  # title of the shared LibreOffice document, for the sidebar header (§7.6)
 
     # --- bus plumbing ------------------------------------------------------------------------------
     def acquired(self, conn: Gio.DBusConnection, name: str) -> None:
         self.conn = conn
         conn.register_object(PATH, Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0], self.call, self.get, self.set)
         log(f"owning {NAME}")
+        # LibreOffice says when a document is shared or not (its menu); the header follows
+        conn.signal_subscribe(LO[0], LO[2], "Shared", LO[1], None, Gio.DBusSignalFlags.NONE,
+                              lambda *a: self.refresh_document(), None)
+        conn.signal_subscribe("org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
+                              "/org/freedesktop/DBus", LO[0], Gio.DBusSignalFlags.NONE,
+                              lambda *a: self.refresh_document(), None)
+        self.refresh_document()
         if self.preload:
             self.start_load()
 
@@ -98,7 +113,8 @@ class Service:
             "Status": lambda: GLib.Variant("a{sv}", {
                 "model": GLib.Variant("s", st.model), "build": GLib.Variant("s", st.build),
                 "context": GLib.Variant("u", st.context), "reduced": GLib.Variant("s", st.reduced),
-                "detail": GLib.Variant("s", st.detail), "backend_state": GLib.Variant("s", st.state)}),
+                "detail": GLib.Variant("s", st.detail), "backend_state": GLib.Variant("s", st.state),
+                "document": GLib.Variant("s", self.document)}),
             "Awareness": lambda: GLib.Variant("a{sb}", self.awareness),
             "LastStats": lambda: GLib.Variant("s", self.last_stats),
         }[prop]()
@@ -153,6 +169,29 @@ class Service:
         elif method == "Load":
             self.start_load()
             inv.return_value(None)
+        elif method == "Decide":
+            pid, apply = params.unpack()
+            office = self.guide.office
+
+            def work():
+                try:
+                    out, err = json.dumps(office.decide(pid, apply), ensure_ascii=False), None
+                except OfficeError as e:
+                    out, err = None, str(e)
+                GLib.idle_add(lambda: (inv.return_dbus_error(f"{IFACE}.Error.Office", err) if err
+                                       else inv.return_value(GLib.Variant("(s)", (out,)))) and False)
+
+            if office is None:
+                inv.return_dbus_error(f"{IFACE}.Error.Office", "LibreOffice support isn't available")
+            else:
+                threading.Thread(target=work, daemon=True).start()
+        elif method == "ForgetDocument":
+            office = self.guide.office
+            doc = office.current() if office else None
+            if doc:
+                office.forget(doc["id"])
+            self.refresh_document()
+            inv.return_value(None)
         elif method == "Unload":
             if self.busy or self.loading:
                 inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
@@ -160,6 +199,21 @@ class Service:
             self.backend.unload()
             self.set_state("off")
             inv.return_value(None)
+
+    def refresh_document(self) -> None:
+        office = self.guide.office
+
+        def work():
+            doc = office.current() if office else None
+            GLib.idle_add(self.set_document, doc["title"] if doc else "")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def set_document(self, title: str) -> bool:
+        if title != self.document:
+            self.document = title
+            self.changed("Status")
+        return False
 
     # --- work ----------------------------------------------------------------------------------------
     def start_load(self) -> None:

@@ -40,9 +40,12 @@ def build(repo: str) -> dict:
     L = load(os.path.join(kb, "lessons.py"), "kb_lessons")
     S = load(os.path.join(kb, "search.py"), "kb_search")
 
-    R.PROMPT = "v2"  # the prompt the shipped guide was trained and measured with (MODEL_CARD.md)
+    # v2 is the prompt the shipped guide was trained and measured with (MODEL_CARD.md); v2.1 = v2 plus one
+    # tool, make_spreadsheet (D53), adopted 2026-09-30 after the A/B: 140/157 vs 141/157, the same tool
+    # choices, the new tool never called by mistake. With a document shared the prompt is v2's, unchanged.
+    R.PROMPT = "v2.1"
     guide = {
-        "prompt": "v2",
+        "prompt": "v2.1",
         "system": R.system_prompt({}),
         "style": R.STYLE_V2,
         "result_format": "Result of {tool}:\n{result}\n\n{style}",
@@ -53,6 +56,19 @@ def build(repo: str) -> dict:
     }
     # the same text the corpus generator used: training/datasets/sessions/generate.py
     assert "No document is shared." in guide["system"] and "- lookup_help:" in guide["system"]
+
+    # with a LibreOffice document shared (D20): the prompt and tools the office corpus trained, per kind.
+    # The context goes where SENTINEL is; the daemon puts the document's context there (office.py).
+    sentinel = json.dumps({"__CTX__": 1})
+    guide["documents"] = {}
+    for kind, tools in R.OFFICE_TOOLS.items():
+        system = R.system_prompt({"doc": kind, "ctx": {"__CTX__": 1}})
+        assert system.count(sentinel) == 1 and "The user shared a LibreOffice" in system, kind
+        guide["documents"][kind] = {
+            "system": system, "context_slot": sentinel, "schema": R.schema(kind),
+            "read": [n for n, (_, d) in tools.items() if not d.startswith("EDIT")],
+            "edit": [n for n, (_, d) in tools.items() if d.startswith("EDIT")],
+        }
 
     cards = []
     for source, mod in (("transition", T), ("lessons", L)):

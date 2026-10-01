@@ -112,6 +112,8 @@ tests; the guide answered a Windows-drive (Fast Startup) and a Wi-Fi-off questio
 the LibreOffice toolkit (D20) into the Alpha; then package + boot-test the diagnostics; the root service; help
 cards for symptoms the rules can't see (sound on HDMI, printers, Bluetooth).
 
+**LibreOffice in the Alpha (2026-09-30, D20/D53):** `cinminai-libreoffice` (the extension, bundled), the daemon's `office.py` (the trained document prompt, exactly), preview cards with Apply/Discard in the sidebar; real guide + real LibreOffice: the eval's 5 expenses-sheet questions 5/5 (`tests/integration/check_libreoffice.py --guide`). New spreadsheets: `make_spreadsheet` (`sheets.py`, our formulas, a new file in Documents) in **prompt v2.1**, adopted after the A/B on the 1080 Ti (Vulkan): 140/157 vs v2's 141/157, the same tool choices, never called by mistake; creation items 4/7 → the Spanish/German per-month misses fixed in code (`wants_by_month`). Not yet: packaged + boot-tested, the sidebar's cards seen on screen. **Next (Ian):** the writer — a rough-draft chapter (up to ~600 lines) from the user's ideas.
+
 **Next: diagnostics (D51, SPEC §20)** — `cinminai-diag`, an OBD-II for the computer along one operational tree;
 first slice §20.8 (boot record, drivers/kernels, updates, disk; codes G101 S301 B401 H401 U101; the command,
 the report, the guide's `diagnose` tool), with the evidence of 2026-09-29/30 as the first fixtures. Smaller: Mint's
@@ -152,7 +154,7 @@ kernel 7.0 fault: the guide sees only `inspect_system`, not the kernel log, dkms
 with the diagnostics (2026-09-30): invented a command not in the result (`smartctl`), skipped the first finding for a
 display question, and said "restart to apply" after a command that a restart undoes — fixed for now with hints in the
 data ("the first problem causes the others", "only the commands listed", "don't restart after it"); train
-`diagnose` and these habits in cycle 1.
+`diagnose` and these habits in cycle 1. (4) "Make me a spreadsheet that tells me which stocks to buy" (eval C05): v2.1 made a blank sheet instead of declining the advice part — teach the decline in cycle 1.
 
 Complaint-style how-tos → `lookup_help` in the sessions (the held-out transition loss); formulas in a cell
 the user names; German numbered steps; report turns "what it means + offer the action"; the vague set scores

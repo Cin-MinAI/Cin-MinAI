@@ -21,6 +21,7 @@ from typing import Callable
 from cin_minai.inference.backend import BackendError, InferenceBackend
 
 from .helpcards import HelpIndex
+from .office import Office, OfficeError
 from .tools import Tools
 
 TEXT_START = re.compile(r'^\s*\{\s*"tool"\s*:\s*"(answer|decline)"\s*,\s*"args"\s*:\s*\{\s*"text"\s*:\s*"')
@@ -76,10 +77,34 @@ class TextStream:
             self.emit("".join(out))
 
 
+PROPOSED = ("I've prepared this change: {summary}. It's shown below — nothing changes until you click Apply, "
+            "and one Ctrl+Z in LibreOffice undoes it.")
+
+
 class Guide:
-    def __init__(self, backend: InferenceBackend, data: dict, help_index: HelpIndex, tools: Tools, cfg: dict) -> None:
+    def __init__(self, backend: InferenceBackend, data: dict, help_index: HelpIndex, tools: Tools, cfg: dict,
+                 office: Office | None = None) -> None:
         self.backend, self.data, self.help, self.tools, self.cfg = backend, data, help_index, tools, cfg
+        self.office = office
         self.history: list[dict] = []
+
+    def document(self) -> tuple[dict | None, str, dict]:
+        """(the shared document or None, the system prompt, the schema): with a document shared, the prompt
+        and tools the guide was trained on for it (D20; guide.json "documents")."""
+        doc = None
+        if self.office is not None and "documents" in self.data:
+            try:
+                doc = self.office.current()
+            except OfficeError:
+                doc = None
+        if doc is None or doc.get("type") not in self.data.get("documents", {}):
+            return None, self.data["system"], self.data["schema"]
+        d = self.data["documents"][doc["type"]]
+        try:
+            ctx = self.office.context(doc)
+        except OfficeError:
+            return None, self.data["system"], self.data["schema"]
+        return doc, d["system"].replace(d["context_slot"], json.dumps(ctx, ensure_ascii=False)), d["schema"]
 
     def reset(self) -> None:
         self.history.clear()
@@ -100,7 +125,9 @@ class Guide:
                                         and not self.history[0]["content"].startswith("Result of ")):
                 del self.history[0]  # a turn starts with the user's own message
 
-    def run_tool(self, tool: str, args: dict) -> str:
+    def run_tool(self, tool: str, args: dict, doc: dict | None = None, request: str = "") -> str:
+        if doc is not None and tool in self.data["documents"][doc["type"]]["read"]:
+            return json.dumps(self.office.read(doc, tool, args), ensure_ascii=False, default=str)
         if tool == "lookup_help":
             _, card = self.help.lookup(str(args.get("query", "")), self.tools.lang)
             return card
@@ -108,6 +135,10 @@ class Guide:
             return json.dumps(self.tools.inspect(str(args.get("topic", "overview"))), ensure_ascii=False)
         if tool == "open_app":
             return json.dumps(self.tools.open_app(str(args.get("app", ""))), ensure_ascii=False)
+        if tool == "make_spreadsheet":
+            from .sheets import wants_by_month
+            args = {**args, "total": wants_by_month(request, str(args.get("total", "none")))}
+            return json.dumps(self.tools.make_spreadsheet(args), ensure_ascii=False)
         if tool == "request_install":
             return json.dumps(self.tools.request_install(str(args.get("package", ""))), ensure_ascii=False)
         return json.dumps({"error": f"unknown tool {tool}"})
@@ -117,24 +148,43 @@ class Guide:
         """Answer one message. Returns {"reply", "tool", "args", "timings": [...]}; raises BackendError."""
         self.trim()
         user = {"role": "user", "content": text}
-        messages = [{"role": "system", "content": self.data["system"]}] + self.history + [user]
-        stream = TextStream(on_text)
-        raw, t1 = self.backend.chat(messages, schema=self.data["schema"], max_tokens=700,
-                                    on_text=stream.feed, cancel=cancel)
-        try:
-            call = json.loads(raw)
-            tool, args = call["tool"], call.get("args", {})
-        except (ValueError, KeyError, TypeError):
-            raise BackendError("The model's answer didn't come out right. Please ask again.")
-        timings = [t1]
-        if tool in ("answer", "decline"):
-            reply = str(args.get("text", ""))
-            if stream.pos is None:  # the stream didn't recognise the layout: send the text whole
-                on_text(reply)
-            self.history += [user, {"role": "assistant", "content": raw}]
-            return {"reply": reply, "tool": tool, "args": args, "timings": timings}
-        on_action(tool, args, "running", "")
-        result = self.run_tool(tool, args)
+        doc, system, schema = self.document()
+        messages = [{"role": "system", "content": system}] + self.history + [user]
+        edits = set(self.data["documents"][doc["type"]]["edit"]) if doc else set()
+        timings = []
+        for attempt in range(2):  # a call LibreOffice refuses goes back to the model once (spike, eval)
+            stream = TextStream(on_text)
+            raw, t1 = self.backend.chat(messages, schema=schema, max_tokens=700, on_text=stream.feed, cancel=cancel)
+            timings.append(t1)
+            try:
+                call = json.loads(raw)
+                tool, args = call["tool"], call.get("args", {})
+            except (ValueError, KeyError, TypeError):
+                raise BackendError("The model's answer didn't come out right. Please ask again.")
+            if tool in ("answer", "decline"):
+                reply = str(args.get("text", ""))
+                if stream.pos is None:  # the stream didn't recognise the layout: send the text whole
+                    on_text(reply)
+                self.history += [user, {"role": "assistant", "content": raw}]
+                return {"reply": reply, "tool": tool, "args": args, "timings": timings}
+            try:
+                if tool in edits:
+                    # an edit is never made here: it becomes a preview the user applies or discards (§7.8)
+                    pv = self.office.preview(doc, tool, args)
+                    on_action(tool, args, "proposal", json.dumps(pv, ensure_ascii=False, default=str))
+                    reply = PROPOSED.format(summary=pv.get("summary", "an edit").rstrip("."))
+                    on_text(reply)
+                    self.history += [user, {"role": "assistant", "content": raw}]
+                    return {"reply": reply, "tool": tool, "args": args, "proposal": pv["id"], "timings": timings}
+                on_action(tool, args, "running", "")
+                result = self.run_tool(tool, args, doc, text)
+            except OfficeError as e:
+                if attempt:
+                    raise BackendError(f"LibreOffice didn't accept that: {e}")
+                messages = messages + [{"role": "assistant", "content": raw},
+                                       {"role": "user", "content": f"That call failed: {e}. Send a corrected call."}]
+                continue
+            break
         on_action(tool, args, "done", result)
         followup = {"role": "user", "content": self.data["result_format"].format(
             tool=tool, result=result, style=self.data["style"])}

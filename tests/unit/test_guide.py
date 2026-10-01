@@ -88,7 +88,12 @@ class GuideTest(unittest.TestCase):
     def test_system_prompt_is_the_trained_one(self):
         with open(CORPUS, encoding="utf-8") as f:
             session = json.loads(f.readline())
-        self.assertEqual(DATA["guide.json"]["system"], session["messages"][0]["content"])
+        trained = session["messages"][0]["content"]
+        # prompt v2.1 (2026-09-30, D53): the trained v2 prompt plus exactly one tool line at the end
+        system = DATA["guide.json"]["system"]
+        self.assertEqual(DATA["guide.json"]["prompt"], "v2.1")
+        self.assertTrue(system.startswith(trained + "\n- make_spreadsheet: "), system[len(trained) - 40:len(trained) + 60])
+        self.assertEqual(system.count("\n"), trained.count("\n") + 1)
 
     def test_schema_asks_for_the_tool_first(self):
         # llama.cpp writes properties in schema order; "args" before "tool" made the model fill in

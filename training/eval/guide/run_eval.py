@@ -86,8 +86,23 @@ OFFICE_TOOLS = {
 OPTIONAL = {("impress", "set_slide_text"): {"title", "body"}}
 
 
+# Prompt v2.1 (2026-09-30, D53): v2 plus one tool, make a new spreadsheet. Only the tool list changes; A/B
+# against v2 before the product adopts it (D33).
+CREATE_TOOLS = {
+    "make_spreadsheet": ({"title": S, "columns": {"type": "array", "items": S, "minItems": 1, "maxItems": 12},
+                          "rows": {"type": "array", "items": {"type": "array", "items": S}},
+                          "total": {"enum": ["none", "sum", "by_month"]}},
+                         "make a new spreadsheet file in Documents and open it: a title, the column names, example "
+                         "rows (dates as YYYY-MM-DD; may be empty), and total: none, sum (a total of the amount "
+                         "column) or by_month (a total for each month, from a date column)"),
+}
+OPTIONAL[(None, "make_spreadsheet")] = {"rows"}
+
+
 def tools_for(doc: str | None) -> dict:
-    return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {})}
+    # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
+    extra = CREATE_TOOLS if PROMPT == "v2.1" and not doc else {}
+    return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
 def schema(doc: str | None) -> dict:
@@ -156,7 +171,7 @@ def system_prompt(task: dict) -> str:
     doc = task.get("doc")
     tools = "\n".join(f"- {n}: {d}" for n, (_, d) in tools_for(doc).items())
     ctx = task.get("ctx")
-    if doc and PROMPT == "v2" and "data" in ctx:
+    if doc and PROMPT.startswith("v2") and "data" in ctx:
         # integration fix: the sidebar tells the model where new rows go (SPEC §7.11) instead of the
         # model working it out from the used range
         last = int(re.search(r"(\d+)$", ctx["used_range"]).group(1))
@@ -166,12 +181,12 @@ def system_prompt(task: dict) -> str:
                     "EDIT tools are shown to the user as a preview and only happen if they approve. Prefer "
                     "doing the edit over describing it; use answer when the context already has what's "
                     f"needed.\nDocument context:\n{json.dumps(ctx, ensure_ascii=False)}\n")
-        if PROMPT == "v2":
+        if PROMPT.startswith("v2"):
             document += ("When the data is in the context above, answer from it or edit directly; don't look "
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    return (SYSTEM_V2 if PROMPT == "v2" else SYSTEM).format(document=document, tools=tools)
+    return (SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM).format(document=document, tools=tools)
 
 
 # --- items: one per (task, language) --------------------------------------------------------------
@@ -329,7 +344,7 @@ def run_item(srv: Server, it: dict) -> dict:
         result = None
     if reply is None and result is not None:
         messages += [{"role": "assistant", "content": raw},
-                     {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE_V2 if PROMPT == 'v2' else STYLE}"}]
+                     {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE_V2 if PROMPT.startswith('v2') else STYLE}"}]
         reply, tb = srv.chat(messages, None, 600)
         rec["t_b"] = round(tb, 2)
     if reply is not None and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret")):
@@ -365,7 +380,7 @@ def main() -> None:
     ap.add_argument("--url"), ap.add_argument("--model", default=""), ap.add_argument("--api-key-env")
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")
