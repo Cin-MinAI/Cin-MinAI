@@ -22,6 +22,10 @@ JOURNAL = os.path.join(os.path.expanduser("~"), "Documents", "Journal")
 DAY = ["Today I finally fixed the old computer for my neighbour, it took all afternoon.",
        "Honestly I felt proud, but also a bit tired and annoyed that the update broke things first.",
        "It reminded me of when my dad taught me to fix radios when I was a kid."]
+if os.environ.get("JOURNAL_LONG"):  # a fuller day: does the entry read like a journal, still adding nothing?
+    DAY += ["He'd sit me at the kitchen table with a soldering iron and say 'slow hands, quick eyes'.",
+            "My neighbour Mrs. Patel made me tea and wouldn't let me leave without a bag of samosas.",
+            "Walking home it was getting dark and cold, and I thought I should call my brother more often."]
 
 
 def main() -> int:

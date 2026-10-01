@@ -49,7 +49,11 @@ add events, feelings or opinions they didn't express, and don't add advice or a 
 allows, no padding; paragraphs, no headings. Also give it a title: a few words about what the day was about \
 (not the date — the date is added for you).
 
-The conversation:
+The companion's questions (in brackets) are only there so you know what each answer was about. Never put a \
+question in the entry, and never answer a question the person didn't answer: if a question has no reply after \
+it, leave that topic out.
+
+What the person said:
 {conversation}"""
 
 
@@ -214,7 +218,12 @@ class Interviewer:
         said = [m for m in journal.messages if m["role"] == "user"]
         if not said:
             raise JournalError("there's nothing to write yet: tell me about your day first")
-        conversation = "\n".join(("Me: " if m["role"] == "user" else "Companion: ") + m["content"] for m in journal.messages)
+        # the person's words as lines; the companion's questions in brackets, and a trailing unanswered one left out
+        # (2026-10-01: with "Companion: …" lines the entry quoted the last question and invented its answer)
+        msgs = list(journal.messages)
+        while msgs and msgs[-1]["role"] == "assistant":
+            msgs.pop()
+        conversation = "\n".join(m["content"] if m["role"] == "user" else f"[{m['content']}]" for m in msgs)
         raw, _ = self.chat([{"role": "user", "content": ENTRY_PROMPT.format(
             when=when.strftime("%A, %d %B %Y, %H:%M"), conversation=conversation)}], schema=ENTRY_SCHEMA,
             max_tokens=1600, cancel=cancel)

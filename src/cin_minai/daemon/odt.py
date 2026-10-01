@@ -86,7 +86,8 @@ def content(title: str, scenes: list[str]) -> str:
 
 
 def safe_name(title: str) -> str:
-    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", str(title)).strip(" .")[:60] or "Draft"
+    # trimmed after the cut too: "…reconnecting .odt" (2026-10-01)
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", str(title)).strip(" .")[:60].strip(" .") or "Draft"
 
 
 def new_path(folder: str, name: str) -> str:

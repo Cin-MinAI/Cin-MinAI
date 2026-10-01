@@ -23,7 +23,7 @@ MAX_NOTE = 300  # characters per note
 
 
 def slug(title: str) -> str:
-    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", str(title)).strip(" .")[:60] or "Untitled"
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", str(title)).strip(" .")[:60].strip(" .") or "Untitled"
 
 
 class Project:

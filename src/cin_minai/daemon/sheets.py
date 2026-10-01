@@ -154,7 +154,7 @@ MANIFEST = ('<?xml version="1.0" encoding="UTF-8"?>'
 
 
 def safe_name(title: str) -> str:
-    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", str(title)).strip(" .")[:60]
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", str(title)).strip(" .")[:60].strip(" .")
     return name or "Spreadsheet"
 
 

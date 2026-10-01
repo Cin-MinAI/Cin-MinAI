@@ -102,8 +102,21 @@ class Interview(unittest.TestCase):
             self.assertNotIn("sea after work", f.read())
         title, text = iv.entry(j, WHEN)
         self.assertEqual(title, "A walk by the sea")
-        self.assertIn("Me: I walked by the sea after work", m.sent[-1][-1]["content"])
+        prompt = m.sent[-1][-1]["content"]
+        self.assertIn("\nI walked by the sea after work", prompt)
+        # the companion's last question had no reply: it isn't in the prompt at all (it got answered, invented,
+        # in the entry of 2026-10-01)
+        self.assertNotIn("What did you notice on the way?", prompt)
         self.assertIn("Thursday, 01 October 2026, 21:30", m.sent[-1][-1]["content"])
+
+    def test_answered_questions_in_brackets(self):
+        j, m = journal(), Scripted()
+        iv = Interviewer(m)
+        iv.reply(j, "I walked by the sea.", lambda t: None, threading.Event())
+        iv.reply(j, "I noticed the gulls.", lambda t: None, threading.Event())
+        prompt = iv.entry(j, WHEN) and m.sent[-1][-1]["content"]
+        self.assertIn("I walked by the sea.\n[That sounds peaceful. What did you notice on the way?]\nI noticed the gulls.",
+                      prompt)
 
     def test_a_date_is_not_a_title(self):
         class DateTitle(Scripted):

@@ -760,7 +760,7 @@ An assistant that only asks about the person, and writes the entry when they pre
   computer?", "How did your dad handle those frustrating moments…?".
 * **Write today's entry:** first person, in the person's own words as far as possible, nothing added (no events,
   feelings, opinions, advice or moral they didn't give), with the date and time in the header and a short title (a
-  date the model writes as the title is replaced by the entry's first words). Entries are `.odt` files in
+  date the model writes as the title is replaced by the entry's first words). **The voice** (Ian asked for a journal voice, 2026-10-01): a looser prompt ("weave their words with light connecting sentences") quoted the companion's last, unanswered question and *invented its answer*; with the questions shown only in brackets and a trailing unanswered one left out, four runs added nothing — but the guide then keeps the person's sentences as they are, with or without an example in the prompt. Kept faithful (D33: the voice wording didn't help and was reverted); a fuller voice is a job for a bigger model or cycle-1 training. Entries are `.odt` files in
   `Documents/Journal/` with `journal.json` as the index.
 * **The conversation is never written to disk** — only the finished entry; closing the journal forgets it.
 * **Private** (Ian: "just a little 4 digit pin is fine"): the entry is encrypted with GnuPG (AES-256) using a random
