@@ -747,7 +747,30 @@ The assistant takes in information for as long as the user wants, then writes it
   draft is written the daemon keeps the screen awake (the session manager's idle inhibitor): with the screen asleep
   the card stayed in its low power state and ran 6× slower.
 * **Next:** sources (a shared book read in parts into notes, then e.g. a character analysis), other forms (a movie
-  script), and the journal (D55) on the same engine.
+  script).
+
+### 7.13 The journal (PLAN D55)
+
+An assistant that only asks about the person, and writes the entry when they press the button. Built for the Alpha
+(2026-10-01): `src/cin_minai/daemon/journal.py`; the sidebar's **New ▾ → Journal**.
+
+* **The interviewer** asks one short question at a time about what happened, who was there, how it felt, what the
+  person thinks, what changed, what they want to remember — following what they just said; never advice, never
+  judging, never steering to a topic they didn't raise. Measured with the guide: "What did you fix on the
+  computer?", "How did your dad handle those frustrating moments…?".
+* **Write today's entry:** first person, in the person's own words as far as possible, nothing added (no events,
+  feelings, opinions, advice or moral they didn't give), with the date and time in the header and a short title (a
+  date the model writes as the title is replaced by the entry's first words). Entries are `.odt` files in
+  `Documents/Journal/` with `journal.json` as the index.
+* **The conversation is never written to disk** — only the finished entry; closing the journal forgets it.
+* **Private** (Ian: "just a little 4 digit pin is fine"): the entry is encrypted with GnuPG (AES-256) using a random
+  key kept in the login keyring (Secret Service), so a copied disk can't be read without the login password; the PIN
+  (a salted PBKDF2 hash) opens it **inside the sidebar only** — never as a file in Writer, so LibreOffice's recovery
+  files never hold the plaintext; the plain document exists only in memory-backed storage for the moment of
+  encryption. A 4-digit PIN is a lock against people looking, not strong encryption by itself: the keyring is what
+  protects the file at rest. The assistant can't read a private entry while it's locked; the entry list shows its
+  date and a lock, not its title. Tested on the Mint box's test install with the real keyring and model: sealed,
+  the wrong PIN refused, the right one opens it.
 
 ---
 

@@ -118,6 +118,23 @@ class Sidebar(Gtk.Application):
         for w in (close_project, writeup, notes):
             self.project_box.pack_end(w, False, False, 0)
 
+        # the journal bar (D55): shown while the journal is open
+        journal_label = Gtk.Label(label="Journal", xalign=0)
+        journal_label.get_style_context().add_class("what")
+        self.private = Gtk.CheckButton(label="Private")
+        self.private.set_tooltip_text("Locked with your 4-digit PIN; the assistant can't read it while it's locked")
+        write_entry = Gtk.Button(label="Write today's entry")
+        write_entry.get_style_context().add_class("suggested-action")
+        write_entry.connect("clicked", lambda b: self.write_entry())
+        entries = Gtk.Button(label="Entries")
+        entries.connect("clicked", lambda b: self.show_entries())
+        close_journal = self.icon_button("window-close-symbolic", "Close the journal", lambda b: self.close_journal())
+        self.journal_box = Gtk.Box(spacing=4, name="journal")
+        self.journal_box.pack_start(journal_label, False, False, 0)
+        self.journal_box.pack_start(self.private, False, False, 0)
+        for w in (close_journal, entries, write_entry):
+            self.journal_box.pack_end(w, False, False, 0)
+
         # the conversation
         self.chat = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, name="chat")
         self.scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
@@ -136,13 +153,15 @@ class Sidebar(Gtk.Application):
         inputs.pack_end(self.go, False, False, 0)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for w, expand in ((header, False), (privacy, False), (self.project_box, False), (Gtk.Separator(), False),
+        for w, expand in ((header, False), (privacy, False), (self.project_box, False), (self.journal_box, False),
+                          (Gtk.Separator(), False),
                           (self.scroll, True), (Gtk.Separator(), False), (inputs, False)):
             box.pack_start(w, expand, expand, 0)
         win.add(box)
         box.show_all()
         self.stop.hide()
         self.project_box.hide()
+        self.journal_box.hide()
         self.set_header("offline", {})
         self.connect_daemon()
 
@@ -265,7 +284,10 @@ class Sidebar(Gtk.Application):
         project = status.get("project", "")
         self.project_label.set_text(words.project_bar(project))
         self.project_box.set_visible(bool(project))
-        self.entry.set_placeholder_text("Tell me about your story…" if project else "Ask…")
+        journal = bool(status.get("journal"))
+        self.journal_box.set_visible(journal)
+        self.entry.set_placeholder_text("Tell me about your story…" if project else
+                                        "Tell me about your day…" if journal else "Ask…")
         busy = self.rid is not None
         self.stop.set_visible(busy)
         self.go.set_visible(not busy)
@@ -311,8 +333,11 @@ class Sidebar(Gtk.Application):
             self.on_stop(button)
         if self.proxy:
             self.proxy.call("Reset", None, Gio.DBusCallFlags.NONE, -1, None, None)
-            if not project and (self.prop("Status", {}) or {}).get("project"):
+            status = self.prop("Status", {}) or {}
+            if not project and status.get("project"):
                 self.proxy.call("ProjectClose", None, Gio.DBusCallFlags.NONE, -1, None, None)
+            if not project and status.get("journal"):
+                self.proxy.call("JournalClose", None, Gio.DBusCallFlags.NONE, -1, None, None)
         for child in self.chat.get_children():
             child.destroy()
         self.reply, self.rid = None, None
@@ -335,6 +360,8 @@ class Sidebar(Gtk.Application):
             self.reply.set_text(self.reply.get_text() + args[1])
         elif signal == "Action" and args[1] == "outline" and args[3] == "proposal":
             self.outline_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "journal" and args[3] == "done":
+            self.progress_line(words.journal_written(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "draft":
             p = json.loads(args[4] or "{}")
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
@@ -356,6 +383,9 @@ class Sidebar(Gtk.Application):
         menu.append(item)
         item = Gtk.MenuItem(label="New writing project…")
         item.connect("activate", lambda i: self.new_project())
+        menu.append(item)
+        item = Gtk.MenuItem(label="Journal")
+        item.connect("activate", lambda i: self.open_journal())
         menu.append(item)
         projects = self.daemon_json("ProjectList") or []
         if projects:
@@ -423,6 +453,128 @@ class Sidebar(Gtk.Application):
             box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
+
+    # --- the journal (D55) -------------------------------------------------------------------------------
+    def open_journal(self) -> None:
+        info = self.daemon_json("JournalOpen")
+        if info is not None:
+            self.on_new(None, project=True)  # the conversation starts fresh; the mode stays open
+            for child in self.chat.get_children():
+                child.destroy()
+            self.bubble("assistant", words.JOURNAL_HELLO)
+
+    def close_journal(self) -> None:
+        if self.proxy:
+            self.proxy.call("JournalClose", None, Gio.DBusCallFlags.NONE, -1, None, None)
+        self.on_new(None)
+
+    def pin_dialog(self, title: str, confirm: bool = False) -> str | None:
+        """A 4-digit PIN, typed hidden (twice when setting one). None if cancelled."""
+        dialog = Gtk.Dialog(title=title, transient_for=self.win, modal=True)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        box = dialog.get_content_area()
+        box.set_spacing(6)
+        fields = []
+        for label in (["PIN (4 digits)", "The same PIN again"] if confirm else ["PIN"]):
+            box.pack_start(Gtk.Label(label=label, xalign=0), False, False, 2)
+            e = Gtk.Entry(visibility=False, max_length=4, input_purpose=Gtk.InputPurpose.PIN, activates_default=True)
+            box.pack_start(e, False, False, 2)
+            fields.append(e)
+        if confirm:
+            box.pack_start(Gtk.Label(label="It locks private entries against people looking. Don't lose it: without "
+                                           "it, a private entry can't be opened.", xalign=0, wrap=True,
+                                     max_width_chars=40), False, False, 6)
+        dialog.show_all()
+        ok = dialog.run() == Gtk.ResponseType.OK
+        values = [e.get_text() for e in fields]
+        dialog.destroy()
+        if not ok:
+            return None
+        if confirm and values[0] != values[1]:
+            self.bubble("error", "The two PINs weren't the same; nothing was changed.")
+            return None
+        return values[0]
+
+    def write_entry(self) -> None:
+        private = self.private.get_active()
+        if private:
+            info = self.daemon_json("JournalEntries") or {}
+            if not info.get("has_pin"):
+                pin = self.pin_dialog("Choose a PIN for private entries", confirm=True)
+                if pin is None:
+                    return
+                try:
+                    self.proxy.call_sync("JournalSetPin", GLib.Variant("(ss)", (pin, "")), Gio.DBusCallFlags.NONE, 10000, None)
+                except GLib.Error as e:
+                    Gio.DBusError.strip_remote_error(e)
+                    self.bubble("error", e.message)
+                    return
+        if not self.proxy or self.rid is not None:
+            return
+        self.reply = self.bubble("assistant", "Writing today's entry…")
+        self.reply.get_style_context().add_class("waiting")
+        self.reply_started = False
+        self.rid = -1
+
+        def started(proxy, result) -> None:
+            try:
+                (self.rid,) = proxy.call_finish(result).unpack()
+            except GLib.Error as e:
+                Gio.DBusError.strip_remote_error(e)
+                self.finish_reply(error=e.message)
+            self.update_header()
+
+        self.proxy.call("JournalWrite", GLib.Variant("(b)", (private,)), Gio.DBusCallFlags.NONE, 600000, None, started)
+        self.update_header()
+
+    def show_entries(self) -> None:
+        info = self.daemon_json("JournalEntries")
+        if info is None:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label="Journal entries", xalign=0)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        if not info["entries"]:
+            box.pack_start(Gtk.Label(label="No entries yet.", xalign=0), False, False, 0)
+        for e in reversed(info["entries"][-30:]):
+            b = Gtk.Button(label=words.entry_label(e))
+            b.set_relief(Gtk.ReliefStyle.NONE)
+            b.get_child().set_xalign(0)
+            b.connect("clicked", lambda btn, e=e: self.open_entry(e))
+            box.pack_start(b, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def open_entry(self, e: dict) -> None:
+        import os
+        if not e.get("private"):
+            path = os.path.join(os.path.expanduser("~"), "Documents", "Journal", e["file"])
+            Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(path).get_uri(), None)
+            return
+        pin = self.pin_dialog("Open a private entry")
+        if pin is None:
+            return
+        try:
+            v = self.proxy.call_sync("JournalRead", GLib.Variant("(ss)", (e["file"], pin)), Gio.DBusCallFlags.NONE, 30000, None)
+        except GLib.Error as err:
+            Gio.DBusError.strip_remote_error(err)
+            self.bubble("error", err.message)
+            return
+        r = json.loads(v.unpack()[0])
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=f"🔒 {r['title']} — {r['when'].replace('T', ' ')}", xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        card.pack_start(head, False, False, 0)
+        card.pack_start(Gtk.Label(label=r["text"], xalign=0, wrap=True, max_width_chars=30, selectable=True), False, False, 0)
+        hide = Gtk.Button(label="Hide")
+        hide.connect("clicked", lambda b: card.destroy())  # gone from the screen and from memory here
+        card.pack_start(hide, False, False, 0)
+        self.chat.pack_start(card, False, False, 0)
+        card.show_all()
 
     def start_job(self, method: str, arg: str, waiting: str) -> None:
         """WriteUp / WriteDraft: like a question, but nothing typed: the reply streams into a new bubble."""

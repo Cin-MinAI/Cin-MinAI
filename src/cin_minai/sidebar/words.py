@@ -214,3 +214,18 @@ def notes_lines(notes: dict) -> list[str]:
             out.append(f"{label}:")
             out += [f"  • {n}" for n in notes[k]]
     return out or ["No notes yet: tell me about your story."]
+
+
+# --- the journal (D55) -----------------------------------------------------------------------------------
+
+JOURNAL_HELLO = "How was your day? Tell me whatever you'd like to remember. I'll only ask, never judge."
+
+
+def entry_label(e: dict) -> str:
+    when = e.get("when", "").replace("T", " ")[:16]
+    return f"🔒 {when}  (private)" if e.get("private") else f"{when}  {e.get('title', '')}"
+
+
+def journal_written(e: dict) -> str:
+    return ("Entry written and locked" if e.get("private") else f"Entry written: {e.get('title', '')}") + \
+        f" ({e.get('words', 0)} words)"

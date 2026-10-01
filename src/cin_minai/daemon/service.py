@@ -21,6 +21,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 
 from .guide import Guide
 from .office import LO, OfficeError
+from .journal import Interviewer, Journal, JournalError
 from .projects import ROOT as PROJECTS, Project
 from .writer import Writer
 
@@ -51,6 +52,15 @@ XML = f"""
     <method name="WriteUp"><arg type="s" name="wish" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- write the planned chapter: Action "draft" running (progress) then done (the file); Cancel stops it -->
     <method name="WriteDraft"><arg type="s" name="outline" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <!-- the journal (D55): while it's open, Ask goes to the interviewer; today's conversation stays in memory -->
+    <method name="JournalOpen"><arg type="s" name="json" direction="out"/></method>
+    <method name="JournalClose"/>
+    <method name="JournalEntries"><arg type="s" name="json" direction="out"/></method>
+    <method name="JournalSetPin"><arg type="s" name="pin" direction="in"/><arg type="s" name="old" direction="in"/></method>
+    <method name="JournalRead"><arg type="s" name="file" direction="in"/><arg type="s" name="pin" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <!-- write today's entry from the conversation: Action "journal" done (the entry) -->
+    <method name="JournalWrite"><arg type="b" name="private" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <signal name="Token"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
     <!-- a tool the guide used: state running | done; result is the tool's output (JSON or help text) -->
     <signal name="Action"><arg type="u" name="id"/><arg type="s" name="tool"/><arg type="s" name="args"/>
@@ -63,7 +73,7 @@ XML = f"""
     <property name="Model" type="s" access="read"/>
     <!-- model, build (cuda|vulkan|cpu), context, reduced (why, in words; "" = full), detail, backend_state,
          document (the shared LibreOffice document the assistant sees; "" = none),
-         project (the open writing project's title; "" = none) -->
+         project (the open writing project's title; "" = none), journal (b: the journal is open) -->
     <property name="Status" type="a{{sv}}" access="read"/>
     <property name="Awareness" type="a{{sb}}" access="readwrite"/>
     <property name="LastStats" type="s" access="read"/>
@@ -93,6 +103,8 @@ class Service:
         self.project: Project | None = None  # the open writing project (D54)
         self.writer = Writer(backend.chat)
         self.outlines: dict[str, dict] = {}
+        self.journal: Journal | None = None  # the open journal (D55)
+        self.interviewer = Interviewer(backend.chat)
 
     # --- bus plumbing ------------------------------------------------------------------------------
     def acquired(self, conn: Gio.DBusConnection, name: str) -> None:
@@ -132,7 +144,8 @@ class Service:
                 "context": GLib.Variant("u", st.context), "reduced": GLib.Variant("s", st.reduced),
                 "detail": GLib.Variant("s", st.detail), "backend_state": GLib.Variant("s", st.state),
                 "document": GLib.Variant("s", self.document),
-                "project": GLib.Variant("s", self.project.title if self.project else "")}),
+                "project": GLib.Variant("s", self.project.title if self.project else ""),
+                "journal": GLib.Variant("b", self.journal is not None)}),
             "Awareness": lambda: GLib.Variant("a{sb}", self.awareness),
             "LastStats": lambda: GLib.Variant("s", self.last_stats),
         }[prop]()
@@ -217,6 +230,21 @@ class Service:
                 inv.return_dbus_error(f"{IFACE}.Error.Project", str(e))
                 return
             inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method in ("JournalOpen", "JournalClose", "JournalEntries", "JournalSetPin", "JournalRead"):
+            try:
+                out = self.journal_call(method, *params.unpack())
+            except (JournalError, OSError, ValueError) as e:
+                inv.return_dbus_error(f"{IFACE}.Error.Journal", str(e))
+                return
+            inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method == "JournalWrite":
+            (private,) = params.unpack()
+            if self.busy or self.journal is None:
+                inv.return_dbus_error(f"{IFACE}.Error.Journal", "still answering" if self.busy else "the journal isn't open")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.journal_write(self.next_id, private)
         elif method in ("WriteUp", "WriteDraft"):
             (arg,) = params.unpack()
             if self.busy:
@@ -279,6 +307,14 @@ class Service:
         return False
 
     def ask(self, rid: int, text: str) -> None:
+        if self.journal is not None:  # the journal is open: the interviewer asks about the person (D55)
+            journal = self.journal
+
+            def interview(on_text, on_action):
+                reply = self.interviewer.reply(journal, text, on_text, self.cancel)
+                return {"tool": "journal", "reply_chars": len(reply)}
+            self.job(rid, interview)
+            return
         if self.project is not None:  # a writing project is open: the writing partner gathers (D54)
             project = self.project
 
@@ -295,6 +331,8 @@ class Service:
 
     # --- writing projects (D54) -------------------------------------------------------------------------
     def project_call(self, method: str, *args):
+        if method in ("ProjectNew", "ProjectOpen"):
+            self.journal = None  # one mode at a time
         if method == "ProjectNew":
             self.project = Project.new(args[0] or "Untitled", "story")
         elif method == "ProjectOpen":
@@ -315,6 +353,49 @@ class Service:
         p = self.project
         return None if p is None else {"title": p.title, "folder": p.folder, "notes": p.notes, "drafts": p.data["drafts"],
                                         "messages": len(p.data["messages"])}
+
+    # --- the journal (D55) -----------------------------------------------------------------------------
+    def journal_call(self, method: str, *args):
+        if method == "JournalOpen":
+            self.project, self.journal = None, Journal()
+            self.changed("Status")
+            return {"entries": len(self.journal.entries()), "has_pin": self.journal.has_pin}
+        if method == "JournalClose":
+            self.journal = None  # today's conversation goes with it: it was never on disk
+            self.changed("Status")
+            return None
+        j = self.journal or Journal()
+        if method == "JournalEntries":
+            return {"entries": j.entries(), "has_pin": j.has_pin}
+        if method == "JournalSetPin":
+            j.set_pin(args[0], args[1])
+            return None
+        return j.read_private(args[0], args[1])  # JournalRead
+
+    def journal_write(self, rid: int, private: bool) -> None:
+        journal = self.journal
+
+        def write(on_text, on_action):
+            import datetime as dt
+            when = dt.datetime.now().astimezone()
+            try:
+                title, text = self.interviewer.entry(journal, when, self.cancel)
+                e = journal.write(title, text, when, private)
+            except JournalError as err:
+                on_text(str(err)[0].upper() + str(err)[1:] + ".")
+                return {"tool": "journal_write", "written": False}
+            on_action("journal", {"private": private}, "done",
+                      json.dumps({k: e[k] for k in ("file", "title", "when", "private", "words")}, ensure_ascii=False))
+            journal.messages.clear()  # written: today's conversation is done
+            if private:
+                on_text(f"Today's entry is written and locked with your PIN ({e['words']} words). Open it from "
+                        "Entries with your PIN; I can't read it while it's locked.")
+            else:
+                self.open_file(e["path"])
+                on_text(f"Today's entry, \"{e['title']}\", is written ({e['words']} words) and open in Writer. It's in "
+                        "Documents/Journal.")
+            return {"tool": "journal_write", "written": True, "private": private}
+        self.job(rid, write)
 
     def write_up(self, rid: int, wish: str) -> None:
         project = self.project
