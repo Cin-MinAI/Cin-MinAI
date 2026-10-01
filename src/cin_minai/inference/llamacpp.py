@@ -319,7 +319,9 @@ class LlamaCppBackend(InferenceBackend):
                 "chat_template_kwargs": {"enable_thinking": False}}
         if sampling:  # writing (writer.py): a little randomness; tool calls stay at the configured temperature
             body.update({k: v for k, v in sampling.items() if k in ("temperature", "top_p", "top_k", "min_p",
-                                                                     "repeat_penalty", "presence_penalty")})
+                                                                     "repeat_penalty", "presence_penalty",
+                                                                     "dry_multiplier", "dry_base", "dry_allowed_length",
+                                                                     "dry_penalty_last_n")})
         if schema:
             body["response_format"] = {"type": "json_schema", "json_schema": {"name": "call", "schema": schema}}
         conn = UnixHTTPConnection(self.sock, float(self.cfg.get("request_timeout_s", 600)))

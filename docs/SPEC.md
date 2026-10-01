@@ -757,6 +757,7 @@ The assistant takes in information for as long as the user wants, then writes it
   minutes; the key fact ("the message is from his younger self") held through notes, outline and draft. While a
   draft is written the daemon keeps the screen awake (the session manager's idle inhibitor): with the screen asleep
   the card stayed in its low power state and ran 6× slower.
+* **Loops (hands-on 2026-10-01, "Grandman Stan"):** a scene repeated whole paragraphs three times, a scene opened with the previous one's ending, and two Chinese characters slipped in. Fixed: llama.cpp's DRY sampler and a light presence penalty while writing, the previous ending marked "already written; begin right after it", and a clean-up pass per scene (a paragraph 85 % the same as an earlier one, or as the previous ending, is dropped; CJK characters removed unless the story is Japanese). The same notes rewritten: 6 repeated paragraphs, 1 echo and 2 CJK characters → 0, 18 pages in 2¼ minutes.
 * **Next:** sources (a shared book read in parts into notes, then e.g. a character analysis), other forms (a movie
   script).
 

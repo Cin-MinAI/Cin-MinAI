@@ -36,6 +36,20 @@ IDEAS = [
 ]
 
 
+def quality(path: str) -> dict:
+    """Repeated paragraphs (the same, or 85 % the same words, as an earlier one), scene openings that repeat
+    the previous scene's ending, and CJK characters in the text."""
+    import html
+    from cin_minai.daemon.writer import CJK, _same
+    xml = subprocess.run(["unzip", "-p", path, "content.xml"], capture_output=True, text=True).stdout
+    paras = [html.unescape(re.sub(r"<[^>]+>", "", p)) for p in re.findall(r"<text:p[^>]*>(.*?)</text:p>", xml)]
+    body = [p for p in paras[1:] if p.strip() != "*   *   *"]
+    repeats = sum(1 for i, p in enumerate(body) if any(_same(p, q) for q in body[:i]))
+    echoes = sum(1 for i, p in enumerate(paras) if i > 1 and paras[i - 1].strip() == "*   *   *" and _same(p, paras[i - 2]))
+    return {"paragraphs": len(body), "words": sum(len(p.split()) for p in body), "repeated_paragraphs": repeats,
+            "scene_openings_repeating_the_last_ending": echoes, "cjk_chars": sum(len(m) for m in CJK.findall(" ".join(body)))}
+
+
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp(prefix="cinminai-writer-")
     cfg = config.load()
@@ -43,12 +57,20 @@ def main() -> int:
     w = Writer(backend.chat)
     cancel = threading.Event()
     try:
-        p = Project.new("The Bottle", root=out)
-        t0 = time.monotonic()
-        for text in IDEAS:
-            reply = w.reply(p, text, lambda t: None, cancel)
-            print(f"> {text}\n  {reply}\n")
-        print(f"gathering: {time.monotonic() - t0:.0f} s\nNOTES:\n{p.notes_text()}\n")
+        if os.environ.get("WRITER_PROJECT"):  # an existing project's notes, on a copy (the original is untouched)
+            import shutil
+            src = os.environ["WRITER_PROJECT"]
+            dst = os.path.join(out, os.path.basename(src.rstrip("/")))
+            shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.odt", ".~lock*"))
+            p = Project.open(dst)
+            print(f"project {p.title!r}, {sum(len(v) for v in p.notes.values())} notes (a copy)\n")
+        else:
+            p = Project.new("The Bottle", root=out)
+            t0 = time.monotonic()
+            for text in IDEAS:
+                reply = w.reply(p, text, lambda t: None, cancel)
+                print(f"> {text}\n  {reply}\n")
+            print(f"gathering: {time.monotonic() - t0:.0f} s\nNOTES:\n{p.notes_text()}\n")
         t0 = time.monotonic()
         outline = w.outline(p)
         print(f"OUTLINE ({time.monotonic() - t0:.0f} s): {outline['chapter_title']}")
@@ -68,6 +90,9 @@ def main() -> int:
             print("PDF conversion failed:", pdf.stderr[-300:])
         txt = subprocess.run(["unzip", "-p", res["file"], "content.xml"], capture_output=True, text=True).stdout
         prose = re.sub(r"<[^>]+>", "\n", txt)
+        print("QUALITY:", json.dumps(quality(res["file"])))
+        if os.environ.get("WRITER_COMPARE"):
+            print("COMPARE (the earlier draft):", json.dumps(quality(os.environ["WRITER_COMPARE"])))
         print("\nFACT CHECK: 'younger self'/'himself'/'his own' in the draft:",
               bool(re.search(r"younger self|himself|his own hand|his own handwriting|young(er)? Elias", prose, re.I)))
         print(f"\nOUT: {out}")

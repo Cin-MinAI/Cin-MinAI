@@ -116,11 +116,23 @@ class Pipeline(unittest.TestCase):
         scenes = [s["messages"][-1]["content"] for s in self.m.sent if "Now write scene" in s["messages"][-1]["content"]]
         self.assertEqual(len(scenes), 6)
         self.assertTrue(all("The message is from his younger self." in s for s in scenes))
-        self.assertNotIn("previous scene ended", scenes[0])
-        self.assertIn("previous scene ended with these words:\n\"Opening of scene 2.", scenes[2])
+        self.assertNotIn("already written", scenes[0])
+        self.assertIn("already written; begin right after them and don't repeat them:\n\"Opening of scene 2.", scenes[2])
         self.assertEqual((res["scenes"], res["stopped"]), (6, False))
         self.assertTrue(os.path.isfile(res["file"]))
         self.assertEqual(self.p.data["drafts"][0]["title"], "The Bottle")
+
+    def test_clean_scene_drops_loops_echoes_and_stray_chinese(self):
+        from cin_minai.daemon.writer import clean_scene
+        loop = "Stan tried once more, pushing with all his might, but the door just wouldn't budge fully."
+        end = "The happy character laughed loudly again, shaking his head at both of them."
+        text = "\n\n".join([end, "A new thing happened at the lanes.", loop, "The friends cheered.",
+                            loop, loop.replace("once more", "again"), "The sound was sharp and清脆 like glass."])
+        out, fixed = clean_scene(text, end, cjk_ok=False)
+        self.assertEqual(out.split("\n\n"), ["A new thing happened at the lanes.", loop, "The friends cheered.",
+                                             "The sound was sharp and like glass."])
+        self.assertEqual(fixed, {"repeats_dropped": 3, "cjk_removed": 1})
+        self.assertIn("清脆", clean_scene("彼は清脆な音を聞いた。", "", cjk_ok=True)[0])  # a Japanese story keeps it
 
     def test_stop_keeps_what_was_written(self):
         cancel = threading.Event()

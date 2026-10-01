@@ -12,6 +12,7 @@ prose or fills a JSON schema; files are written by our code (odt.py), never over
 from __future__ import annotations
 
 import json
+import re
 import threading
 from typing import Callable
 
@@ -20,7 +21,41 @@ from cin_minai.inference.backend import Cancelled
 from . import odt
 from .projects import NOTE_KEYS, Project
 
-WRITE = {"temperature": 0.7, "top_p": 0.9, "repeat_penalty": 1.1}   # prose: a little randomness
+# prose: a little randomness, and llama.cpp's DRY sampler against loops (2026-10-01 "Grandman Stan": scene 1
+# repeated whole paragraphs three times with repeat_penalty alone)
+WRITE = {"temperature": 0.7, "top_p": 0.9, "repeat_penalty": 1.05, "presence_penalty": 0.3,
+         "dry_multiplier": 0.8, "dry_base": 1.75, "dry_allowed_length": 2,
+         "dry_penalty_last_n": 1024}  # -1 ("all") is refused by llama-server v0.5.0's request check: a scene is <1,200
+CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯＀-￯]+")
+
+
+def _words(p: str) -> set[str]:
+    return set(re.findall(r"\w+", p.lower()))
+
+
+def _same(a: str, b: str) -> bool:
+    """Two paragraphs that say the same thing: equal, or 85 % of the same words."""
+    wa, wb = _words(a), _words(b)
+    if not wa or not wb:
+        return a.strip() == b.strip()
+    return len(wa & wb) / max(len(wa), len(wb)) >= 0.85
+
+
+def clean_scene(text: str, previous_end: str, cjk_ok: bool) -> tuple[str, dict]:
+    """What the model wrote, without its loops: paragraphs that repeat an earlier one (or the previous scene's
+    ending, which it was shown) are dropped, and stray Chinese characters in a non-CJK story are removed
+    ("sharp and清脆 like glass", 2026-10-01)."""
+    kept, dropped, cjk = [], 0, 0
+    for p in odt.paragraphs(text):
+        if not cjk_ok and CJK.search(p):
+            cjk += len(CJK.findall(p))
+            p = re.sub(r"\s{2,}", " ", CJK.sub(" ", p)).replace(" ,", ",").replace(" .", ".").strip()
+        if (previous_end and _same(p, previous_end)) or any(_same(p, k) for k in kept):
+            dropped += 1
+            continue
+        if p:
+            kept.append(p)
+    return "\n\n".join(kept), {"repeats_dropped": dropped, "cjk_removed": cjk}
 SCENES = (6, 8)
 WORDS_PER_SCENE = 650          # 8 scenes ~ 5,200 words ~ 520 lines ~ 18 A5 pages (odt.py)
 MAX_LINES = 600                # Ian: "600 lines max"
@@ -128,6 +163,8 @@ class Writer:
               cancel: threading.Event) -> dict:
         """Write the chapter scene by scene into a new .odt in the project folder. on_progress(n, total, what)."""
         scenes, summaries = [], []
+        cleanup: dict[str, int] = {}
+        cjk_ok = bool(CJK.search(project.notes_text() + project.title))  # a Japanese story keeps its script
         total = len(outline["scenes"])
         budget = MAX_LINES
         for n, s in enumerate(outline["scenes"], 1):
@@ -140,14 +177,17 @@ class Writer:
                                          what=s["what_happens"], words=words,
                                          so_far="\n".join(f"Scene {i}: {t}" for i, t in enumerate(summaries, 1))
                                          or "(this is the first scene)",
-                                         last=(f'\nThe previous scene ended with these words:\n"{_last_paragraph(scenes[-1])}"\n'
+                                         last=(f'\nThe story so far ends with these words — already written; begin '
+                                               f'right after them and don\'t repeat them:\n"{_last_paragraph(scenes[-1])}"\n'
                                                if scenes else ""))
             try:
                 text, _ = self.chat([{"role": "user", "content": prompt}], max_tokens=int(words * 1.8), cancel=cancel,
                                     sampling=WRITE)
             except Cancelled:  # Stop mid-scene: keep the scenes already written
                 break
-            text = text.strip()
+            text, fixed = clean_scene(text, _last_paragraph(scenes[-1]) if scenes else "", cjk_ok)
+            for k, v in fixed.items():
+                cleanup[k] = cleanup.get(k, 0) + v
             scenes.append(text)
             budget -= odt.estimate_lines([text])
             if n < total and not cancel.is_set():
@@ -166,4 +206,4 @@ class Writer:
         words = sum(len(t.split()) for t in scenes)
         project.add_draft(path, outline["chapter_title"], words)
         return {"file": path, "scenes": len(scenes), "of": total, "words": words, "lines": odt.estimate_lines(scenes),
-                "stopped": cancel.is_set()}
+                "stopped": cancel.is_set(), **cleanup}
