@@ -14,8 +14,10 @@ model's story: `docs/guide-model-journal.md`.
   6.14.0-37 works with the NVIDIA 580 driver and the assistant on the GPU; **under kernel 7.0.0-34 this old SSD's
   SATA link fails under load** (4 MiB writes, `ICRC ABRT`) and the driver fails at startup (zeros in the cached
   module; the file on disk is fine, `modprobe` by hand works) — journal 2026-09-29/30. Left on the SSD system for
-  the tests: `openssh-server`, the `cinminai_ssdtest` key, `/etc/sudoers.d/cinminai-test`. The NVMe and Windows
-  drives are unplugged; Ian reconnects them.
+  the tests: `openssh-server`, the `cinminai_ssdtest` key, `/etc/sudoers.d/cinminai-test`. **Now on the 6.8
+  long-term kernel only** (`linux-generic`, 6.8.0-146; switched by Ian in Update Manager, 7.0 and 6.14 removed):
+  driver loads, 0 link errors. The NVMe (Ian's Mint) and the Windows 7 drive stay unplugged until this release is
+  done; the Windows 7 drive is for another project of Ian's.
 - **On the Mint box's own Mint** (user `mint`): the test assistant from `~/cin-minai/alpha/` — our panel icon
   and Super+A are installed in Ian's user (undo: `~/cin-minai/alpha/applet-test/undo-applet-test.sh`); the
   M0 spike's applet and keybinding are uninstalled. `~/cin-minai/` also holds the eval, models and builds.
