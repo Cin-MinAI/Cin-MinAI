@@ -129,6 +129,14 @@ Also open in M1 (smaller):
 
 ## Cycle 1 list (the guide, next model cycle)
 
+**Ian's test runs on the installed system (2026-09-30): "it wasn't much help with troubleshooting and it
+wouldn't fill in spreadsheets."** (1) *"Make a spreadsheet for monthly expenses with a list of expenses that
+lets me add up the total spent each month"* — declined. Expected before D20's toolkit: say what it can't do
+yet, open Calc (`open_app`), walk through it (Date / Item / Amount; a total per month with `SUMIFS`, or a
+sheet per month with `SUM`), "works like Excel"; after D20: build it with a preview, one Ctrl+Z. (2) Tonight's
+kernel 7.0 fault: the guide sees only `inspect_system`, not the kernel log, dkms, SMART or link errors — D51's
+`diagnose` tool is the fix; the case becomes a test. Both into the eval and the training sessions.
+
 Complaint-style how-tos → `lookup_help` in the sessions (the held-out transition loss); formulas in a cell
 the user names; German numbered steps; report turns "what it means + offer the action"; the vague set scores
 0 % for every model — fix the set; Gemma: keep per-layer embeddings off the GPU, then tune; a new held-out
