@@ -31,8 +31,10 @@ class Matcher(unittest.TestCase):
 
     def test_1080ti_desktop_on_the_card(self):
         r = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))
-        self.assertEqual(r["coding"]["file"], "Qwen3.6-35B-A3B-Q4_K_M.gguf")  # the 27B no longer fits
-        self.assertIn("--n-cpu-moe", r["coding"]["args"])
+        # the 27B no longer fits whole: a near-fit, a few layers' feed-forward weights in RAM (12.9 tok/s with one)
+        self.assertEqual(r["coding"]["file"], "Qwen3.8-27B-UD-IQ3_XXS.gguf")
+        self.assertIn("-ot", r["coding"]["args"])
+        self.assertIn("feed-forward weights in RAM", r["coding"]["mode"])
 
     def test_8gb_card_16gb_ram(self):
         r = match(machine("NVIDIA GeForce RTX 3060 Ti", 8192, 7600, ram=16, avail=12))

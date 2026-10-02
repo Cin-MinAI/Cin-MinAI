@@ -136,13 +136,15 @@ def read_machine(devices: list | None = None, models_dir: str | None = None) -> 
         devices = LlamaCppBackend({"server_dir": os.environ.get("CINMINAI_LLAMA_DIR", "/usr/lib/cinminai/llama")},
                                   lambda m: None).list_devices()
     ours = own_server_mib()  # our own model comes off the card when the model is switched: count it as free
+    desk = desktop_mib()
     seen, cards = set(), []
     for api, name, total, free in devices:  # one card shows as CUDA and Vulkan: CUDA first
         free = min(total, free + ours) if api.startswith("CUDA") else free
         if name in seen:
             continue
         seen.add(name)
-        cards.append({"name": name, "api": api, "total_mib": total, "free_mib": free})
+        cards.append({"name": name, "api": api, "total_mib": total, "free_mib": free,
+                      **({"desktop_mib": desk} if api.startswith("CUDA") and desk is not None else {})})
     mem = dict(re.findall(r"^(\w+):\s+(\d+)", open("/proc/meminfo").read(), re.M)) if os.path.exists("/proc/meminfo") else {}
     flags = open("/proc/cpuinfo").read() if os.path.exists("/proc/cpuinfo") else ""
     from .hardware import physical_cores
@@ -156,8 +158,24 @@ def _compute(weights: int) -> int:
 
 
 def margin_mib(card: dict) -> int:
-    # a 4K desktop drawn on the card used 830+ MiB; offloaded to the board's graphics ~680 (Xorg's buffers + CUDA)
-    return 600 if card["total_mib"] - card["free_mib"] > 800 else 200
+    """Room for the desktop to grow: 600 MiB when it's drawn on this card, 200 when it's offloaded. From the
+    graphics processes nvidia-smi reports when known (4K drawn on the card: Xorg + Cinnamon ~830 MiB; offloaded to
+    the board's graphics ~350): llama.cpp's "used" also counts its own CUDA context (after a reboot: 872)."""
+    desktop = card.get("desktop_mib")
+    if desktop is None:
+        desktop = card["total_mib"] - card["free_mib"] - 250
+    return 600 if desktop > 500 else 200
+
+
+def desktop_mib() -> int | None:
+    """Graphics memory of the desktop's processes on the NVIDIA card (type G in nvidia-smi), or None."""
+    import subprocess
+    try:
+        out = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    found = [int(m) for m in re.findall(r"\s+G\s+\S.*?(\d+)MiB\s*\|", out)]
+    return sum(found) if found else (0 if "Processes" in out else None)
 
 
 def room_mib(card: dict) -> int:
@@ -193,6 +211,19 @@ def plan(m: Model, machine: Machine, ctx: int) -> dict | None:
                             "args": ["-ngl", "99", "--n-cpu-moe", str(n)], "card_gb": on_card / GiB,
                             "ram_gb": in_ram / GiB, "tok_s": 1 / t}
             return None
+        # a near-fit, dense: the feed-forward weights of the last 1-8 layers in RAM, everything else on the card
+        # (Qwen3.8-27B IQ3_XXS: 12.9 tok/s with one layer's in RAM, 14.1 with none, 2026-10-02)
+        if not m.experts:
+            ffn = 0.75 * card_w / m.layers
+            for k in range(1, 9):  # 1-8: each in RAM costs ~1 tok/s on DDR3
+                need = card_w - k * ffn + m.kv4 * ctx + COMPUTE_TIGHT
+                if need <= room:
+                    t = (card_w - k * ffn) / (K_GPU * bw * 1e9) + k * ffn / (K_RAM * machine.ram_bw_gbs * 1e9)
+                    last = "|".join(str(m.layers - 2 - i) for i in range(k))  # the last real layers (one is output)
+                    return {"mode": f"on the card, {k} layer{'s' if k > 1 else ''}' feed-forward weights in RAM",
+                            "cache": "q4_0", "args": ["-ngl", "99", "-ub", "256", "-ot",
+                                                      rf"blk\.({last})\.ffn_(up|gate|down).*=CPU"],
+                            "card_gb": need / GiB, "ram_gb": (m.emb + k * ffn) / GiB, "tok_s": 1 / t}
         if m.partial_ok:
             per = m.weights / m.layers
             n = int((room - m.kv8 * ctx - _compute(m.weights)) // per)

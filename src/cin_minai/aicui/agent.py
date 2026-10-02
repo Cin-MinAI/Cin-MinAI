@@ -252,12 +252,20 @@ def local_backend(say=print):
     from cin_minai.inference import matcher
     from cin_minai.inference.llamacpp import LlamaCppBackend
     store = ModelStore()
-    plan = store.in_use("coding") or matcher.match(matcher.read_machine(models_dir=store.root)).get("coding")
+    machine = matcher.read_machine(models_dir=store.root)
+    plan = store.in_use("coding") or matcher.match(machine).get("coding")
     if not plan:
         raise SystemExit("No coding model in our list runs on this computer.")
-    if not store.has(plan["file"]):
-        raise SystemExit(f"The coding model for this computer is {plan['model']} ({plan['size'] / 2**30:.1f} GB). "
-                         "It isn't downloaded yet: AICUI's model selection will offer it.")
+    if not store.has(plan["file"]):  # the best one you already have that runs here, and say what else there is
+        have = [(m, p) for m in matcher.CATALOG["coding"] if store.has(m.file)
+                for p in [matcher.plan(m, machine, matcher.CONTEXT["coding"])] if p]
+        if not have:
+            raise SystemExit(f"The coding model for this computer is {plan['model']} ({plan['size'] / 2**30:.1f} GB). "
+                             "It isn't downloaded yet: AICUI's model selection will offer it.")
+        say(f"[2m(The best fit here would be {plan['model']}, not downloaded; using the one you have.)[0m")
+        m, p = have[0]
+        plan = {"model": m.name, "file": m.file, **p, "context": matcher.CONTEXT["coding"],
+                "reserve_mib": matcher.margin_mib(machine.cards[0]) if machine.cards else 0}
     subprocess.run(["gdbus", "call", "--session", "--dest", "org.cinminai.Assistant1", "--object-path",
                     "/org/cinminai/Assistant1", "--method", "org.cinminai.Assistant1.Unload"],
                    capture_output=True, timeout=20)
