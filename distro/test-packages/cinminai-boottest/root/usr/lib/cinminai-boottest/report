@@ -116,7 +116,7 @@ for task, p in r.items():
     print("matcher_%s %s" % (task, json.dumps(p and {k: p[k] for k in ("file", "mode", "tok_s", "args")})))
 EOF
 )
-while IFS= read -r line; do say "$line"; done <<< "$matcher"
+printf '%s\n' "$matcher" | while IFS= read -r line; do say "$line"; done  # sh (dash): no <<<
 if [ "$mode" = installed ]; then
     # the installer's hook (cinminai-guide-model) copied the model from the stick, checked
     . /usr/share/cinminai/models/guide.manifest
