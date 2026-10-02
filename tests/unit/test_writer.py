@@ -414,6 +414,13 @@ class Circle(unittest.TestCase):
         self.assertEqual(rows, [("you", 'You (written): w — "He sat."', True)])
         self.assertNotIn("The story circle:", words.review_lines({"steps": {}, "chapter": 1}, steps=False))
 
+    def test_chapter_titles_a_reader_would_see(self):
+        from cin_minai.daemon.writer import clean_title
+        self.assertEqual(clean_title("Chapter 2: The Warning", "X", True), "The Warning")
+        self.assertEqual(clean_title("Into the Deep (Go, Search)", "X", True), "Into the Deep")
+        self.assertEqual(clean_title("Missed the Moon - Chapter 1: You, Need, Go", "Missed the Moon", True), "")
+        self.assertEqual(clean_title("The Return and the Change", "X", False), "The Return and the Change")
+
     def test_sidebar_words(self):
         from cin_minai.sidebar import words
         o = self.w.outline(self.p)

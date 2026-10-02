@@ -136,7 +136,7 @@ NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": lis
 NOTES_PROMPT = """Take notes for a writer. The user is the writer: what they say about themselves or their \
 plans ("I want to write a book", "chapter one") is not part of the story. From the user's latest message only, \
 list what's NEW for the story, in short sentences, in the user's language: facts (things that are true in the \
-story's world), characters (name, who they are, and whose side they're on), places, ideas (things they want in \
+story's world), characters (name, he/she/they as the writer calls them, who they are, and whose side they're on), places, ideas (things they want in \
 it, and how it should feel: tone, mood, humour). Leave a list empty when the message has nothing for it. Don't \
 repeat what's already noted, and don't invent anything.
 
@@ -164,7 +164,7 @@ Harmon's Story Circle, eight steps:
 {circle}
 {scope} For each step, give {per_step}: a short title and two or three sentences on what happens in it. Use \
 the writer's notes: every fact in them stays true, and every character keeps who they are and whose side \
-they're on, unless the writer changes it. Each scene moves the story forward; never retell what an earlier scene \
+they're on, unless the writer changes it. The chapter title is one a reader would see: never the steps' names. Each scene moves the story forward; never retell what an earlier scene \
 or chapter already told.
 
 {notes}
@@ -322,6 +322,24 @@ def outline_schema(steps: tuple[str, ...], lo: int, hi: int) -> dict:
                            "steps": {"type": "object", "additionalProperties": False, "required": list(steps),
                                      "properties": {k: {"type": "array", "minItems": lo, "maxItems": hi, "items": scene}
                                                     for k in steps}}}}
+
+
+STEP_LIST = re.compile(r"\s*[:\-–—(]\s*(?:" + "|".join(n for _, n, _, _ in CIRCLE) + r")(?:\s*(?:,|and|&)\s*(?:"
+                       + "|".join(n for _, n, _, _ in CIRCLE) + r"))*\s*\)?\s*$", re.I)
+
+
+def clean_title(title: str, project_title: str, numbered: bool) -> str:
+    """A title a reader sees: without the project's name in front, our chapter number, or a list of the circle's
+    steps ("Missed the Moon - Chapter 1: You, Need, Go", Qwen3-14B, 2026-10-02)."""
+    t = title.strip()
+    if project_title and t.lower().startswith(project_title.lower()):
+        t = t[len(project_title):].lstrip(" -–—:")
+    if numbered:
+        t = CHAPTER_WORD.sub("", t)
+    t = STEP_LIST.sub("", t).strip(" -–—:")
+    if re.fullmatch(STEP_LIST.pattern.replace(r"\s*[:\-–—(]\s*", "", 1), t, re.I):
+        return ""  # nothing but the steps' names: the caller uses the first scene's title
+    return t or title.strip()
 
 
 def scenes_per_step(steps: int, whole: bool = False) -> tuple[int, int]:
@@ -511,8 +529,8 @@ class Writer:
         raw, _ = self.chat([{"role": "user", "content": prompt}], schema=outline_schema(steps, lo, hi),
                            max_tokens=1400, cancel=cancel)
         plan = json.loads(raw)
-        if chapter:  # we number the chapters: "Chapter 1: The Warning" became "Chapter 1 — Chapter 1 The Warning"
-            plan["chapter_title"] = CHAPTER_WORD.sub("", plan["chapter_title"]).strip() or plan["chapter_title"]
+        first = next((s["title"] for k in steps for s in plan["steps"].get(k, [])), "")
+        plan["chapter_title"] = clean_title(plan["chapter_title"], project.title, bool(chapter)) or first or project.title
         scenes = [{**s, "step": k, "step_name": STEP[k]["name"]} for k in steps for s in plan["steps"].get(k, [])]
         return {"chapter_title": plan["chapter_title"], "chapter": chapter, "of": project.data["chapters"] if chapter else None,
                 "steps": list(steps), "scenes": scenes[:MAX_SCENES]}
