@@ -1930,5 +1930,21 @@ Cloud providers connect per D35: OAuth sign-in through the web browser where the
 key, stored in the keyring; the CLOUD indicator shows it. The model can be switched while the AI is idle; some context
 is lost in the switch (the goals, the changelog and a summary carry over) — "let's see how that goes".
 
-**Open (to settle while building):** where the changelog sits in the layout; whether the terminal can also host other
-agents' command-line tools (Claude Code, Codex) next to ours; the first cloud providers and their terms for OAuth use.
+**Settled (Ian, 2026-10-02):**
+- *The changelog's place:* a button at the bottom of the Working tree pane switches the pane to the changelog; it
+  minimizes back to the tree.
+- *Multiple models:* local alone, cloud alone, or **both together** — to save cloud tokens: by default the local model
+  does the volume (reading and searching the project, routine edits, running tests, summarizing output) and the cloud
+  model the judgement (planning, the hard bug, review); roles adjustable per session. Both share the goals and the
+  changelog, so the cloud model is sent only what it needs. Any cloud model can run alone too; the terminal can also
+  run other agents' command-line tools (Claude Code, Codex), whose file changes the changelog records like ours.
+- *Claude first:* an **API key** button (one paste, into the keyring) — the API's intended use. An **OAuth** button only
+  if Anthropic's terms allow a third-party app to sign in with a Claude account; then it launches their sign-in in the
+  browser however they specify. Checked before it's built; until then, the key covers it.
+- *GitHub for syncing:* sign-in through GitHub's official OAuth **device flow** (a short code confirmed in the browser)
+  or a pasted token, in the keyring; git uses it through the system's credential helper.
+- *The changelog is git under the hood, never in the user's history:* a **shadow git store** per project (in
+  `.cinminai/` beside the project's files) keeps a snapshot of every AI change with its model, its goal and its diff;
+  undo restores the file exactly; it works in folders that aren't git repositories. AICUI never commits, stages or
+  pushes in the user's own repository by itself; when a goal is done it **offers** a real commit of that goal's changes
+  with a drafted message to approve or edit (D30), pushed through the GitHub sign-in.
