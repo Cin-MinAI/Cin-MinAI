@@ -103,6 +103,20 @@ applet_debug=$(as_user gdbus call --session --dest org.Cinnamon --object-path /o
 say "applet_debug $applet_debug"
 grep -i "cinminai" "/home/$live_user/.xsession-errors" 2>/dev/null | tail -8 | while read -r l; do say "cinnamon_log $l"; done
 say "hotkey $hotkey list $(as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null)"
+# the system matcher (D60, M5): what it reads of this machine and the model it plans per task
+matcher=$(timeout 120 python3 - <<'EOF' 2>&1
+import json
+from cin_minai.inference import matcher
+m = matcher.read_machine()
+r = matcher.match(m)
+print("matcher_machine cards=%s ram=%.0f/%.0fGB cores=%d avx2=%s ram_bw=%s disk=%.0fGB" % (
+    [(c["name"], c["free_mib"]) for c in m.cards], m.ram_total_gib, m.ram_avail_gib, m.cores, m.avx2, m.ram_bw_gbs,
+    m.disk_free_gib))
+for task, p in r.items():
+    print("matcher_%s %s" % (task, json.dumps(p and {k: p[k] for k in ("file", "mode", "tok_s", "args")})))
+EOF
+)
+while IFS= read -r line; do say "$line"; done <<< "$matcher"
 if [ "$mode" = installed ]; then
     # the installer's hook (cinminai-guide-model) copied the model from the stick, checked
     . /usr/share/cinminai/models/guide.manifest
@@ -128,6 +142,10 @@ case $applet_live in *"running true"*) ;; *) say "check_failed applet: not showi
 case $ask in *'"lookup_help"'*) ;; *) say "check_failed assistant: no help lookup"; res=FAIL ;; esac
 case $ask in *'Software Manager'*) ;; *) say "check_failed assistant: reply without Software Manager"; res=FAIL ;; esac
 dpkg-query -W cinminai-desktop >/dev/null 2>&1 || res=FAIL
+# the matcher on a VM without a usable graphics card: the guide on the processor, and still a writing model
+case $matcher in *'matcher_help {"file": "Qwen3.5-4B-guide-HO-Q4_K_M.gguf", "mode": "on the processor"'*) ;;
+    *) say "check_failed matcher: help not planned as the guide on the processor"; res=FAIL ;; esac
+case $matcher in *'matcher_writing {"file"'*) ;; *) say "check_failed matcher: no writing model"; res=FAIL ;; esac
 # regression checks for the branding (each broke or was missing once on 2026-09-27)
 check() { [ "$2" = "$3" ] || { say "check_failed $1: got $2, want $3"; res=FAIL; }; }
 check wallpaper "$(gsettings get org.cinnamon.desktop.background picture-uri 2>/dev/null)" "'file:///usr/share/backgrounds/cinminai/data-stream.jpg'"

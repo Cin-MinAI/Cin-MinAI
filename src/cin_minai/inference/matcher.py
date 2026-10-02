@@ -188,7 +188,8 @@ def plan(m: Model, machine: Machine, ctx: int) -> dict | None:
                         "args": ["-ngl", str(n)], "card_gb": room / GiB, "ram_gb": (m.layers - n) * per / GiB,
                         "tok_s": 1 / t}
         return None
-    if m.weights + m.kv8 * ctx <= ram_room and m.weights <= 6 * GiB:  # the processor: small models only
+    cpu_room = (machine.ram_avail_gib - 1) * GiB  # mapped from the file: the page cache holds it (8 GB live VM)
+    if m.weights + m.kv8 * ctx <= cpu_room and m.weights <= 6 * GiB:  # the processor: small models only
         return {"mode": "on the processor", "cache": "q8_0", "args": ["--device", "none"], "card_gb": 0,
                 "ram_gb": m.weights / GiB, "tok_s": K_RAM * machine.ram_bw_gbs * 1e9 / m.weights}
     return None

@@ -43,6 +43,10 @@ class Matcher(unittest.TestCase):
         r = match(machine("NVIDIA GeForce GTX 1060 6GB", 6144, 5600, ram=32, avail=28, bw=5))
         self.assertEqual(r["coding"]["file"], "Qwen3.6-35B-A3B-Q4_K_M.gguf")
 
+    def test_the_boot_test_vm(self):  # 8 GB, about 5 free in the live session: the guide still runs there
+        r = match(machine(None, ram=8, avail=5, bw=5))
+        self.assertEqual((r["help"]["file"], r["help"]["mode"]), ("Qwen3.5-4B-guide-HO-Q4_K_M.gguf", "on the processor"))
+
     def test_no_graphics_card(self):
         r = match(machine(None, ram=16, avail=12, bw=5))
         self.assertEqual(r["help"]["mode"], "on the processor")
