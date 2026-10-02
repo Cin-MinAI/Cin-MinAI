@@ -24,13 +24,14 @@ import os
 import queue
 import re
 import signal
+import struct
 import socket
 import subprocess
 import threading
 import time
 from typing import Callable
 
-from . import hardware
+from . import gguf, hardware
 from .backend import BackendError, Cancelled, InferenceBackend, Status
 
 SERVER_DIR = "/usr/lib/cinminai/llama"
@@ -267,6 +268,12 @@ class LlamaCppBackend(InferenceBackend):
                 self._status = Status("error", self.model_name(), detail=f"the model file is missing: {model}")
                 raise BackendError("The assistant's model isn't installed on this computer.")
             size = os.path.getsize(model)
+            try:  # the model's own numbers (gguf.py); the old estimate if the file can't be read
+                meta = gguf.read(model)
+                cpu_moe = gguf.cpu_moe_layers(self.cfg.get("extra_args", []))
+                need_for = lambda ctx: gguf.need_mib(meta, ctx, "q8_0", cpu_moe)  # noqa: E731
+            except (OSError, ValueError, KeyError, struct.error, UnicodeDecodeError):
+                need_for = lambda ctx: need_mib(size, ctx)  # noqa: E731
             steps = self.ladder()
             devices = self.list_devices() if any(p.build != "cpu" for p in steps) else []
             # the desktop's share (SPEC §4.2), or the user's own figure (settings: desktop_reserve_mib)
@@ -280,7 +287,7 @@ class LlamaCppBackend(InferenceBackend):
                     continue
                 if p.build != "cpu":
                     free = self.free_mib(p, devices)
-                    need = need_mib(size, p.context)
+                    need = need_for(p.context)
                     if free is not None and free - reserve < need:
                         self.log(f"skip {p.build} {p.context}: {free} MiB free - {reserve} reserve < {need} needed")
                         continue
