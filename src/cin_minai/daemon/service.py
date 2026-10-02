@@ -23,7 +23,7 @@ from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
 from . import config, manuscript, selfupdate
-from .models import Cancelled as DownloadStopped, ModelStore, benchmark
+from .models import Cancelled as DownloadStopped, ModelStore, backend_cfg, benchmark
 from cin_minai.inference import matcher
 from cin_minai.inference.llamacpp import LlamaCppBackend
 from .projects import CIRCLE, ROOT as PROJECTS, Project
@@ -453,23 +453,7 @@ class Service:
 
     # --- the writing model (D60) ----------------------------------------------------------------------------
     def writing_cfg(self, plan: dict) -> dict:
-        """The backend settings for the chosen model: the matcher's plan, minus what the backend sets itself."""
-        base = dict(config.load()["inference"])
-        args, extra, i = list(plan.get("args", [])), [], 0
-        own = {"-c": 1, "-fa": 1, "-ctk": 1, "-ctv": 1}
-        while i < len(args):
-            a = args[i]
-            if a in own or (a == "-ngl" and i + 1 < len(args) and args[i + 1] == "99"):
-                i += 2
-                continue
-            extra.append(a)
-            i += 1
-        base.update(model=self.store.path(plan["file"]), model_name=plan["model"], context=int(plan.get("context", 8192)),
-                    cache_type=plan.get("cache", "q8_0"), extra_args=extra,
-                    desktop_reserve_mib=int(plan.get("reserve_mib") or 0))
-        if plan.get("mode") == "on the processor":
-            base["build"] = "cpu"
-        return base
+        return backend_cfg(config.load()["inference"], plan, self.store.path(plan["file"]))
 
     def writing_chat(self, messages, **kw):
         plan = self.store.in_use("writing")

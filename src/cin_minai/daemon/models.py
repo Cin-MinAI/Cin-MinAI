@@ -131,6 +131,26 @@ class ModelStore:
         return h.hexdigest() == sha256
 
 
+def backend_cfg(base: dict, plan: dict, model_path: str) -> dict:
+    """LlamaCppBackend settings for a matcher plan: its args, minus what the backend sets itself (context, flash
+    attention, cache type, full offload), plus its context, cache type and desktop margin."""
+    args, extra, i = list(plan.get("args", [])), [], 0
+    own = {"-c", "-fa", "-ctk", "-ctv"}
+    while i < len(args):
+        a = args[i]
+        if a in own or (a == "-ngl" and i + 1 < len(args) and args[i + 1] == "99"):
+            i += 2
+            continue
+        extra.append(a)
+        i += 1
+    cfg = dict(base)
+    cfg.update(model=model_path, model_name=plan.get("model", ""), context=int(plan.get("context", 8192)),
+               cache_type=plan.get("cache", "q8_0"), extra_args=extra, desktop_reserve_mib=int(plan.get("reserve_mib") or 0))
+    if plan.get("mode") == "on the processor":
+        cfg["build"] = "cpu"
+    return cfg
+
+
 def benchmark(chat: Callable, tokens: int = 120) -> float:
     """Generation speed with the model loaded (tokens a second), from llama-server's own timings."""
     _, timings = chat([{"role": "user", "content": "Write a short paragraph about an old lighthouse at dusk."}],

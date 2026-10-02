@@ -10,6 +10,7 @@ selection. The agent (cinminai-code), the changelog's shadow git store and the c
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -20,6 +21,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Vte", "2.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 
+from .changelog import Changelog  # noqa: E402
 from .project import Goals, project_root, tree  # noqa: E402
 
 TITLE = "AICUI"
@@ -50,13 +52,13 @@ def scrolled(child: Gtk.Widget) -> Gtk.ScrolledWindow:
 class Workspace(Gtk.ApplicationWindow):
     def __init__(self, app: Gtk.Application, root: str) -> None:
         super().__init__(application=app, title=f"{TITLE} — {os.path.basename(root) or root}")
-        self.root, self.goals = root, Goals(root)
+        self.root, self.goals, self.log = root, Goals(root), Changelog(root)
         self.set_default_size(1700, 960)
 
         # left: chat history (thinking will stream in and collapse into bubbles, slice 4)
         self.chat = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.bubble("ai", f"Working in {root}. The terminal on the right is a real one; the coding agent arrives in the "
-                          "next slice. Add the session's goals in the middle, or tell me about the project here.")
+        self.bubble("ai", f"Working in {root}. The coding agent runs in the terminal on the right and asks there before "
+                          "it changes anything. Tell it about the project here or there; goals go in the middle.")
         left = titled("Chat history", scrolled(self.chat))
 
         # middle: the working tree, with the changelog behind a button at its bottom
@@ -70,8 +72,7 @@ class Workspace(Gtk.ApplicationWindow):
         view.connect("row-activated", self.open_file)
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.stack.add_named(scrolled(view), "files")
-        self.changes = Gtk.Label(label="No AI changes yet. Every file the AI changes will be listed here, with what "
-                                       "changed and an undo.", wrap=True, xalign=0, yalign=0, margin=8)
+        self.changes = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)  # newest first, each with its diff + undo
         self.stack.add_named(scrolled(self.changes), "changes")
         self.swap = Gtk.Button(label="Changelog")
         self.swap.connect("clicked", self.toggle_changelog)
@@ -101,10 +102,16 @@ class Workspace(Gtk.ApplicationWindow):
         # right: the AI terminal, a real one in the project folder
         self.term = Vte.Terminal()
         self.term.set_scrollback_lines(10000)
-        self.term.spawn_async(Vte.PtyFlags.DEFAULT, root, [os.environ.get("SHELL", "/bin/bash")],
-                              [f"CINMINAI_PROJECT={root}"], GLib.SpawnFlags.DEFAULT, None, None, -1, None, None, None)
+        env = [f"CINMINAI_PROJECT={root}"] + ([f"PYTHONPATH={os.environ['PYTHONPATH']}"]
+                                              if os.environ.get("PYTHONPATH") else [])
+        # the agent starts in the terminal; leaving it (Ctrl+D) leaves a normal shell in the project folder
+        shell = os.environ.get("SHELL", "/bin/bash")
+        self.term.spawn_async(Vte.PtyFlags.DEFAULT, root, [shell, "-c", f"{self.agent_command()}; exec {shell}"],
+                              env, GLib.SpawnFlags.DEFAULT, None, None, -1, None, None, None)
         self.term.connect("child-exited", lambda *a: self.bubble("ai", "The terminal's shell ended. Open the folder "
                                                                        "again to get a new one."))
+        self.events_at = os.path.getsize(self.events_path()) if os.path.exists(self.events_path()) else 0
+        GLib.timeout_add(400, self.follow_events)
         right = titled("AI terminal", self.term)
 
         inner = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -123,9 +130,21 @@ class Workspace(Gtk.ApplicationWindow):
         self.model.append("local", "Local: the best model for this computer")
         self.model.append("claude", "Claude (connect in slice 5)")
         self.model.set_active_id("local")
+        # permissions are the user's (SPEC §21): ask (default), auto for this session, none (behind a warning); admin
+        self.perms = Gtk.ComboBoxText()
+        for key, label in (("ask", "Ask before changes"), ("auto", "Auto (this session)"),
+                           ("none", "No permissions (not advised)")):
+            self.perms.append(key, label)
+        self.perms.set_active_id("ask")
+        self.perms_id = self.perms.connect("changed", self.restart_agent)
+        self.admin = Gtk.CheckButton(label="Admin")
+        self.admin.set_tooltip_text("Let the AI ask for administrator commands")
+        self.admin.connect("toggled", self.restart_agent)
         bottom = Gtk.Box(spacing=6, margin=6)
         bottom.pack_start(self.entry, True, True, 0)
         bottom.pack_end(self.model, False, False, 0)
+        bottom.pack_end(self.admin, False, False, 0)
+        bottom.pack_end(self.perms, False, False, 0)
 
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         page.pack_start(outer, True, True, 0)
@@ -133,8 +152,73 @@ class Workspace(Gtk.ApplicationWindow):
         self.add(page)
         self.load_tree()
         self.load_goals()
+        self.load_changes()
+
+    # --- the agent in the terminal -----------------------------------------------------------------------
+    def agent_command(self) -> str:
+        mode = self.perms.get_active_id() if hasattr(self, "perms") else "ask"
+        flags = {"auto": " --auto", "none": " --no-permissions"}.get(mode, "")
+        if hasattr(self, "admin") and self.admin.get_active():
+            flags += " --admin"
+        return f"{sys.executable} -m cin_minai.aicui.agent{flags} {GLib.shell_quote(self.root)}"
+
+    def restart_agent(self, widget) -> None:
+        """A new permission mode: leave the agent (Ctrl+D), start it again with the new flags."""
+        if widget is self.perms and self.perms.get_active_id() == "none":
+            d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.WARNING,
+                                  buttons=Gtk.ButtonsType.OK_CANCEL, text="Work without any permissions?")
+            d.format_secondary_text("The AI will change files and run commands without asking, outside the sandbox. "
+                                    "This is strongly advised against until you have tested how stable this model is "
+                                    "on this kind of work. Don't risk anything you aren't willing to lose.")
+            ok = d.run() == Gtk.ResponseType.OK
+            d.destroy()
+            if not ok:
+                with self.perms.handler_block(self.perms_id):
+                    self.perms.set_active_id("ask")
+                return
+        self.term.feed_child(b"\x04")
+        GLib.timeout_add(1500, lambda: (self.term.feed_child((self.agent_command() + "\n").encode()), False)[1])
+
+    def events_path(self) -> str:
+        return os.path.join(self.root, ".cinminai", "events.jsonl")
+
+    def follow_events(self) -> bool:
+        """The agent's event lines → the chat history, the changelog, the goals (and the tree after a change)."""
+        try:
+            with open(self.events_path(), encoding="utf-8") as f:
+                f.seek(self.events_at)
+                lines = f.readlines()
+                self.events_at = f.tell()
+        except OSError:
+            return True
+        for line in lines:
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e["kind"] == "user":
+                self.bubble("user", e.get("text", ""))
+            elif e["kind"] == "thinking":
+                self.thought(e.get("text", ""))
+            elif e["kind"] == "answer":
+                self.bubble("ai", e.get("text", ""))
+            elif e["kind"] == "change":
+                self.load_changes()
+                self.load_tree()
+            elif e["kind"] == "goals":
+                self.load_goals()
+        return True
 
     # --- chat --------------------------------------------------------------------------------------------
+    def thought(self, text: str) -> None:
+        """The model's thinking: a bubble that stays collapsed, to open when you want to see how it got there."""
+        exp = Gtk.Expander(label="Thought")
+        exp.add(Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48))
+        exp.get_style_context().add_class("bubble-ai")
+        row = Gtk.ListBoxRow(activatable=False)
+        row.add(exp)
+        self.chat.add(row)
+        row.show_all()
     def bubble(self, who: str, text: str) -> None:
         label = Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48)
         label.get_style_context().add_class("bubble-user" if who == "user" else "bubble-ai")
@@ -145,11 +229,39 @@ class Workspace(Gtk.ApplicationWindow):
 
     def send(self, entry: Gtk.Entry) -> None:
         text = entry.get_text().strip()
-        if text:
-            self.bubble("user", text)
+        if text:  # typed into the terminal, where the agent reads it (the chat shows it from the agent's events)
             entry.set_text("")
-            self.bubble("ai", "(The coding agent arrives in the next slice: it will run in the terminal on the right, "
-                              "ask there before it changes anything, and log every change.)")
+            self.term.feed_child((" ".join(text.splitlines()) + "\n").encode())
+
+    def load_changes(self) -> None:
+        for child in self.changes.get_children():
+            child.destroy()
+        entries = list(reversed(self.log.entries()))
+        if not entries:
+            self.changes.add(Gtk.Label(label="No AI changes yet. Every file the AI changes is listed here, with what "
+                                             "changed and an undo.", wrap=True, xalign=0, margin=8))
+        for e in entries:
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin=4)
+            head = Gtk.Box(spacing=4)
+            head.pack_start(Gtk.Label(label=f"{e['file']}  +{e['added']} −{e['removed']}"
+                                            + ("  (undone)" if e.get("undone") else ""), xalign=0), True, True, 0)
+            if not e.get("undone"):
+                undo = Gtk.Button(label="Undo")
+                undo.connect("clicked", lambda b, eid=e["id"]: (self.log.undo(eid), self.load_changes(),
+                                                               self.load_tree()))
+                head.pack_end(undo, False, False, 0)
+            box.pack_start(head, False, False, 0)
+            meta = Gtk.Label(label=f"{e['time'][11:16]} · {e.get('model', '')}" + (f" · {e['goal']}" if e.get("goal") else ""),
+                             xalign=0, wrap=True)
+            meta.get_style_context().add_class("dim-label")
+            box.pack_start(meta, False, False, 0)
+            diff = Gtk.Expander(label="What changed")
+            view = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.NONE)
+            view.get_buffer().set_text(self.log.diff(e)[:20000])
+            diff.add(view)
+            box.pack_start(diff, False, False, 0)
+            self.changes.add(box)
+        self.changes.show_all()
 
     # --- the working tree and the changelog ------------------------------------------------------------------
     def load_tree(self) -> None:

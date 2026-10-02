@@ -108,7 +108,7 @@ class LlamaCppBackend(InferenceBackend):
         self.server = os.path.join(self.server_dir, "llama-server")
         run = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/cinminai-{os.getuid()}"
         os.makedirs(os.path.join(run, "cinminai"), mode=0o700, exist_ok=True)
-        self.sock = os.path.join(run, "cinminai", "llama.sock")
+        self.sock = os.path.join(run, "cinminai", os.path.basename(str(cfg.get("socket_name") or "llama.sock")))
         self.proc: subprocess.Popen | None = None
         self.stderr_tail: collections.deque[str] = collections.deque(maxlen=40)
         self.lock = threading.RLock()
