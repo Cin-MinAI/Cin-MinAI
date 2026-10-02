@@ -24,6 +24,7 @@ import time
 GiB, MiB = 1 << 30, 1 << 20
 K_GPU = 0.38          # measured tok/s x bytes per token / card bandwidth (9B 0.47, 14B 0.37, 27B 0.32)
 K_RAM = 3.0           # llama.cpp's RAM reads vs our one-thread copy test: 14.8 vs ~5 GB/s (27B IQ4_XS, 20 layers in DDR3)
+K_CPU = 5.2           # all on the processor, every thread reading: the boot-test VM ran the 4B at 6.25 tok/s, copy test 3.3
 COMPUTE_MIN = 300 * MiB
 COMPUTE_TIGHT = 192 * MiB  # with -ub 256 (Qwen3.8-27B IQ3_XXS fit a free 11 GB card this way: 14.1 tok/s)
 
@@ -191,7 +192,7 @@ def plan(m: Model, machine: Machine, ctx: int) -> dict | None:
     cpu_room = (machine.ram_avail_gib - 1) * GiB  # mapped from the file: the page cache holds it (8 GB live VM)
     if m.weights + m.kv8 * ctx <= cpu_room and m.weights <= 6 * GiB:  # the processor: small models only
         return {"mode": "on the processor", "cache": "q8_0", "args": ["--device", "none"], "card_gb": 0,
-                "ram_gb": m.weights / GiB, "tok_s": K_RAM * machine.ram_bw_gbs * 1e9 / m.weights}
+                "ram_gb": m.weights / GiB, "tok_s": K_CPU * machine.ram_bw_gbs * 1e9 / m.weights}
     return None
 
 
