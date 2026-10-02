@@ -33,6 +33,20 @@ It is built with AI assistants, in the open, each used where it worked best — 
   test build, the Qwen VRAM recovery, the bakeoff harness (`bench/`), candidate inventory and
   checksummed downloads, the Vulkan build dependencies. Its brief is `AGENTS.md`.
 
+**Standing on the shoulders of others.** Cin-MinAI is a layer on top of decades of other people's work:
+
+- **The Linux Mint team**, for Mint and Cinnamon, the system we build on and keep as Mint-like as we can;
+  **Ubuntu (Canonical) and Debian** underneath it; and the **Linux kernel and GNU** communities underneath all of it.
+- **llama.cpp and ggml** (Georgi Gerganov and contributors), the engine that runs every model here, tuned to
+  each machine.
+- **The open-weight model makers**: the **Qwen team** (Alibaba), whose models we tune and ship; Google (Gemma)
+  and IBM (Granite), whose models we tested; and **Hugging Face** and the people who publish GGUF conversions
+  (Unsloth, ggml-org).
+- **LibreOffice (The Document Foundation) and Mozilla**, whose programs the assistant works inside.
+- **The researchers and builders who started this era**: from the Transformer paper (Google, 2017) to OpenAI's
+  public release of ChatGPT in 2022, which put these tools in everyone's hands and pushed the whole field, open
+  models included, forward.
+
 The assistants build the project; they are **not** the source of the guide model's training data.
 That corpus is written by local open-weight models (Apache-2.0) and published with its scripts
 (PLAN D32), so anyone can inspect or rebuild it. Every decision and result — including the
