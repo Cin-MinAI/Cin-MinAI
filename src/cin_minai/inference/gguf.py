@@ -125,12 +125,33 @@ def cpu_moe_layers(extra_args: list[str]) -> int | None:
     return None
 
 
-def need_mib(m: Model, context: int, cache: str = "q8_0", cpu_moe: int | None = None) -> int:
-    """Graphics memory a full-offload load needs: weights on the card + KV cache + compute buffers (~ 5 % of the
-    weights, at least 300 MiB, plus the logits for the vocabulary)."""
-    weights = sum(m.tensors.values()) or m.file_bytes
+def cpu_overrides(extra_args: list[str]) -> list[str]:
+    """The tensor patterns the options keep in RAM (-ot / --override-tensor PATTERN=CPU)."""
+    args, out = [str(a) for a in extra_args], []
+    for i, a in enumerate(args[:-1]):
+        if a in ("-ot", "--override-tensor"):
+            out += [p.rsplit("=", 1)[0] for p in args[i + 1].split(",") if p.upper().endswith("=CPU")]
+    return out
+
+
+def ubatch(extra_args: list[str]) -> int | None:
+    args = [str(a) for a in extra_args]
+    for flag in ("-ub", "--ubatch-size"):
+        if flag in args and args.index(flag) + 1 < len(args) and args[args.index(flag) + 1].isdigit():
+            return int(args[args.index(flag) + 1])
+    return None
+
+
+def need_mib(m: Model, context: int, cache: str = "q8_0", cpu_moe: int | None = None,
+             cpu_patterns: list[str] = (), ub: int | None = None) -> int:
+    """Graphics memory a load needs: weights on the card (not the token embeddings, which llama.cpp keeps in RAM,
+    nor experts or tensors the options keep there) + KV cache + compute buffers (~ 5 % of the weights, at least
+    300 MiB; ~192 MiB with -ub 256 — the 27B IQ3_XXS fit this way, matcher.COMPUTE_TIGHT)."""
+    weights = (sum(m.tensors.values()) or m.file_bytes) - m.tensors.get("token_embd.weight", 0)
     if cpu_moe is not None:
         weights -= m.expert_bytes(None if cpu_moe < 0 else cpu_moe)
+    rx = [re.compile(p) for p in cpu_patterns]
+    weights -= sum(size for name, size in m.tensors.items() if any(r.search(name) for r in rx))
     kv = m.kv_bytes_per_token(cache) * context
-    compute = max(300 << 20, int(weights * 0.05))
+    compute = (192 << 20) if ub is not None and ub <= 256 else max(300 << 20, int(weights * 0.05))
     return int((weights + kv + compute) / (1 << 20))

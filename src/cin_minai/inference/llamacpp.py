@@ -60,10 +60,16 @@ class UnixHTTPConnection(http.client.HTTPConnection):
 
 
 def _set_pdeathsig() -> None:
-    """In the child before exec: SIGTERM when the daemon dies, however it dies."""
+    """In the child before exec: SIGTERM when the daemon dies, however it dies; and no core dumps — llama-server
+    v0.5.0 segfaults on exit, and a 27B on the processor left a 5.1 GB dump that helped fill the disk (2026-10-02)."""
     try:
         ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
     except OSError:
+        pass
+    try:
+        import resource
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    except (ImportError, ValueError, OSError):
         pass
 
 
@@ -276,7 +282,9 @@ class LlamaCppBackend(InferenceBackend):
             try:  # the model's own numbers (gguf.py); the old estimate if the file can't be read
                 meta = gguf.read(model)
                 cpu_moe = gguf.cpu_moe_layers(self.cfg.get("extra_args", []))
-                need_for = lambda ctx: gguf.need_mib(meta, ctx, self.cache_type(), cpu_moe)  # noqa: E731
+                extra = self.cfg.get("extra_args", [])
+                need_for = lambda ctx: gguf.need_mib(meta, ctx, self.cache_type(), cpu_moe,  # noqa: E731
+                                                     gguf.cpu_overrides(extra), gguf.ubatch(extra))
             except (OSError, ValueError, KeyError, struct.error, UnicodeDecodeError):
                 need_for = lambda ctx: need_mib(size, ctx)  # noqa: E731
             steps = self.ladder()
