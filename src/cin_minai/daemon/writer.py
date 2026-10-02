@@ -203,15 +203,17 @@ REVIEW_SCHEMA = {"type": "object", "additionalProperties": False,
                                # the evidence first: the status is chosen after the model looked for the words
                                "properties": {k: {"type": "object", "additionalProperties": False,
                                                   "required": ["evidence", "status", "what"],
-                                                  "properties": {"evidence": {"type": "string"},
+                                                  "properties": {"evidence": {"type": "string", "maxLength": 240},
                                                                  "status": {"enum": list(STATUSES)},
-                                                                 "what": {"type": "string"}}} for k in STEPS}},
+                                                                 "what": {"type": "string", "maxLength": 200}}}
+                                          for k in STEPS}},
                      "characters": {"type": "array", "maxItems": 4, "items": {
                          "type": "object", "additionalProperties": False, "required": ["name", "step", "where"],
-                         "properties": {"name": {"type": "string"}, "step": {"enum": list(STEPS)},
-                                        "where": {"type": "string"}}}},
-                     "missing": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
-                     "questions": {"type": "array", "maxItems": 4, "items": {"type": "string"}}}}
+                         "properties": {"name": {"type": "string", "maxLength": 60}, "step": {"enum": list(STEPS)},
+                                        "where": {"type": "string", "maxLength": 200}}}},
+                     # caps: bigger models wrote longer reviews and ran past the output limit (2026-10-02)
+                     "missing": {"type": "array", "maxItems": 4, "items": {"type": "string", "maxLength": 240}},
+                     "questions": {"type": "array", "maxItems": 4, "items": {"type": "string", "maxLength": 300}}}}
 READ_WORDS = 1500  # a chapter is read in parts this long (the context is 8K on the card)
 READ_PROMPT = """Summarize this part of chapter {n} of the user's story "{title}" in three or four sentences for \
 the writer's memory: what happens, who does what, and anything that changes for a character (a new side, a new \
@@ -446,8 +448,13 @@ class Writer:
                "the story (the whole circle in one chapter)")
         raw, _ = self.chat([{"role": "user", "content": REVIEW_PROMPT.format(
             title=project.title, next=nxt, tests=REVIEW_TESTS, notes=project.notes_text(), chapters=chapters)}],
-            schema=REVIEW_SCHEMA, max_tokens=1400, cancel=cancel)
-        review = json.loads(raw)
+            schema=REVIEW_SCHEMA, max_tokens=2600, cancel=cancel)
+        try:
+            review = json.loads(raw)
+        except ValueError:  # cut off or malformed: a plain review from the notes, never a crash
+            review = {"steps": {k: {"evidence": "", "status": "planned" if project.circle[k] else "missing",
+                                    "what": ""} for k in STEPS}, "characters": [], "missing": [],
+                      "questions": [], "unreadable": True}
         for k in ("missing", "questions"):  # the same question four times (2026-10-01)
             review[k] = [q for i, q in enumerate(review[k]) if not any(_same(q, p) for p in review[k][:i])]
         # written only with the chapters' own words (D57); before chapter 1 there are none, so nothing is
