@@ -50,7 +50,9 @@ class Matcher(unittest.TestCase):
     def test_no_graphics_card(self):
         r = match(machine(None, ram=16, avail=12, bw=5))
         self.assertEqual(r["help"]["mode"], "on the processor")
-        self.assertIn("slow on this computer", r["writing"]["why"])  # the last resort, said honestly
+        self.assertEqual(r["writing"]["file"], "Qwen3.5-4B-guide-HO-Q4_K_M.gguf")
+        slow = match(machine(None, ram=16, avail=12, bw=1.5))  # a very old machine
+        self.assertIn("slow on this computer", slow["writing"]["why"])  # the last resort, said honestly
         self.assertIn("none llama.cpp can use", report(machine(None), r))
 
 
