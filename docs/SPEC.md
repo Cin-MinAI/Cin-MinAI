@@ -1894,3 +1894,41 @@ Monitors for the boot record (1, 2.1, 10.4), drivers and kernels (2.2, 3.1, 6.4)
 the ones that only read what Linux already reports (PCIe link width and speed, SMART self-tests, USB ports
 and their speeds, sensors at rest, the battery), then the **Hardware check** boot entry on the USB, then the
 load tests (CPU, GPU, power-supply rails under load) and the guided ones (USB ports, keyboard, screens).
+
+## 21. AICUI — the AI coding workspace (PLAN D61)
+
+Ian's design (2026-10-02, layout sketch `artwork/aicui-layout-2026-10-02.png`): a simple, clean coding workspace
+"like JetBrains in spirit, but not as elaborate: easy navigation and clean-looking coding action". It opens a folder
+or a file, like an IDE; one window per project.
+
+**Layout.** Left, tall: **Chat history** — the conversation; the model's *thinking* streams in live and then collapses
+into an expandable bubble. Middle, top: **Working tree** — the project's files, git-aware (what changed). Middle, below:
+**Session goals**. Right, the largest pane: **AI terminal**. Bottom: the **typing box**, and **model selection** at the
+bottom right.
+
+**The AI terminal is a real terminal** (a PTY, VTE in GTK): you see the AI working, and its permission prompts appear
+in the terminal "like they always would", as in Claude Code or Codex. You can type in it too.
+
+**Permissions are the user's** (D54: not deciding for people):
+- *Ask* (the default): every file change and command is approved in the terminal.
+- *Auto mode*: the user approves working without asking, per session.
+- *Admin / no admin*: whether the AI may request administrator actions at all (through the D3 lane, polkit per request).
+- *No permissions at all* is possible, with a plain warning: strongly advised against until the model's stability is
+  tested on this kind of work — "don't risk anything you aren't willing to lose".
+Commands run in the sandbox (D1) except where the user lifted it.
+
+**The changelog.** Every file the AI changes goes into the changelog — which file, what changed (the diff), when,
+which model, for which goal — with undo per change. Kept whatever the permission mode, so even auto mode can be
+reviewed and rolled back.
+
+**Session goals, written by both.** At the start the AI asks about the project's goals and scope (as the writing
+partner gathers a story) and fills the goals in; the user adds and edits them. Once work starts they are the AI's
+to-do list, ticked as they're done (the writer's tick boxes, D57); they stay with the project for the next session.
+
+**Models.** Local by default: the system matcher's coding model (D60; on the 1080 Ti, Qwen3.8-27B IQ3_XXS at 14 tok/s).
+Cloud providers connect per D35: OAuth sign-in through the web browser where the provider offers it, otherwise an API
+key, stored in the keyring; the CLOUD indicator shows it. The model can be switched while the AI is idle; some context
+is lost in the switch (the goals, the changelog and a summary carry over) — "let's see how that goes".
+
+**Open (to settle while building):** where the changelog sits in the layout; whether the terminal can also host other
+agents' command-line tools (Claude Code, Codex) next to ours; the first cloud providers and their terms for OAuth use.
