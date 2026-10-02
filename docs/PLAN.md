@@ -409,6 +409,17 @@ record is detected; a lost USB is recovered with the printed code.
 
 ---
 
+## 5b. Ideas for a later project (Ian, 2026-10-02: "future plans for the next project, I don't have the equipment yet")
+
+- **A home model server:** one strong machine runs a big model (`llama-server`), the house's other Cin-MinAI PCs use it over
+  the local network — still local and owned (D26). Needs discovery, pairing, encryption, the matcher listing "the house's model".
+- **Pooling machines with llama.cpp RPC:** `rpc-server` on each machine, one model split across them (weights stay put, only
+  activations travel). Needs a build with RPC on and gigabit Ethernet.
+- **Candidate: Qwen3.8-Flash-Next** (Qwen, 2026-08-24): MoE, 125B total / ~6B active + 51B n-gram embeddings meant for
+  offloading; 262K context. GGUF 75-94 GB (Unsloth). Reddit: runs well on 64 GB RAM + a 16 GB card. Vendor SWE-bench Pro
+  62.5 vs Qwen3.8-27B 61.7. Licence qwen-community-1.0 (unread, not Apache: D44 applies); needs a llama.cpp newer than our
+  pin (architecture qwen4_exp).
+
 ## 6. Open questions
 
 - **Base series:** stay on Mint 22.x (Ubuntu 24.04, supported to 2029) for v0.1, or wait for Mint 23
