@@ -22,12 +22,15 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
+from . import manuscript, selfupdate
 from .projects import CIRCLE, ROOT as PROJECTS, Project
 from .writer import Writer
 
 NAME = "org.cinminai.Assistant1"
 PATH = "/org/cinminai/Assistant1"
 IFACE = "org.cinminai.Assistant1"
+UPDATE_CHECK_S = 30            # D59: how often the daemon looks for an installed update
+IDLE_BEFORE_RESTART_S = 120    # and how long it must have been idle before restarting into it
 
 XML = f"""
 <node>
@@ -57,6 +60,8 @@ XML = f"""
     <method name="ProjectInfo"><arg type="s" name="json" direction="out"/></method>
     <!-- the story's shape (D56), as JSON: shape ("chapter" or "chapters"), chapters (2-8), next_chapter; any of them -->
     <method name="ProjectSet"><arg type="s" name="settings" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <!-- the finished story as a manuscript (D58), JSON in: author, contact; out: the .odt and .docx made -->
+    <method name="MakeManuscript"><arg type="s" name="options" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- "Write it up" (D57): review the story as it is now before the next chapter: an Action "review" with state
          "proposal" (where the story is on the circle, characters, what's missing, questions) -->
     <method name="WriteUp"><arg type="s" name="wish" direction="in"/><arg type="u" name="id" direction="out"/></method>
@@ -119,6 +124,35 @@ class Service:
         self.outlines: dict[str, dict] = {}
         self.journal: Journal | None = None  # the open journal (D55)
         self.interviewer = Interviewer(backend.chat)
+        # D59: after an update, restart into the new version when idle; reopen the project that was open
+        self.watcher = selfupdate.Watcher()
+        self.active_at = time.monotonic()
+        reopen = os.environ.pop(selfupdate.REOPEN, "")
+        if reopen:
+            try:
+                self.project = Project.open(reopen)
+                log(f"updated: reopened the writing project {self.project.title!r}")
+            except (OSError, ValueError):
+                pass
+        GLib.timeout_add_seconds(UPDATE_CHECK_S, self.check_update)
+
+    def check_update(self) -> bool:
+        """D59: restart into an installed update once it's complete, loads, and the daemon has been idle a while.
+        Never while answering or loading, never with the journal open (its conversation lives only in memory)."""
+        state = self.watcher.check()
+        if state != "ready" or self.busy or self.loading or self.journal is not None:
+            return True
+        if time.monotonic() - self.active_at < IDLE_BEFORE_RESTART_S or self.watcher.refused == self.watcher.seen:
+            return True
+        ok, why = selfupdate.loads()
+        if not ok:
+            self.watcher.refused = self.watcher.seen
+            log(f"an update is installed but it doesn't load, so the running version stays: {why}")
+            return True
+        log("an update is installed: restarting into the new version")
+        self.backend.unload()
+        selfupdate.restart(self.project.folder if self.project else None)
+        return False
 
     # --- bus plumbing ------------------------------------------------------------------------------
     def acquired(self, conn: Gio.DBusConnection, name: str) -> None:
@@ -191,6 +225,7 @@ class Service:
         return False
 
     def call(self, conn, sender, path, iface, method, params, inv) -> None:
+        self.active_at = time.monotonic()  # someone is using it: no update restart now (D59)
         if method == "Ask":
             (text,) = params.unpack()
             if self.busy:
@@ -237,7 +272,8 @@ class Service:
                 office.forget(doc["id"])
             self.refresh_document()
             inv.return_value(None)
-        elif method in ("ProjectNew", "ProjectOpen", "ProjectClose", "ProjectList", "ProjectInfo", "ProjectSet"):
+        elif method in ("ProjectNew", "ProjectOpen", "ProjectClose", "ProjectList", "ProjectInfo", "ProjectSet",
+                        "MakeManuscript"):
             try:
                 out = self.project_call(method, *params.unpack())
             except (OSError, ValueError, KeyError) as e:
@@ -387,6 +423,13 @@ class Service:
             return None
         elif method == "ProjectList":
             return Project.list()
+        elif method == "MakeManuscript":  # our code only, no model: quick, so no job (D58)
+            if self.project is None:
+                raise ValueError("no writing project is open")
+            o = json.loads(args[0] or "{}")
+            res = manuscript.make(self.project, str(o.get("author", "")), str(o.get("contact", "")))
+            self.open_file(res["odt"])
+            return res
         elif method == "ProjectSet":
             if self.project is None:
                 raise ValueError("no writing project is open")
@@ -545,6 +588,7 @@ class Service:
     def job(self, rid: int, fn) -> None:
         """Run fn(on_text, on_action) -> stats on a worker thread: one at a time, cancellable, never silent."""
         self.busy = True
+        self.active_at = time.monotonic()
         self.cancel.clear()
         self.set_state("loading" if self.backend.status().state != "ready" else "thinking")
 
@@ -575,6 +619,7 @@ class Service:
         threading.Thread(target=work, daemon=True).start()
 
     def finish(self, rid: int, error: str | None, stats: dict) -> bool:
+        self.active_at = time.monotonic()
         self.busy = False
         self.last_stats = json.dumps(stats, ensure_ascii=False)
         if error:

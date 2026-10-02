@@ -103,9 +103,14 @@ class Scripted:
             return json.dumps({"chapter_title": "The Bottle", "steps": {
                 k: [{"title": f"{k} {i}", "what_happens": f"{k} thing {i} happens"}
                     for i in range(1, steps["properties"][k]["minItems"] + 1)] for k in steps["required"]}}), {}
+        if schema and schema.get("required") == ["you", "need", "go", "search", "find", "take", "return", "change"]:
+            # the circle's own question (D56): a quote for You, the step's description parroted for Take
+            return json.dumps({k: ("Elias is a retired lighthouse keeper" if k == "you" else
+                                   "they pay a heavy price for it" if k == "take" else "")
+                               for k in schema["required"]}), {}
         if schema:
             return json.dumps({"facts": ["The message is from his younger self."], "characters": [], "places": [],
-                               "ideas": [], "circle": {"you": ["Elias, a retired lighthouse keeper."]}}), {}
+                               "ideas": []}), {}
         if last.startswith("Summarize"):
             return "Something happened.", {}
         if "Now write scene" in last:
@@ -235,10 +240,15 @@ class Circle(unittest.TestCase):
     def test_the_partner_asks_about_the_next_empty_step(self):
         self.w.reply(self.p, "Elias is a retired lighthouse keeper.", lambda t: None, threading.Event())
         self.assertIn('next empty step is "You"', self.m.sent[0]["messages"][0]["content"])
-        self.assertEqual(self.p.circle["you"], ["Elias, a retired lighthouse keeper."])  # the notes filled it
+        self.assertEqual(self.p.circle["you"], ["Elias is a retired lighthouse keeper"])  # the writer's own words
+        self.assertEqual(self.p.circle["take"], [])  # a parroted description isn't in the message: not kept
         self.assertEqual(self.p.open_step(), "need")
         self.w.reply(self.p, "More.", lambda t: None, threading.Event())
-        self.assertIn('next empty step is "Need"', self.m.sent[2]["messages"][0]["content"])
+        self.assertIn('next empty step is "Need"', self.m.sent[3]["messages"][0]["content"])
+        # the circle's question reads the message as the answer to the partner's question before it
+        circle_ask = self.m.sent[5]["messages"][1]["content"]
+        self.assertTrue(circle_ask.startswith('(The question it answers: "Got it. Who is Rosa?")'), circle_ask)
+        self.assertTrue(circle_ask.endswith("More."))
         self.assertIn("The story's circle so far:\n- You", self.p.notes_text())
 
     def test_one_chapter_plan_is_the_whole_circle(self):

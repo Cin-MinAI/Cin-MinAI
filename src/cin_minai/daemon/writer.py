@@ -131,23 +131,33 @@ The story is built on Dan Harmon's Story Circle:
 What you know so far:
 {notes}"""
 
-NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": [*NOTE_KEYS, "circle"],
-                "properties": {**{k: {"type": "array", "items": {"type": "string"}, "maxItems": 8} for k in NOTE_KEYS},
-                               "circle": {"type": "object", "additionalProperties": False, "required": list(STEPS),
-                                          "properties": {k: {"type": "array", "items": {"type": "string"}, "maxItems": 2}
-                                                         for k in STEPS}}}}
+NOTES_SCHEMA = {"type": "object", "additionalProperties": False, "required": list(NOTE_KEYS),
+                "properties": {k: {"type": "array", "items": {"type": "string"}, "maxItems": 8} for k in NOTE_KEYS}}
 NOTES_PROMPT = """Take notes for a writer. The user is the writer: what they say about themselves or their \
 plans ("I want to write a book", "chapter one") is not part of the story. From the user's latest message only, \
 list what's NEW for the story, in short sentences, in the user's language: facts (things that are true in the \
 story's world), characters (name, who they are, and whose side they're on), places, ideas (things they want in \
-it, and how it should feel: tone, mood, humour). Then "circle": if the message says something for a step of the \
-story's circle, put it under that step too:
-{circle}
-Leave a list empty when the message has nothing for it. Don't repeat what's already noted, and don't invent \
-anything.
+it, and how it should feel: tone, mood, humour). Leave a list empty when the message has nothing for it. Don't \
+repeat what's already noted, and don't invent anything.
 
 Already noted:
 {notes}"""
+
+# the circle gets its own short question (D56): inside the notes above the guide never filled it (80 notes,
+# 0 steps, "Missed the Moon", 2026-10-01)
+CIRCLE_NOTE_SCHEMA = {"type": "object", "additionalProperties": False, "required": list(STEPS),
+                      "properties": {k: {"type": "string"} for k in STEPS}}
+CIRCLE_NOTE_PROMPT = """The writer is telling you about their story, which follows Dan Harmon's Story Circle. \
+Each step is something that happens to the main character:
+{tests}
+
+For each step: if the writer's latest message says something that belongs to that step, copy those words from \
+the message, word for word (a few words to a sentence); otherwise "". Never write the step's description itself. \
+Most messages fill one step or none. Read the message as the answer to the question it replies to; don't \
+invent, and don't repeat what the circle already has.
+
+What the circle already has:
+{have}"""
 
 OUTLINE_PROMPT = """Plan {what} of the user's story "{title}", in the user's language. The story follows Dan \
 Harmon's Story Circle, eight steps:
@@ -240,6 +250,9 @@ STEP_TESTS = {
     "change": "they are shown to be different from who they were at the start",
 }
 REVIEW_TESTS = "\n".join(f"{i}. {STEP[k]['name']}: {STEP_TESTS[k]}." for i, k in enumerate(STEPS, 1))
+
+
+QUOTE_MARKS = "\"'“”„«» "
 
 
 def _tokens(s: str) -> list[str]:
@@ -369,13 +382,35 @@ class Writer:
         return out.strip()
 
     def take_notes(self, project: Project, text: str, cancel: threading.Event | None = None) -> int:
-        raw, _ = self.chat([{"role": "system", "content": NOTES_PROMPT.format(circle=CIRCLE_TEXT,
-                                                                             notes=project.notes_text())},
+        raw, _ = self.chat([{"role": "system", "content": NOTES_PROMPT.format(notes=project.notes_text())},
                             {"role": "user", "content": text}], schema=NOTES_SCHEMA, max_tokens=600, cancel=cancel)
         try:
-            return project.add_notes(json.loads(raw))
+            added = project.add_notes(json.loads(raw))
+        except (ValueError, TypeError):
+            added = 0
+        return added + self.take_circle(project, text, cancel)
+
+    def take_circle(self, project: Project, text: str, cancel: threading.Event | None = None) -> int:
+        """What the message says for the circle's steps (D56), read as the answer to the partner's last question."""
+        msgs = project.data["messages"]  # [... the partner's question, this message, the partner's reply]
+        mine = next((i for i in range(len(msgs) - 1, -1, -1) if msgs[i]["role"] == "user"
+                     and msgs[i]["content"] == text.strip()), len(msgs))
+        asked = next((m["content"] for m in reversed(msgs[:mine]) if m["role"] == "assistant"), "")
+        have = "\n".join(f"- {STEP[k]['name']}: " + " ".join(project.circle[k]) for k in STEPS if project.circle[k])
+        message = (f'(The question it answers: "{asked}")\n\n' if asked else "") + text
+        raw, _ = self.chat([{"role": "system", "content": CIRCLE_NOTE_PROMPT.format(tests=REVIEW_TESTS,
+                                                                                   have=have or "(nothing yet)")},
+                            {"role": "user", "content": message}], schema=CIRCLE_NOTE_SCHEMA, max_tokens=300,
+                           cancel=cancel)
+        try:
+            got = json.loads(raw)
         except (ValueError, TypeError):
             return 0
+        # the writer's own words only: the first try copied the step descriptions into all eight steps
+        words = _tokens(text)
+        keep = {k: [str(v).strip().strip(QUOTE_MARKS)] for k, v in got.items()
+                if k in STEP and found_in(str(v), words, min_words=3)}
+        return project.add_notes({"circle": keep})
 
     # --- the write-up -------------------------------------------------------------------------------------
     def read_chapters(self, project: Project, chapter: int | None, cancel: threading.Event | None = None) -> list[dict]:

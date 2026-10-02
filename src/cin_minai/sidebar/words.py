@@ -287,6 +287,24 @@ def review_lines(review: dict, steps: bool = True) -> list[str]:
     return out
 
 
+# --- the manuscript (D58) ---------------------------------------------------------------------------------
+
+MANUSCRIPT_TIP = "Your chapters as they are now, in the format agents and publishers expect (.odt and Word)."
+MANUSCRIPT_INTRO = ("This puts your chapters, as they are now (your own edits included), into one new document in "
+                    "standard manuscript format: a title page, double spacing, a page header with your name, each "
+                    "chapter on a new page. You get it as a LibreOffice file and as a Word file, which most agents "
+                    "and publishers ask for. Your drafts stay as they are.")
+
+
+def manuscript_done(res: dict) -> str:
+    import os
+    name = os.path.basename(res.get("odt", ""))[:-4]
+    n = res.get("chapters", 0)
+    return (f"Your manuscript is ready: {n} chapter{'s' if n != 1 else ''}, {res.get('words', 0):,} words, "
+            f"{res.get('paper', '')} paper. It's open in Writer and saved in the project folder as \"{name}\", "
+            ".odt and .docx (for Word).")
+
+
 def next_chapter_line(info: dict) -> str:
     if info.get("shape") != "chapters":
         return "Write it up reviews your notes, then plans the whole circle in one chapter."

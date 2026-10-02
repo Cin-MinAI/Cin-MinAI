@@ -529,8 +529,37 @@ class Sidebar(Gtk.Application):
         chapter_id = chapter.connect("changed", changed)
         for w in (shape, chapter, line):
             box.pack_start(w, False, False, 2)
+        if info.get("drafts"):  # D58: offered once something is written, never done on its own
+            ms = Gtk.Button(label="Make a manuscript")
+            ms.set_tooltip_text(words.MANUSCRIPT_TIP)
+            ms.connect("clicked", lambda b: self.make_manuscript())
+            box.pack_start(ms, False, False, 4)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
+
+    def make_manuscript(self) -> None:
+        """The story in standard manuscript format, .odt and .docx (D58): the author's name, contact optional."""
+        dialog = Gtk.Dialog(title="Make a manuscript", transient_for=self.win, modal=True)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Make it", Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        box = dialog.get_content_area()
+        box.set_spacing(6)
+        box.pack_start(Gtk.Label(label=words.MANUSCRIPT_INTRO, xalign=0, wrap=True, max_width_chars=44), False, False, 6)
+        name = Gtk.Entry(text=GLib.get_real_name() if GLib.get_real_name() not in ("", "Unknown") else "",
+                         placeholder_text="Your name, as it should appear", activates_default=True)
+        contact = Gtk.Entry(placeholder_text="Email or address (optional)", activates_default=True)
+        for label, entry in (("Author", name), ("Contact", contact)):
+            box.pack_start(Gtk.Label(label=label, xalign=0), False, False, 0)
+            box.pack_start(entry, False, False, 2)
+        dialog.show_all()
+        ok = dialog.run() == Gtk.ResponseType.OK
+        author, how = name.get_text().strip(), contact.get_text().strip()
+        dialog.destroy()
+        if not ok:
+            return
+        res = self.daemon_json("MakeManuscript", json.dumps({"author": author, "contact": how}))
+        if res:
+            self.bubble("assistant", words.manuscript_done(res))
 
     # --- the journal (D55) -------------------------------------------------------------------------------
     def open_journal(self) -> None:
