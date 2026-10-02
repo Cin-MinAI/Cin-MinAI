@@ -62,20 +62,44 @@ def paragraphs(text: str) -> list[str]:
     return out
 
 
+TEXT_NS = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+
+
+def _text(el) -> str:
+    """A paragraph's own text: spaces, tabs and line breaks as spaces; footnote and endnote bodies left out."""
+    parts = [el.text or ""]
+    for c in el:
+        if c.tag in (TEXT_NS + "s", TEXT_NS + "tab", TEXT_NS + "line-break"):
+            parts.append(" ")
+        elif c.tag != TEXT_NS + "note":
+            parts.append(_text(c))
+        parts.append(c.tail or "")
+    return "".join(parts)
+
+
+def top_paragraphs(root) -> list[str]:
+    """Every paragraph and heading once, in order: paragraphs nested inside another (a footnote, a text frame the
+    writer added in Writer) aren't counted again — root.iter() did, found by Qwen3.8-27B reviewing manuscript.py
+    (2026-10-02)."""
+    out = []
+
+    def walk(el) -> None:
+        for c in el:
+            if c.tag in (TEXT_NS + "p", TEXT_NS + "h"):
+                out.append(re.sub(r"\s+", " ", _text(c)).strip())
+            else:
+                walk(c)
+    walk(root)
+    return out
+
+
 def read(path: str) -> list[str]:
     """The paragraphs of an .odt as it is now — ours, or after the writer edited and saved it in Writer (D57).
     Our header line and scene breaks are left out."""
     import xml.etree.ElementTree as ET
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("content.xml"))
-    t = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
-    out = []
-    for el in root.iter():
-        if el.tag in (t + "p", t + "h"):
-            s = re.sub(r"\s+", " ", "".join(el.itertext())).strip()
-            if s and s != "*   *   *" and s.replace("*", "").strip():
-                out.append(s)
-    return out
+    return [s for s in top_paragraphs(root) if s and s.replace("*", "").strip()]
 
 
 def estimate_lines(texts: list[str]) -> int:

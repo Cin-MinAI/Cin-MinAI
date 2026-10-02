@@ -101,6 +101,21 @@ class Manuscript(unittest.TestCase):
         self.assertNotEqual(a["odt"], b["odt"])
         self.assertTrue(b["docx"].endswith("manuscript (2).docx"))
 
+    def test_nested_paragraphs_count_once(self):
+        """A footnote the writer added in Writer: its paragraph sits inside the main one (found by Qwen3.8-27B)."""
+        path = chapter(self.p, 1, "A", ["x"])
+        xml = (f'<?xml version="1.0"?><office:document-content {odt.NS}><office:body><office:text>'
+               '<text:p>Chapter 1 — A</text:p>'
+               '<text:p>She ran<text:s/>home.<text:note text:note-class="footnote"><text:note-citation>1</text:note-citation>'
+               '<text:note-body><text:p>A footnote.</text:p></text:note-body></text:note></text:p>'
+               '<text:p>*   *   *</text:p><text:p>Then it rained.</text:p></office:text></office:body></office:document-content>')
+        os.remove(path)
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("content.xml", xml)
+        title, scenes = manuscript.read_scenes(path)
+        self.assertEqual((title, scenes), ("A", [["She ran home."], ["Then it rained."]]))
+        self.assertEqual(odt.read(path), ["Chapter 1 — A", "She ran home.", "Then it rained."])
+
     def test_rounding_and_paper(self):
         self.assertEqual(manuscript.rounded(12314), "about 12,000 words")
         self.assertEqual(manuscript.rounded(4817), "about 4,800 words")

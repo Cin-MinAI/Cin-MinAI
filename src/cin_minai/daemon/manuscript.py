@@ -30,7 +30,7 @@ def read_scenes(path: str) -> tuple[str, list[list[str]]]:
     asterisks (ours) or "#" is a scene break; our "Chapter n — " in the title is left out."""
     with zipfile.ZipFile(path) as z:
         root = ET.fromstring(z.read("content.xml"))
-    paras = [re.sub(r"\s+", " ", "".join(e.itertext())).strip() for e in root.iter() if e.tag in (TEXT + "p", TEXT + "h")]
+    paras = odt.top_paragraphs(root)  # each paragraph once; footnote bodies out (2026-10-02)
     paras = [p for p in paras if p]
     if not paras:
         return "", []
