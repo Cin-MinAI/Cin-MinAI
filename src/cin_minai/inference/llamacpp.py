@@ -269,7 +269,8 @@ class LlamaCppBackend(InferenceBackend):
             size = os.path.getsize(model)
             steps = self.ladder()
             devices = self.list_devices() if any(p.build != "cpu" for p in steps) else []
-            reserve = hardware.desktop_reserve_mib()
+            # the desktop's share (SPEC §4.2), or the user's own figure (settings: desktop_reserve_mib)
+            reserve = int(self.cfg.get("desktop_reserve_mib") or hardware.desktop_reserve_mib())
             errors, reason = [], ""
             for i, p in enumerate(steps):
                 if p.build != "cpu" and devices:

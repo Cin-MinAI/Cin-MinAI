@@ -20,6 +20,7 @@ DEFAULTS = {
         "threads": "auto",
         "temperature": 0.0,       # as measured (training/eval/guide)
         "idle_unload_s": 0,       # SPEC §4.2: idle unload is a choice, not a default
+        "desktop_reserve_mib": 0, # graphics memory kept for the desktop; 0 = by the screens (SPEC §4.2)
         "load_timeout_s": 600,
         "extra_args": [],
         "server_dir": "/usr/lib/cinminai/llama",   # cinminai-llama

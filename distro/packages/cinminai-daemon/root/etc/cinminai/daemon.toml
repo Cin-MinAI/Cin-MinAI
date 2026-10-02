@@ -8,6 +8,7 @@
 # cpu_context = 4096      # on the processor
 # threads = "auto"        # one per core
 # idle_unload_s = 0       # unload the model after this many idle seconds (0 = keep it loaded)
+# desktop_reserve_mib = 0 # graphics memory kept free for the desktop (0 = by the screens: 1536 at 4K, 820 otherwise)
 # extra_args = []         # any other llama-server option
 
 [guide]
