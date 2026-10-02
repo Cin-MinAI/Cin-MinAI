@@ -7,6 +7,101 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-01/02 — a writing partner with a shape, and the right model for every machine
+
+*Two days, Ian directing from the test install and Reddit, Claude building on the dev PC and the Mint box. It started
+with a redraft and a photo of the last message, and ended with a 27B coder at 14 tokens a second on a 2017 card.*
+
+### What we built, and how
+
+**1. The Story Circle as the writer's backbone (D56).** Ian: build the story assistant around Dan Harmon's Story
+Circle, "for any story — a novel, a movie or a play". The eight steps (You, Need, Go, Search, Find, Take, Return,
+Change) live in the notes, in our own words with Harmon credited; a project is *a story in one chapter* (the whole
+circle) or *a story over 2-8 chapters* (a piece each). The outline is a JSON grammar with one slot per step, so no
+step can be skipped silently. First real run: one chapter read as a real arc; over chapters, chapter 2 retold
+chapter 1.
+
+**2. A review before every chapter (D57).** Ian's design: "each chapter should get its own review process prior to
+writing… so the consistency falls on the writer's words rather than the bot's organization of them." The review
+reads the chapters *as the files are now* (the writer's own edits included, cached by mtime), shows where the story
+stands on the circle, where each character is, what's missing, and questions; the writer answers, and the answers
+become notes. When the small model marked all eight steps "written" after one chapter, we made it **prove** each
+one: a quote from the chapter, checked by our code (a step without its own words isn't written). Later the steps
+became **tick boxes**, so the writer has the final word on where the next chapter starts.
+
+**3. Hands-on fixes from Ian's runs.** The "bug out" Ian saw — garbled text ending a chapter — was the DRY sampler's
+blind spot: the model repeated the previous scene's ending with the spaces taken out
+("readytohelphimfindwhatheneeded"). The clean-up now compares letters without spaces, drops sentences repeated
+anywhere in the chapter, and cuts runs that split wholly into the story's own words (a German compound doesn't).
+Chapters keep to their steps (2-3 scenes a step, each scene told what mustn't happen yet). The sidebar keeps a log.
+
+**4. Make a manuscript (D58).** After "Missed the Moon", the first whole book (three chapters, ~12,300 words), Ian:
+"reads in a skim as publishable… but a publisher would want formatting". One button turns the chapters (as they are
+now) into standard manuscript format as .odt and .docx — written by our code alone, checked by converting both with
+LibreOffice and looking at the pages.
+
+**5. The daemon restarts itself after updates (D59).** Installing a package didn't restart a running user service.
+Now the daemon watches its own files, test-loads an update in a separate process (a broken update is refused, the
+old version keeps running), and restarts when idle, reopening the open project. The first version replaced itself
+in place and systemd, seeing the bus name drop, marked the service dead; fixed to exit 75 and let
+`Restart=on-failure` bring it back — and on 2026-10-02 at 13:09 it restarted by itself after Ian's install.
+
+**6. Is it the model? Measure (D60).** Ian: "I don't know if we can fix this with this model much further."
+A writing bakeoff, same notes and pipeline, on the 1080 Ti: the 4B guide restated 24.6 % of its sentences; every
+bigger model 2-4 % (Qwen3.5-9B Q4 1.9 %, Qwen3-14B 3.9 % and the only one that kept the circle in order, the
+Qwen3.6-35B-A3B MoE with its experts in RAM 2.6 %). Q5/Q6 bought nothing over Q4. New measures came with it
+(restated sentences, notes recited), because the word-for-word checks had passed a chapter that told one meeting
+five times. Ian, reading the 4B's book: Chang Xi had become "she"; the notes now keep pronouns.
+
+**7. llama.cpp, tuned to the machine.** `inference/gguf.py` reads a model's needs from its own GGUF header
+(weights, KV cache from its layers and heads, MoE experts, the token embeddings llama.cpp keeps in RAM): 9,688 MiB
+calculated for the 14B against 9,160 measured, where the old estimate (calibrated on the 4B) said 8,964 — below the
+truth. Then Ian: "any way to get Qwen 3.8 27B working on here for coding? Offload things into RAM and use the big bus?"
+Measured, not guessed: 2.3 tok/s with 38 of 64 layers on the card; Ian moved the screen cable to the motherboard and
+switched PRIME to on-demand; the output layer (1 GB for a 248K vocabulary) turned out to be what held it back; with
+everything on the card, `-ub 256` and a q4_0 cache, **Qwen3.8-27B IQ3_XXS writes code at 14.1 tok/s on a GTX 1080 Ti
+from 2017**, peak 11.0 of 11.26 GB. It also found a real bug in our own manuscript.py (nested paragraphs read twice),
+which we fixed.
+
+**8. The system matcher (M5, slices 1-2).** `python3 -m cin_minai.inference.matcher` reads the machine as llama.cpp
+sees it (our own loaded model counted as free), RAM, cores, a RAM speed test, and picks per task the best measured
+model with its exact llama.cpp settings and a speed range. On the Mint box it found the hand-tuned 27B setup by
+itself; it agreed on the RTX 4070 (WSL, our packages plus Ubuntu's CUDA libraries unpacked without installing); and
+it runs inside every VM boot test now (no card: the guide on the processor, and "no coding model" said plainly). Its
+speeds were calibrated against reality three times (the MoE, the processor, the RAM reads). Slice 2: the sidebar
+offers the stronger writing model when a project opens — nothing fetched before the click — downloads it from a
+pinned Hugging Face revision with resume, checks its SHA-256, benchmarks it (27.8 tok/s for the 14B, estimate
+15-28), and writing switches to it. Ian then wrote chapter 3 of "Missed the Moon" and a new story, "Indigo", with
+it: 3.7 % and 1.9 % restated sentences, and the circle in the notes filled 7 of 8 steps (with the 4B: none).
+
+Also: the README now credits the Mint, Ubuntu, Debian, kernel and GNU teams, llama.cpp and ggml, the open-weight
+model makers, LibreOffice and Mozilla, and the researchers and builders who started this era (Ian's wish). Ideas for
+a later project went into PLAN §5b: a home model server, pooling machines with llama.cpp RPC, Qwen3.8-Flash-Next.
+
+### What went wrong (mine, on record)
+
+- An f-string brace in a D-Bus comment stopped the daemon from starting after an install; a bash-only `<<<` stopped
+  the dash boot-test script and left the VM running; the self-restart's exec didn't survive systemd's `Type=dbus`.
+  Each was caught on the real system, not by my checks — now the packaged code is import-tested on the target before
+  every install, shell scripts are checked with `dash -n`, and tests run under the real unit type.
+- A broad `pgrep -f` pattern over ssh killed my own shell; a reboot killed a download my script then waited on for
+  100 minutes; a review's JSON was cut off by its token limit and crashed two bakeoff runs; I once committed with a
+  failing test. All fixed, the review now with length caps and a fallback.
+- My first speed estimates for the MoE and the processor were off by 2-5×; only measuring found it.
+
+### What we learned
+
+- **When the small model can't judge, make it quote.** "Written" became "show me the words", and the writer's ticks
+  got the last say — the consistency rests on the writer's words, as Ian put it.
+- **Measure before deciding about models.** The 4B's limits were real, but so were the pipeline's; the bakeoff told
+  them apart in an afternoon, and the 27B result came from measuring each bottleneck in turn.
+- **llama.cpp is the product's edge** (Ian: "if you have an AI assistant why would you go prepackaged?"): the same
+  card runs a 27B coder, a 14B writer or a 35B MoE, once something reads the machine and tunes the flags for it.
+- **Test where it runs:** the real unit type, the real shell, the real install — three of the day's bugs only existed
+  there.
+
+---
+
 ## 2026-09-30/10-01 — the assistant learns to do things
 
 *One long night after the kernel diagnosis. Ian set the direction turn by turn and tested on the Mint box's test

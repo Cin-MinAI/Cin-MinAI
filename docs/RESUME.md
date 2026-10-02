@@ -1,6 +1,6 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-01** (latest: the night of 30 Sept–1 Oct, journal entry of that date; before it the 28–29 Sept session: from the assistant's engine to an installed
+Updated **2026-10-02** (latest: 1-2 Oct, journal entry "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D60). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
