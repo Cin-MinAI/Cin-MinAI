@@ -22,7 +22,10 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
-from . import manuscript, selfupdate
+from . import config, manuscript, selfupdate
+from .models import Cancelled as DownloadStopped, ModelStore, benchmark
+from cin_minai.inference import matcher
+from cin_minai.inference.llamacpp import LlamaCppBackend
 from .projects import CIRCLE, ROOT as PROJECTS, Project
 from .writer import Writer
 
@@ -60,6 +63,14 @@ XML = f"""
     <method name="ProjectInfo"><arg type="s" name="json" direction="out"/></method>
     <!-- the story's shape (D56), as JSON: shape ("chapter" or "chapters"), chapters (2-8), next_chapter; any of them -->
     <method name="ProjectSet"><arg type="s" name="settings" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <!-- a bigger model for a task (D60): what the matcher would offer here (JSON); fetch it (a job: Action
+         "download" running with progress, then done with the measured speed); use one or go back to the guide
+         (file ""); never ask again about a file -->
+    <method name="ModelOffer"><arg type="s" name="task" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <method name="ModelDownload"><arg type="s" name="task" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <method name="ModelUse"><arg type="s" name="task" direction="in"/><arg type="s" name="file" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <method name="ModelDecline"><arg type="s" name="file" direction="in"/></method>
     <!-- the finished story as a manuscript (D58), JSON in: author, contact; out: the .odt and .docx made -->
     <method name="MakeManuscript"><arg type="s" name="options" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- "Write it up" (D57): review the story as it is now before the next chapter: an Action "review" with state
@@ -120,7 +131,11 @@ class Service:
         self.preload = preload
         self.document = ""  # title of the shared LibreOffice document, for the sidebar header (§7.6)
         self.project: Project | None = None  # the open writing project (D54)
-        self.writer = Writer(backend.chat)
+        # D60: writing may use a bigger model the user chose; the card holds one model at a time
+        self.store = ModelStore()
+        self.writing_backend: tuple[str, LlamaCppBackend] | None = None
+        self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
+        self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
         self.journal: Journal | None = None  # the open journal (D55)
         self.interviewer = Interviewer(backend.chat)
@@ -335,6 +350,37 @@ class Service:
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
             {"WriteUp": self.write_up, "PlanChapter": self.plan_chapter, "WriteDraft": self.write_draft}[method](
                 self.next_id, arg)
+        elif method in ("ModelOffer", "ModelUse", "ModelDecline"):
+            args = params.unpack()
+            try:
+                if method == "ModelOffer":
+                    out = self.model_offer(args[0])
+                elif method == "ModelDecline":
+                    self.store.decline(args[0])
+                    out = None
+                else:
+                    task, file = args
+                    plan = self.store.state()["use"].get(task) or (self.offers.get(task) or (0, None))[1]
+                    if not file:  # back to the built-in guide
+                        self.store.use(task, None)
+                        self.release_writing_model()
+                    elif not (plan and plan["file"] == file and self.store.has(file)):
+                        raise ValueError("that model isn't downloaded")
+                    else:
+                        self.store.use(task, {**plan, "measured": plan.get("measured")})
+                    out = self.model_offer(task)
+            except (OSError, ValueError, KeyError) as e:
+                inv.return_dbus_error(f"{IFACE}.Error.Model", str(e))
+                return
+            inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method == "ModelDownload":
+            (task,) = params.unpack()
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.model_download(self.next_id, task)
         elif method == "Unload":
             if self.busy or self.loading:
                 inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
@@ -405,6 +451,92 @@ class Service:
             return {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]), "timings": out["timings"]}
         self.job(rid, answer)
 
+    # --- the writing model (D60) ----------------------------------------------------------------------------
+    def writing_cfg(self, plan: dict) -> dict:
+        """The backend settings for the chosen model: the matcher's plan, minus what the backend sets itself."""
+        base = dict(config.load()["inference"])
+        args, extra, i = list(plan.get("args", [])), [], 0
+        own = {"-c": 1, "-fa": 1, "-ctk": 1, "-ctv": 1}
+        while i < len(args):
+            a = args[i]
+            if a in own or (a == "-ngl" and i + 1 < len(args) and args[i + 1] == "99"):
+                i += 2
+                continue
+            extra.append(a)
+            i += 1
+        base.update(model=self.store.path(plan["file"]), model_name=plan["model"], context=int(plan.get("context", 8192)),
+                    cache_type=plan.get("cache", "q8_0"), extra_args=extra,
+                    desktop_reserve_mib=int(plan.get("reserve_mib") or 0))
+        if plan.get("mode") == "on the processor":
+            base["build"] = "cpu"
+        return base
+
+    def writing_chat(self, messages, **kw):
+        plan = self.store.in_use("writing")
+        if not plan:
+            self.release_writing_model()
+            return self.backend.chat(messages, **kw)
+        if not self.writing_backend or self.writing_backend[0] != plan["file"]:
+            self.release_writing_model()
+            self.writing_backend = (plan["file"], LlamaCppBackend(self.writing_cfg(plan), log))
+        self.backend.unload()  # the card holds one model: the guide comes back after
+        return self.writing_backend[1].chat(messages, **kw)
+
+    def release_writing_model(self) -> None:
+        if self.writing_backend:
+            self.writing_backend[1].unload()
+            self.writing_backend = None
+
+    def model_offer(self, task: str) -> dict:
+        """What the matcher would offer for a task, if anything: never the built-in guide, never what's in use or
+        what the user declined. The machine is read once every 10 minutes at most."""
+        when, plan = self.offers.get(task, (0, None))
+        if time.monotonic() - when > 600:
+            m = matcher.read_machine(models_dir=self.store.root)
+            plan = matcher.match(m).get(task)
+            self.offers[task] = (time.monotonic(), plan)
+        used = self.store.in_use(task)
+        offer = None
+        if plan and plan.get("source") and (not used or used["file"] != plan["file"])                 and plan["file"] not in self.store.state()["declined"]:
+            offer = {k: plan[k] for k in ("model", "file", "why", "mode", "tok_s", "size")}
+            offer["downloaded"] = self.store.has(plan["file"])
+            offer["space_ok"] = offer["downloaded"] or plan["size"] + (2 << 30) <= self.store.free_bytes()
+        return {"task": task, "offer": offer, "in_use": used and {k: used.get(k) for k in ("model", "file", "measured")}}
+
+    def model_download(self, rid: int, task: str) -> None:
+        plan = (self.offers.get(task) or (0, None))[1]
+
+        def fetch(on_text, on_action):
+            if not plan or not plan.get("source"):
+                on_text("There's no bigger model to fetch for this on this computer.")
+                return {"tool": "model", "done": False}
+            m = next(x for ms in matcher.CATALOG.values() for x in ms if x.file == plan["file"])
+            gb = lambda b: f"{b / 2**30:.1f}"  # noqa: E731
+            try:
+                self.store.download(m, lambda have, total: on_action(
+                    "download", {"file": m.file}, "running",
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total)})), self.cancel)
+            except DownloadStopped:
+                on_text("Stopped. What was downloaded is kept, so it can carry on later.")
+                return {"tool": "model", "done": False}
+            on_action("download", {"file": m.file}, "running", json.dumps({"model": m.name, "testing": True}))
+            self.store.use(task, {**plan, "measured": None})
+            try:
+                speed = benchmark(self.writing_chat)  # loads it the way writing will
+            except Exception as e:  # it doesn't run here after all: back to the guide, and say so
+                self.store.use(task, None)
+                self.release_writing_model()
+                on_text(f"{m.name} downloaded and checked, but it didn't start on this computer ({e}). "
+                        "Writing stays with the built-in guide.")
+                return {"tool": "model", "done": False}
+            self.store.use(task, {**plan, "measured": round(speed, 1)})
+            on_action("download", {"file": m.file}, "done", json.dumps({"model": m.name, "measured": round(speed, 1)}))
+            on_text(f"{m.name} is ready: downloaded, checked against its checksum, and tested here at "
+                    f"{speed:.0f} tokens a second (about {speed * 45:.0f} words a minute). Writing uses it from now on; "
+                    "you can switch back to the built-in guide in Notes.")
+            return {"tool": "model", "done": True, "measured": speed}
+        self.job(rid, fetch)
+
     # --- writing projects (D54) -------------------------------------------------------------------------
     def project_call(self, method: str, *args):
         if method in ("ProjectNew", "ProjectOpen"):
@@ -417,6 +549,7 @@ class Service:
                 raise ValueError("not a writing project folder")
             self.project = Project.open(folder)
         elif method == "ProjectClose":
+            self.release_writing_model()
             self.project = None
             self.outlines.clear()
             self.changed("Status")

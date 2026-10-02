@@ -401,6 +401,9 @@ class Sidebar(Gtk.Application):
             self.sources_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "journal" and args[3] == "done":
             self.progress_line(words.journal_written(json.loads(args[4] or "{}")))
+        elif signal == "Action" and args[1] == "download":
+            p = json.loads(args[4] or "{}")
+            self.progress_line(words.download_progress(p) if args[3] == "running" else words.download_done(p))
         elif signal == "Action" and args[1] == "draft":
             p = json.loads(args[4] or "{}")
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
@@ -474,6 +477,7 @@ class Sidebar(Gtk.Application):
             if settings["shape"] != "chapter":
                 self.daemon_json("ProjectSet", json.dumps(settings))
             self.on_new(None, project=True)
+            self.offer_model("writing")
 
     def open_project(self, folder: str) -> None:
         info = self.daemon_json("ProjectOpen", folder)
@@ -481,6 +485,53 @@ class Sidebar(Gtk.Application):
             self.on_new(None, project=True)
             n = sum(len(v) for v in info.get("notes", {}).values())
             self.bubble("assistant", f"Back to \"{info['title']}\": {n} notes so far. Tell me more, or click Write it up.")
+            self.offer_model("writing")
+
+    def offer_model(self, task: str) -> None:
+        """D60: if the matcher has a stronger model for this task here, offer it (asked without blocking)."""
+        if not self.proxy:
+            return
+
+        def got(proxy, result) -> None:
+            try:
+                info = json.loads(proxy.call_finish(result).unpack()[0])
+            except (GLib.Error, ValueError):
+                return
+            if info.get("offer"):
+                self.offer_card(task, info["offer"])
+        self.proxy.call("ModelOffer", GLib.Variant("(s)", (task,)), Gio.DBusCallFlags.NONE, 30000, None, got)
+
+    def offer_card(self, task: str, offer: dict) -> None:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.offer_title(offer), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        for line in words.offer_lines(offer):
+            box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        get = Gtk.Button(label="Use it" if offer.get("downloaded") else "Download")
+        get.get_style_context().add_class("suggested-action")
+        later, never = Gtk.Button(label="Not now"), Gtk.Button(label="Don't ask again")
+
+        def go(button) -> None:
+            for b in (get, later, never):
+                b.set_sensitive(False)
+            if offer.get("downloaded"):
+                self.daemon_json("ModelUse", task, offer["file"])
+                self.progress_line(words.model_line({"model": offer.get("model")}))
+            else:
+                self.start_job("ModelDownload", task, "Getting the model… (you can keep using the computer)")
+        get.connect("clicked", go)
+        get.set_sensitive(bool(offer.get("space_ok", True)))
+        later.connect("clicked", lambda b: box.destroy())
+        never.connect("clicked", lambda b: (self.proxy.call("ModelDecline", GLib.Variant("(s)", (offer["file"],)),
+                                                            Gio.DBusCallFlags.NONE, -1, None, None), box.destroy()))
+        for b in (get, later, never):
+            buttons.pack_start(b, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
 
     def close_project(self) -> None:
         if self.proxy:
@@ -529,6 +580,13 @@ class Sidebar(Gtk.Application):
         chapter_id = chapter.connect("changed", changed)
         for w in (shape, chapter, line):
             box.pack_start(w, False, False, 2)
+        models = self.daemon_json("ModelOffer", "writing") or {}
+        box.pack_start(Gtk.Label(label=words.model_line(models.get("in_use")), xalign=0, wrap=True, max_width_chars=30),
+                       False, False, 2)
+        if models.get("in_use"):
+            back = Gtk.Button(label="Write with the built-in guide")
+            back.connect("clicked", lambda b: (self.daemon_json("ModelUse", "writing", ""), b.set_sensitive(False)))
+            box.pack_start(back, False, False, 2)
         if info.get("drafts"):  # D58: offered once something is written, never done on its own
             ms = Gtk.Button(label="Make a manuscript")
             ms.set_tooltip_text(words.MANUSCRIPT_TIP)

@@ -305,6 +305,43 @@ def manuscript_done(res: dict) -> str:
             ".odt and .docx (for Word).")
 
 
+# --- a bigger model for writing (D60) ---------------------------------------------------------------------
+
+def offer_title(o: dict) -> str:
+    return "Your computer can run a stronger writing model"
+
+
+def offer_lines(o: dict) -> list[str]:
+    lo, hi = o.get("tok_s", [0, 0])
+    lines = [f"{o.get('model', '')}: {o.get('why', '')}.",
+             f"Here it would run {o.get('mode', '')}, about {lo * 45:.0f}-{hi * 45:.0f} words a minute."]
+    if o.get("downloaded"):
+        lines.append("It's already downloaded.")
+    else:
+        lines.append(f"The download is {o.get('size', 0) / 2**30:.1f} GB from Hugging Face, checked against its checksum "
+                     "before it's used. Nothing is sent or fetched until you click Download.")
+    if not o.get("space_ok", True):
+        lines.append("There isn't enough free disk space for it right now.")
+    return lines
+
+
+def download_progress(p: dict) -> str:
+    if p.get("testing"):
+        return f"Checked. Testing {p.get('model', '')} on this computer…"
+    return f"Downloading {p.get('model', '')}: {p.get('have_gb', '0')} of {p.get('total_gb', '?')} GB"
+
+
+def download_done(p: dict) -> str:
+    return f"{p.get('model', '')} is ready: {p.get('measured', 0):.0f} tokens a second here."
+
+
+def model_line(in_use: dict | None) -> str:
+    if not in_use:
+        return "Writing uses the built-in guide."
+    m = in_use.get("measured")
+    return f"Writing uses {in_use.get('model', '')}" + (f" ({m:.0f} tokens a second here)." if m else ".")
+
+
 def next_chapter_line(info: dict) -> str:
     if info.get("shape") != "chapters":
         return "Write it up reviews your notes, then plans the whole circle in one chapter."

@@ -42,6 +42,9 @@ class Model:
     active: float = 1.0     # share of the expert bytes read per token (Qwen3.6-35B-A3B: 2.7 %, fitted to 25 tok/s)
     partial_ok: bool = False  # worth running with dense layers in RAM ("walk-away" use)
     note: str = ""
+    source: str = ""        # "repo@revision" on Hugging Face ("" = ships on the ISO)
+    sha256: str = ""
+    size: int = 0           # file bytes
 
 
 # best first, per task; the figures from the files (gguf.py), the order from our measurements
@@ -52,22 +55,29 @@ CATALOG = {
     ],
     "writing": [
         Model("Qwen3-14B Q4_K_M", "Qwen3-14B-Q4_K_M.gguf", 8995793920, 40, 87040, 46080, emb=437575680,
-              note="steadiest on long stories: the only model that kept the circle in order"),
+              source="Qwen/Qwen3-14B-GGUF@530227a7d994db8eca5ab5ced2fb692b614357fd",
+              sha256="500a8806e85ee9c83f3ae08420295592451379b4f8cf2d0f41c15dffeb6b81f0", size=9001752960, note="steadiest on long stories: the only model that kept the circle in order"),
         Model("Qwen3.5-9B Q4_K_M", "Qwen3.5-9B-Q4_K_M.gguf", 5669554176, 32, 17408, 9216, emb=572129280,
-              note="1.9 % restated sentences (the 4B: 24.6 %), fast"),
+              source="unsloth/Qwen3.5-9B-GGUF@3885219b6810b007914f3a7950a8d1b469d598a5",
+              sha256="03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8", size=5680522464, note="1.9 % restated sentences (the 4B: 24.6 %), fast"),
         Model("Qwen3.6-35B-A3B Q4_K_M (experts in RAM)", "Qwen3.6-35B-A3B-Q4_K_M.gguf", 20408576512, 40, 10880, 5760, emb=286064640,
-              experts=18119393280, active=0.027, note="35B quality on a small card when the machine has the RAM"),
+              experts=18119393280, active=0.027, source="ggml-org/Qwen3.6-35B-A3B-GGUF@baec3ebee244827cda0f4557eafa8b28f7545fa6",
+              sha256="671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7", size=20419565568, note="35B quality on a small card when the machine has the RAM"),
         Model("Cin-MinAI guide (Qwen3.5-4B, tuned)", "Qwen3.5-4B-guide-HO-Q4_K_M.gguf", 2772477952, 33, 17408, 9216, emb=521472000,
               note="works everywhere, but repeats itself more in long stories"),
     ],
     "coding": [
         Model("Qwen3.8-27B IQ3_XXS", "Qwen3.8-27B-UD-IQ3_XXS.gguf", 10923864064, 65, 34816, 18432, emb=417177600,
-              note="the most reliable coder we tried; 14.1 tok/s fully on a free 11 GB card"),
+              source="unsloth/Qwen3.8-27B-GGUF@4ca720788d1e01f1bff70c033e0d0028fd02e502",
+              sha256="c0b7c3038681ed2e3040456c1dd45f9858b6c2290bed172c70388a94874f3eee", size=10934860704, note="the most reliable coder we tried; 14.1 tok/s fully on a free 11 GB card"),
         Model("Qwen3.6-35B-A3B Q4_K_M (experts in RAM)", "Qwen3.6-35B-A3B-Q4_K_M.gguf", 20408576512, 40, 10880, 5760, emb=286064640,
-              experts=18119393280, active=0.027, note="fast interactive coding on a small card with lots of RAM"),
+              experts=18119393280, active=0.027, source="ggml-org/Qwen3.6-35B-A3B-GGUF@baec3ebee244827cda0f4557eafa8b28f7545fa6",
+              sha256="671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7", size=20419565568, note="fast interactive coding on a small card with lots of RAM"),
         Model("Qwen3.8-27B IQ4_XS (part in RAM)", "Qwen3.8-27B-UD-IQ4_XS.gguf", 14241849344, 65, 34816, 18432, emb=546304000,
-              partial_ok=True, note="better 4-bit weights, slow: send it a task and come back later"),
-        Model("Qwen3.5-9B Q4_K_M", "Qwen3.5-9B-Q4_K_M.gguf", 5669554176, 32, 17408, 9216, emb=572129280, note="small and quick"),
+              partial_ok=True, source="unsloth/Qwen3.8-27B-GGUF@4ca720788d1e01f1bff70c033e0d0028fd02e502",
+              sha256="40fac4050e940397dbf13087afd50f4734a11805bf9d65ef8ddd7483470e6199", size=14252845984, note="better 4-bit weights, slow: send it a task and come back later"),
+        Model("Qwen3.5-9B Q4_K_M", "Qwen3.5-9B-Q4_K_M.gguf", 5669554176, 32, 17408, 9216, emb=572129280, source="unsloth/Qwen3.5-9B-GGUF@3885219b6810b007914f3a7950a8d1b469d598a5",
+              sha256="03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8", size=5680522464, note="small and quick"),
     ],
 }
 CONTEXT = {"help": 8192, "writing": 8192, "coding": 8192}
@@ -145,12 +155,15 @@ def _compute(weights: int) -> int:
     return max(COMPUTE_MIN, int(weights * 0.05))
 
 
+def margin_mib(card: dict) -> int:
+    # a 4K desktop drawn on the card used 830+ MiB; offloaded to the board's graphics ~680 (Xorg's buffers + CUDA)
+    return 600 if card["total_mib"] - card["free_mib"] > 800 else 200
+
+
 def room_mib(card: dict) -> int:
     """Free graphics memory to plan with: what llama.cpp reports free, minus a margin for the desktop to grow
     (bigger when the desktop is drawn on this card: something already uses it)."""
-    used = card["total_mib"] - card["free_mib"]
-    # a 4K desktop drawn on the card used 830+ MiB; offloaded to the board's graphics ~680 (Xorg's buffers + CUDA)
-    return card["free_mib"] - (600 if used > 800 else 200)
+    return card["free_mib"] - margin_mib(card)
 
 
 def plan(m: Model, machine: Machine, ctx: int) -> dict | None:
@@ -207,6 +220,8 @@ def match(machine: Machine) -> dict:
             if p and (p["tok_s"] >= (2 if m.partial_ok else 6) or task == "help"):
                 lo, hi = p["tok_s"] * 0.7, p["tok_s"] * 1.3
                 out[task] = {"model": m.name, "file": m.file, "why": m.note, **p, "context": CONTEXT[task],
+                             "source": m.source, "size": m.size, "sha256": m.sha256,
+                             "reserve_mib": margin_mib(machine.cards[0]) if machine.cards else 0,
                              "tok_s": [round(lo, 1), round(hi, 1)],
                              "args": p["args"] + ["-c", str(CONTEXT[task]), "-fa", "on", "-ctk", p["cache"],
                                                   "-ctv", p["cache"]]}
@@ -216,6 +231,8 @@ def match(machine: Machine) -> dict:
             if slow:
                 m, p = slow
                 out[task] = {"model": m.name, "file": m.file, "why": m.note + "; slow on this computer", **p,
+                             "source": m.source, "size": m.size, "sha256": m.sha256,
+                             "reserve_mib": margin_mib(machine.cards[0]) if machine.cards else 0,
                              "context": CONTEXT[task], "tok_s": [round(p["tok_s"] * 0.7, 1), round(p["tok_s"] * 1.3, 1)],
                              "args": p["args"] + ["-c", str(CONTEXT[task]), "-fa", "on", "-ctk", p["cache"],
                                                   "-ctv", p["cache"]]}

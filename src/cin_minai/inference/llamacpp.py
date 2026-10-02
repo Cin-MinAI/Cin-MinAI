@@ -189,6 +189,11 @@ class LlamaCppBackend(InferenceBackend):
             return hardware.nvidia_free_mib()
         return None
 
+    def cache_type(self) -> str:
+        """The KV cache type: q8_0, or q4_0 where the matcher planned a tight fit (settings: cache_type)."""
+        c = str(self.cfg.get("cache_type") or "q8_0")
+        return c if c in ("q8_0", "q4_0", "f16") else "q8_0"
+
     # --- the server ----------------------------------------------------------------------------------
     def argv(self, p: Profile) -> list[str]:
         threads = self.cfg.get("threads", "auto")
@@ -196,7 +201,7 @@ class LlamaCppBackend(InferenceBackend):
         a = [self.server, "--model", self.model_path(), "--alias", self.model_name(),
              "--host", self.sock, "--port", "8080",   # the port is ignored for a socket, but must be set
              "--ctx-size", str(p.context), "--gpu-layers", p.gpu_layers, "--device", p.device,
-             "--cache-type-k", "q8_0", "--cache-type-v", "q8_0", "--flash-attn", "on", "--fit", "off",
+             "--cache-type-k", self.cache_type(), "--cache-type-v", self.cache_type(), "--flash-attn", "on", "--fit", "off",
              "--parallel", "1", "--reasoning", "off", "--no-webui",
              "--threads", threads, "--threads-batch", threads]
         if int(self.cfg.get("idle_unload_s", 0)) > 0:
@@ -271,7 +276,7 @@ class LlamaCppBackend(InferenceBackend):
             try:  # the model's own numbers (gguf.py); the old estimate if the file can't be read
                 meta = gguf.read(model)
                 cpu_moe = gguf.cpu_moe_layers(self.cfg.get("extra_args", []))
-                need_for = lambda ctx: gguf.need_mib(meta, ctx, "q8_0", cpu_moe)  # noqa: E731
+                need_for = lambda ctx: gguf.need_mib(meta, ctx, self.cache_type(), cpu_moe)  # noqa: E731
             except (OSError, ValueError, KeyError, struct.error, UnicodeDecodeError):
                 need_for = lambda ctx: need_mib(size, ctx)  # noqa: E731
             steps = self.ladder()
