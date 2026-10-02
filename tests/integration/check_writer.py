@@ -62,6 +62,22 @@ def quality(path: str) -> dict:
             "glued_words": sum(1 for p in body for m in LONG.finditer(p) if glued(m.group(), vocab))}
 
 
+def story_measures(paths: list[str], notes: list[str]) -> dict:
+    """What the word-for-word checks miss ("Missed the Moon", 2026-10-01): sentences that mostly restate an
+    earlier one (60 % of their words, 8+ words), and sentences that are mostly a note copied in (70 %), over the
+    whole book; also which pronouns sit near each character's name."""
+    from cin_minai.daemon import manuscript
+    from cin_minai.daemon.writer import SENTENCE
+    words = lambda s: set(re.findall(r"\w+", s.lower())) - {"the", "a", "an", "and", "of", "to", "in", "was", "is", "it"}  # noqa: E731
+    sents = [s for p in paths for sc in manuscript.read_scenes(p)[1] for para in sc for s in SENTENCE.split(para)]
+    sets = [words(s) for s in sents]
+    restated = sum(1 for i, a in enumerate(sets) if len(a) >= 8 and any(len(a & b) / len(a) >= 0.6 for b in sets[:i]))
+    note_sets = [words(n) for n in notes if len(words(n)) >= 5]
+    recited = sum(1 for a in sets if len(a) >= 5 and any(len(a & n) / len(n) >= 0.7 for n in note_sets))
+    return {"sentences": len(sents), "restated_sentences": restated,
+            "restated_pct": round(100 * restated / max(1, len(sents)), 1), "notes_recited": recited}
+
+
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp(prefix="cinminai-writer-")
     cfg = config.load()
@@ -125,6 +141,12 @@ def main() -> int:
             print("COMPARE (the earlier draft):", json.dumps(quality(os.environ["WRITER_COMPARE"])))
         print("\nFACT CHECK: 'younger self'/'himself'/'his own' in the draft:",
               bool(re.search(r"younger self|himself|his own hand|his own handwriting|young(er)? Elias", prose, re.I)))
+        books = sorted(os.path.join(p.folder, d["file"]) for d in p.data["drafts"]
+                       if d.get("chapter") and os.path.isfile(os.path.join(p.folder, d["file"])))
+        if books:
+            notes = [n for k in ("facts", "characters", "ideas") for n in p.notes[k]]
+            print("STORY:", json.dumps(story_measures(books, notes)))
+        print(f"MODEL: {cfg['inference'].get('model', '')}")
         print(f"\nOUT: {out}")
     finally:
         backend.unload()
