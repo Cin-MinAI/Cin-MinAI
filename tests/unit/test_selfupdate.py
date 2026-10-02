@@ -47,6 +47,16 @@ class Watcher(unittest.TestCase):
         touch(os.path.join(self.pkg, "daemon", "service.py"), "a = 1\n", 10**18)
         self.assertEqual(w.check(), "same")
 
+    def test_the_open_project_survives_the_restart(self):
+        os.environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp()
+        path = selfupdate.state_file()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("/home/u/Documents/Writing/Missed the Moon")
+        self.assertEqual(selfupdate.take_reopen(), "/home/u/Documents/Writing/Missed the Moon")
+        self.assertEqual(selfupdate.take_reopen(), "")  # read once
+        self.assertEqual(selfupdate.RESTART_CODE, 75)
+
     @unittest.skipUnless(sys.platform.startswith("linux"), "loads the daemon, which needs PyGObject")
     def test_the_installed_code_loads(self):
         ok, why = selfupdate.loads()

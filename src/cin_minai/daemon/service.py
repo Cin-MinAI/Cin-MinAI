@@ -127,7 +127,7 @@ class Service:
         # D59: after an update, restart into the new version when idle; reopen the project that was open
         self.watcher = selfupdate.Watcher()
         self.active_at = time.monotonic()
-        reopen = os.environ.pop(selfupdate.REOPEN, "")
+        reopen = selfupdate.take_reopen()
         if reopen:
             try:
                 self.project = Project.open(reopen)
