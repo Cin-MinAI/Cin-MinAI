@@ -26,6 +26,30 @@ def project_root(path: str) -> str:
     return os.path.normpath(top.strip()) if top else folder
 
 
+def entry_point(root: str) -> str | None:
+    """What "run this project" starts, relative to the root: run.sh, else main.py (the root's, else the first one
+    a level down), else index.html (a web page, opened in the browser)."""
+    for rel in ("run.sh", "main.py"):
+        if os.path.isfile(os.path.join(root, rel)):
+            return rel
+    for rel, is_dir, _ in tree(root):
+        if not is_dir and os.path.basename(rel) == "main.py" and rel.count(os.sep) <= 1:
+            return rel
+    for rel, is_dir, _ in tree(root):
+        if not is_dir and os.path.basename(rel) == "index.html" and rel.count(os.sep) <= 1:
+            return rel
+    return None
+
+
+def venv_python(root: str) -> str:
+    """The project's own Python when it has a venv, else the system's."""
+    for name in (".venv", "venv"):
+        p = os.path.join(root, name, "bin", "python")
+        if os.path.exists(p):
+            return p
+    return "python3"
+
+
 def git(folder: str, *args: str) -> str | None:
     try:
         r = subprocess.run(["git", "-C", folder, *args], capture_output=True, text=True, timeout=10)

@@ -28,7 +28,7 @@ import threading
 import time
 
 from .changelog import Changelog
-from .project import Goals, project_root, tree
+from .project import Goals, entry_point, project_root, tree
 
 MAX_STEPS = 30
 READ_LINES = 80        # a read fits one result (OBS_CHARS) with its "more lines" note
@@ -81,7 +81,10 @@ One step holds about {answer_tokens} tokens: a file longer than about {write_lin
 the first part, then append the rest, one part per step, each under {write_lines} lines.
 You can't see the screen: graphical programs run here without a window (SDL's dummy video and audio drivers) and web
 pages aren't shown. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
-loop; the user opens the program or the page to try it.{venv}
+loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
+button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
+project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
+seconds; a goal whose checks fail stays open.{venv}
 
 The project's files (first lines):
 {files}
@@ -291,7 +294,8 @@ class Agent:
             pkgs = ", ".join(venv_packages(self.venv)) or "nothing yet"
             venv = (f"\nThe project's Python environment {os.path.basename(self.venv)}/ is active in your commands "
                     f"(`python3` and `python` are its own; installed: {pkgs}). Installing more needs the network: "
-                    "ask the user to do it.")
+                    "ask the user to do it. Outside your sandbox `python3` is the system's, without these packages: "
+                    f"a run.sh should start the program with {os.path.basename(self.venv)}/bin/python.")
         return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
                              answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                              sandbox=", sandboxed without network" if self.sandbox else "")
@@ -625,8 +629,10 @@ class Agent:
         if sandbox:
             argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
                     "--bind", self.root, self.root, "--unshare-net", "--die-with-parent", "--chdir", self.root, *argv]
+        # no .pyc from the agent's runs: an edit within the same second that keeps the file's size (a - b → a + b)
+        # left Python running the old compiled code, and a fixed test still failed
         env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy",
-               "PYGAME_HIDE_SUPPORT_PROMPT": "1"}
+               "PYGAME_HIDE_SUPPORT_PROMPT": "1", "PYTHONDONTWRITEBYTECODE": "1"}
         try:
             r = subprocess.run(argv, cwd=self.root, capture_output=True, text=True, timeout=timeout, env=env)
         except subprocess.TimeoutExpired:
@@ -646,9 +652,9 @@ class Agent:
             passed = code == 0
             ok &= passed
             lines.append(f"{rel}: {'passed' if passed else 'FAILED'}" + ("" if passed else "\n" + out[-800:]))
-        entry = next((rel for rel in ("run.sh", "main.py") if os.path.isfile(os.path.join(self.root, rel))), None) \
-            or next((rel for rel, is_dir, _ in tree(self.root) if not is_dir and os.path.basename(rel) == "main.py"),
-                    None)
+        entry = entry_point(self.root)
+        if entry and entry.endswith(".html"):  # a web page: its tags were checked when it changed
+            entry = None
         if entry:
             how = f"./{entry}" if entry.endswith(".sh") else f"python3 {shlex.quote(entry)}"
             code, out = self.execute(f"timeout 5 {how}", 30, self.bwrap)

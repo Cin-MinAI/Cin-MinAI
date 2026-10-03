@@ -23,7 +23,7 @@ gi.require_version("Vte", "2.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 
 from .changelog import Changelog  # noqa: E402
-from .project import Goals, project_root, tree  # noqa: E402
+from .project import Goals, entry_point, project_root, tree, venv_python  # noqa: E402
 
 TITLE = "AICUI"
 CSS = b"""
@@ -80,7 +80,12 @@ class Workspace(Gtk.ApplicationWindow):
         refresh = Gtk.Button.new_from_icon_name("view-refresh-symbolic", Gtk.IconSize.BUTTON)
         refresh.set_tooltip_text("Read the folder again")
         refresh.connect("clicked", lambda b: self.load_tree())
+        run = Gtk.Button(label="Run")
+        run.set_tooltip_text("Start the project as you would: run.sh, else main.py (with its own Python), "
+                             "else index.html in the browser")
+        run.connect("clicked", lambda b: self.run_project())
         bar = Gtk.Box(spacing=4)
+        bar.pack_start(run, False, False, 0)
         bar.pack_start(self.swap, True, True, 0)
         bar.pack_end(refresh, False, False, 0)
         self.tree_title = Gtk.Label(label="Working tree", xalign=0)
@@ -277,6 +282,63 @@ class Workspace(Gtk.ApplicationWindow):
         row.add(label)
         self.chat.add(row)
         row.show_all()
+
+    # --- running the project the way the user would ----------------------------------------------------------
+    def run_project(self) -> None:
+        """Run, outside the agent's sandbox, on the real screen: the agent's own checks run headless with its
+        project venv, and a newcomer's double-click doesn't (2026-10-03: "No module named pygame", then a game that
+        opened and closed at once — and nothing on screen said why)."""
+        entry = entry_point(self.root)
+        if not entry:
+            self.bubble("ai", "Nothing to run yet: no run.sh, main.py or index.html in this project.")
+            return
+        full = os.path.join(self.root, entry)
+        if entry.endswith(".html"):
+            Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(full).get_uri(), None)
+            self.bubble("ai", f"Opened {entry} in your browser.")
+            return
+        argv = ["bash", full] if entry.endswith(".sh") else [venv_python(self.root), full]
+        launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
+        launcher.set_cwd(self.root)
+        try:
+            proc = launcher.spawnv(argv)
+        except GLib.Error as e:
+            self.bubble("ai", f"Couldn't start {entry}: {e.message}")
+            return
+        self.bubble("ai", f"Running {entry}…")
+        proc.communicate_utf8_async(None, None, self.ran, entry)
+
+    def ran(self, proc: Gio.Subprocess, result, entry: str) -> None:
+        try:
+            _, out, _ = proc.communicate_utf8_finish(result)
+        except GLib.Error as e:
+            out = e.message
+        out = (out or "").strip()
+        if proc.get_if_exited() and proc.get_exit_status() == 0:
+            self.bubble("ai", f"{entry} finished normally.")
+            return
+        code = proc.get_exit_status() if proc.get_if_exited() else f"signal {proc.get_term_sig()}"
+        tail = "\n".join(out.splitlines()[-25:]) or "(no output)"
+        report = f"When I ran {entry} it stopped with an error (exit {code}):\n{tail}"
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        label = Gtk.Label(label=report, wrap=True, xalign=0, selectable=True, max_width_chars=48)
+        box.pack_start(label, False, False, 0)
+        send = Gtk.Button(label="Send to the AI")
+        send.set_tooltip_text("Hand this error to the AI in its terminal")
+        send.connect("clicked", lambda b: self.hand_over(report, b))
+        box.pack_start(send, False, False, 0)
+        box.get_style_context().add_class("bubble-ai")
+        row = Gtk.ListBoxRow(activatable=False)
+        row.add(box)
+        self.chat.add(row)
+        row.show_all()
+
+    def hand_over(self, report: str, button: Gtk.Button) -> None:
+        if self.busy is not None:  # typed into a busy agent, it would land in a permission answer
+            self.bubble("ai", "The AI is still working: press Send again when it has finished (or Stop it first).")
+            return
+        button.set_sensitive(False)
+        self.term.feed_child((" ".join(report.splitlines()) + "\n").encode())
 
     def send(self, entry: Gtk.Entry) -> None:
         text = entry.get_text().strip()
