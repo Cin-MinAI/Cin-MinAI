@@ -7,6 +7,72 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-02 (afternoon and evening) — AICUI, and knowing where every model is
+
+*Ian drew the coding workspace he wanted, then settled its details in a few messages; Claude built it in slices on
+the dev PC and tested each on the Mint box's test install, where Ian tried it and found the rough edges.*
+
+### What we built, and how
+
+**AICUI, the AI coding workspace (D61, SPEC §21).** Ian's sketch (`artwork/aicui-layout-2026-10-02.png`): chat
+history, working tree, session goals, a large AI terminal, the typing box and model selection — "JetBrains in spirit,
+but not as elaborate". His calls, one by one: a **real terminal** ("I want to see the AI working"; permission prompts
+in it as usual), permissions the user's (ask, auto, admin / no admin, even none — "don't risk anything you aren't
+willing to lose"), thinking in collapsible bubbles, a **changelog** of every file the AI changes, goals written by
+both (the AI interviews, then works them as a to-do list), local by default and cloud by key or OAuth ("I'm not
+trying to be some local AI purist"), local and cloud **together** to save cloud tokens, Claude first, GitHub for
+syncing, and the changelog as **git under the hood but never in the user's history** — a shadow store per project.
+
+- *Slice 1* — the window in GTK with VTE, the working tree with git status, goals in `.cinminai/goals.json`. Ian:
+  "That looks amazing. Really clean… that's what people will lean towards for vibe coding."
+- *Slice 2* — `cinminai-code`, the agent in the terminal: schema-constrained steps (thinking + one action: read,
+  list, search, edit, write, run, goals, ask, answer), diffs and `[y]es / [n]o / [a]lways` in the terminal, commands
+  in bubblewrap without network, `sudo` refused without admin; the changelog (`.cinminai/changelog.git`, a snapshot
+  before and after each change, exact undo, `.cinminai/` kept out of the user's `git status` through the local
+  exclude file); events to `.cinminai/events.jsonl` that AICUI turns into bubbles, changelog entries and goals.
+- *First real run:* the 27B found and fixed the test project's discount bug, ran the tests (falling back from
+  `python` to `python3`), both passed — but on the processor, a step every few minutes. The backend's memory check
+  ignored the near-fit options (`-ot … =CPU`, `-ub 256`) and refused the card; fixed so the backend and the matcher
+  agree to the MiB (whole 27B 10,355 vs 10,356).
+- *Launching:* its own package `cinminai-aicui` (menu entry under Programming, with git, VTE and bubblewrap as
+  dependencies), an "Open AICUI" button in the sidebar, and the sidebar steps aside when AICUI opens (Ian: "I don't
+  like my screen that cluttered").
+
+**The matcher grew up on real machines.** After a reboot the desktop was drawn on the 1080 Ti again (725 MiB) and
+the 27B no longer fit whole. Two lessons in the code: the desktop's share is read from nvidia-smi's graphics
+processes (llama.cpp's "used" also counts its own CUDA context), and a dense model that misses by a little keeps
+the feed-forward weights of a few layers in RAM, the way it was tuned by hand that morning (12.9 tok/s with one).
+The agent prefers a model the user already has over a better one that would need a download.
+
+**Where every model is.** The test install's disk filled up completely — my benchmark models plus llama-server
+core dumps (it segfaults on exit; one dump of the 27B running on the processor was 5.1 GB). I deleted three unused
+test models, the server can no longer dump core, and Ian set up a 1.8 TB USB drive (he re-formatted it exFAT after
+we found it was FAT32, which can't hold files over 4 GB). The three unused models were moved there with a SHA check
+on the drive before the SSD copies went: the SSD went from 0 to 60 GB free. Then Ian's design for the record: the
+model store notes, for every model, whether it is in the store, **parked** (path and drive label) or deleted (with
+its source, and what replaced it in an upgrade) — so a download first looks for a parked copy, and an upgrade
+always knows how to get the old model back.
+
+### What went wrong (mine, on record)
+
+- The near-fit plan the backend didn't understand (above): the model ran on the processor for 25 minutes before I
+  looked. A full-disk test install, partly from my own downloads, that I should have watched.
+- Again a process match that caught my own SSH shell (`pgrep -f` on a name that was in my command line) — the
+  lesson was in my notes and I didn't follow it; the restart now goes through a script file.
+- The heredocs in my shell ate backslashes three more times (`\n`, `\r`, regex escapes); I fixed them with the Edit
+  tool, and should write such code that way from the start.
+
+### What we learned
+
+- **Test on the machine as it really is.** A reboot changed where the desktop is drawn, and with it what fits; the
+  matcher now reads that, instead of assuming the morning's numbers.
+- **The agent and the backend must agree on the plan.** Two pieces of code that each estimate memory will disagree;
+  now they compute it the same way, from the same file.
+- **A record beats a search.** Knowing where each model is — store, parked, deleted, replaced — turns "download it
+  again?" into "it's on USB Storage, copy it back".
+
+---
+
 ## 2026-10-01/02 — a writing partner with a shape, and the right model for every machine
 
 *Two days, Ian directing from the test install and Reddit, Claude building on the dev PC and the Mint box. It started
