@@ -1,23 +1,32 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 morning** (latest: journal "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-03 late morning** (latest: journal "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D63). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
-## Where we stopped (2026-10-03, ~09:00)
+## Where we stopped (2026-10-03, ~10:30) — the start of AICUI's next version
 
-- **AICUI on the test SSD**, latest build `0.0.1+git20261003.113255` (aicui + daemon; per-build versions now, so
-  `dpkg -l 'cinminai-*'` tells what's installed). Ian's blackjack project `~/aicui-test`: goals 1-4 ticked, 13 tests
-  pass (`.venv/bin/python test_blackjack.py`, runs every `test_*`), changes 18-61 in the changelog. Goal 5
-  ("Combine") stopped in a loop — the loop guard refused re-reads that compaction had removed (**fixing next**).
+- **AICUI on the test SSD**, build `0.0.1+git20261003.132747` (aicui + daemon; per-build versions, so
+  `dpkg -l 'cinminai-*'` tells what's installed). **The desktop is on the board's graphics now** (Ian's BIOS
+  change): the 1080 Ti is free, coding runs the 27B whole on the card at **32K**, 13-14 tok/s.
+- Ian's blackjack project `~/aicui-test`: **all six goals done**, tests pass, `run.sh` launches it with the venv,
+  the window scales (`SCALED | RESIZABLE`). Changes 18-75 in the changelog. Some game bugs left — not the point yet.
 - Prompts for Ian to paste: `~/Desktop/prompts.txt` on the test SSD.
-- **Next version of the agent** (in order): loop guard aware of compaction; shorten old reads first when compacting;
-  check after every change (compile, duplicated code) and check "all tests pass" claims against the real output;
-  no hard step limit while it makes progress (a handover in the chat every 60 steps; stop when done, stuck, needing
-  the user, or Stop); a visible "waiting for you" state with Allow / Always / No buttons. **Ask stays the default
-  permission mode, always** (Ian). Then the web-page test (a wedding page), D62 (GitHub Pages), D63 (senior/junior).
+- **Next version of the agent and AICUI** (in order; Ian: "a great spot to start the next version"):
+  1. **Compaction keeps a map:** when a file read is summarized, keep its outline (classes, functions, line
+     numbers), and shorten old reads before anything else.
+  2. **Check after every change:** compile, duplicated definitions, and "does it still start" by drawing real
+     frames for a few seconds; check "all tests pass" claims against the real output.
+  3. **A Run button in AICUI** that starts the project the way the user would (its venv, errors in the AI
+     terminal); the agent knows the user's own runs don't use its sandbox's venv, and offers a launcher.
+  4. **No hard step limit while it makes progress:** a handover in the chat every 60 steps; stop when done, stuck,
+     needing the user, or Stop. **Ask stays the default permission mode, always** (Ian).
+  5. **A visible "waiting for you"** with Allow / Always / No buttons beside Stop.
+  6. Small: the model's thinking shouldn't copy the user's message; the matcher's memory estimate was ~150 MiB
+     optimistic at 32K (51 MiB left) — calibrate.
+  Then: the web-page test (a wedding page), D62 (GitHub Pages), D63 (senior/junior).
 
 ## State right now
 

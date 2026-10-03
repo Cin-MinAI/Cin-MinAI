@@ -7,6 +7,46 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-03 (late morning) — all six goals, the BIOS change, and a game Ian can launch
+
+*The blackjack project finished: goals 5 and 6 done, a launcher, a scalable window. Along the way the loop guard
+was fixed, Ian moved the desktop off the graphics card, and coding went to 32K. Ian: "The overall process is great
+and we have the interface… interfacing with me well. You also technically. Where we landed is a great spot to
+start the next version."*
+
+### What happened
+
+- **Goal 5 ("Combine") looped:** reading the whole project filled 16K, compaction dropped the reads, and the loop
+  guard then refused a third read of `game.py` the model no longer had. Fixed (dd45f77): a re-read is refused only
+  while the earlier copies are still in view; from the third read the result says to work one file at a time.
+  With the fix the agent broke out by itself and finished goal 5 (Ian: "I thought it was looping").
+- **The BIOS change (Ian):** Init Display First → onboard, and the boot display off the PCIe card. The 1080 Ti went
+  from ~480 MiB of desktop to 7 MiB in use (Xorg keeps a 4 MiB placeholder). The matcher now gives coding **32K
+  where it costs nothing** — the same model, the same placement (6e608c4); a flat 32K would have pushed layers to
+  RAM, or switched model, where the desktop is drawn on the card. On the test SSD: the 27B whole on the card at
+  32K, **13-14 tok/s** (8.5 that morning), falling to ~11 as the context fills; 51 MiB left on the card (the
+  matcher's estimate was ~150 MiB optimistic). Ian: "this really is rice rocket tuning."
+- **Goal 6** (buttons, a bet slider, colours, generated sounds without numpy): a full rewrite of `pygame_ui.py` was
+  cut off at the 4,096-token limit — the first real use of the salvage path: 312 lines saved, then appended to 558,
+  compiling. It tested the UI by posting mouse clicks headless. All six goals ticked.
+- **Ian played it:** `No module named pygame` — he ran it with the system Python; pygame-ce lives only in the
+  project's `.venv`, and inside the agent's sandbox `python3` is the venv, so the agent couldn't reproduce it and
+  told him to run `python main.py`. A `run.sh` launcher fixed it. The window was tiny on the 4K screen at 3×
+  scaling; the agent started rewriting every coordinate — Ian stopped it, and one line (`pygame.SCALED |
+  pygame.RESIZABLE`) did it. The stopped rewrite had left a call with arguments the method didn't take: `run.sh`
+  opened and closed. The agent found it from Ian's words alone, fixed it, and removed the duplicated
+  `_draw_buttons` in the same pass. Ian: "it works… The game looks ok but it does have some bugs… we aren't going
+  for particulars here yet."
+
+### What we learned
+
+- **Test where the user runs it.** The sandbox's venv hid the one error every newcomer would hit first.
+- **A stop in the middle of a multi-step change leaves a half-change** — the changelog makes that recoverable,
+  and a "does it still start?" check that draws real frames would have caught it.
+- **A one-line hint beats a dozen junior steps** — twice more today (the deck order, `SCALED`). D63 again.
+
+---
+
 ## 2026-10-03 (morning) — watching the blackjack game get built, and a senior/junior setup by hand
 
 *Ian ran AICUI on the blackjack project and asked Claude to watch and log. Claude followed the agent's events
