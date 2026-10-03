@@ -43,7 +43,9 @@ cross-check** (classes and ids the CSS styles or the script looks up that the HT
 change to a page and before a goal is ticked, and the prompt says to read the HTML first. On the fix run it named
 the script's two leftover ids the moment the CSS was rewritten; the next edit cleared them; all six goals ticked
 with the checks passing. The page now has a top bar that folds into ☰ on a phone, countdown cards, a timeline,
-hotel cards — and a working RSVP button.
+hotel cards — and a working RSVP button. Ian tried it in Firefox with Run: the RSVP opens the email with the
+answers filled in, the menu folds behind ☰ when the window is narrow, Reader view works. ("Folding menu" was my
+word, and it wasn't plain enough — D65 applies to me too.)
 
 Also on the fix run: **the 27B started on the processor at 1.1 tok/s** — the daemon, restarting itself after the
 update, loaded its guide onto the card between the agent's start and its first request. The agent now asks for the
