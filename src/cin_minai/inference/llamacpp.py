@@ -86,7 +86,9 @@ class Spawner:
         while True:
             argv, kw, box, done = self.q.get()
             try:
-                box.append(subprocess.Popen(argv, preexec_fn=_set_pdeathsig, **kw))
+                # its own session: Ctrl+C in a terminal (AICUI's Stop) is for the agent, not the model server — it
+                # killed the server, and the next step loaded the model again (2026-10-03); PDEATHSIG still ends it
+                box.append(subprocess.Popen(argv, preexec_fn=_set_pdeathsig, start_new_session=True, **kw))
             except Exception as e:
                 box.append(e)
             done.set()
