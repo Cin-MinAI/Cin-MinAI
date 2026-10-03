@@ -36,6 +36,16 @@ class Matcher(unittest.TestCase):
         self.assertIn("-ot", r["coding"]["args"])
         self.assertIn("feed-forward weights in RAM", r["coding"]["mode"])
 
+    def test_coding_gets_32k_only_where_it_costs_nothing(self):
+        # after the BIOS change (2026-10-03): 11,159 MiB free, the 27B whole on the card at 32K
+        free = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 11159))["coding"]
+        self.assertEqual((free["file"], free["context"]), ("Qwen3.8-27B-UD-IQ3_XXS.gguf", 32768))
+        self.assertEqual(free["args"][free["args"].index("-c") + 1], "32768")
+        self.assertNotIn("-ot", free["args"])
+        # the desktop drawn on the card: 32K would move more to RAM, so 16K as before
+        tight = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))["coding"]
+        self.assertEqual((tight["file"], tight["context"]), ("Qwen3.8-27B-UD-IQ3_XXS.gguf", 16384))
+
     def test_8gb_card_16gb_ram(self):
         r = match(machine("NVIDIA GeForce RTX 3060 Ti", 8192, 7600, ram=16, avail=12))
         self.assertEqual(r["writing"]["file"], "Qwen3.5-9B-Q4_K_M.gguf")

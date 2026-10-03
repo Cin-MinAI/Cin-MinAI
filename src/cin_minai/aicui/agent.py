@@ -182,7 +182,7 @@ class Agent:
         self.cut, self.sys, self.cpt = 0, "", 3.0  # this task: steps summarized, its system text, characters a token
         self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
         # the answer limit grows with the context (it stayed at 1,800 when coding went to 16K: writes were cut off)
-        self.answer_tokens = ANSWER_TOKENS if ctx < 16384 else min(8192, ctx // 4)  # 8K: 1800, 16K: 4096
+        self.answer_tokens = ANSWER_TOKENS if ctx < 16384 else 4096  # 8K: 1800, 16K and up: 4096 (more: a write could take 16 min)
         self.write_lines = self.answer_tokens // TOKENS_A_LINE // 10 * 10           # 8K: 70 lines, 16K: 160
         self.venv = venv_of(root)
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say

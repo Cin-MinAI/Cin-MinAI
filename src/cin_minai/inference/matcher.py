@@ -81,6 +81,10 @@ CATALOG = {
     ],
 }
 CONTEXT = {"help": 8192, "writing": 8192, "coding": 16384}  # coding: 16K keeps more of a project in view (Ian)
+# More context where it costs nothing: the same model with the same placement (no more of it in RAM). On the 1080 Ti
+# with the desktop on the board's graphics, the 27B takes 32K whole on the card (~290 MiB more than 16K); with the
+# desktop drawn on the card, a flat 32K would have moved layers to RAM or switched model (2026-10-03).
+MORE_CONTEXT = {"coding": 32768}
 
 # memory bandwidth of common cards (GB/s), for the speed estimate; unknown cards: 300
 CARD_BW = [("4090", 1008), ("4080", 717), ("4070 ti", 504), ("4070", 504), ("4060 ti", 288), ("4060", 272),
@@ -249,12 +253,16 @@ def match(machine: Machine) -> dict:
             if p and slow is None or (p and m is models[-1]):
                 slow = (m, p)
             if p and (p["tok_s"] >= (2 if m.partial_ok else 6) or task == "help"):
+                ctx = CONTEXT[task]
+                big = plan(m, machine, MORE_CONTEXT[task]) if task in MORE_CONTEXT else None
+                if big and big["mode"] == p["mode"]:
+                    ctx, p = MORE_CONTEXT[task], big
                 lo, hi = p["tok_s"] * 0.7, p["tok_s"] * 1.3
-                out[task] = {"model": m.name, "file": m.file, "why": m.note, **p, "context": CONTEXT[task],
+                out[task] = {"model": m.name, "file": m.file, "why": m.note, **p, "context": ctx,
                              "source": m.source, "size": m.size, "sha256": m.sha256,
                              "reserve_mib": margin_mib(machine.cards[0]) if machine.cards else 0,
                              "tok_s": [round(lo, 1), round(hi, 1)],
-                             "args": p["args"] + ["-c", str(CONTEXT[task]), "-fa", "on", "-ctk", p["cache"],
+                             "args": p["args"] + ["-c", str(ctx), "-fa", "on", "-ctk", p["cache"],
                                                   "-ctv", p["cache"]]}
                 break
         else:
