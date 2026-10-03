@@ -2,10 +2,10 @@ Package: cinminai-desktop
 Version: @VERSION@
 Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
-Depends: cinminai-archive-keyring (= @VERSION@), cinminai-branding (= @VERSION@),
- cinminai-daemon (= @VERSION@), cinminai-sidebar (= @VERSION@), cinminai-applet (= @VERSION@),
- cinminai-llama (= @VERSION@), cinminai-libreoffice (= @VERSION@),
- cinminai-guide-model (= @VERSION@), cinminai-aicui (= @VERSION@)
+Depends: cinminai-archive-keyring (>= @RELEASE@), cinminai-branding (>= @RELEASE@),
+ cinminai-daemon (>= @RELEASE@), cinminai-sidebar (>= @RELEASE@), cinminai-applet (>= @RELEASE@),
+ cinminai-llama (>= @RELEASE@), cinminai-libreoffice (>= @RELEASE@),
+ cinminai-guide-model (>= @RELEASE@), cinminai-aicui (>= @RELEASE@)
 Section: metapackages
 Priority: optional
 Description: Cin-MinAI desktop (metapackage)

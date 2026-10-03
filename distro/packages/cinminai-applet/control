@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
 Section: misc
 Priority: optional
-Depends: cinnamon, python3, cinminai-sidebar (= @VERSION@)
+Depends: cinnamon, python3, cinminai-sidebar (>= @RELEASE@)
 Description: Cin-MinAI assistant: panel icon and Super+A
  The assistant's icon in the panel: it shows whether the assistant is ready,
  answering or resting, and a click opens it. At first login it is added to the

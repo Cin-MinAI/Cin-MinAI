@@ -18,7 +18,7 @@ export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$here" log -1 --format=%
 export GNUPGHOME=$SIGNING_GNUPGHOME
 
 fill() {  # file: replace @PLACEHOLDERS@ in place
-    sed -i -e "s#@VERSION@#$CINMINAI_VERSION#g" -e "s#@MINT_VERSION@#$MINT_VERSION#g" \
+    sed -i -e "s#@VERSION@#$CINMINAI_PKG_VERSION#g" -e "s#@RELEASE@#$CINMINAI_VERSION#g" -e "s#@MINT_VERSION@#$MINT_VERSION#g" \
            -e "s#@REPO_URL@#$REPO_URL#g" -e "s#@REPO_SUITE@#$REPO_SUITE#g" \
            -e "s#@REPO_COMPONENT@#$REPO_COMPONENT#g" -e "s#@GUIDE_FILE@#$GUIDE_FILE#g" \
            -e "s#@GUIDE_SIZE@#$GUIDE_SIZE#g" -e "s#@GUIDE_SHA256@#$GUIDE_SHA256#g" \
@@ -64,7 +64,8 @@ for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
     fi
     find "$stage" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
     arch=$(awk '/^Architecture:/ {print $2}' "$stage/DEBIAN/control")
-    deb=$out/${name}_${CINMINAI_VERSION}_${arch}.deb
+    rm -f "$out/${name}_"*"_${arch}.deb"   # the previous build of this package
+    deb=$out/${name}_${CINMINAI_PKG_VERSION}_${arch}.deb
     dpkg-deb -Zxz --root-owner-group --build "$stage" "$deb" >/dev/null
     rm -rf "$stage"
     printf '%s  %s\n' "$(sha256sum "$deb" | cut -d' ' -f1)" "$(basename "$deb")"

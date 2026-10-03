@@ -92,7 +92,7 @@ cleanup() { for ((i=${#mounts[@]}-1; i>=0; i--)); do umount -l "${mounts[i]}" 2>
 trap cleanup EXIT
 bind() { mkdir -p "$2"; mount "${@:3}" --bind "$1" "$2"; mounts+=("$2"); }
 
-log "chroot: install cinminai-desktop $CINMINAI_VERSION"
+log "chroot: install cinminai-desktop $CINMINAI_PKG_VERSION"
 mount -t proc proc "$rootfs/proc"; mounts+=("$rootfs/proc")
 mount -t sysfs sys "$rootfs/sys"; mounts+=("$rootfs/sys")
 bind /dev "$rootfs/dev"
@@ -115,7 +115,7 @@ aptopts=(-o Dir::Etc::sourcelist=/tmp/cinminai-build.list -o Dir::Etc::sourcepar
          -o Dir::State::Lists=/tmp/cinminai-lists -o APT::Get::List-Cleanup=0)
 chroot "$rootfs" apt-get "${aptopts[@]}" update
 chroot "$rootfs" env DEBIAN_FRONTEND=noninteractive SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
-    apt-get "${aptopts[@]}" install -y --no-install-recommends "cinminai-desktop=$CINMINAI_VERSION"
+    apt-get "${aptopts[@]}" install -y --no-install-recommends "cinminai-desktop=$CINMINAI_PKG_VERSION"
 if [[ $BOOTTEST == 1 ]]; then
     log "chroot: add the boot test (test variant only)"
     cp "$M1/pkgs-test/$CINMINAI_VERSION"/cinminai-boottest_*.deb "$rootfs/tmp/boottest.deb"

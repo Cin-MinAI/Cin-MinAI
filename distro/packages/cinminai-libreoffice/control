@@ -5,7 +5,7 @@ Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: libreoffice-core, python3-uno, python3-gi, gir1.2-glib-2.0
-Recommends: cinminai-daemon (= @VERSION@)
+Recommends: cinminai-daemon (>= @RELEASE@)
 Description: Cin-MinAI assistant in LibreOffice
  An Assistant menu in Writer, Calc and Impress. Share a document with the
  Cin-MinAI assistant from that menu, and it can read it and suggest edits:

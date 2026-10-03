@@ -5,7 +5,7 @@ Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
 Section: devel
 Priority: optional
 Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-3.0, gir1.2-vte-2.91, git, bubblewrap,
- cinminai-daemon (= @VERSION@)
+ cinminai-daemon (>= @RELEASE@)
 Description: AICUI, the Cin-MinAI coding workspace
  A simple workspace for coding with AI: the chat history, the project's files,
  the session goals and a real terminal where the coding agent works and asks

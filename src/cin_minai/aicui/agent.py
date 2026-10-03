@@ -20,6 +20,7 @@ import difflib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,7 +34,9 @@ MAX_STEPS = 30
 READ_LINES = 80        # a read fits one result (OBS_CHARS) with its "more lines" note
 OBS_CHARS = 3000       # what one tool result may add to the context (8K on an 11 GB card)
 RUN_TIMEOUT = 120
-ANSWER_TOKENS = 1800   # room for one step's answer (thinking + an action; a written file can be long)
+ANSWER_TOKENS = 1800   # room for one step's answer at 8K (thinking + an action); 16K gets 4096 (see Agent)
+TOKENS_A_LINE = 25     # a code line in a JSON string, escapes included: the size of one write part
+TICK_S = 1.5           # how often the progress of a step goes to AICUI (busy events)
 
 STR = {"type": "string"}
 ACTIONS = [
@@ -42,6 +45,7 @@ ACTIONS = [
     {"tool": "search", "pattern": STR},
     {"tool": "edit", "path": STR, "old": STR, "new": STR},
     {"tool": "write", "path": STR, "content": STR},
+    {"tool": "append", "path": STR, "content": STR},
     {"tool": "run", "command": STR},
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
@@ -64,7 +68,8 @@ def schema() -> dict:
 SYSTEM = """You are the coding agent in AICUI, working in the project folder {root} on the user's own computer.
 You work step by step. Each step: your thinking (short), then exactly one action:
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
-- edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file)
+- edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
+  append (add `content` to the end of a file)
 - run (a shell command in the project folder{sandbox})
 - goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
 - ask (a question for the user), answer (tell the user something; ends your turn)
@@ -72,6 +77,11 @@ Rules: read before you edit; make the smallest change that does the job; after a
 the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
 haven't read. At the start of a new project, ask about its goals and scope and write them as goals; once work
 starts, work the goals as your to-do list. Answer in the user's language.
+One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
+the first part, then append the rest, one part per step, each under {write_lines} lines.
+You can't see the screen: graphical programs run here without a window (SDL's dummy video and audio drivers) and web
+pages aren't shown. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
+loop; the user opens the program or the page to try it.{venv}
 
 The project's files (first lines):
 {files}
@@ -86,9 +96,10 @@ def slim(step: dict) -> str:
     gui.py became one line of placeholder (2026-10-02). Other actions stay as they were."""
     a = dict(step.get("action", {}))
     thinking = str(step.get("thinking", ""))[:300]
-    if a.get("tool") == "write":
+    if a.get("tool") in ("write", "append"):
         n = len(str(a.get("content", "")).splitlines())
-        return f"{thinking}\n(Earlier I wrote {a.get('path', '')}, {n} lines; it's on disk — read it if I need it.)"
+        did = "wrote" if a["tool"] == "write" else "added to the end of"
+        return f"{thinking}\n(Earlier I {did} {a.get('path', '')}, {n} lines; it's on disk — read it if I need it.)"
     if a.get("tool") == "edit" and len(str(a.get("old", "")) + str(a.get("new", ""))) > 600:
         return f"{thinking}\n(Earlier I edited {a.get('path', '')}: replaced {len(str(a.get('old', '')).splitlines())} " \
                f"lines with {len(str(a.get('new', '')).splitlines())}; it's on disk.)"
@@ -104,15 +115,76 @@ def brief(step: dict) -> str:
     return f"{a.get('tool', '?')} {str(what)[:80]}"
 
 
+ESCAPE = re.compile(r'\\.|[^\\]', re.S)
+
+
+def salvage(raw: str) -> tuple[str, str, str] | None:
+    """A write or append cut off by the step's token limit: (tool, path, the content up to its last whole line), so
+    the work isn't lost — 2026-10-03, a pygame GUI cut off at 1,800 tokens three times over, ~3½ minutes each."""
+    tool = re.search(r'"tool"\s*:\s*"(write|append)"', raw)
+    path = re.search(r'"path"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+    start = re.search(r'"content"\s*:\s*"', raw)
+    if not (tool and path and start):
+        return None
+    body, end = raw[start.end():], 0
+    for m in ESCAPE.finditer(body):
+        if m.group() == '"':
+            return None  # the content was complete: something else was cut
+        if m.group() == "\\n":
+            end = m.end()
+    try:
+        content, rel = json.loads('"' + body[:end] + '"'), json.loads('"' + path.group(1) + '"')
+    except ValueError:
+        return None
+    return (tool.group(1), rel, content) if content.count("\n") >= 5 else None
+
+
+def doing(raw: str) -> str:
+    """What a step being generated is about, from its first tokens (for the progress indicator)."""
+    tool = re.search(r'"tool"\s*:\s*"(\w+)"', raw)
+    if not tool:
+        return "thinking"
+    what = re.search(r'"(?:path|command|pattern)"\s*:\s*"((?:[^"\\]|\\.){0,60})', raw)
+    verb = {"write": "writing", "append": "writing", "edit": "editing", "read": "reading", "run": "running",
+            "list": "looking in", "search": "searching", "answer": "answering", "ask": "asking"}.get(tool.group(1),
+                                                                                                    tool.group(1))
+    return f"{verb} {what.group(1)}" if what else verb
+
+
+def venv_of(root: str) -> str | None:
+    """The project's own Python environment (.venv or venv), as made with `python3 -m venv`."""
+    for name in (".venv", "venv"):
+        if os.path.exists(os.path.join(root, name, "bin", "python")):
+            return os.path.join(root, name)
+    return None
+
+
+def venv_packages(venv: str) -> list[str]:
+    found = []
+    for lib in sorted(os.listdir(os.path.join(venv, "lib"))) if os.path.isdir(os.path.join(venv, "lib")) else []:
+        site = os.path.join(venv, "lib", lib, "site-packages")
+        for d in sorted(os.listdir(site)) if os.path.isdir(site) else []:
+            if d.endswith(".dist-info"):
+                name, _, version = d[:-10].partition("-")
+                if name.lower() not in ("pip", "setuptools", "wheel"):
+                    found.append(f"{name} {version}")
+    return found[:20]
+
+
 class Agent:
     def __init__(self, root: str, chat, model_name: str, mode: str = "ask", admin: bool = False,
-                 ask=input, say=print, ctx: int = 8192) -> None:
+                 ask=input, say=print, ctx: int = 8192, tick=None) -> None:
         self.root, self.chat, self.model_name, self.ctx = root, chat, model_name, ctx
         self.read_lines = READ_LINES * max(1, ctx // 8192) + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200
         self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
         self.reads: dict = {}  # (file, from line, modified) -> times read in this task
         self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
+        # the answer limit grows with the context (it stayed at 1,800 when coding went to 16K: writes were cut off)
+        self.answer_tokens = ANSWER_TOKENS if ctx < 16384 else min(8192, ctx // 4)  # 8K: 1800, 16K: 4096
+        self.write_lines = self.answer_tokens // TOKENS_A_LINE // 10 * 10           # 8K: 70 lines, 16K: 160
+        self.venv = venv_of(root)
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
+        self.tick = tick  # tick(text): the terminal's progress line while a step is generated
         self.always: set[str] = set()   # tools the user said "always" to this session
         self.goals, self.log = Goals(root), Changelog(root)
         self.history: list[dict] = []   # earlier turns: the user's message and the final answer
@@ -129,7 +201,14 @@ class Agent:
     def system(self) -> str:
         files = "\n".join("  " + r +("/" if d else "") for r, d, _ in tree(self.root)[:80])
         goals = "\n".join(f"  {g['id']}. [{'x' if g['done'] else ' '}] {g['text']}" for g in self.goals.load()) or "  (none yet)"
-        return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals,
+        venv = ""
+        if self.venv:
+            pkgs = ", ".join(venv_packages(self.venv)) or "nothing yet"
+            venv = (f"\nThe project's Python environment {os.path.basename(self.venv)}/ is active in your commands "
+                    f"(`python3` and `python` are its own; installed: {pkgs}). Installing more needs the network: "
+                    "ask the user to do it.")
+        return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
+                             answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                              sandbox=", sandboxed without network" if self.sandbox else "")
 
     def messages(self, text: str, steps: list[dict], full: int = 4) -> list[dict]:
@@ -143,37 +222,85 @@ class Agent:
         older = steps[:-full] if full else steps
         if older:
             messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(
-                f"- {brief(s['did'])} → {s['result'][:100]}" for s in older)})
+                f"- (note) {s['note'][:100]}" if "note" in s else f"- {brief(s['did'])} → {s['result'][:100]}"
+                for s in older)})
         for s in steps[len(older):]:
+            if "note" in s:  # a step that went wrong: said as it was, never as an action the model might copy
+                messages.append({"role": "user", "content": s["note"]})
+                continue
             messages.append({"role": "assistant", "content": slim(s["did"])})
             messages.append({"role": "user", "content": "Result: " + s["result"]})
         return messages
 
     def fit(self, text: str, steps: list[dict]) -> list[dict]:
         """The messages, shrunk until they fit the context with room for the answer (~3.3 characters a token)."""
-        budget = (self.ctx - ANSWER_TOKENS - 300) * 3.3
+        budget = (self.ctx - self.answer_tokens - 300) * 3.3
         for full in range(len(steps), -1, -1):  # as many full steps as fit (a fixed 4 made it re-read in a loop)
             m = self.messages(text, steps, full)
             if sum(len(x["content"]) for x in m) <= budget:
                 return m
         return m
 
+    def generate(self, messages: list[dict], n: int, cancel) -> tuple[str, dict]:
+        """One step from the model, with its progress to AICUI (busy events) and the terminal (tick) as it comes."""
+        parts: list[str] = []
+        last = [time.time()]
+
+        def on_text(piece: str) -> None:
+            parts.append(piece)
+            if time.time() - last[0] >= TICK_S:
+                last[0] = time.time()
+                what = doing("".join(parts))
+                self.event("busy", step=n, of=self.max_steps, doing=what, tokens=len(parts))
+                if self.tick:
+                    self.tick(f"step {n} · {what} · {len(parts)} tokens")
+        self.event("busy", step=n, of=self.max_steps, doing="reading the request", tokens=0)
+        t0 = time.time()
+        raw, timings = self.chat(messages, schema=schema(), max_tokens=self.answer_tokens, cancel=cancel,
+                                 on_text=on_text)
+        t = timings if isinstance(timings, dict) else {}
+        self.event("timing", seconds=round(time.time() - t0, 1), prompt_n=t.get("prompt_n"),  # for diagnosis
+                   cache_n=t.get("cache_n"), prompt_tps=round(t.get("prompt_per_second") or 0),
+                   gen_n=t.get("predicted_n"), gen_tps=round(t.get("predicted_per_second") or 0, 1))
+        return raw, t
+
+    def unfinished(self, raw: str, cut: bool) -> str:
+        """A reply that isn't a whole step: save what a cut-off write holds, and tell the model plainly what happened."""
+        if not cut:
+            return "Your last reply wasn't valid JSON, so nothing was done. Reply with your thinking and one action."
+        limit = (f"Your last reply was cut off: one step holds about {self.answer_tokens} tokens, and it was longer. "
+                 f"Write long files in parts of under {self.write_lines} lines: write the first part, then append the "
+                 "rest, one part per step.")
+        part = salvage(raw)
+        if not part:
+            return limit + " Nothing was saved."
+        tool, rel, content = part
+        result = self.change({"tool": tool, "path": rel, "content": content})
+        if "logged as change" not in result:
+            return f"{limit} The part that came through couldn't be saved ({result})."
+        with open(self.path(rel), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        tail = "\n".join(f"{i:5} {line}" for i, line in enumerate(lines, 1))
+        tail = "\n".join(tail.splitlines()[-6:])
+        return (f"{limit} What came through was saved: {rel} now has {len(lines)} lines ({result}). It ends with:\n"
+                f"{tail}\nContinue with append from there — don't write those lines again.")
+
     def turn(self, text: str, cancel: threading.Event | None = None) -> str:
         self.event("user", text=text)
+        try:
+            return self.work(text, cancel)
+        finally:
+            self.event("idle")  # AICUI's indicator goes away, also after Stop (Ctrl+C) or an error
+
+    def work(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
         self.reads = {}
-        for _ in range(self.max_steps):
+        for n in range(1, self.max_steps + 1):
             try:
-                t0 = time.time()
-                raw, timings = self.chat(self.fit(text, steps), schema=schema(), max_tokens=ANSWER_TOKENS, cancel=cancel)
-                t = timings if isinstance(timings, dict) else {}
-                self.event("timing", seconds=round(time.time() - t0, 1), prompt_n=t.get("prompt_n"),  # for diagnosis
-                           cache_n=t.get("cache_n"), prompt_tps=round(t.get("prompt_per_second") or 0),
-                           gen_n=t.get("predicted_n"), gen_tps=round(t.get("predicted_per_second") or 0, 1))
+                raw, t = self.generate(self.fit(text, steps), n, cancel)
             except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
                 try:
-                    raw, _ = self.chat(self.messages(text, steps[-1:], 0), schema=schema(), max_tokens=ANSWER_TOKENS,
-                                       cancel=cancel)
+                    raw, t = self.generate(self.messages(text, steps[-1:], 0), n, cancel)
                 except Exception:
                     msg = (f"I couldn't go on ({str(e)[:160]}). What's done is saved and in the changelog; tell me to "
                            "continue and I'll pick up from the files and the goals.")
@@ -185,8 +312,11 @@ class Agent:
                 step = json.loads(raw)
                 act = step["action"]
             except (ValueError, KeyError, TypeError):
-                steps.append({"did": {"thinking": "", "action": {"tool": "answer", "text": raw[:200]}},
-                              "result": "That wasn't valid JSON; answer with one action."})
+                cut = (t.get("predicted_n") or 0) >= self.answer_tokens - 2
+                note = self.unfinished(raw, cut)
+                self.event("note", text=note)
+                self.say(f"\033[33m{note.splitlines()[0]}\033[0m")
+                steps.append({"note": note})
                 continue
             if step.get("thinking"):
                 self.event("thinking", text=step["thinking"])
@@ -197,6 +327,7 @@ class Agent:
                 self.say(msg)
                 self.history.append({"user": text, "answer": msg})
                 return msg
+            self.event("busy", step=n, of=self.max_steps, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
         msg = "I stopped after many steps without finishing. Tell me how to go on."
@@ -218,6 +349,7 @@ class Agent:
         if self.mode in ("auto", "none") or tool in self.always:
             return True
         self.say(show)
+        self.event("busy", doing="waiting for your answer in the terminal")
         reply = self.ask(f"\033[1mAllow {tool}? [y]es / [n]o / [a]lways this session: \033[0m").strip().lower()
         if reply.startswith("a"):
             self.always.add(tool)
@@ -256,7 +388,7 @@ class Agent:
                     except (OSError, UnicodeDecodeError):
                         pass
                 return "\n".join(hits[:60]) or "no matches"
-            if t in ("edit", "write"):
+            if t in ("edit", "write", "append"):
                 return self.change(a)
             if t == "run":
                 return self.run(a["command"])
@@ -280,10 +412,12 @@ class Agent:
             if old.count(a["old"]) != 1:
                 return f"error: the text to replace appears {old.count(a['old'])} times in {rel}, not once"
             new = old.replace(a["old"], a["new"], 1)
+        elif a["tool"] == "append":
+            new = old + ("\n" if old and not old.endswith("\n") else "") + a["content"]
         else:
             new = a["content"]
-        text = a.get("new", "") if a["tool"] == "edit" else new
-        if a["tool"] == "write" and PLACEHOLDER.match(text):  # never a stand-in for real code (see slim)
+        text = a.get("new", "") if a["tool"] == "edit" else a["content"]
+        if a["tool"] in ("write", "append") and PLACEHOLDER.match(text):  # never a stand-in for real code (see slim)
             return (f"error: that isn't file content ({text.strip()[:40]!r}). Write the complete, real contents of "
                     f"{rel}.")
         diff = "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{rel}", f"b/{rel}"))
@@ -306,12 +440,18 @@ class Agent:
             return "error: administrator commands aren't allowed in this session (no admin)"
         if not self.allowed("run", f"\033[36m$ {command}\033[0m"):
             return "the user said no to this command"
-        argv = ["bash", "-lc", command]
+        # the project's venv first on the path (after bash -l's profile, which may set PATH), and no window: the AI
+        # can't see one, and a program waiting on a window it can't close would hold the step until the timeout
+        prefix = f"export VIRTUAL_ENV={shlex.quote(self.venv)} PATH={shlex.quote(self.venv + '/bin')}:$PATH; " \
+            if self.venv else ""
+        argv = ["bash", "-lc", prefix + command]
         if self.sandbox:
             argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
                     "--bind", self.root, self.root, "--unshare-net", "--die-with-parent", "--chdir", self.root, *argv]
+        env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy",
+               "PYGAME_HIDE_SUPPORT_PROMPT": "1"}
         try:
-            r = subprocess.run(argv, cwd=self.root, capture_output=True, text=True, timeout=RUN_TIMEOUT)
+            r = subprocess.run(argv, cwd=self.root, capture_output=True, text=True, timeout=RUN_TIMEOUT, env=env)
         except subprocess.TimeoutExpired:
             return f"error: still running after {RUN_TIMEOUT} s, stopped"
         out = (r.stdout + r.stderr).strip()
@@ -373,22 +513,31 @@ def main(argv=None) -> int:
         print("\033[1;31mNo permissions: the AI changes files and runs commands without asking, outside the sandbox. "
               "Don't risk anything you aren't willing to lose.\033[0m")
     backend, name = local_backend()
-    agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)))
+    def tick(text: str) -> None:  # one progress line, rewritten in place; anything said after it starts clean
+        sys.stdout.write(f"\r\033[2m… {text}\033[0m\033[K")
+        sys.stdout.flush()
+
+    agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)),
+                  say=lambda s: print(f"\r\033[K{s}"), tick=tick)
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
-          "Ctrl+D to leave.")
+          "Ctrl+C stops the AI, Ctrl+D leaves.")
     try:
         while True:
             try:
                 text = input("\033[1;34myou>\033[0m ").strip()
             except EOFError:
                 break
+            except KeyboardInterrupt:  # Stop while nothing runs: a fresh prompt, not the end of the agent
+                print()
+                continue
             if text:
                 cancel = threading.Event()
                 try:
                     agent.turn(text, cancel)
-                except KeyboardInterrupt:
+                except KeyboardInterrupt:  # AICUI's Stop button sends Ctrl+C; the server stops when we hang up
                     cancel.set()
-                    print("(stopped)")
+                    print("\r\033[K(stopped — what's done is saved and in the changelog)")
+                    agent.event("answer", text="Stopped. What's done is saved and in the changelog.")
     finally:
         backend.unload()
     return 0

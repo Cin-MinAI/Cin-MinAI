@@ -14,16 +14,22 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from cin_minai.aicui.agent import Agent, schema  # noqa: E402
+from cin_minai.aicui.agent import Agent, doing, salvage, schema  # noqa: E402
 
 
 class Scripted:
+    """A model that answers from a list: a step (dict), or (raw text, timings) for what a real server might send."""
     def __init__(self, steps):
         self.steps, self.sent = list(steps), []
 
-    def __call__(self, messages, schema=None, max_tokens=0, cancel=None):
+    def __call__(self, messages, schema=None, max_tokens=0, cancel=None, on_text=None):
         self.sent.append(messages)
-        return json.dumps(self.steps.pop(0)), {}
+        s = self.steps.pop(0)
+        raw, timings = s if isinstance(s, tuple) else (json.dumps(s), {})
+        if on_text:
+            for piece in raw.split(" "):
+                on_text(piece + " ")
+        return raw, timings
 
 
 def step(thinking, **action):
@@ -58,7 +64,7 @@ class AgentTest(unittest.TestCase):
             self.assertIn("return a + b", f.read())
         e = a.log.entries()
         self.assertEqual((len(e), e[0]["file"], e[0]["model"]), (1, "app.py", "Qwen3.8-27B"))
-        kinds = [x["kind"] for x in self.events() if x["kind"] != "timing"]  # timings: diagnostics per step
+        kinds = [x["kind"] for x in self.events() if x["kind"] not in ("timing", "busy", "idle")]  # diagnostics, indicator
         self.assertEqual(sum(1 for x in self.events() if x["kind"] == "timing"), 5)
         self.assertEqual(kinds, ["user", "thinking", "thinking", "change", "thinking", "goals", "thinking", "goals",
                                  "thinking", "answer"])
@@ -151,8 +157,78 @@ class AgentTest(unittest.TestCase):
 
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
-        self.assertEqual(tools, ["read", "list", "search", "edit", "write", "run", "goal_add", "goal_done", "ask",
-                                 "answer"])
+        self.assertEqual(tools, ["read", "list", "search", "edit", "write", "append", "run", "goal_add", "goal_done",
+                                 "ask", "answer"])
+
+    def cut_write(self, path, lines, tool="write"):
+        """What the server sends when a write runs into the token limit: JSON that stops inside the content."""
+        content = "".join(f"line {i}\n" for i in range(1, lines + 1))
+        raw = json.dumps(step("The whole GUI.", tool=tool, path=path, content=content + "last half-li"))
+        return raw[:raw.rindex("last half-li") + len("last half-li")], {"predicted_n": 4096}
+
+    def test_a_cut_off_write_is_saved_and_continued_with_append(self):
+        a = Agent(self.root, Scripted([self.cut_write("gui.py", 40),
+                                       step("Go on.", tool="append", path="gui.py", content="line 41\nline 42\n"),
+                                       step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append,
+                  ctx=16384)
+        self.assertEqual((a.answer_tokens, a.write_lines), (4096, 160))
+        a.turn("write the gui")
+        with open(os.path.join(self.root, "gui.py"), encoding="utf-8") as f:
+            text = f.read()
+        self.assertEqual(text, "".join(f"line {i}\n" for i in range(1, 43)))  # the half line was left out
+        note = a.chat.sent[1][-1]["content"]
+        self.assertIn("cut off", note)
+        self.assertIn("gui.py now has 40 lines", note)
+        self.assertIn("   40 line 40", note)
+        self.assertIn("append", note)
+        self.assertEqual([e["file"] for e in a.log.entries()], ["gui.py", "gui.py"])  # both in the changelog, with undo
+        self.assertEqual([x["kind"] for x in self.events()].count("note"), 1)
+
+    def test_a_failed_step_is_never_shown_as_an_action(self):
+        """2026-10-03: shown as an "answer" with the broken text, the model answered with that text and stopped."""
+        a = Agent(self.root, Scripted([('{"thinking": "Now I have a full picture', {"predicted_n": 1800}),
+                                       ("not json at all", {"predicted_n": 5}),
+                                       step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
+        self.assertEqual(a.turn("go"), "ok")
+        sent = a.chat.sent[-1]
+        self.assertFalse(any("full picture" in m["content"] for m in sent))
+        self.assertFalse(any(m["role"] == "assistant" for m in sent[2:]))
+        self.assertIn("cut off", sent[-2]["content"])
+        self.assertIn("Nothing was saved", sent[-2]["content"])
+        self.assertIn("wasn't valid JSON", sent[-1]["content"])
+
+    def test_salvage_and_doing(self):
+        self.assertIsNone(salvage('{"thinking": "x", "action": {"tool": "write", "path": "a.py", "content": "one'))
+        whole = json.dumps(step("", tool="write", path="a.py", content="1\n2\n3\n4\n5\n6\n"))
+        self.assertIsNone(salvage(whole[:-1]))  # the content is whole: something after it was cut, not the file
+        tricky = 'x = "a\\nb"\n' * 6 + 'print("\\\\'  # escaped quotes and backslashes, cut inside an escape
+        raw = json.dumps(step("", tool="append", path='b"q.js', content=tricky))
+        tool, path, content = salvage(raw[:raw.rindex("\\\\") + 1]) or ("", "", "")
+        self.assertEqual((tool, path, content), ("append", 'b"q.js', 'x = "a\\nb"\n' * 6))
+        self.assertEqual(doing('{"thinking": "hm", "action": {"tool": "write", "path": "gui.py", "con'), "writing gui.py")
+        self.assertEqual(doing('{"thinking": "hm'), "thinking")
+
+    def test_the_projects_venv_is_used(self):
+        venv = os.path.join(self.root, ".venv")
+        os.makedirs(os.path.join(venv, "bin"))
+        for d in ("pygame_ce-2.5.8.dist-info", "pip-24.0.dist-info"):
+            os.makedirs(os.path.join(venv, "lib", "python3.12", "site-packages", d))
+        open(os.path.join(venv, "bin", "python"), "w").close()
+        a = self.agent([])
+        self.assertIn("installed: pygame_ce 2.5.8)", a.system())
+        self.assertNotIn("pip 24.0", a.system())
+        if shutil.which("bash") and os.name == "posix":
+            a.mode, a.sandbox = "auto", False
+            out = a.run('echo "$VIRTUAL_ENV|$SDL_VIDEODRIVER"; echo "$PATH" | cut -d: -f1')
+            self.assertIn(f"{venv}|dummy", out)
+            self.assertIn(os.path.join(venv, "bin"), out)
+
+    def test_progress_events_and_idle(self):
+        a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
+        a.turn("go")
+        kinds = [x["kind"] for x in self.events()]
+        self.assertEqual(kinds[-1], "idle")
+        self.assertIn("busy", kinds)
 
 
 if __name__ == "__main__":

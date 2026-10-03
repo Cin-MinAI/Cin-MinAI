@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 
 import gi
 
@@ -140,7 +141,20 @@ class Workspace(Gtk.ApplicationWindow):
         self.admin = Gtk.CheckButton(label="Admin")
         self.admin.set_tooltip_text("Let the AI ask for administrator commands")
         self.admin.connect("toggled", self.restart_agent)
+        # while the AI works: what it's doing, for how long, and Stop (Ctrl+C in its terminal)
+        self.spinner = Gtk.Spinner()
+        self.busy_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, width_chars=46, max_width_chars=60)
+        stop = Gtk.Button(label="Stop")
+        stop.set_tooltip_text("Stop the AI now (Ctrl+C in its terminal). What it has done stays, with undo.")
+        stop.connect("clicked", lambda b: self.term.feed_child(b"\x03"))
+        self.busy_box = Gtk.Box(spacing=6, no_show_all=True)
+        for w in (self.spinner, self.busy_label, stop):
+            w.show()
+            self.busy_box.pack_start(w, False, False, 0)
+        self.busy, self.busy_since = None, 0.0
+        GLib.timeout_add_seconds(1, self.show_busy)
         bottom = Gtk.Box(spacing=6, margin=6)
+        bottom.pack_start(self.busy_box, False, False, 0)
         bottom.pack_start(self.entry, True, True, 0)
         bottom.pack_end(self.model, False, False, 0)
         bottom.pack_end(self.admin, False, False, 0)
@@ -202,6 +216,16 @@ class Workspace(Gtk.ApplicationWindow):
                 self.thought(e.get("text", ""))
             elif e["kind"] == "answer":
                 self.bubble("ai", e.get("text", ""))
+            elif e["kind"] == "note":  # a step that went wrong (cut off, not valid), told to the model as it was
+                self.thought(e.get("text", ""), "Note")
+            elif e["kind"] == "busy":
+                if self.busy is None or e.get("step") != self.busy.get("step"):
+                    self.busy_since = e.get("t", time.time())
+                self.busy = e
+                self.show_busy()
+            elif e["kind"] == "idle":
+                self.busy = None
+                self.show_busy()
             elif e["kind"] == "change":
                 self.load_changes()
                 self.load_tree()
@@ -209,10 +233,26 @@ class Workspace(Gtk.ApplicationWindow):
                 self.load_goals()
         return True
 
+    def show_busy(self) -> bool:
+        """The indicator: step, what the AI is doing, tokens so far, and how long this step has taken."""
+        e = self.busy
+        if e is None or (e.get("doing") != "waiting for your answer in the terminal"
+                         and time.time() - self.busy_since > 3600):  # an agent that died without saying idle
+            self.spinner.stop()
+            self.busy_box.hide()
+            return True
+        secs = int(time.time() - self.busy_since)
+        parts = [f"Step {e['step']} of {e['of']}" if e.get("step") else "", e.get("doing", "working"),
+                 f"{e['tokens']} tokens" if e.get("tokens") else "", f"{secs // 60}:{secs % 60:02}"]
+        self.busy_label.set_text(" · ".join(p for p in parts if p))
+        self.spinner.start()
+        self.busy_box.show()
+        return True
+
     # --- chat --------------------------------------------------------------------------------------------
-    def thought(self, text: str) -> None:
+    def thought(self, text: str, title: str = "Thought") -> None:
         """The model's thinking: a bubble that stays collapsed, to open when you want to see how it got there."""
-        exp = Gtk.Expander(label="Thought")
+        exp = Gtk.Expander(label=title)
         exp.add(Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48))
         exp.get_style_context().add_class("bubble-ai")
         row = Gtk.ListBoxRow(activatable=False)
