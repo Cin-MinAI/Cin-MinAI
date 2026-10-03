@@ -395,6 +395,35 @@ class AgentTest(unittest.TestCase):
         self.assertIn("Last thing I was doing: Looking again.", msg)
         self.assertEqual(len(a.chat.sent), 16)  # 1 change + 15 steps without progress
 
+    def test_a_web_pages_files_must_use_each_others_names(self):
+        """2026-10-03, the wedding page: CSS for .nav/.menu/.menu-btn, HTML with #menu/#menu-toggle, a script that
+        looked up #menu-btn and stopped there — the RSVP button never worked, and goals 3 and 5 were ticked."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.change({"tool": "write", "path": "index.html", "content":
+                  '<nav id="menu"><button id="menu-toggle">=</button><ul id="menu-links"></ul></nav>\n'
+                  '<form id="rsvp-form" class="card"></form>\n'})
+        r = a.change({"tool": "write", "path": "style.css", "content":
+                      ".card { padding: 1rem; }\n.menu-btn { display: none; }\n#menu-links.open { display: flex; }\n"
+                      "@media (max-width: 700px) {\n  .nav .menu-btn { display: block; }\n}\n"})
+        self.assertIn("style.css styles .menu-btn, .nav", r)
+        self.assertNotIn(".open", r)  # added by the script below: not a problem
+        r = a.change({"tool": "write", "path": "script.js", "content":
+                      "const b = document.getElementById('menu-btn');\n"
+                      "document.querySelector('#menu-links').classList.toggle('open');\n"})
+        self.assertIn("script.js looks up #menu-btn — not in the HTML", r)
+        self.assertNotIn(".open", r)
+        ok, report = a.verify()
+        self.assertFalse(ok)
+        self.assertIn("index.html and its CSS/JS: PROBLEMS", report)
+        a.change({"tool": "write", "path": "style.css", "content": ".card { padding: 1rem; }\n#menu-toggle { }\n"
+                                                                   "#menu-links.open { display: flex; }\n"})
+        a.change({"tool": "write", "path": "script.js", "content":
+                  "document.getElementById('menu-toggle');\n"
+                  "document.querySelector('#menu-links').classList.toggle('open');\n"})
+        ok, report = a.verify()
+        self.assertTrue(ok, report)
+        self.assertIn("names and tags line up", report)
+
     def test_progress_events_and_idle(self):
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
         a.turn("go")

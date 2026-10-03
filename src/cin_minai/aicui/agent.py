@@ -79,7 +79,9 @@ Your thinking is a sentence or two about your next move — never a copy of the 
 user sees it in the chat.
 Rules: read before you edit; make the smallest change that does the job; after a change, check it (run the tests or
 the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
-haven't read. At the start of a new project, ask about its goals and scope and write them as goals; once work
+haven't read. Files that work together use each other's exact names: before writing a page's CSS or script, read
+its HTML (or the map of it) and use the classes and ids it has. At the start of a new project, ask about its goals
+and scope and write them as goals; once work
 starts, work the goals as your to-do list. Answer in the user's language.
 One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
 the first part, then append the rest, one part per step, each under {write_lines} lines.
@@ -239,6 +241,58 @@ def check_file(full: str) -> str:
         except ValueError as e:
             return f"isn't valid JSON: {e}"
     return ""
+
+
+CSS_NAME = re.compile(r"([.#])(-?[A-Za-z_][\w-]*)")
+JS_NAME = re.compile(r"""getElementById\(\s*['"]([\w-]+)['"]|querySelector(?:All)?\(\s*['"]([^'"]+)['"]|"""
+                     r"""classList\.(?:add|remove|toggle|contains)\(\s*['"]([\w-]+)['"]""")
+
+
+def web_names(root: str) -> str:
+    """Names that don't connect across a web project's files: classes and ids the CSS styles or the script looks up
+    that no HTML element has (2026-10-03: the wedding page's CSS styled .nav/.menu/.menu-btn while the HTML said
+    #menu/.menu-inner/#menu-toggle — the menu got no styling, and the goal was ticked)."""
+    files = {".html": [], ".css": [], ".js": []}
+    for rel, is_dir, _ in tree(root):
+        ext = os.path.splitext(rel)[1].lower()
+        if not is_dir and ext in files and rel.count(os.sep) <= 2:
+            try:
+                files[ext].append((rel, open(os.path.join(root, rel), encoding="utf-8").read()))
+            except (OSError, UnicodeDecodeError):
+                pass
+    if not files[".html"]:
+        return ""
+    html = "\n".join(t for _, t in files[".html"])
+    ids = set(re.findall(r"""\bid\s*=\s*["']([^"']+)["']""", html))
+    classes = {c for group in re.findall(r"""\bclass\s*=\s*["']([^"']+)["']""", html) for c in group.split()}
+    # classes the script adds itself (an open menu, a shown section) exist while the page runs
+    classes |= {cls for _, js in files[".js"] for _, _, cls in JS_NAME.findall(js) if cls}
+    problems = []
+    for rel, css in files[".css"]:
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        # selector lists (also inside @media blocks), not declarations
+        selectors = ",".join(re.findall(r"(?:^|[{}])\s*([^{}@;]+?)\s*\{", css))
+        missing = set()
+        for compound in re.split(r"[\s,>+~]+", selectors):  # .menu.open, #menu-links.open: one element
+            names = CSS_NAME.findall(compound)
+            absent = [(k, n) for k, n in names if (k == "." and n not in classes) or (k == "#" and n not in ids)]
+            if absent and len(absent) == len(names):  # a state class on a real element (.x.open) is fine
+                missing |= {k + n for k, n in absent}
+        missing = sorted(missing)
+        if missing:
+            problems.append(f"{rel} styles {', '.join(missing[:8])}" + (" …" if len(missing) > 8 else "")
+                            + " — no element in the HTML has " + ("that name" if len(missing) == 1 else "these names"))
+    for rel, js in files[".js"]:
+        wanted = set()
+        for by_id, query, _ in JS_NAME.findall(js):
+            if by_id and by_id not in ids:
+                wanted.add("#" + by_id)
+            for k, n in CSS_NAME.findall(query or ""):
+                if (k == "." and n not in classes) or (k == "#" and n not in ids):
+                    wanted.add(k + n)
+        if wanted:
+            problems.append(f"{rel} looks up {', '.join(sorted(wanted)[:8])} — not in the HTML")
+    return "; ".join(problems)
 
 
 def venv_of(root: str) -> str | None:
@@ -657,6 +711,9 @@ class Agent:
         self.event("change", id=e["id"], file=rel, added=e["added"], removed=e["removed"])
         done = f"{rel} changed (+{e['added']} -{e['removed']}), logged as change {e['id']}"
         problem = check_file(full)
+        if os.path.splitext(rel)[1].lower() in (".html", ".htm", ".css", ".js"):
+            names = web_names(self.root)  # a page's files must use each other's names
+            problem = "; ".join(p for p in (problem, names) if p)
         if problem:
             later = " (if you're still writing this file in parts, finish it first)" \
                 if "compile" in problem and a["tool"] in ("write", "append") else ""
@@ -720,8 +777,15 @@ class Agent:
             ok &= started
             lines.append(f"{entry}: " + ("started" + (" and kept running" if code == 124 else " and finished")
                                          if started else f"CRASHED (exit {code})\n" + out[-800:]))
-        if not tests and not entry:
-            lines.append("no tests (test_*.py) and no entry point (run.sh, main.py) to check")
+        page = next((rel for rel, is_dir, _ in tree(self.root)
+                     if not is_dir and rel.lower().endswith((".html", ".htm")) and rel.count(os.sep) <= 2), None)
+        if page:  # a web page: its tags, and the names its CSS and script use
+            problems = [p for p in (check_file(os.path.join(self.root, page)), web_names(self.root)) if p]
+            ok &= not problems
+            lines.append(f"{page} and its CSS/JS: " + ("names and tags line up" if not problems else
+                                                      "PROBLEMS: " + "; ".join(problems)))
+        if not tests and not entry and not page:
+            lines.append("no tests (test_*.py), entry point (run.sh, main.py) or web page to check")
         return ok, "\n".join(lines)
 
 
