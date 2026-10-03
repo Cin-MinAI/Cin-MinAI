@@ -1,9 +1,23 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-02 evening** (latest: journal "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
+Updated **2026-10-03 morning** (latest: journal "watching the blackjack game get built, and a senior/junior setup
+by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
-behind decisions: `docs/PLAN.md` (D1–D61). How the work went, day by day: `docs/dev-journal.md`. The guide
+behind decisions: `docs/PLAN.md` (D1–D63). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-03, ~09:00)
+
+- **AICUI on the test SSD**, latest build `0.0.1+git20261003.113255` (aicui + daemon; per-build versions now, so
+  `dpkg -l 'cinminai-*'` tells what's installed). Ian's blackjack project `~/aicui-test`: goals 1-4 ticked, 13 tests
+  pass (`.venv/bin/python test_blackjack.py`, runs every `test_*`), changes 18-61 in the changelog. Goal 5
+  ("Combine") stopped in a loop — the loop guard refused re-reads that compaction had removed (**fixing next**).
+- Prompts for Ian to paste: `~/Desktop/prompts.txt` on the test SSD.
+- **Next version of the agent** (in order): loop guard aware of compaction; shorten old reads first when compacting;
+  check after every change (compile, duplicated code) and check "all tests pass" claims against the real output;
+  no hard step limit while it makes progress (a handover in the chat every 60 steps; stop when done, stuck, needing
+  the user, or Stop); a visible "waiting for you" state with Allow / Always / No buttons. **Ask stays the default
+  permission mode, always** (Ian). Then the web-page test (a wedding page), D62 (GitHub Pages), D63 (senior/junior).
 
 ## State right now
 

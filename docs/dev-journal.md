@@ -7,6 +7,81 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-03 (morning) — watching the blackjack game get built, and a senior/junior setup by hand
+
+*Ian ran AICUI on the blackjack project and asked Claude to watch and log. Claude followed the agent's events
+over SSH from the dev PC, fixed what the runs showed between them, and twice acted as a "senior" for the local
+27B. By the end, four of the six goals were done, each with tests.*
+
+### What happened, run by run
+
+- **Run 0 (06:17).** The pygame GUI write was cut off three times at the per-step limit of 1,800 tokens (~3½ min
+  each, nothing saved). The agent recorded each broken reply as a fake "answer", and the model then answered with
+  that broken text and stopped. The limit had stayed sized for 8K after coding moved to 16K. Ian: "I thought our
+  context was upped" — it was; that one number wasn't.
+- **Fixes (7dc3a84):** the limit follows the context (4,096 at 16K); a new **append** action; a cut-off write is
+  saved up to its last whole line and the model is told where the file ends; failed steps go to the model as
+  plain notes; the project's `.venv` is used (pygame-ce) and SDL runs headless; AICUI got a **working indicator
+  with Stop** (Ian's request); packages got a version per build (`0.0.1+git<commit time>`).
+- **Run 1 (06:38, 60 steps, 52 min).** The model wrote `pygame_ui.py` in two parts by itself ("Let me write it in
+  parts"), checked pygame in the venv, solved the folder-name-with-a-space import, tested headless, and ticked goal
+  2. But **19 of 51 model minutes were re-reading the prompt**: the file list in the system text changed with every
+  new file, and once compaction began its boundary moved every step (cache 426 of 13K tokens, ~78 s a step).
+  Fixed in df1b29d: the system text is fixed for the task, compaction jumps to ~60 % and holds, and characters
+  per token come from the server's own count. Ian also found **Auto and "always" didn't hold**: AICUI restarted
+  the agent by typing into its terminal, which a busy agent never saw, and "always" was per tool. Fixed in
+  3d336dd (`.cinminai/session.json`, read before every question; "always" means Auto for the session).
+- **Stop killed the model server** (Ian's first press): Ctrl+C reached llama-server in the terminal's process
+  group. It now runs in its own session; later presses left the 27B loaded and the card idle.
+- **Run 2 (07:39, latest build, 60 steps, 31 min).** Same work, **31 minutes instead of 52**; 55K prompt tokens
+  re-read instead of 202K; one permission question, then Auto held. Ian: "Faster, more responsive, better
+  aesthetics." It wrote four real split tests (the casino rules, with a rigged deck) — then circled for ~15 steps:
+  its deck order contradicted its own correct comment (`deal()` pops from the end, player gets last and
+  third-to-last).
+- **Claude as senior.** Claude read the 20 lines that mattered and wrote one hint; Ian pasted it (no way to type
+  into AICUI remotely — the D63 interface will be that way). Goal 3 was ticked — but one of the four split tests
+  was never called, and still failed; the model's report said "all four fixed". A second hint: fix it and run every
+  `test_*` function automatically. All 7 tests then passed, checked independently.
+- **Goal 4 (aces):** code and six ace tests in one go, ticked after Ian's nudge (13 tests pass). On goal 5
+  ("Combine") it **looped**: reading the whole project filled the context, compaction removed the reads, and the
+  loop guard then refused to let it read `game.py` a third time — content it no longer had. Ian pressed Stop.
+
+### Ian, on record
+
+- "This is surprisingly proficient. Was expecting a bug by now."
+- "That was an amazing feeling. I was just the hold up in a system of my design." (The agent waited three
+  minutes on a permission prompt he'd forgotten.)
+- "Speed can come later but the feeling of 'Holy shit I can build something with this?!' is what we hit here."
+- "It's all old hardware. None of this is in high demand… not massive groundbreaking development, but if you need
+  to make wedding pages this will work." — the next test: a wedding page.
+- Ask stays the default permission mode, always ("a safeguard against my own stupidity"); development otherwise
+  as automated as possible — no hard step limit while it's making progress.
+- "The writing assistant for writers and creators, the coding UI for developers, and all of it packaged in a way
+  that lets everyone be either or all."
+
+Decisions: **D62** (publishing from AICUI via GitHub Pages; Ian's advice — a dedicated development email with an
+authenticator or passkey; device-flow sign-in; a plain "this is public" before the first publish) and **D63**
+(a cloud senior guiding the local junior over a D-Bus interface). The morning's numbers for D63: the junior wrote
+~15K tokens and processed well over half a million prompt tokens on the 1080 Ti; the senior read perhaps 5-10K
+tokens and wrote two ~100-token hints — and those hints changed the outcome.
+
+### Mine, on record
+
+The cut-off loop, the fake "answer" step, the re-reading and the loop guard's clash with compaction were all my
+agent code; the 1,800-token limit was mine to scale and I didn't. Twice my heredocs ate escapes or added line
+endings again — the lesson is in my notes; I fixed them with the Edit tool.
+
+### What we learned
+
+- **Watch real runs, with the numbers.** Each fix today came from a timing or an event line, not a guess: cache
+  426 of 13K said "the prompt start changed"; gen 1800 three times said "the limit".
+- **A small model can't be trusted on its own report.** "All four fixed" was false; "all tests pass" excluded a
+  test. The agent must check claims against the real output — and that's exactly where a senior is cheap.
+- **Credit where due:** this ran on a 2014 i7 and a 2017 GTX 1080 Ti, thanks to Qwen's open 27B (Apache-2.0),
+  llama.cpp, and the community quantization that fits it in 11 GB.
+
+---
+
 ## 2026-10-02/03 (night) — AICUI's first real project: a blackjack game
 
 *Ian opened AICUI from the new menu entry and gave it six session goals for a blackjack game. The agent built,
