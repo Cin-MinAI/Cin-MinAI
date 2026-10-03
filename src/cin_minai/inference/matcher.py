@@ -85,6 +85,10 @@ CONTEXT = {"help": 8192, "writing": 8192, "coding": 16384}  # coding: 16K keeps 
 # with the desktop on the board's graphics, the 27B takes 32K whole on the card (~290 MiB more than 16K); with the
 # desktop drawn on the card, a flat 32K would have moved layers to RAM or switched model (2026-10-03).
 MORE_CONTEXT = {"coding": 32768}
+# measured at 32K on the 1080 Ti (2026-10-03): 51 MiB left on the card where the plan expected its 200 MiB margin —
+# the estimate drifts ~150 MiB with the bigger context (it matched to the MiB at 16K), so the step up needs that much
+# more room
+MORE_CONTEXT_EXTRA_MIB = 150
 
 # memory bandwidth of common cards (GB/s), for the speed estimate; unknown cards: 300
 CARD_BW = [("4090", 1008), ("4080", 717), ("4070 ti", 504), ("4070", 504), ("4060 ti", 288), ("4060", 272),
@@ -254,7 +258,9 @@ def match(machine: Machine) -> dict:
                 slow = (m, p)
             if p and (p["tok_s"] >= (2 if m.partial_ok else 6) or task == "help"):
                 ctx = CONTEXT[task]
-                big = plan(m, machine, MORE_CONTEXT[task]) if task in MORE_CONTEXT else None
+                tighter = dataclasses.replace(machine, cards=[{**c, "free_mib": c["free_mib"] - MORE_CONTEXT_EXTRA_MIB}
+                                                              for c in machine.cards])
+                big = plan(m, tighter, MORE_CONTEXT[task]) if task in MORE_CONTEXT else None
                 if big and big["mode"] == p["mode"]:
                     ctx, p = MORE_CONTEXT[task], big
                 lo, hi = p["tok_s"] * 0.7, p["tok_s"] * 1.3

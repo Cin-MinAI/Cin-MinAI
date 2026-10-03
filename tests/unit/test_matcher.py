@@ -42,6 +42,9 @@ class Matcher(unittest.TestCase):
         self.assertEqual((free["file"], free["context"]), ("Qwen3.8-27B-UD-IQ3_XXS.gguf", 32768))
         self.assertEqual(free["args"][free["args"].index("-c") + 1], "32768")
         self.assertNotIn("-ot", free["args"])
+        # ~100 MiB less free: 32K would leave too little once the measured drift is counted, so 16K
+        near = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 11059))["coding"]
+        self.assertEqual((near["file"], near["context"]), ("Qwen3.8-27B-UD-IQ3_XXS.gguf", 16384))
         # the desktop drawn on the card: 32K would move more to RAM, so 16K as before
         tight = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))["coding"]
         self.assertEqual((tight["file"], tight["context"]), ("Qwen3.8-27B-UD-IQ3_XXS.gguf", 16384))
