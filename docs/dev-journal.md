@@ -7,6 +7,57 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-03 (late afternoon) — AICUI's next version, and a wedding page that taught it about names
+
+*Ian: "start on the next version list". The six items were built and installed; the wedding page was the test.
+Ian, on what he's building professionally: "industrial AI. Not frontier, industrial. What works every time you
+need it for the little things that end up being big pain in the asses."*
+
+### What was built (8c9eae1..e40fde6)
+
+1. **Compaction keeps a map**: old file reads become their outline (definitions, HTML sections and ids, CSS rules,
+   with line numbers) before anything else is cut.
+2. **Every change is checked** (Python compiles and defines nothing twice, HTML tags balance, JSON parses), and a
+   **goal is ticked only when the project's checks pass**: its tests, its entry point started for 5 s, a web page's
+   tags and names. Building it caught a real bug: an edit that kept a file's size within the same second ran stale
+   compiled code (now no .pyc from the agent's runs).
+3. **A Run button**: run.sh, else main.py with the project's Python, else index.html in the browser; a crash in the
+   chat with "Send to the AI".
+4. **No hard step limit while it makes progress**: a handover in the chat every 60 steps from the record; it stops
+   after 15 steps without progress. Ask stays the default permission mode.
+5. **"Waiting for you" in amber**, with Allow / Always / No and a notification. Ian: "it was perfect and
+   pronounced."
+6. Thinking that doesn't copy the user's message; a 32K memory "correction" that was wrong (I checked it against
+   nvidia-smi's free memory, the matcher reads llama.cpp's ~100 MiB lower, and it took Ian's card down to 16K) —
+   reverted within the hour.
+
+### The wedding page
+
+Ian's test: a one-page wedding site for a fictional couple (nine sections, RSVP by email, a folding phone menu, six
+goals). Three files, 394 lines, in about 8 minutes at ~15 tok/s, with goals ticked in a row and "All done!". A
+headless Firefox screenshot told a different story: the menu was a bulleted list. The model had written style.css
+and script.js without looking at index.html again and **invented different names** — the CSS styled .nav, .menu,
+.day-card, .faq-item…, the HTML had #menu, .card…; the script looked up #menu-btn, failed, and stopped before
+attaching the RSVP handler. My new checks had nothing to run for a web page and let it through. Now a **name
+cross-check** (classes and ids the CSS styles or the script looks up that the HTML doesn't have) runs on every
+change to a page and before a goal is ticked, and the prompt says to read the HTML first. On the fix run it named
+the script's two leftover ids the moment the CSS was rewritten; the next edit cleared them; all six goals ticked
+with the checks passing. The page now has a top bar that folds into ☰ on a phone, countdown cards, a timeline,
+hotel cards — and a working RSVP button.
+
+Also on the fix run: **the 27B started on the processor at 1.1 tok/s** — the daemon, restarting itself after the
+update, loaded its guide onto the card between the agent's start and its first request. The agent now asks for the
+card right before every load and says so if it still lands on the processor.
+
+### What we learned
+
+- **Files that work together must be checked together.** Each of the three files was fine alone.
+- **A check that has nothing to run must not pass by default** — "no tests" isn't "it works".
+- **Look at the result, not the report**: a screenshot found in seconds what "All done!" hid.
+- **Check a number against the source the code really reads** (the 32K revert).
+
+---
+
 ## 2026-10-03 (afternoon) — the assistant learns to see: photos, a screenshot, and two videos
 
 *Ian asked how the assistant could read screenshots, images and video. The models we already use can — Qwen

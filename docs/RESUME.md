@@ -1,6 +1,6 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 afternoon** (latest: journal "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-03 evening** (latest: journal "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D65). How the work went, day by day: `docs/dev-journal.md`. The guide
@@ -18,8 +18,9 @@ model's story: `docs/guide-model-journal.md`.
   removed by apt). Vision/video test tools: `spikes/vision/`; on the SSD `~/cinminai-src/vision`, `~/cinminai-src/tools`
   (uv, yt-dlp, cmake, whisper.cpp v1.9.4), projectors + whisper model in `~/cinminai-models/vision`, results in
   `~/Pictures/vision-test`, `~/Videos/vision-test`. D64 (seeing) measured; D65 (simple, accurate choices).
-- **Next version of the agent and AICUI — built 3 Oct afternoon (8c9eae1..cd2220f), items 1-6 below, build
-  `0.0.1+git20261003.192756` on the test SSD to install and try** (in order; Ian: "a great spot to start the next version"):
+- **Next version of the agent and AICUI — built and tested 3 Oct (8c9eae1..e40fde6): items 1-6 below plus the web
+  name cross-check and the card-race fix; wedding page `~/wedding-test` done (6/6 goals). Latest build
+  `aicui 0.0.1+git20261003.204240` copied to the test SSD (install line in prompts.txt)** (in order; Ian: "a great spot to start the next version"):
   1. **Compaction keeps a map:** when a file read is summarized, keep its outline (classes, functions, line
      numbers), and shorten old reads before anything else.
   2. **Check after every change:** compile, duplicated definitions, and "does it still start" by drawing real
