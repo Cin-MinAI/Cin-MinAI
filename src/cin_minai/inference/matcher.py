@@ -85,10 +85,10 @@ CONTEXT = {"help": 8192, "writing": 8192, "coding": 16384}  # coding: 16K keeps 
 # with the desktop on the board's graphics, the 27B takes 32K whole on the card (~290 MiB more than 16K); with the
 # desktop drawn on the card, a flat 32K would have moved layers to RAM or switched model (2026-10-03).
 MORE_CONTEXT = {"coding": 32768}
-# measured at 32K on the 1080 Ti (2026-10-03): 51 MiB left on the card where the plan expected its 200 MiB margin —
-# the estimate drifts ~150 MiB with the bigger context (it matched to the MiB at 16K), so the step up needs that much
-# more room
-MORE_CONTEXT_EXTRA_MIB = 150
+# Not a correction (2026-10-03, tried and reverted the same day): 32K left 51 MiB of the plan's 200 MiB margin, but
+# that margin is for a desktop drawn on the card, and this one isn't; 150 MiB more took 32K away from the 1080 Ti,
+# whose free memory llama.cpp reads ~100 MiB lower than nvidia-smi.
+MORE_CONTEXT_EXTRA_MIB = 0
 
 # memory bandwidth of common cards (GB/s), for the speed estimate; unknown cards: 300
 CARD_BW = [("4090", 1008), ("4080", 717), ("4070 ti", 504), ("4070", 504), ("4060 ti", 288), ("4060", 272),
