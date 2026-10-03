@@ -371,6 +371,30 @@ class AgentTest(unittest.TestCase):
         self.assertIn("main.py: started and finished", results[2])
         self.assertTrue(a.goals.load()[0]["done"])
 
+    def test_it_keeps_going_while_it_makes_progress(self):
+        """Ian, 2026-10-03: as automated as possible — no hard step limit while it makes progress; a handover in the
+        chat every 60 steps."""
+        steps = [step(f"Change {i}.", tool="write", path=f"f{i % 5}.py", content=f"x = {i}\n") for i in range(65)] \
+            + [step("", tool="answer", text="all done")]
+        a = Agent(self.root, Scripted(steps), "m", "auto", say=self.said.append)
+        self.assertEqual(a.turn("lots of work"), "all done")
+        handovers = [e["text"] for e in self.events() if e["kind"] == "handover"]
+        self.assertEqual(len(handovers), 1)
+        self.assertIn("60 steps so far", handovers[0])
+        self.assertIn("f4.py (change 60:", handovers[0])
+
+    def test_it_stops_when_stuck_and_says_where_it_is(self):
+        g = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append).goals.add("Fix add")
+        steps = [step("Change it.", tool="edit", path="app.py", old="a - b", new="a + b")] + \
+            [step("Looking again.", tool="list", path=".") for _ in range(20)]
+        a = Agent(self.root, Scripted(steps), "m", "auto", say=self.said.append)
+        msg = a.turn("go")
+        self.assertIn("I've gone 15 steps without changing a file", msg)
+        self.assertIn("app.py (change 1: +1 −1)", msg)
+        self.assertIn(f"Goals: 0 of 1 done; next: {g['id']}. Fix add", msg)
+        self.assertIn("Last thing I was doing: Looking again.", msg)
+        self.assertEqual(len(a.chat.sent), 16)  # 1 change + 15 steps without progress
+
     def test_progress_events_and_idle(self):
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
         a.turn("go")

@@ -30,7 +30,9 @@ import time
 from .changelog import Changelog
 from .project import Goals, entry_point, project_root, tree
 
-MAX_STEPS = 30
+CHECKPOINT_STEPS = 60  # a handover in the chat every this many steps; the work goes on
+STUCK_STEPS = 15       # steps without progress (see Agent.progressed) before it stops and says where it is
+SAFETY_STEPS = 600     # the last resort: a runaway the stuck check didn't see
 READ_LINES = 80        # a read fits one result (OBS_CHARS) with its "more lines" note
 OBS_CHARS = 3000       # what one tool result may add to the context (8K on an 11 GB card)
 RUN_TIMEOUT = 120
@@ -266,7 +268,7 @@ class Agent:
         self.reads: dict = {}  # (file, from line, modified) -> the steps that read it in this task
         self.steps: list[dict] = []  # this task's steps so far (the loop guard sees which reads are still in view)
         self.cut, self.lite, self.sys, self.cpt = 0, 0, "", 3.0  # this task (see fit)
-        self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
+        self.max_steps = SAFETY_STEPS  # no hard limit while it makes progress (Ian, 2026-10-03)
         # the answer limit grows with the context (it stayed at 1,800 when coding went to 16K: writes were cut off)
         self.answer_tokens = ANSWER_TOKENS if ctx < 16384 else 4096  # 8K: 1800, 16K and up: 4096 (more: a write could take 16 min)
         self.write_lines = self.answer_tokens // TOKENS_A_LINE // 10 * 10           # 8K: 70 lines, 16K: 160
@@ -370,10 +372,10 @@ class Agent:
             if time.time() - last[0] >= TICK_S:
                 last[0] = time.time()
                 what = doing("".join(parts))
-                self.event("busy", step=n, of=self.max_steps, doing=what, tokens=len(parts))
+                self.event("busy", step=n, doing=what, tokens=len(parts))
                 if self.tick:
                     self.tick(f"step {n} · {what} · {len(parts)} tokens")
-        self.event("busy", step=n, of=self.max_steps, doing="reading the request", tokens=0)
+        self.event("busy", step=n, doing="reading the request", tokens=0)
         t0 = time.time()
         raw, timings = self.chat(messages, schema=schema(), max_tokens=self.answer_tokens, cancel=cancel,
                                  on_text=on_text)
@@ -417,6 +419,8 @@ class Agent:
     def work(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
         self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
+        self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
+        last_progress = 0
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
@@ -442,6 +446,8 @@ class Agent:
                 self.event("note", text=note)
                 self.say(f"\033[33m{note.splitlines()[0]}\033[0m")
                 steps.append({"note": note})
+                if "logged as change" in note:  # a cut-off write that was saved still moved the work on
+                    last_progress = n
                 continue
             if step.get("thinking"):
                 self.event("thinking", text=step["thinking"])
@@ -452,13 +458,63 @@ class Agent:
                 self.say(msg)
                 self.history.append({"user": text, "answer": msg})
                 return msg
-            self.event("busy", step=n, of=self.max_steps, doing=doing(raw), tokens=0)
+            self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
-        msg = "I stopped after many steps without finishing. Tell me how to go on."
+            if self.progressed(act, result):
+                last_progress = n
+            if n % CHECKPOINT_STEPS == 0:  # a handover in the chat, and on it goes (Ian: as automated as possible)
+                self.event("handover", text=self.handover(steps, f"{n} steps so far — still working."))
+            if n - last_progress >= STUCK_STEPS:
+                msg = self.handover(steps, f"I've gone {STUCK_STEPS} steps without changing a file, ticking a goal "
+                                           "or getting a new result, so I've stopped here.") + \
+                    "\nTell me how to go on — a hint about where I'm stuck helps most."
+                self.event("answer", text=msg)
+                self.say(msg)
+                self.history.append({"user": text, "answer": msg})
+                return msg
+        msg = self.handover(steps, f"I've stopped at the safety limit of {self.max_steps} steps.") + \
+            "\nTell me to continue and I'll pick up from here."
         self.event("answer", text=msg)
         self.say(msg)
+        self.history.append({"user": text, "answer": msg})
         return msg
+
+    def progressed(self, act: dict, result: str) -> bool:
+        """A step that moved the work on: a file changed, a goal added or ticked, or a command whose output is new
+        (a new test result, a different error) — not reading, listing or the same output again."""
+        if "logged as change" in result or (act.get("tool") == "goal_done" and " ticked." in result):
+            return True
+        if act.get("tool") == "goal_add":
+            return True
+        if act.get("tool") == "run":
+            key = hash(re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result))  # timings and addresses don't count as new
+            if key not in self.outputs:
+                self.outputs.add(key)
+                return True
+        return False
+
+    def handover(self, steps: list[dict], why: str) -> str:
+        """Where the work stands, from the record — never the model's own account of it."""
+        changes = []
+        for s in steps:
+            m = re.search(r"(\S.*?) changed \(\+(\d+) -(\d+)\), logged as change (\d+)", s.get("result", ""))
+            if m:
+                changes.append(f"{m.group(1)} (change {m.group(4)}: +{m.group(2)} −{m.group(3)})")
+        goals = self.goals.load()
+        done = [g for g in goals if g["done"]]
+        open_ = [g for g in goals if not g["done"]]
+        last = next((s["did"].get("thinking", "") for s in reversed(steps) if "did" in s and
+                     s["did"].get("thinking")), "")
+        lines = [why]
+        lines.append(f"Changed in this task: {', '.join(changes[-12:])}" + (f" and {len(changes) - 12} more"
+                     if len(changes) > 12 else "") if changes else "No files changed in this task.")
+        if goals:
+            lines.append(f"Goals: {len(done)} of {len(goals)} done" + (f"; next: {open_[0]['id']}. {open_[0]['text']}"
+                                                                         if open_ else "."))
+        if last:
+            lines.append(f"Last thing I was doing: {last[:300]}")
+        return "\n".join(lines)
 
     # --- the tools ------------------------------------------------------------------------------------------
     def path(self, rel: str) -> str:

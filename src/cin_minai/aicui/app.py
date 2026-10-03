@@ -227,6 +227,8 @@ class Workspace(Gtk.ApplicationWindow):
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "note":  # a step that went wrong (cut off, not valid), told to the model as it was
                 self.thought(e.get("text", ""), "Note")
+            elif e["kind"] == "handover":  # every 60 steps: where the work stands; the AI goes on
+                self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "check":  # a problem found in a file the AI just changed
                 self.thought(f"{e.get('file', '')}: {e.get('problem', '')}", "Check")
             elif e["kind"] == "busy":
@@ -258,7 +260,7 @@ class Workspace(Gtk.ApplicationWindow):
             self.busy_box.hide()
             return True
         secs = int(time.time() - self.busy_since)
-        parts = [f"Step {e['step']} of {e['of']}" if e.get("step") else "", e.get("doing", "working"),
+        parts = [f"Step {e['step']}" if e.get("step") else "", e.get("doing", "working"),
                  f"{e['tokens']} tokens" if e.get("tokens") else "", f"{secs // 60}:{secs % 60:02}"]
         self.busy_label.set_text(" · ".join(p for p in parts if p))
         self.spinner.start()
