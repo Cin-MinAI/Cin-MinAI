@@ -58,7 +58,8 @@ class AgentTest(unittest.TestCase):
             self.assertIn("return a + b", f.read())
         e = a.log.entries()
         self.assertEqual((len(e), e[0]["file"], e[0]["model"]), (1, "app.py", "Qwen3.8-27B"))
-        kinds = [x["kind"] for x in self.events()]
+        kinds = [x["kind"] for x in self.events() if x["kind"] != "timing"]  # timings: diagnostics per step
+        self.assertEqual(sum(1 for x in self.events() if x["kind"] == "timing"), 5)
         self.assertEqual(kinds, ["user", "thinking", "thinking", "change", "thinking", "goals", "thinking", "goals",
                                  "thinking", "answer"])
         self.assertTrue(a.goals.load()[0]["done"])
@@ -106,7 +107,8 @@ class AgentTest(unittest.TestCase):
         a.turn("make a big file")
         second = " ".join(m["content"] for m in a.chat.sent[1])
         self.assertNotIn("line 150", second)
-        self.assertIn("<300 lines written>", second)
+        self.assertIn("Earlier I wrote big.py, 300 lines", second)
+        self.assertNotIn('"content"', second)  # nothing that looks like file content to imitate
 
     def test_a_small_context_shrinks_the_history(self):
         steps = [step(f"Look {i}.", tool="read", path="app.py") for i in range(8)] + [step("", tool="answer", text="ok")]
@@ -138,6 +140,14 @@ class AgentTest(unittest.TestCase):
         a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=16384)
         a.turn("look around")
         self.assertFalse(any(m["content"].startswith("Earlier in this task:") for m in a.chat.sent[-1]))
+
+    def test_a_placeholder_is_never_written(self):
+        a = self.agent([step("", tool="write", path="gui.py", content="<219 lines written>"),
+                        step("", tool="answer", text="ok")], replies=["y"])
+        a.turn("write the gui")
+        self.assertFalse(os.path.exists(os.path.join(self.root, "gui.py")))
+        results = [m["content"] for m in a.chat.sent[-1] if m["role"] == "user" and m["content"].startswith("Result")]
+        self.assertIn("isn't file content", results[0])
 
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]

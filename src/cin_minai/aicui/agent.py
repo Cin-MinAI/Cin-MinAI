@@ -80,15 +80,22 @@ Session goals:
 {goals}"""
 
 
-def slim(step: dict) -> dict:
-    """A step as it's sent again later: file contents shortened to what they were (the file itself is on disk)."""
+def slim(step: dict) -> str:
+    """A step as it's sent again later. A write or a long edit becomes a plain sentence — never an action with
+    stand-in content: shown `"content": "<219 lines written>"`, the model copied that into a real write and
+    gui.py became one line of placeholder (2026-10-02). Other actions stay as they were."""
     a = dict(step.get("action", {}))
+    thinking = str(step.get("thinking", ""))[:300]
     if a.get("tool") == "write":
-        a["content"] = f"<{len(str(a.get('content', '')).splitlines())} lines written>"
-    for k in ("old", "new"):
-        if len(str(a.get(k, ""))) > 300:
-            a[k] = str(a[k])[:300] + " …"
-    return {"thinking": str(step.get("thinking", ""))[:300], "action": a}
+        n = len(str(a.get("content", "")).splitlines())
+        return f"{thinking}\n(Earlier I wrote {a.get('path', '')}, {n} lines; it's on disk — read it if I need it.)"
+    if a.get("tool") == "edit" and len(str(a.get("old", "")) + str(a.get("new", ""))) > 600:
+        return f"{thinking}\n(Earlier I edited {a.get('path', '')}: replaced {len(str(a.get('old', '')).splitlines())} " \
+               f"lines with {len(str(a.get('new', '')).splitlines())}; it's on disk.)"
+    return json.dumps({"thinking": thinking, "action": a}, ensure_ascii=False)
+
+
+PLACEHOLDER = re.compile(r"^\s*(<[^<>\n]{0,60}>|\.\.\.|…|# ?\.\.\.|TODO)?\s*$")
 
 
 def brief(step: dict) -> str:
@@ -104,6 +111,7 @@ class Agent:
         self.read_lines = READ_LINES * max(1, ctx // 8192) + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200
         self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
         self.reads: dict = {}  # (file, from line, modified) -> times read in this task
+        self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
         self.always: set[str] = set()   # tools the user said "always" to this session
         self.goals, self.log = Goals(root), Changelog(root)
@@ -137,7 +145,7 @@ class Agent:
             messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(
                 f"- {brief(s['did'])} → {s['result'][:100]}" for s in older)})
         for s in steps[len(older):]:
-            messages.append({"role": "assistant", "content": json.dumps(slim(s["did"]), ensure_ascii=False)})
+            messages.append({"role": "assistant", "content": slim(s["did"])})
             messages.append({"role": "user", "content": "Result: " + s["result"]})
         return messages
 
@@ -154,9 +162,14 @@ class Agent:
         self.event("user", text=text)
         steps: list[dict] = []
         self.reads = {}
-        for _ in range(MAX_STEPS):
+        for _ in range(self.max_steps):
             try:
-                raw, _ = self.chat(self.fit(text, steps), schema=schema(), max_tokens=ANSWER_TOKENS, cancel=cancel)
+                t0 = time.time()
+                raw, timings = self.chat(self.fit(text, steps), schema=schema(), max_tokens=ANSWER_TOKENS, cancel=cancel)
+                t = timings if isinstance(timings, dict) else {}
+                self.event("timing", seconds=round(time.time() - t0, 1), prompt_n=t.get("prompt_n"),  # for diagnosis
+                           cache_n=t.get("cache_n"), prompt_tps=round(t.get("prompt_per_second") or 0),
+                           gen_n=t.get("predicted_n"), gen_tps=round(t.get("predicted_per_second") or 0, 1))
             except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
                 try:
                     raw, _ = self.chat(self.messages(text, steps[-1:], 0), schema=schema(), max_tokens=ANSWER_TOKENS,
@@ -269,6 +282,10 @@ class Agent:
             new = old.replace(a["old"], a["new"], 1)
         else:
             new = a["content"]
+        text = a.get("new", "") if a["tool"] == "edit" else new
+        if a["tool"] == "write" and PLACEHOLDER.match(text):  # never a stand-in for real code (see slim)
+            return (f"error: that isn't file content ({text.strip()[:40]!r}). Write the complete, real contents of "
+                    f"{rel}.")
         diff = "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{rel}", f"b/{rel}"))
         colored = "\n".join(("\033[32m" if l.startswith("+") else "\033[31m" if l.startswith("-") else "") + l.rstrip("\n")
                             + "\033[0m" for l in diff.splitlines())
@@ -331,7 +348,15 @@ def local_backend(say=print):
     cfg = backend_cfg(config.load()["inference"], plan, store.path(plan["file"]))
     cfg["socket_name"] = "llama-code.sock"
     say(f"\033[2mModel: {plan['model']} ({plan['mode']}), loading…\033[0m")
-    return LlamaCppBackend(cfg, lambda m: None), plan["model"]
+    log_path = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
+                            "code-server.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+    def log(msg: str) -> None:  # the backend's messages (load profile, failures), for diagnosing a stall
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+    log(f"plan: {plan['model']} | {plan['mode']} | {' '.join(plan.get('args', []))}")
+    return LlamaCppBackend(cfg, log), plan["model"]
 
 
 def main(argv=None) -> int:
