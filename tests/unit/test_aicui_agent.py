@@ -99,6 +99,31 @@ class AgentTest(unittest.TestCase):
         a = self.agent([])
         self.assertIn("aren't allowed", a.run("sudo rm -rf /"))
 
+    def test_a_written_file_is_not_sent_again(self):
+        big = "\n".join(f"line {i} " + "x" * 60 for i in range(300))
+        a = self.agent([step("Write it.", tool="write", path="big.py", content=big),
+                        step("Done.", tool="answer", text="ok")], replies=["y"])
+        a.turn("make a big file")
+        second = " ".join(m["content"] for m in a.chat.sent[1])
+        self.assertNotIn("line 150", second)
+        self.assertIn("<300 lines written>", second)
+
+    def test_a_small_context_shrinks_the_history(self):
+        steps = [step(f"Look {i}.", tool="read", path="app.py") for i in range(8)] + [step("", tool="answer", text="ok")]
+        a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=2400)
+        a.turn("read a lot")
+        last = a.chat.sent[-1]
+        self.assertLessEqual(sum(len(m["content"]) for m in last), (2400 - 1800 - 300) * 3.3 + 2000)
+        self.assertTrue(any(m["content"].startswith("Earlier in this task:") for m in last))
+
+    def test_a_model_error_is_answered_not_a_crash(self):
+        def broken(messages, **kw):
+            raise RuntimeError("the request exceeds the available context size")
+        a = Agent(self.root, broken, "m", "ask", ask=lambda p: "y", say=self.said.append)
+        msg = a.turn("go")
+        self.assertIn("couldn't go on", msg)
+        self.assertIn("exceeds the available context", msg)
+
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "write", "run", "goal_add", "goal_done", "ask",

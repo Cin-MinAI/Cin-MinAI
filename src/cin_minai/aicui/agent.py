@@ -33,6 +33,7 @@ MAX_STEPS = 30
 READ_LINES = 80        # a read fits one result (OBS_CHARS) with its "more lines" note
 OBS_CHARS = 3000       # what one tool result may add to the context (8K on an 11 GB card)
 RUN_TIMEOUT = 120
+ANSWER_TOKENS = 1800   # room for one step's answer (thinking + an action; a written file can be long)
 
 STR = {"type": "string"}
 ACTIONS = [
@@ -79,10 +80,27 @@ Session goals:
 {goals}"""
 
 
+def slim(step: dict) -> dict:
+    """A step as it's sent again later: file contents shortened to what they were (the file itself is on disk)."""
+    a = dict(step.get("action", {}))
+    if a.get("tool") == "write":
+        a["content"] = f"<{len(str(a.get('content', '')).splitlines())} lines written>"
+    for k in ("old", "new"):
+        if len(str(a.get(k, ""))) > 300:
+            a[k] = str(a[k])[:300] + " …"
+    return {"thinking": str(step.get("thinking", ""))[:300], "action": a}
+
+
+def brief(step: dict) -> str:
+    a = step.get("action", {})
+    what = a.get("path") or a.get("command") or a.get("pattern") or a.get("text") or ""
+    return f"{a.get('tool', '?')} {str(what)[:80]}"
+
+
 class Agent:
     def __init__(self, root: str, chat, model_name: str, mode: str = "ask", admin: bool = False,
-                 ask=input, say=print) -> None:
-        self.root, self.chat, self.model_name = root, chat, model_name
+                 ask=input, say=print, ctx: int = 8192) -> None:
+        self.root, self.chat, self.model_name, self.ctx = root, chat, model_name, ctx
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
         self.always: set[str] = set()   # tools the user said "always" to this session
         self.goals, self.log = Goals(root), Changelog(root)
@@ -103,19 +121,49 @@ class Agent:
         return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals,
                              sandbox=", sandboxed without network" if self.sandbox else "")
 
+    def messages(self, text: str, steps: list[dict], full: int = 4) -> list[dict]:
+        """What the model is sent: the system text, earlier turns, this request, and this turn's steps — the last
+        `full` in full, older ones as one line each. A step's file contents are never sent again (2026-10-02: the
+        blackjack run overflowed 8K by resending every written file in every step); the file is on disk to read."""
+        messages = [{"role": "system", "content": self.system()}]
+        for h in self.history[-6:]:
+            messages += [{"role": "user", "content": h["user"]}, {"role": "assistant", "content": h["answer"][:600]}]
+        messages.append({"role": "user", "content": text})
+        older = steps[:-full] if full else steps
+        if older:
+            messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(
+                f"- {brief(s['did'])} → {s['result'][:100]}" for s in older)})
+        for s in steps[len(older):]:
+            messages.append({"role": "assistant", "content": json.dumps(slim(s["did"]), ensure_ascii=False)})
+            messages.append({"role": "user", "content": "Result: " + s["result"]})
+        return messages
+
+    def fit(self, text: str, steps: list[dict]) -> list[dict]:
+        """The messages, shrunk until they fit the context with room for the answer (~3.3 characters a token)."""
+        budget = (self.ctx - ANSWER_TOKENS - 300) * 3.3
+        for full in (4, 3, 2, 1, 0):
+            m = self.messages(text, steps, full)
+            if sum(len(x["content"]) for x in m) <= budget:
+                return m
+        return m
+
     def turn(self, text: str, cancel: threading.Event | None = None) -> str:
         self.event("user", text=text)
         steps: list[dict] = []
         for _ in range(MAX_STEPS):
-            messages = [{"role": "system", "content": self.system()}]
-            for h in self.history[-6:]:
-                messages += [{"role": "user", "content": h["user"]}, {"role": "assistant", "content": h["answer"]}]
-            messages.append({"role": "user", "content": text})
-            for i, s in enumerate(steps):
-                keep = i >= len(steps) - 4  # older results shrink to a line: the context is small
-                messages.append({"role": "assistant", "content": json.dumps(s["did"], ensure_ascii=False)})
-                messages.append({"role": "user", "content": "Result: " + (s["result"] if keep else s["result"][:200])})
-            raw, _ = self.chat(messages, schema=schema(), max_tokens=1800, cancel=cancel)
+            try:
+                raw, _ = self.chat(self.fit(text, steps), schema=schema(), max_tokens=ANSWER_TOKENS, cancel=cancel)
+            except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
+                try:
+                    raw, _ = self.chat(self.messages(text, steps[-1:], 0), schema=schema(), max_tokens=ANSWER_TOKENS,
+                                       cancel=cancel)
+                except Exception:
+                    msg = (f"I couldn't go on ({str(e)[:160]}). What's done is saved and in the changelog; tell me to "
+                           "continue and I'll pick up from the files and the goals.")
+                    self.event("answer", text=msg)
+                    self.say(msg)
+                    self.history.append({"user": text, "answer": msg})
+                    return msg
             try:
                 step = json.loads(raw)
                 act = step["action"]
@@ -289,7 +337,7 @@ def main(argv=None) -> int:
         print("\033[1;31mNo permissions: the AI changes files and runs commands without asking, outside the sandbox. "
               "Don't risk anything you aren't willing to lose.\033[0m")
     backend, name = local_backend()
-    agent = Agent(root, backend.chat, name, mode, a.admin)
+    agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)))
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+D to leave.")
     try:
