@@ -1,38 +1,49 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 evening** (latest: journal "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-03 evening** (latest: journal "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D65). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
-## Where we stopped (2026-10-03, ~10:30) — the start of AICUI's next version
+## Where we stopped (2026-10-03, evening) — AICUI's next version done; direction talk recorded
 
-- **AICUI on the test SSD**, build `0.0.1+git20261003.132747` (aicui + daemon; per-build versions, so
-  `dpkg -l 'cinminai-*'` tells what's installed). **The desktop is on the board's graphics now** (Ian's BIOS
-  change): the 1080 Ti is free, coding runs the 27B whole on the card at **32K**, 13-14 tok/s.
-- Ian's blackjack project `~/aicui-test`: **all six goals done**, tests pass, `run.sh` launches it with the venv,
-  the window scales (`SCALED | RESIZABLE`). Changes 18-75 in the changelog. Some game bugs left — not the point yet.
-- Prompts for Ian to paste: `~/Desktop/prompts.txt` on the test SSD. **Install test packages with
-  `~/cinminai-debs/install-debs.sh FILES…`** (stops if apt would remove or downgrade anything; 3 Oct the sidebar was
-  removed by apt). Vision/video test tools: `spikes/vision/`; on the SSD `~/cinminai-src/vision`, `~/cinminai-src/tools`
-  (uv, yt-dlp, cmake, whisper.cpp v1.9.4), projectors + whisper model in `~/cinminai-models/vision`, results in
-  `~/Pictures/vision-test`, `~/Videos/vision-test`. D64 (seeing) measured; D65 (simple, accurate choices).
-- **Next version of the agent and AICUI — built and tested 3 Oct (8c9eae1..e40fde6): items 1-6 below plus the web
-  name cross-check and the card-race fix; wedding page `~/wedding-test` done (6/6 goals). Latest build
-  `aicui 0.0.1+git20261003.204240` copied to the test SSD (install line in prompts.txt)** (in order; Ian: "a great spot to start the next version"):
-  1. **Compaction keeps a map:** when a file read is summarized, keep its outline (classes, functions, line
-     numbers), and shorten old reads before anything else.
-  2. **Check after every change:** compile, duplicated definitions, and "does it still start" by drawing real
-     frames for a few seconds; check "all tests pass" claims against the real output.
-  3. **A Run button in AICUI** that starts the project the way the user would (its venv, errors in the AI
-     terminal); the agent knows the user's own runs don't use its sandbox's venv, and offers a launcher.
-  4. **No hard step limit while it makes progress:** a handover in the chat every 60 steps; stop when done, stuck,
-     needing the user, or Stop. **Ask stays the default permission mode, always** (Ian).
-  5. **A visible "waiting for you"** with Allow / Always / No buttons beside Stop.
-  6. Small: the model's thinking shouldn't copy the user's message; the matcher's memory estimate was ~150 MiB
-     optimistic at 32K (51 MiB left) — calibrate.
-  Then: the web-page test (a wedding page), D62 (GitHub Pages), D63 (senior/junior).
+- **Test SSD state.** All 11 packages installed; latest: aicui `0.0.1+git20261003.204240`, daemon `…195159`,
+  sidebar/applet/desktop `…132747` (`dpkg -l 'cinminai-*'`). **Install test packages only with
+  `~/cinminai-debs/install-debs.sh FILES…`** (stops before the password if apt would remove or downgrade anything —
+  3 Oct apt removed the sidebar when an old, exactly-pinned package met a new daemon). After a dependency-rule change,
+  rebuild and ship **all** packages. **Desktop on the board's graphics** (Ian's BIOS change): the 1080 Ti is free;
+  coding = the 27B whole on the card at **32K**, 12-15 tok/s. Prompts for Ian to paste: `~/Desktop/prompts.txt`.
+- **AICUI's next version — built and tested (8c9eae1..e40fde6):** compaction keeps file maps; every change checked
+  (Python compiles / no duplicates, HTML tags, JSON, and a **web name cross-check** HTML↔CSS↔JS); a goal is ticked
+  only when the project's checks pass (tests, entry point started 5 s, web page names/tags — "no tests" never passes
+  by default); a **Run** button (run.sh → main.py with the venv → index.html in the browser; crashes in the chat with
+  "Send to the AI"); no hard step limit while it makes progress (handover every 60 steps, stop after 15 without
+  progress, 600 safety); "waiting for you" in amber with Allow / Always / No (Ian: "perfect and pronounced"); the
+  agent asks for the card right before every model load and says so if it lands on the processor. **Ask stays the
+  default permission mode, always** (Ian).
+- **Test projects on the SSD:** blackjack `~/aicui-test` (6/6 goals, `run.sh`, some game bugs left on purpose);
+  wedding page `~/wedding-test` (6/6, confirmed by Ian in Firefox: RSVP opens the email, the menu folds behind ☰ on a
+  narrow window, Reader view works). Vision/video tools: `spikes/vision/`; SSD `~/cinminai-src/vision`,
+  `~/cinminai-src/tools` (uv, yt-dlp, cmake, whisper.cpp v1.9.4), projectors + whisper model `~/cinminai-models/vision`,
+  results `~/Pictures/vision-test`, `~/Videos/vision-test`.
+- **Decisions today:** D62 (publish from AICUI via GitHub Pages; dedicated dev email + authenticator/passkey; device
+  flow; "this is public" warning), D63 (cloud senior guiding the local junior over D-Bus), D64 (the assistant can see:
+  27B recommended, 4B "works, no quality promise"; measured on photos, a screenshot and two videos), D65 (every
+  choice a simple presentation with an easy, accurate description, for non-techy people).
+- **Direction, not decisions** (journal "what the next OS might be, and where Quaddle fits"): Ian's aim is
+  *industrial AI, not frontier* — what works every time for the small painful jobs. AICUI as an AI-first IDE (human
+  conveniences slimmed, AI machinery out of sight). "The AI is the kernel" as a later venture (v1 AI on an OS → v2 AI
+  as the session → v3 AI-first OS on a tiny deterministic core). Ian's research *Quaddle* (`docs/kernel doc/`,
+  **untracked — his, not to be committed without him**): its Choice Atom (allowed Γ / chosen d / deterministic
+  realization T_d / checked result w / append-only record R; reversible acts may run alone, irreversible ones ask) is
+  the discipline we can use now — for actions and for the **persistent personality with recollection** Ian wants
+  (addressed memories, recall by shared context path, append-only episodes, summaries as reversible folds).
+  "A binary allows for a switch but no wall for the switch to exist on. Quaddle supplies the switch and the wall."
+- **Open next steps (Ian picks):** D62 publishing (needs Ian's dev email + GitHub account first); persistent memory
+  and personality for the assistant (design with the Choice Atom discipline); D63 senior/junior; the D64 use cases
+  (documents, video guides, guided repair, "watch it for me", home security); small AICUI polish (wedding cards wider
+  than the text column, countdown wrapping 3+1 on a phone).
 
 ## State right now
 
