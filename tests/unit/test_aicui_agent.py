@@ -165,6 +165,21 @@ class AgentTest(unittest.TestCase):
         self.assertIn("already read app.py", results[2])
         self.assertEqual(a.read_lines, 200)
 
+    def test_the_loop_guard_lets_it_read_again_what_compaction_removed(self):
+        """2026-10-03, goal 5 "Combine": the whole project didn't fit, compaction dropped the reads of game.py, and
+        the guard refused a third read of what the model could no longer see — it asked again and again."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=16384)
+        read = {"tool": "read", "path": "app.py"}
+        for _ in range(2):
+            self.assertIn("return a - b", a.do(read))
+            a.steps.append({"did": {"thinking": "", "action": read}, "result": "…"})
+        self.assertIn("already read app.py", a.do(read))  # both copies in view: the guard holds
+        a.steps.append({"did": {"thinking": "", "action": read}, "result": "…"})
+        a.cut = len(a.steps)  # compaction summarized all of them
+        again = a.do(read)
+        self.assertIn("return a - b", again)
+        self.assertIn("one file at a time", again)
+
     def test_all_steps_kept_when_they_fit(self):
         steps = [step(f"Look {i}.", tool="list", path=".") for i in range(8)] + [step("", tool="answer", text="ok")]
         a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=16384)

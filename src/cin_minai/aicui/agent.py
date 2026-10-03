@@ -177,7 +177,8 @@ class Agent:
         self.root, self.chat, self.model_name, self.ctx = root, chat, model_name, ctx
         self.read_lines = READ_LINES * max(1, ctx // 8192) + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200
         self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
-        self.reads: dict = {}  # (file, from line, modified) -> times read in this task
+        self.reads: dict = {}  # (file, from line, modified) -> the steps that read it in this task
+        self.steps: list[dict] = []  # this task's steps so far (the loop guard sees which reads are still in view)
         self.cut, self.sys, self.cpt = 0, "", 3.0  # this task: steps summarized, its system text, characters a token
         self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
         # the answer limit grows with the context (it stayed at 1,800 when coding went to 16K: writes were cut off)
@@ -308,7 +309,7 @@ class Agent:
 
     def work(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
-        self.reads, self.cut = {}, 0
+        self.reads, self.cut, self.steps = {}, 0, steps
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
@@ -408,15 +409,23 @@ class Agent:
                     lines = f.read().splitlines()
                 start = max(1, int(a.get("start") or 1))
                 key = (full, start, os.path.getmtime(full))
-                self.reads[key] = self.reads.get(key, 0) + 1
-                if self.reads[key] >= 3:  # the loop guard (2026-10-02: it re-read the same seven files for 9 minutes)
-                    return (f"You've already read {a['path']} from line {start} {self.reads[key] - 1} times in this "
-                            "task, and it hasn't changed. Stop reading it: act on what you know (edit, write, run), "
-                            "or ask the user.")
+                earlier = self.reads.setdefault(key, [])  # the steps that read this, unchanged since
+                in_view = [i for i in earlier if i >= self.cut]  # still sent in full (not compacted away)
+                earlier.append(len(self.steps))
+                # the loop guard (2026-10-02: it re-read the same seven files for 9 minutes) — but only while the
+                # earlier reads are still in view: once compaction removed them, refusing left the model without
+                # the file it needed, and it asked again and again (2026-10-03, goal 5 "Combine")
+                if len(in_view) >= 2:
+                    return (f"You've already read {a['path']} from line {start} {len(in_view)} times in this "
+                            "task, and it hasn't changed — it's above. Stop reading it: act on what you know (edit, "
+                            "write, run), or ask the user.")
                 part = lines[start - 1:start - 1 + self.read_lines]
                 more = f"\n… {len(lines) - (start - 1 + len(part))} more lines (read from line {start + len(part)})" \
                     if start - 1 + len(part) < len(lines) else ""
-                return "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
+                note = ("" if len(earlier) < 3 else
+                        f"(You've read this {len(earlier)} times in this task: not every file fits in view at once. "
+                        "Work on one file at a time, and make the change you read it for in your next step.)\n")
+                return note + "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
             if t == "list":
                 p = self.path(a.get("path") or ".")
                 return "\n".join(sorted(e + ("/" if os.path.isdir(os.path.join(p, e)) else "") for e in os.listdir(p)
