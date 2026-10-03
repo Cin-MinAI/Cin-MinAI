@@ -14,7 +14,7 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from cin_minai.aicui.agent import Agent, doing, salvage, schema  # noqa: E402
+from cin_minai.aicui.agent import Agent, doing, outline, salvage, schema  # noqa: E402
 
 
 class Scripted:
@@ -287,6 +287,51 @@ class AgentTest(unittest.TestCase):
                   "auto", say=self.said.append)
         a.turn("go")
         self.assertAlmostEqual(a.cpt, 2.85)  # 3 characters a token as counted, less 5 % to be safe
+
+    def test_outline_keeps_the_map_of_a_read(self):
+        py = "\n".join(f"{n:5} {l}" for n, l in enumerate(
+            ["import os", "", "class Game:", "    def __init__(self):", "        self.x = 1", "", "def main():",
+             "    Game()"], 1)) + "\n… 40 more lines (read from line 9)"
+        self.assertEqual(outline(py), "3: class Game:\n4: def __init__(self):\n7: def main():\n"
+                                      "(+40 more lines not read)")
+        html = "\n".join(f"{n:5} {l}" for n, l in enumerate(
+            ["<html>", "<style>", ".card {", "  color: red;", "}", "</style>", "<h1>Anna &amp; Ben</h1>",
+             '<section id="rsvp">', "<form>", "</form>", "</section>"], 1))
+        self.assertIn("3: .card {", outline(html))
+        self.assertIn("7: <h1>Anna &amp; Ben</h1>", outline(html))
+        self.assertIn('8: <section id="rsvp">', outline(html))
+        self.assertIn("9: <form>", outline(html))
+
+    def test_old_reads_become_maps_before_steps_are_cut(self):
+        """2026-10-03: a whole project didn't fit 16K, and compaction dropped every read; now the oldest reads
+        become their maps first, the reasoning stays, and the last two reads stay whole."""
+        body = "\n".join([f"def f{i}():\n    return {i}" + ("\n    # pad " + "x" * 25) * 30 for i in range(12)])
+        for i in range(7):  # 7 reads overflow 8K; 2 whole reads and 5 maps fit under 60 %
+            with open(os.path.join(self.root, f"m{i}.py"), "w", encoding="utf-8") as f:
+                f.write(body)
+        steps = [step(f"Read m{i}.", tool="read", path=f"m{i}.py") for i in range(7)] + \
+            [step("", tool="answer", text="ok")]
+        a = Agent(self.root, Scripted(steps), "m", "auto", say=self.said.append, ctx=8192)
+        a.answer_tokens = 1800
+        a.turn("read them all")
+        last = a.chat.sent[-1]
+        results = [m["content"] for m in last if m["content"].startswith("Result: ")]
+        self.assertEqual(a.cut, 0)  # nothing summarized away: maps were enough
+        self.assertTrue(results[0].startswith("Result: (shortened to its map"))
+        self.assertIn("1: def f0():", results[0])
+        self.assertNotIn("# pad", results[0])
+        self.assertIn("# pad", results[-1])  # the newest read stays whole
+
+    def test_a_summarized_read_keeps_its_map_and_can_be_read_again(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=16384)
+        read = {"tool": "read", "path": "app.py"}
+        a.steps.append({"did": {"thinking": "", "action": read}, "result": a.do(read)})
+        a.steps.append({"did": {"thinking": "", "action": read}, "result": a.do(read)})
+        summary = a.messages("go", a.steps, cut=2)[2]["content"]
+        self.assertIn("read app.py → map:", summary)
+        self.assertIn("1: def add(a, b):", summary)
+        a.lite = 2  # both now maps: reading again is allowed
+        self.assertIn("return a - b", a.do(read))
 
     def test_progress_events_and_idle(self):
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)

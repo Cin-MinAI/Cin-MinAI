@@ -115,6 +115,28 @@ def brief(step: dict) -> str:
     return f"{a.get('tool', '?')} {str(what)[:80]}"
 
 
+# what a map of a file keeps: Python and JS definitions, HTML headings/sections/ids, CSS rules at the top level
+LANDMARK = re.compile(r"^\s*(\d+) (\s*(?:async def |def |class |function |export |const \w+ = (?:async )?\(|"
+                      r"<h[1-3]|<section|<form|<nav|<header|<footer|<script|<style|[.#]?[\w-]+[^{;]*\{\s*$)|.*\bid=\")")
+
+
+def outline(result: str, limit: int = 40) -> str:
+    """A read's map: the line numbers of its definitions and sections, so after compaction the model still knows
+    where things are and can read just the part it needs (2026-10-03, goal 5: the whole project didn't fit 16K, the
+    reads were dropped, and it read every file again)."""
+    marks = []
+    for line in result.splitlines():
+        m = LANDMARK.match(line)
+        if m:
+            marks.append(f"{m.group(1)}: {line[m.end(1) + 1:].strip()[:70]}")
+    more = re.search(r"… (\d+) more lines", result)
+    tail = f"(+{more.group(1)} more lines not read)" if more else ""
+    if not marks:
+        return f"(no definitions or sections in the part read{' ' + tail if tail else ''})"
+    shown = marks[:limit] + ([f"… {len(marks) - limit} more"] if len(marks) > limit else []) + ([tail] if tail else [])
+    return "\n".join(shown)
+
+
 ESCAPE = re.compile(r'\\.|[^\\]', re.S)
 
 
@@ -179,7 +201,7 @@ class Agent:
         self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
         self.reads: dict = {}  # (file, from line, modified) -> the steps that read it in this task
         self.steps: list[dict] = []  # this task's steps so far (the loop guard sees which reads are still in view)
-        self.cut, self.sys, self.cpt = 0, "", 3.0  # this task: steps summarized, its system text, characters a token
+        self.cut, self.lite, self.sys, self.cpt = 0, 0, "", 3.0  # this task (see fit)
         self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
         # the answer limit grows with the context (it stayed at 1,800 when coding went to 16K: writes were cut off)
         self.answer_tokens = ANSWER_TOKENS if ctx < 16384 else 4096  # 8K: 1800, 16K and up: 4096 (more: a write could take 16 min)
@@ -213,25 +235,36 @@ class Agent:
                              answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                              sandbox=", sandboxed without network" if self.sandbox else "")
 
-    def messages(self, text: str, steps: list[dict], cut: int = 0) -> list[dict]:
+    def messages(self, text: str, steps: list[dict], cut: int = 0, lite: int = 0) -> list[dict]:
         """What the model is sent: the system text, earlier turns, this request, and this turn's steps — the first
-        `cut` as one line each, the rest in full. A step's file contents are never sent again (2026-10-02: the
-        blackjack run overflowed 8K by resending every written file in every step); the file is on disk to read."""
+        `cut` as one line each, the rest in full, except that reads before `lite` come as the file's map (outline).
+        A step's file contents are never sent again (2026-10-02: the blackjack run overflowed 8K by resending every
+        written file in every step); the file is on disk to read."""
         messages = [{"role": "system", "content": self.sys or self.system()}]
         for h in self.history[-6:]:
             messages += [{"role": "user", "content": h["user"]}, {"role": "assistant", "content": h["answer"][:600]}]
         messages.append({"role": "user", "content": text})
         older = steps[:cut]
         if older:
-            messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(
-                f"- (note) {s['note'][:100]}" if "note" in s else f"- {brief(s['did'])} → {s['result'][:100]}"
-                for s in older)})
-        for s in steps[len(older):]:
+            lines = []
+            for s in older:
+                if "note" in s:
+                    lines.append(f"- (note) {s['note'][:100]}")
+                elif s["did"].get("action", {}).get("tool") == "read":
+                    lines.append(f"- {brief(s['did'])} → map:\n  " + outline(s["result"], 15).replace("\n", "\n  "))
+                else:
+                    lines.append(f"- {brief(s['did'])} → {s['result'][:100]}")
+            messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(lines)})
+        for i, s in enumerate(steps[len(older):], len(older)):
             if "note" in s:  # a step that went wrong: said as it was, never as an action the model might copy
                 messages.append({"role": "user", "content": s["note"]})
                 continue
             messages.append({"role": "assistant", "content": slim(s["did"])})
-            messages.append({"role": "user", "content": "Result: " + s["result"]})
+            result = s["result"]
+            if i < lite and s["did"].get("action", {}).get("tool") == "read":
+                result = ("(shortened to its map to save room — read the lines you need again)\n"
+                          + outline(result))
+            messages.append({"role": "user", "content": "Result: " + result})
         return messages
 
     def fit(self, text: str, steps: list[dict]) -> list[dict]:
@@ -243,11 +276,20 @@ class Agent:
 
         def size(m):
             return sum(len(x["content"]) for x in m)
-        m = self.messages(text, steps, self.cut)
+        m = self.messages(text, steps, self.cut, self.lite)
         if size(m) <= budget:
             return m
+        # first the old reads become maps (file contents are most of the weight, and the rest of the reasoning
+        # stays whole); the last two reads stay in full
+        reads = [i for i, s in enumerate(steps) if "did" in s and s["did"].get("action", {}).get("tool") == "read"]
+        lite = reads[-2] if len(reads) > 2 else self.lite
+        if lite > self.lite:
+            m = self.messages(text, steps, self.cut, lite)
+            self.lite = lite
+            if size(m) <= budget * 0.6:
+                return m
         for cut in range(self.cut + 1, len(steps) + 1):
-            m = self.messages(text, steps, cut)
+            m = self.messages(text, steps, cut, self.lite)
             if size(m) <= budget * 0.6:
                 break
         self.cut = cut
@@ -309,7 +351,7 @@ class Agent:
 
     def work(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
-        self.reads, self.cut, self.steps = {}, 0, steps
+        self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
@@ -410,7 +452,7 @@ class Agent:
                 start = max(1, int(a.get("start") or 1))
                 key = (full, start, os.path.getmtime(full))
                 earlier = self.reads.setdefault(key, [])  # the steps that read this, unchanged since
-                in_view = [i for i in earlier if i >= self.cut]  # still sent in full (not compacted away)
+                in_view = [i for i in earlier if i >= max(self.cut, self.lite)]  # still sent in full (not a map)
                 earlier.append(len(self.steps))
                 # the loop guard (2026-10-02: it re-read the same seven files for 9 minutes) — but only while the
                 # earlier reads are still in view: once compaction removed them, refusing left the model without
