@@ -124,6 +124,21 @@ class AgentTest(unittest.TestCase):
         self.assertIn("couldn't go on", msg)
         self.assertIn("exceeds the available context", msg)
 
+    def test_the_loop_guard(self):
+        steps = [step("", tool="read", path="app.py") for _ in range(3)] + [step("", tool="answer", text="ok")]
+        a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=16384)
+        a.turn("look")
+        results = [m["content"] for m in a.chat.sent[-1] if m["role"] == "user" and m["content"].startswith("Result")]
+        self.assertIn("return a - b", results[0])
+        self.assertIn("already read app.py", results[2])
+        self.assertEqual(a.read_lines, 200)
+
+    def test_all_steps_kept_when_they_fit(self):
+        steps = [step(f"Look {i}.", tool="list", path=".") for i in range(8)] + [step("", tool="answer", text="ok")]
+        a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=16384)
+        a.turn("look around")
+        self.assertFalse(any(m["content"].startswith("Earlier in this task:") for m in a.chat.sent[-1]))
+
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "write", "run", "goal_add", "goal_done", "ask",

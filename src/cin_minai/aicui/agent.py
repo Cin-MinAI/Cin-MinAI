@@ -101,6 +101,9 @@ class Agent:
     def __init__(self, root: str, chat, model_name: str, mode: str = "ask", admin: bool = False,
                  ask=input, say=print, ctx: int = 8192) -> None:
         self.root, self.chat, self.model_name, self.ctx = root, chat, model_name, ctx
+        self.read_lines = READ_LINES * max(1, ctx // 8192) + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200
+        self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
+        self.reads: dict = {}  # (file, from line, modified) -> times read in this task
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
         self.always: set[str] = set()   # tools the user said "always" to this session
         self.goals, self.log = Goals(root), Changelog(root)
@@ -141,7 +144,7 @@ class Agent:
     def fit(self, text: str, steps: list[dict]) -> list[dict]:
         """The messages, shrunk until they fit the context with room for the answer (~3.3 characters a token)."""
         budget = (self.ctx - ANSWER_TOKENS - 300) * 3.3
-        for full in (4, 3, 2, 1, 0):
+        for full in range(len(steps), -1, -1):  # as many full steps as fit (a fixed 4 made it re-read in a loop)
             m = self.messages(text, steps, full)
             if sum(len(x["content"]) for x in m) <= budget:
                 return m
@@ -150,6 +153,7 @@ class Agent:
     def turn(self, text: str, cancel: threading.Event | None = None) -> str:
         self.event("user", text=text)
         steps: list[dict] = []
+        self.reads = {}
         for _ in range(MAX_STEPS):
             try:
                 raw, _ = self.chat(self.fit(text, steps), schema=schema(), max_tokens=ANSWER_TOKENS, cancel=cancel)
@@ -181,7 +185,7 @@ class Agent:
                 self.history.append({"user": text, "answer": msg})
                 return msg
             result = self.do(act)
-            steps.append({"did": step, "result": result[:OBS_CHARS]})
+            steps.append({"did": step, "result": result[:self.obs_chars]})
         msg = "I stopped after many steps without finishing. Tell me how to go on."
         self.event("answer", text=msg)
         self.say(msg)
@@ -210,10 +214,17 @@ class Agent:
         try:
             t = a["tool"]
             if t == "read":
-                with open(self.path(a["path"]), encoding="utf-8", errors="replace") as f:
+                full = self.path(a["path"])
+                with open(full, encoding="utf-8", errors="replace") as f:
                     lines = f.read().splitlines()
                 start = max(1, int(a.get("start") or 1))
-                part = lines[start - 1:start - 1 + READ_LINES]
+                key = (full, start, os.path.getmtime(full))
+                self.reads[key] = self.reads.get(key, 0) + 1
+                if self.reads[key] >= 3:  # the loop guard (2026-10-02: it re-read the same seven files for 9 minutes)
+                    return (f"You've already read {a['path']} from line {start} {self.reads[key] - 1} times in this "
+                            "task, and it hasn't changed. Stop reading it: act on what you know (edit, write, run), "
+                            "or ask the user.")
+                part = lines[start - 1:start - 1 + self.read_lines]
                 more = f"\n… {len(lines) - (start - 1 + len(part))} more lines (read from line {start + len(part)})" \
                     if start - 1 + len(part) < len(lines) else ""
                 return "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
