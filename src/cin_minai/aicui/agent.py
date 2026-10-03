@@ -178,6 +178,7 @@ class Agent:
         self.read_lines = READ_LINES * max(1, ctx // 8192) + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200
         self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
         self.reads: dict = {}  # (file, from line, modified) -> times read in this task
+        self.cut, self.sys, self.cpt = 0, "", 3.0  # this task: steps summarized, its system text, characters a token
         self.max_steps = min(60, MAX_STEPS * max(1, ctx // 8192))  # 8K: 30 steps, 16K: 60
         # the answer limit grows with the context (it stayed at 1,800 when coding went to 16K: writes were cut off)
         self.answer_tokens = ANSWER_TOKENS if ctx < 16384 else min(8192, ctx // 4)  # 8K: 1800, 16K: 4096
@@ -211,15 +212,15 @@ class Agent:
                              answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                              sandbox=", sandboxed without network" if self.sandbox else "")
 
-    def messages(self, text: str, steps: list[dict], full: int = 4) -> list[dict]:
-        """What the model is sent: the system text, earlier turns, this request, and this turn's steps — the last
-        `full` in full, older ones as one line each. A step's file contents are never sent again (2026-10-02: the
+    def messages(self, text: str, steps: list[dict], cut: int = 0) -> list[dict]:
+        """What the model is sent: the system text, earlier turns, this request, and this turn's steps — the first
+        `cut` as one line each, the rest in full. A step's file contents are never sent again (2026-10-02: the
         blackjack run overflowed 8K by resending every written file in every step); the file is on disk to read."""
-        messages = [{"role": "system", "content": self.system()}]
+        messages = [{"role": "system", "content": self.sys or self.system()}]
         for h in self.history[-6:]:
             messages += [{"role": "user", "content": h["user"]}, {"role": "assistant", "content": h["answer"][:600]}]
         messages.append({"role": "user", "content": text})
-        older = steps[:-full] if full else steps
+        older = steps[:cut]
         if older:
             messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(
                 f"- (note) {s['note'][:100]}" if "note" in s else f"- {brief(s['did'])} → {s['result'][:100]}"
@@ -233,12 +234,22 @@ class Agent:
         return messages
 
     def fit(self, text: str, steps: list[dict]) -> list[dict]:
-        """The messages, shrunk until they fit the context with room for the answer (~3.3 characters a token)."""
-        budget = (self.ctx - self.answer_tokens - 300) * 3.3
-        for full in range(len(steps), -1, -1):  # as many full steps as fit (a fixed 4 made it re-read in a loop)
-            m = self.messages(text, steps, full)
-            if sum(len(x["content"]) for x in m) <= budget:
-                return m
+        """The messages, shrunk to fit the context with room for the answer. Every step that fits is kept in full
+        (a fixed 4 made it re-read in a loop). When they don't fit, the oldest go to one line each — enough of them
+        to come down to ~60 % of the room, and that boundary then stays put: moved one step at a time, the summary
+        changed every step and the server re-read the whole prompt each time (2026-10-03, 75 s a step at 12.8K)."""
+        budget = (self.ctx - self.answer_tokens - 300) * self.cpt
+
+        def size(m):
+            return sum(len(x["content"]) for x in m)
+        m = self.messages(text, steps, self.cut)
+        if size(m) <= budget:
+            return m
+        for cut in range(self.cut + 1, len(steps) + 1):
+            m = self.messages(text, steps, cut)
+            if size(m) <= budget * 0.6:
+                break
+        self.cut = cut
         return m
 
     def generate(self, messages: list[dict], n: int, cancel) -> tuple[str, dict]:
@@ -259,6 +270,9 @@ class Agent:
         raw, timings = self.chat(messages, schema=schema(), max_tokens=self.answer_tokens, cancel=cancel,
                                  on_text=on_text)
         t = timings if isinstance(timings, dict) else {}
+        tokens = (t.get("prompt_n") or 0) + (t.get("cache_n") or 0)
+        if tokens > 500:  # characters a token, as the server counted this prompt (code in JSON: ~2.9, not 3.3)
+            self.cpt = min(3.3, max(2.0, 0.95 * sum(len(x["content"]) for x in messages) / tokens))
         self.event("timing", seconds=round(time.time() - t0, 1), prompt_n=t.get("prompt_n"),  # for diagnosis
                    cache_n=t.get("cache_n"), prompt_tps=round(t.get("prompt_per_second") or 0),
                    gen_n=t.get("predicted_n"), gen_tps=round(t.get("predicted_per_second") or 0, 1))
@@ -294,13 +308,16 @@ class Agent:
 
     def work(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
-        self.reads = {}
+        self.reads, self.cut = {}, 0
+        # the system text stays as it was at the start of the task: the file list in it changed with every new file,
+        # and the server re-read the whole prompt (the model knows the files it made from its own steps)
+        self.sys = self.system()
         for n in range(1, self.max_steps + 1):
             try:
                 raw, t = self.generate(self.fit(text, steps), n, cancel)
             except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
                 try:
-                    raw, t = self.generate(self.messages(text, steps[-1:], 0), n, cancel)
+                    raw, t = self.generate(self.messages(text, steps[-1:], 1), n, cancel)
                 except Exception:
                     msg = (f"I couldn't go on ({str(e)[:160]}). What's done is saved and in the changelog; tell me to "
                            "continue and I'll pick up from the files and the goals.")

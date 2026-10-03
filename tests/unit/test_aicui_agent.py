@@ -223,6 +223,32 @@ class AgentTest(unittest.TestCase):
             self.assertIn(f"{venv}|dummy", out)
             self.assertIn(os.path.join(venv, "bin"), out)
 
+    def test_the_prompt_start_stays_put_for_the_cache(self):
+        """The server reuses what's unchanged from the start of the prompt: a new file (in the system text's file
+        list) and a summary that grows every step both made it re-read everything (2026-10-03)."""
+        steps = [step(f"Write {i}.", tool="write", path=f"f{i}.py", content=f"x = {i}\n" + "# pad\n" * 120)
+                 for i in range(14)] + [step("", tool="answer", text="ok")]
+        a = Agent(self.root, Scripted(steps), "m", "auto", say=self.said.append, ctx=6000)
+        a.answer_tokens = 1000
+        a.turn("many files")
+        sent = a.chat.sent
+        self.assertTrue(all(s[0] == sent[0][0] for s in sent))  # the system text, as at the start
+        summaries = [next((m["content"] for m in s if m["content"].startswith("Earlier in this task:")), None)
+                     for s in sent]
+        changes = sum(1 for x, y in zip(summaries, summaries[1:]) if x != y)
+        self.assertGreaterEqual(summaries.count(None), 2)  # nothing summarized while everything fits
+        self.assertLessEqual(changes, len(sent) // 3)  # then in jumps, not every step
+
+    def test_characters_a_token_from_the_server(self):
+        class Counted(Scripted):
+            def __call__(self, messages, **kw):
+                raw, _ = super().__call__(messages, **kw)
+                return raw, {"prompt_n": sum(len(m["content"]) for m in messages) / 3, "cache_n": 0}
+        a = Agent(self.root, Counted([step("", tool="list", path="."), step("", tool="answer", text="ok")]), "m",
+                  "auto", say=self.said.append)
+        a.turn("go")
+        self.assertAlmostEqual(a.cpt, 2.85)  # 3 characters a token as counted, less 5 % to be safe
+
     def test_progress_events_and_idle(self):
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
         a.turn("go")
