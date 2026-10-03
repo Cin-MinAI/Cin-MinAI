@@ -29,3 +29,6 @@ training/lora/output/
 Thumbs.db
 spikes/*/out/
 
+
+# Ian's Quaddle research, kept beside the project for reference (it has its own home)
+docs/kernel doc/
