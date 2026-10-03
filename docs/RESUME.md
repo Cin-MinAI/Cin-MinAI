@@ -18,7 +18,8 @@ model's story: `docs/guide-model-journal.md`.
   removed by apt). Vision/video test tools: `spikes/vision/`; on the SSD `~/cinminai-src/vision`, `~/cinminai-src/tools`
   (uv, yt-dlp, cmake, whisper.cpp v1.9.4), projectors + whisper model in `~/cinminai-models/vision`, results in
   `~/Pictures/vision-test`, `~/Videos/vision-test`. D64 (seeing) measured; D65 (simple, accurate choices).
-- **Next version of the agent and AICUI** (in order; Ian: "a great spot to start the next version"):
+- **Next version of the agent and AICUI — built 3 Oct afternoon (8c9eae1..cd2220f), items 1-6 below, build
+  `0.0.1+git20261003.192756` on the test SSD to install and try** (in order; Ian: "a great spot to start the next version"):
   1. **Compaction keeps a map:** when a file read is summarized, keep its outline (classes, functions, line
      numbers), and shorten old reads before anything else.
   2. **Check after every change:** compile, duplicated definitions, and "does it still start" by drawing real
