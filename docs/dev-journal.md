@@ -7,6 +7,51 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-02/03 (night) — AICUI's first real project: a blackjack game
+
+*Ian opened AICUI from the new menu entry and gave it six session goals for a blackjack game. The agent built,
+tested and debugged it; every time it stumbled, the cause was in my code, and the run showed exactly where.*
+
+### What happened, and what we changed
+
+- **The real run.** With Ian's goals (base game → betting and UI → splits → aces → combine → buttons and a betting
+  slider), the agent wrote card, hand, game, betting and UI modules, ticked goal 1, wrote its own test suite, fixed
+  the imports for a folder name with a space, and debugged its tests correctly (an ace hand it expected at 12 is
+  13). 17 changes, every one in the changelog with undo.
+- **Ran out of context (8K):** every step resent every earlier step in full, written files included. Now earlier
+  steps go out shortened, the messages are fitted to the context, and a model error is answered instead of
+  crashing the agent. Ian then moved coding to **16K** (`2f2d639`): 7 layers' feed-forward weights in RAM, ~9 tok/s.
+- **Looped, re-reading the same seven files:** the compaction kept a fixed 4 full steps even with room for 15.
+  Now every step that fits is kept, reads come in 200-line pieces at 16K, and a third read of an unchanged file
+  gets "act on what you know".
+- **A placeholder written as code:** shown earlier writes as `"content": "<219 lines written>"`, the model copied
+  that into a real write — gui.py became one line of placeholder. Earlier writes now go out as plain sentences, and
+  a placeholder write is refused. 60 steps at 16K (it hit 30 right at the GUI).
+- **Two stalls and one desktop freeze** we couldn't pin down: the card idle while a step waited six minutes, then a
+  frozen desktop while Ian installed GUI libraries. No crash, no out-of-memory in the logs; the common factor is a
+  card nearly full with the desktop drawn on it (the BIOS "Init Display First → Onboard" setting would take the
+  desktop off it). A scripted re-run of the agent's own code was smooth (6-28 s a step, prompt cache reused), so
+  each step's llama.cpp timings now go to the events and the server's messages to `code-server.log`.
+- **An install that didn't happen** cost one lap: dpkg's log showed the AICUI package hadn't been installed; every
+  build is "0.0.1", so it isn't visible. To do: a distinct version per build.
+
+### Mine, on record
+
+The loop, the placeholder and the context overflow were all my compaction code, each fix making room for the next
+problem. And I deleted the placeholder gui.py directly before recording it as an undo of change 17 — the AI's
+changes should always be undone through the changelog, so its record stays true.
+
+### What we learned
+
+- **A coding agent on a small model needs its context managed like memory:** what to keep, what to summarize, and
+  never a summary that looks like content.
+- **Real projects find what tests don't:** every one of tonight's bugs passed the unit tests and showed up within
+  minutes of a real goal list.
+- Next for the blackjack: a GUI library on the test install (tkinter via apt, or pygame-ce in a project venv —
+  the agent's sandbox has no network and no password), then goals 2-6.
+
+---
+
 ## 2026-10-02 (afternoon and evening) — AICUI, and knowing where every model is
 
 *Ian drew the coding workspace he wanted, then settled its details in a few messages; Claude built it in slices on
