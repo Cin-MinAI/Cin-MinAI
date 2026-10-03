@@ -549,14 +549,14 @@ class Agent:
         os.replace(self.session_path() + ".tmp", self.session_path())
         self.event("session", mode=self.mode, admin=self.admin)
 
-    def allowed(self, tool: str, show: str) -> bool:
+    def allowed(self, tool: str, show: str, what: str = "") -> bool:
         """Ask in the terminal, as coding agents do — unless auto mode or no permissions. "Always" means what it says:
         no more questions this session (it was per tool, and the next kind of action asked again)."""
         self.refresh()
         if self.mode in ("auto", "none"):
             return True
         self.say(show)
-        self.event("busy", doing="waiting for your answer in the terminal")
+        self.event("busy", doing="waiting for your answer in the terminal", asking=f"{tool} {what}".strip()[:120])
         reply = self.ask(f"\033[1mAllow {tool}? [y]es / [n]o / [a]lways (auto from now on): \033[0m").strip().lower()
         if reply.startswith("a"):
             self.mode = "auto"
@@ -643,7 +643,7 @@ class Agent:
         diff = "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{rel}", f"b/{rel}"))
         colored = "\n".join(("\033[32m" if l.startswith("+") else "\033[31m" if l.startswith("-") else "") + l.rstrip("\n")
                             + "\033[0m" for l in diff.splitlines())
-        if not self.allowed(a["tool"], colored or f"(no change to {rel})"):
+        if not self.allowed(a["tool"], colored or f"(no change to {rel})", rel):
             return "the user said no to this change"
         before = self.log.before(rel)
         os.makedirs(os.path.dirname(full) or self.root, exist_ok=True)
@@ -666,7 +666,7 @@ class Agent:
         self.refresh()
         if not self.admin and re.match(r"\s*(sudo|pkexec|su)\b", command):
             return "error: administrator commands aren't allowed in this session (no admin)"
-        if not self.allowed("run", f"\033[36m$ {command}\033[0m"):
+        if not self.allowed("run", f"\033[36m$ {command}\033[0m", command):
             return "the user said no to this command"
         code, out = self.execute(command, RUN_TIMEOUT, self.sandbox)
         if code is None:

@@ -30,6 +30,7 @@ CSS = b"""
 .pane-title { font-weight: bold; padding: 4px 6px; }
 .bubble-user { background: alpha(@theme_selected_bg_color, 0.25); border-radius: 6px; padding: 6px; }
 .bubble-ai { background: alpha(@theme_fg_color, 0.06); border-radius: 6px; padding: 6px; }
+.waiting { background: rgba(255, 170, 0, 0.30); border-radius: 6px; padding: 2px 6px; font-weight: bold; }
 """
 
 
@@ -156,7 +157,19 @@ class Workspace(Gtk.ApplicationWindow):
         for w in (self.spinner, self.busy_label, stop):
             w.show()
             self.busy_box.pack_start(w, False, False, 0)
-        self.busy, self.busy_since = None, 0.0
+        # when the AI waits for a yes/no: plainly visible, answerable here (2026-10-03: a step waited three minutes on
+        # a question in the terminal Ian hadn't seen — "I was just the hold up in a system of my design")
+        self.ask_box = Gtk.Box(spacing=4, no_show_all=True)
+        for label, key, tip in (("Allow", b"y\n", "Yes, this once"),
+                                ("Always", b"a\n", "Yes, and don't ask again this session (Auto)"),
+                                ("No", b"n\n", "Don't do this")):
+            b = Gtk.Button(label=label)
+            b.set_tooltip_text(tip)
+            b.connect("clicked", lambda btn, k=key: self.term.feed_child(k))
+            b.show()
+            self.ask_box.pack_start(b, False, False, 0)
+        self.busy_box.pack_start(self.ask_box, False, False, 0)
+        self.busy, self.busy_since, self.notified = None, 0.0, 0.0
         GLib.timeout_add_seconds(1, self.show_busy)
         bottom = Gtk.Box(spacing=6, margin=6)
         bottom.pack_start(self.busy_box, False, False, 0)
@@ -260,10 +273,25 @@ class Workspace(Gtk.ApplicationWindow):
             self.busy_box.hide()
             return True
         secs = int(time.time() - self.busy_since)
-        parts = [f"Step {e['step']}" if e.get("step") else "", e.get("doing", "working"),
-                 f"{e['tokens']} tokens" if e.get("tokens") else "", f"{secs // 60}:{secs % 60:02}"]
-        self.busy_label.set_text(" · ".join(p for p in parts if p))
-        self.spinner.start()
+        waiting = e.get("doing") == "waiting for your answer in the terminal"
+        style = self.busy_box.get_style_context()
+        if waiting:
+            self.busy_label.set_text(f"Waiting for you: allow {e.get('asking') or 'this'}? · {secs // 60}:{secs % 60:02}")
+            style.add_class("waiting")
+            self.ask_box.show()
+            self.spinner.stop()
+            if self.notified != self.busy_since and not self.is_active():  # once per question, if not in front
+                self.notified = self.busy_since
+                n = Gio.Notification.new("AICUI is waiting for you")
+                n.set_body(f"Allow {e.get('asking') or 'the next step'}?")
+                self.get_application().send_notification("aicui-waiting", n)
+        else:
+            parts = [f"Step {e['step']}" if e.get("step") else "", e.get("doing", "working"),
+                     f"{e['tokens']} tokens" if e.get("tokens") else "", f"{secs // 60}:{secs % 60:02}"]
+            self.busy_label.set_text(" · ".join(p for p in parts if p))
+            style.remove_class("waiting")
+            self.ask_box.hide()
+            self.spinner.start()
         self.busy_box.show()
         return True
 
