@@ -58,8 +58,9 @@ without the content, so the chain still checks.
 
 **3.3 Facts.** What it believes about you and your work — preferences, facts, project knowledge — each with its
 **sources** (the episodes it came from), its scope (everywhere, or one area/project), when it was made and last
-confirmed. A fact is a **reversible fold**: it can always be unfolded to its sources, so it can be checked, and
-corrected at the source. Never a summary that floats free of what it summarized.
+confirmed, and its **history of changes** (§4, consolidating). A fact is a **reversible fold**: it can always be
+unfolded — to its sources and to every change it went through — so it can be checked, and corrected at the source.
+Never a summary that floats free of what it summarized.
 
 **3.4 Habits.** Per address of a repeated choice (e.g. *open the scan in GIMP with the plugin*): the candidate
 action and a **12-bit 3+1 register** — three levels of (three bits of switching + w), strict at the bottom,
@@ -87,9 +88,21 @@ a small local embedding model later, only if it measurably helps — D33), then 
 address. It goes in as a short, sourced block ("From your memory: … (from: writer, chapter 3, 1 Oct)") — the model
 reasons, the memory supplies. A habit that has closed and was accepted runs without the model at all.
 
-**Consolidating.** When the machine is idle and the graphics card free, older moments are folded into facts by the
-local model, with their sources linked — like sleep. Moments are not deleted by consolidation; how long they are kept
-is the person's setting (§8).
+**Consolidating — keep the changes, fold the sameness (Ian).** When the machine is idle and the graphics card free,
+older moments are folded into facts by the local model — like sleep — by one rule, P–V–P applied to time:
+
+- **Moments of change are the walls (P), kept for good, word for word:** the first time, a new preference, a
+  correction, a different choice, a habit formed or broken.
+- **The stretches where nothing changed are the spans (V) between them**, folded into one entry each: from when to
+  when, how many times, what — the repeated moments themselves are not kept.
+- **The change itself is memorized** as its own record: from what, to what, when, where, and what brought it about
+  (the moments on either side of the wall).
+
+A fact therefore **unfolds into its history** — a string of walls and spans: "you used the 14B for writing (1 Oct,
+first time) — 23 sessions — switched to the 27B for chapter 5 because it kept the voice better (6 Oct) — 9 sessions
+since". What is lost by folding is only the detail of repetition; no change is ever lost. (In the monograph's terms:
+a fold that discards only what the span already states, and keeps every partition — so it can always be unfolded to
+the same walls.)
 
 **Forgetting.** Any fact, any moment, a whole area or project, or everything — from the memory view, or by saying
 "forget that". Undo for a while, then gone for good.
@@ -146,7 +159,8 @@ machine (the tuned 4B guide was trained for one calm voice and may resist strong
 
 ## 8. Open for Ian
 
-- **How long moments are kept** (forever, a year, a few months) once folded into facts.
+- ~~How long moments are kept~~ — **settled (Ian):** moments are folded into facts; the moments of change and the
+  changes themselves are kept for good; repeated, unchanged moments are folded into spans (§4, consolidating).
 - **How much the personality may grow on its own** beyond accepted habits — only from what you accept, or also from
   observed preferences (always visible, always resettable).
 - The **names and descriptions** of the seven personalities, and whether *Make your own* ships with examples.
