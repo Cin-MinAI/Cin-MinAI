@@ -1,6 +1,6 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 late morning** (latest: journal "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-03 late morning** (latest: journal "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D63). How the work went, day by day: `docs/dev-journal.md`. The guide
