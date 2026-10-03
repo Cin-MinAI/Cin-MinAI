@@ -1,0 +1,4 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+rm -rf /usr/lib/python3/dist-packages/cin_minai/aicui/__pycache__

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AICUI
+GenericName=AI coding workspace
+Comment=Code with an AI that works in a real terminal and asks before it changes anything
+Keywords=code;coding;programming;AI;agent;IDE;terminal;vibe;
+Exec=cinminai-aicui %F
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;IDE;
+StartupNotify=true

@@ -321,11 +321,25 @@ class App(Gtk.Application):
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+    def do_activate_or_open(self) -> None:
+        """With AICUI up, the assistant's sidebar steps aside (Ian: not cluttered by default); Super+A brings it back."""
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+            owner = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                  "NameHasOwner", GLib.Variant("(s)", ("org.cinminai.Sidebar",)), None,
+                                  Gio.DBusCallFlags.NONE, 2000, None).unpack()[0]
+            if owner:  # only if it's running: don't start a hidden sidebar
+                Gio.Subprocess.new(["cinminai-sidebar", "--hide"], Gio.SubprocessFlags.NONE)
+        except GLib.Error:
+            pass
+
     def do_open(self, files, n, hint) -> None:
+        self.do_activate_or_open()
         for f in files:
             Workspace(self, project_root(f.get_path())).show_all()
 
     def do_activate(self) -> None:
+        self.do_activate_or_open()
         dialog = Gtk.FileChooserNative(title="Open a project folder", action=Gtk.FileChooserAction.SELECT_FOLDER)
         if dialog.run() == Gtk.ResponseType.ACCEPT:
             Workspace(self, project_root(dialog.get_filename())).show_all()

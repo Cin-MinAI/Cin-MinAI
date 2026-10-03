@@ -1,0 +1,6 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# AICUI, the coding workspace: cinminai-aicui [FOLDER-OR-FILE]
+from cin_minai.aicui.app import main
+
+raise SystemExit(main())

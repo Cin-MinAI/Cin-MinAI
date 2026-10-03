@@ -484,6 +484,9 @@ class Service:
         if plan and plan.get("source") and (not used or used["file"] != plan["file"])                 and plan["file"] not in self.store.state()["declined"]:
             offer = {k: plan[k] for k in ("model", "file", "why", "mode", "tok_s", "size")}
             offer["downloaded"] = self.store.has(plan["file"])
+            rec = self.store.where(plan["file"]) or {}
+            if rec.get("where") == "parked" and rec.get("present"):
+                offer["parked_on"] = rec.get("drive") or "another drive"  # copied back, not downloaded
             offer["space_ok"] = offer["downloaded"] or plan["size"] + (2 << 30) <= self.store.free_bytes()
         return {"task": task, "offer": offer, "in_use": used and {k: used.get(k) for k in ("model", "file", "measured")}}
 

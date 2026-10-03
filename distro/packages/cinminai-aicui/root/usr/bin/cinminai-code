@@ -1,0 +1,6 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The coding agent in AICUI's terminal: cinminai-code [--auto | --no-permissions] [--admin] [FOLDER]
+from cin_minai.aicui.agent import main
+
+raise SystemExit(main())

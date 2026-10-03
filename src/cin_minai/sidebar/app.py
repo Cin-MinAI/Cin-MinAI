@@ -180,7 +180,8 @@ class Sidebar(Gtk.Application):
         # the writing modes, visible where a newcomer looks (2026-10-01: behind the header's New icon, not found)
         row = Gtk.Box(spacing=6)
         for label, cb in (("Start a writing project", lambda b: self.new_project()),
-                          ("Open the journal", lambda b: self.open_journal())):
+                          ("Open the journal", lambda b: self.open_journal()),
+                          ("Open AICUI (coding)", lambda b: self.open_aicui())):
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
             row.pack_start(b, False, False, 0)
@@ -417,6 +418,17 @@ class Sidebar(Gtk.Application):
         elif signal == "Done":
             self.finish_reply()
 
+    def open_aicui(self) -> None:
+        """AICUI, the coding workspace (D61): it asks for a folder and tucks this sidebar away (Super+A brings it
+        back)."""
+        try:
+            info = Gio.DesktopAppInfo.new("cinminai-aicui.desktop")
+            if info is None:
+                raise GLib.Error("AICUI isn't installed")
+            info.launch([], None)
+        except GLib.Error as e:
+            self.bubble("error", f"Couldn't open AICUI: {e.message}")
+
     # --- writing projects (D54) ---------------------------------------------------------------------------
     def on_new_menu(self, button) -> None:
         menu = Gtk.Menu()
@@ -428,6 +440,9 @@ class Sidebar(Gtk.Application):
         menu.append(item)
         item = Gtk.MenuItem(label="Journal")
         item.connect("activate", lambda i: self.open_journal())
+        menu.append(item)
+        item = Gtk.MenuItem(label="Coding (AICUI)…")
+        item.connect("activate", lambda i: self.open_aicui())
         menu.append(item)
         projects = self.daemon_json("ProjectList") or []
         if projects:
@@ -510,7 +525,8 @@ class Sidebar(Gtk.Application):
         for line in words.offer_lines(offer):
             box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
         buttons = Gtk.Box(spacing=6)
-        get = Gtk.Button(label="Use it" if offer.get("downloaded") else "Download")
+        get = Gtk.Button(label="Use it" if offer.get("downloaded") else "Bring back" if offer.get("parked_on")
+                         else "Download")
         get.get_style_context().add_class("suggested-action")
         later, never = Gtk.Button(label="Not now"), Gtk.Button(label="Don't ask again")
 

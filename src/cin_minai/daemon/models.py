@@ -82,10 +82,92 @@ class ModelStore:
         import shutil
         return shutil.disk_usage(self.root).free
 
+    # --- the record of where every model is (Ian, 2026-10-02) -------------------------------------------------
+    def record(self, model, where: str, path: str = "", replaced_by: str = "") -> None:
+        """Note where a model is: "store" (in use here), "parked" (on another drive), or "deleted" (fetch it again
+        from its source; replaced_by says what took its place in an upgrade)."""
+        s = self.state()
+        m = s.setdefault("models", {})
+        file = getattr(model, "file", model)
+        e = m.get(file, {})
+        e.update(where=where, path=path or (self.path(file) if where == "store" else ""),
+                 drive=drive_label(path) if where == "parked" else "", time=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        for k in ("source", "sha256", "size"):
+            if getattr(model, k, None):
+                e[k] = getattr(model, k)
+        if replaced_by:
+            e["replaced_by"] = replaced_by
+        m[file] = e
+        self.save(s)
+
+    def where(self, file: str) -> dict | None:
+        """The record for a file, with "present": whether it's there right now (a parked drive may be unplugged)."""
+        e = self.state().get("models", {}).get(os.path.basename(file))
+        if e is None and self.has(file):
+            e = {"where": "store", "path": self.path(file)}
+        if e is not None:
+            e = dict(e, present=bool(e.get("path")) and os.path.isfile(e["path"]))
+        return e
+
+    def models(self) -> dict:
+        """Every model we know of, with where it is and whether it's present (the store's files are always known)."""
+        known = dict(self.state().get("models", {}))
+        for f in os.listdir(self.root):
+            if f.endswith(".gguf") and f not in known:
+                known[f] = {"where": "store", "path": self.path(f)}
+        return {f: dict(e, present=bool(e.get("path")) and os.path.isfile(e["path"])) for f, e in sorted(known.items())}
+
+    def _copy_checked(self, src: str, dst: str, sha256: str, on_progress, cancel) -> None:
+        part = dst + ".part"
+        total, done = os.path.getsize(src), 0
+        with open(src, "rb") as fi, open(part, "wb") as fo:
+            for block in iter(lambda: fi.read(CHUNK), b""):
+                if cancel.is_set():
+                    raise Cancelled()
+                fo.write(block)
+                done += len(block)
+                on_progress(done, total)
+        if sha256 and not self.verify(part, sha256, cancel):
+            os.remove(part)
+            raise ValueError("the copy didn't match its checksum, so it was removed")
+        os.replace(part, dst)
+
+    def park(self, model, folder: str, on_progress: Callable[[int, int], None], cancel: threading.Event) -> str:
+        """Move a model out of the store to another drive (copied and checked first); the record says where."""
+        if os.path.basename(model.file) in {p.get("file") for p in self.state()["use"].values()}:
+            raise ValueError("that model is in use: switch the task to another model first")
+        if fat32(folder) and model.size >= 4 << 30:
+            raise OSError("that drive is formatted FAT32, which can't hold files over 4 GB; exFAT or ext4 can")
+        os.makedirs(folder, exist_ok=True)
+        dst = os.path.join(folder, os.path.basename(model.file))
+        self._copy_checked(self.path(model.file), dst, model.sha256, on_progress, cancel)
+        os.remove(self.path(model.file))
+        self.record(model, "parked", dst)
+        return dst
+
+    def bring_back(self, model, on_progress: Callable[[int, int], None], cancel: threading.Event) -> str:
+        """Copy a parked model back into the store, checked; it stays on the other drive too."""
+        e = self.where(model.file)
+        if not e or e.get("where") != "parked" or not e.get("present"):
+            raise OSError("that model isn't on a connected drive")
+        self._copy_checked(e["path"], self.path(model.file), model.sha256, on_progress, cancel)
+        self.record(model, "store")
+        return self.path(model.file)
+
+    def delete(self, model, replaced_by: str = "") -> None:
+        """Remove a model from the store (an upgrade frees its space); the record keeps its source to fetch it again."""
+        if self.has(model.file):
+            os.remove(self.path(model.file))
+        self.record(model, "deleted", replaced_by=replaced_by)
+
     def download(self, model, on_progress: Callable[[int, int], None], cancel: threading.Event) -> str:
-        """Fetch model (a matcher.Model with source/sha256/size) into the store; resume a .part; verify."""
+        """Fetch model (a matcher.Model with source/sha256/size) into the store; resume a .part; verify. A parked
+        copy on a connected drive is brought back instead of downloaded again."""
         if self.has(model.file):
             return self.path(model.file)
+        e = self.where(model.file)
+        if e and e.get("where") == "parked" and e.get("present"):
+            return self.bring_back(model, on_progress, cancel)
         repo, _, rev = model.source.partition("@")
         url = HF.format(repo=repo, rev=rev or "main", file=model.file)
         part = self.path(model.file) + ".part"
@@ -118,6 +200,7 @@ class ModelStore:
             os.remove(part)
             raise ValueError("the downloaded file didn't match its checksum, so it was removed")
         os.replace(part, self.path(model.file))
+        self.record(model, "store")
         return self.path(model.file)
 
     @staticmethod
@@ -129,6 +212,61 @@ class ModelStore:
                     raise Cancelled()
                 h.update(block)
         return h.hexdigest() == sha256
+
+
+def mount_of(path: str) -> tuple[str, str, str]:
+    """(mount point, device, file system) of the drive a path is on, from /proc/mounts."""
+    path = os.path.realpath(path)
+    while not os.path.ismount(path) and path != os.path.dirname(path):
+        path = os.path.dirname(path)
+    try:
+        with open("/proc/mounts", encoding="utf-8") as f:
+            for line in f:
+                dev, mnt, fs = line.split()[:3]
+                if mnt.encode().decode("unicode_escape") == path:
+                    return path, dev, fs
+    except OSError:
+        pass
+    return path, "", ""
+
+
+def drive_label(path: str) -> str:
+    """The drive's label (e.g. "USB Storage"), so the record says which drive a parked model is on."""
+    _, dev, _ = mount_of(path)
+    d = "/dev/disk/by-label"
+    try:
+        for name in os.listdir(d):
+            if dev and os.path.realpath(os.path.join(d, name)) == os.path.realpath(dev):
+                return name.encode().decode("unicode_escape")
+    except OSError:
+        pass
+    return os.path.basename(mount_of(path)[0])
+
+
+def fat32(path: str) -> bool:
+    return mount_of(path)[2] in ("vfat", "msdos")
+
+
+def main() -> int:
+    """python3 -m cin_minai.daemon.models [--list | --park FILE FOLDER | --bring-back FILE | --record FILE WHERE PATH]"""
+    import sys
+    from cin_minai.inference import matcher
+    store = ModelStore()
+    catalog = {m.file: m for ms in matcher.CATALOG.values() for m in ms}
+    a = sys.argv[1:]
+    progress = lambda done, total: print(f"\r{done / 2**30:.1f} of {total / 2**30:.1f} GB", end="", flush=True)  # noqa: E731
+    if a[:1] == ["--park"] and len(a) == 3:
+        print("\nparked:", store.park(catalog[a[1]], a[2], progress, threading.Event()))
+    elif a[:1] == ["--bring-back"] and len(a) == 2:
+        print("\nback in the store:", store.bring_back(catalog[a[1]], progress, threading.Event()))
+    elif a[:1] == ["--record"] and len(a) == 4:
+        store.record(catalog.get(a[1], a[1]), a[2], a[3])
+    for f, e in store.models().items():
+        place = {"store": "in the store", "parked": f"parked on {e.get('drive') or 'another drive'}",
+                 "deleted": "deleted (can be fetched again)"}.get(e["where"], e["where"])
+        print(f"{f}: {place}{'' if e['present'] or e['where'] == 'deleted' else ' (not connected)'}"
+              + (f", replaced by {e['replaced_by']}" if e.get("replaced_by") else "") + (f"  {e['path']}" if e.get("path") else ""))
+    return 0
 
 
 def backend_cfg(base: dict, plan: dict, model_path: str) -> dict:
@@ -157,3 +295,7 @@ def benchmark(chat: Callable, tokens: int = 120) -> float:
                       max_tokens=tokens)
     t = timings[-1] if isinstance(timings, list) and timings else timings
     return float((t or {}).get("predicted_per_second") or 0.0)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,14 @@
+Package: cinminai-aicui
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Section: devel
+Priority: optional
+Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-3.0, gir1.2-vte-2.91, git, bubblewrap,
+ cinminai-daemon (= @VERSION@)
+Description: AICUI, the Cin-MinAI coding workspace
+ A simple workspace for coding with AI: the chat history, the project's files,
+ the session goals and a real terminal where the coding agent works and asks
+ before it changes anything. Every change it makes is kept in a changelog with
+ undo. Runs on this computer's own model by default; cloud models can be
+ connected too. Open it from the Programming menu or the assistant's sidebar.

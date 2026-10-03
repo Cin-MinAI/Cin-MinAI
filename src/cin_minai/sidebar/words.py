@@ -317,6 +317,8 @@ def offer_lines(o: dict) -> list[str]:
              f"Here it would run {o.get('mode', '')}, about {lo * 45:.0f}-{hi * 45:.0f} words a minute."]
     if o.get("downloaded"):
         lines.append("It's already downloaded.")
+    elif o.get("parked_on"):
+        lines.append(f"It's on {o['parked_on']}: it'll be copied back to this computer and checked, no download needed.")
     else:
         lines.append(f"The download is {o.get('size', 0) / 2**30:.1f} GB from Hugging Face, checked against its checksum "
                      "before it's used. Nothing is sent or fetched until you click Download.")

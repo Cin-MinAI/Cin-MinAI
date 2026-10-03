@@ -116,6 +116,40 @@ class Store(unittest.TestCase):
         s.use("writing", None)
         self.assertIsNone(s.in_use("writing"))
 
+    def test_the_record_park_bring_back_and_download_prefers_the_parked_copy(self):
+        fake = Fake()
+        s = models.ModelStore(self.root, fake)
+        s.download(M(), lambda a, b: None, threading.Event())
+        self.assertEqual(s.where(M().file)["where"], "store")
+        usb = tempfile.mkdtemp()
+        dst = s.park(M(), os.path.join(usb, "Cin-MinAI models"), lambda a, b: None, threading.Event())
+        self.assertFalse(s.has(M().file))
+        e = s.where(M().file)
+        self.assertEqual((e["where"], e["path"], e["present"], e["sha256"]), ("parked", dst, True, M().sha256))
+        n = len(fake.requests)
+        s.download(M(), lambda a, b: None, threading.Event())  # back from the drive, not from the internet
+        self.assertEqual(len(fake.requests), n)
+        self.assertTrue(s.has(M().file) and os.path.isfile(dst))
+        self.assertEqual(s.where(M().file)["where"], "store")
+
+    def test_an_unplugged_drive_and_an_upgrade(self):
+        s = models.ModelStore(self.root, Fake())
+        s.download(M(), lambda a, b: None, threading.Event())
+        s.park(M(), os.path.join(tempfile.mkdtemp(), "m"), lambda a, b: None, threading.Event())
+        os.remove(s.where(M().file)["path"])  # the drive is unplugged
+        self.assertFalse(s.where(M().file)["present"])
+        s.download(M(), lambda a, b: None, threading.Event())  # then it downloads again
+        s.delete(M(), replaced_by="Test-v2-Q4_K_M.gguf")
+        e = s.models()[M().file]
+        self.assertEqual((e["where"], e["replaced_by"], e["source"]), ("deleted", "Test-v2-Q4_K_M.gguf", M().source))
+
+    def test_a_model_in_use_isnt_parked(self):
+        s = models.ModelStore(self.root, Fake())
+        s.download(M(), lambda a, b: None, threading.Event())
+        s.use("writing", {"file": M().file})
+        with self.assertRaises(ValueError):
+            s.park(M(), tempfile.mkdtemp(), lambda a, b: None, threading.Event())
+
     def test_benchmark_reads_llama_cpps_timings(self):
         self.assertEqual(models.benchmark(lambda msgs, max_tokens: ("text", {"predicted_per_second": 21.5})), 21.5)
 
