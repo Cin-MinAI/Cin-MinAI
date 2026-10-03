@@ -424,6 +424,41 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(ok, report)
         self.assertIn("names and tags line up", report)
 
+    def test_the_card_is_asked_for_before_every_load_and_a_slow_fallback_is_said(self):
+        """2026-10-03: the daemon reloaded its guide between the agent's start and its first request; the 27B went
+        to the processor at 1.1 tok/s and nothing said so."""
+        from cin_minai.aicui import agent as mod
+        unloads, events, said = [], [], []
+
+        class Backend:
+            def __init__(self):
+                self.loaded, self.profile = False, None
+
+            def alive(self):
+                return self.loaded
+
+            def chat(self, *a, **k):
+                self.loaded = True
+                self.profile = mod_profile
+                return "{}", {}
+        from cin_minai.inference.llamacpp import Profile
+        mod_profile = Profile("cpu", "none", 4096, "0", "on the processor (slower): the graphics card's memory is busy")
+        real = mod.unload_guide
+        mod.unload_guide = lambda: unloads.append(1)
+        try:
+            b = Backend()
+            chat = mod.card_minded(b, lambda kind, **d: events.append((kind, d)), said.append)
+            chat([])
+            chat([])
+            b.loaded = False  # the server stopped (Stop, a crash): asked again before the reload
+            chat([])
+        finally:
+            mod.unload_guide = real
+        self.assertEqual(len(unloads), 2)
+        self.assertEqual([k for k, _ in events], ["note"])  # said once, not every step
+        self.assertIn("on the processor", events[0][1]["text"])
+        self.assertIn("graphics card's memory is busy", events[0][1]["text"])
+
     def test_progress_events_and_idle(self):
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
         a.turn("go")

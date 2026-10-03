@@ -790,6 +790,37 @@ class Agent:
 
 
 # --- the model -------------------------------------------------------------------------------------------------
+def unload_guide() -> None:
+    """The assistant's guide model off the card (one card, one model): the daemon reloads it when it's next asked."""
+    try:
+        subprocess.run(["gdbus", "call", "--session", "--dest", "org.cinminai.Assistant1", "--object-path",
+                        "/org/cinminai/Assistant1", "--method", "org.cinminai.Assistant1.Unload"],
+                       capture_output=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def card_minded(backend, event, say):
+    """The backend's chat, asking for the card right before every load — the daemon, restarting after an update,
+    had loaded its guide again between the agent's start and its first request, and the 27B went to the processor
+    at 1.1 tok/s without a word (2026-10-03). If the model still lands on the processor, the user is told."""
+    told = [False]
+
+    def chat(*args, **kw):
+        if not backend.alive():
+            unload_guide()
+        out = backend.chat(*args, **kw)
+        p = backend.profile
+        if p is not None and p.build == "cpu" and p.reduced and not told[0]:
+            told[0] = True
+            msg = (f"Running the model on the processor, so it's much slower: {p.reduced}. Close what else uses the "
+                   "graphics card and restart AICUI to get it back on the card.")
+            event("note", text=msg)
+            say(f"\033[33m{msg}\033[0m")
+        return out
+    return chat
+
+
 def local_backend(say=print):
     """The matcher's coding model from the user's model store; the daemon's guide is unloaded first (one card)."""
     from cin_minai.daemon import config
@@ -811,9 +842,7 @@ def local_backend(say=print):
         m, p = have[0]
         plan = {"model": m.name, "file": m.file, **p, "context": matcher.CONTEXT["coding"],
                 "reserve_mib": matcher.margin_mib(machine.cards[0]) if machine.cards else 0}
-    subprocess.run(["gdbus", "call", "--session", "--dest", "org.cinminai.Assistant1", "--object-path",
-                    "/org/cinminai/Assistant1", "--method", "org.cinminai.Assistant1.Unload"],
-                   capture_output=True, timeout=20)
+    unload_guide()
     cfg = backend_cfg(config.load()["inference"], plan, store.path(plan["file"]))
     cfg["socket_name"] = "llama-code.sock"
     say(f"\033[2mModel: {plan['model']} ({plan['mode']}), loading…\033[0m")
@@ -848,6 +877,7 @@ def main(argv=None) -> int:
 
     agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)),
                   say=lambda s: print(f"\r\033[K{s}"), tick=tick)
+    agent.chat = card_minded(backend, agent.event, agent.say)
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
