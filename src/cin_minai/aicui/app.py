@@ -140,7 +140,7 @@ class Workspace(Gtk.ApplicationWindow):
         self.perms_id = self.perms.connect("changed", self.restart_agent)
         self.admin = Gtk.CheckButton(label="Admin")
         self.admin.set_tooltip_text("Let the AI ask for administrator commands")
-        self.admin.connect("toggled", self.restart_agent)
+        self.admin_id = self.admin.connect("toggled", self.restart_agent)
         # while the AI works: what it's doing, for how long, and Stop (Ctrl+C in its terminal)
         self.spinner = Gtk.Spinner()
         self.busy_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, width_chars=46, max_width_chars=60)
@@ -177,7 +177,8 @@ class Workspace(Gtk.ApplicationWindow):
         return f"{sys.executable} -m cin_minai.aicui.agent{flags} {GLib.shell_quote(self.root)}"
 
     def restart_agent(self, widget) -> None:
-        """A new permission mode: leave the agent (Ctrl+D), start it again with the new flags."""
+        """A new permission choice: written where the agent reads it before every question, so it holds at once, even
+        mid-task (it used to type Ctrl+D and a new command into the terminal, which a busy agent never saw)."""
         if widget is self.perms and self.perms.get_active_id() == "none":
             d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.WARNING,
                                   buttons=Gtk.ButtonsType.OK_CANCEL, text="Work without any permissions?")
@@ -190,8 +191,11 @@ class Workspace(Gtk.ApplicationWindow):
                 with self.perms.handler_block(self.perms_id):
                     self.perms.set_active_id("ask")
                 return
-        self.term.feed_child(b"\x04")
-        GLib.timeout_add(1500, lambda: (self.term.feed_child((self.agent_command() + "\n").encode()), False)[1])
+        path = os.path.join(self.root, ".cinminai", "session.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"mode": self.perms.get_active_id(), "admin": self.admin.get_active()}, f)
+        os.replace(path + ".tmp", path)
 
     def events_path(self) -> str:
         return os.path.join(self.root, ".cinminai", "events.jsonl")
@@ -226,6 +230,11 @@ class Workspace(Gtk.ApplicationWindow):
             elif e["kind"] == "idle":
                 self.busy = None
                 self.show_busy()
+            elif e["kind"] == "session":  # the agent's own change ("always" in the terminal): the choices follow
+                with self.perms.handler_block(self.perms_id):
+                    self.perms.set_active_id(e.get("mode", "ask"))
+                with self.admin.handler_block(self.admin_id):
+                    self.admin.set_active(bool(e.get("admin")))
             elif e["kind"] == "change":
                 self.load_changes()
                 self.load_tree()

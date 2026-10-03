@@ -84,6 +84,30 @@ class AgentTest(unittest.TestCase):
         b.turn("two files")
         self.assertTrue(os.path.exists(os.path.join(self.root, "y.txt")))  # asked once, then always
 
+    def test_always_means_no_more_questions_and_aicui_choices_hold_mid_task(self):
+        """2026-10-03: "always" was per tool (the next kind of action asked again), and AICUI's Auto never reached
+        an agent in the middle of a task."""
+        asked = []
+        a = Agent(self.root, Scripted([step("", tool="write", path="x.txt", content="1\n"),
+                                       step("", tool="run", command="true"),
+                                       step("", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("", tool="answer", text="ok")]), "m", "ask",
+                  ask=lambda p: asked.append(p) or "a", say=self.said.append)
+        a.turn("go")
+        self.assertEqual(len(asked), 1)
+        self.assertEqual(a.mode, "auto")
+        self.assertIn({"kind": "session", "mode": "auto", "admin": False},
+                      [{k: v for k, v in e.items() if k != "t"} for e in self.events()])
+        # AICUI switches back to ask while the agent works: the next change asks again
+        b = Agent(self.root, Scripted([step("", tool="write", path="y.txt", content="2\n"),
+                                       step("", tool="answer", text="ok")]), "m", "auto",
+                  ask=lambda p: asked.append(p) or "n", say=self.said.append)
+        with open(os.path.join(self.root, ".cinminai", "session.json"), "w", encoding="utf-8") as f:
+            json.dump({"mode": "ask", "admin": False}, f)
+        b.turn("go")
+        self.assertEqual(len(asked), 2)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "y.txt")))
+
     def test_auto_mode_asks_nothing(self):
         asked = []
         a = Agent(self.root, Scripted([step("", tool="write", path="z.txt", content="z\n"),

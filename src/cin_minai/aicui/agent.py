@@ -186,11 +186,11 @@ class Agent:
         self.venv = venv_of(root)
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
         self.tick = tick  # tick(text): the terminal's progress line while a step is generated
-        self.always: set[str] = set()   # tools the user said "always" to this session
         self.goals, self.log = Goals(root), Changelog(root)
         self.history: list[dict] = []   # earlier turns: the user's message and the final answer
         self.events = os.path.join(root, ".cinminai", "events.jsonl")
-        self.sandbox = shutil.which("bwrap") is not None and mode != "none"
+        self.bwrap = shutil.which("bwrap") is not None
+        self.sandbox = self.bwrap and mode != "none"
 
     # --- events for AICUI's panes --------------------------------------------------------------------------
     def event(self, kind: str, **data) -> None:
@@ -361,15 +361,42 @@ class Agent:
             raise ValueError("the .cinminai folder is AICUI's own")
         return full
 
+    # --- the session's permissions: AICUI's choices, read again before every question ------------------------
+    def session_path(self) -> str:
+        return os.path.join(self.root, ".cinminai", "session.json")
+
+    def refresh(self) -> None:
+        """Ask / auto / none and admin as AICUI's choices say now. They used to restart the agent by typing Ctrl+D and
+        a new command into its terminal: mid-task the keys went nowhere, or into an answer (2026-10-03)."""
+        try:
+            with open(self.session_path(), encoding="utf-8") as f:
+                s = json.load(f)
+        except (OSError, ValueError):
+            return
+        if s.get("mode") in ("ask", "auto", "none"):
+            self.mode = s["mode"]
+        self.admin = bool(s.get("admin", self.admin))
+        self.sandbox = self.bwrap and self.mode != "none"
+
+    def save_session(self) -> None:
+        os.makedirs(os.path.dirname(self.session_path()), exist_ok=True)
+        with open(self.session_path() + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"mode": self.mode, "admin": self.admin}, f)
+        os.replace(self.session_path() + ".tmp", self.session_path())
+        self.event("session", mode=self.mode, admin=self.admin)
+
     def allowed(self, tool: str, show: str) -> bool:
-        """Ask in the terminal, as coding agents do — unless auto mode, no permissions, or "always" for this tool."""
-        if self.mode in ("auto", "none") or tool in self.always:
+        """Ask in the terminal, as coding agents do — unless auto mode or no permissions. "Always" means what it says:
+        no more questions this session (it was per tool, and the next kind of action asked again)."""
+        self.refresh()
+        if self.mode in ("auto", "none"):
             return True
         self.say(show)
         self.event("busy", doing="waiting for your answer in the terminal")
-        reply = self.ask(f"\033[1mAllow {tool}? [y]es / [n]o / [a]lways this session: \033[0m").strip().lower()
+        reply = self.ask(f"\033[1mAllow {tool}? [y]es / [n]o / [a]lways (auto from now on): \033[0m").strip().lower()
         if reply.startswith("a"):
-            self.always.add(tool)
+            self.mode = "auto"
+            self.save_session()  # AICUI's permission choice follows
         return reply[:1] in ("y", "a")
 
     def do(self, a: dict) -> str:
@@ -453,6 +480,7 @@ class Agent:
         return f"{rel} changed (+{e['added']} -{e['removed']}), logged as change {e['id']}"
 
     def run(self, command: str) -> str:
+        self.refresh()
         if not self.admin and re.match(r"\s*(sudo|pkexec|su)\b", command):
             return "error: administrator commands aren't allowed in this session (no admin)"
         if not self.allowed("run", f"\033[36m$ {command}\033[0m"):
@@ -536,6 +564,7 @@ def main(argv=None) -> int:
 
     agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)),
                   say=lambda s: print(f"\r\033[K{s}"), tick=tick)
+    agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
     try:
