@@ -80,7 +80,7 @@ CATALOG = {
               sha256="03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8", size=5680522464, note="small and quick"),
     ],
 }
-CONTEXT = {"help": 8192, "writing": 8192, "coding": 8192}
+CONTEXT = {"help": 8192, "writing": 8192, "coding": 16384}  # coding: 16K keeps more of a project in view (Ian)
 
 # memory bandwidth of common cards (GB/s), for the speed estimate; unknown cards: 300
 CARD_BW = [("4090", 1008), ("4080", 717), ("4070 ti", 504), ("4070", 504), ("4060 ti", 288), ("4060", 272),
