@@ -1,9 +1,9 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 late morning** (latest: journal "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-03 afternoon** (latest: journal "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
-behind decisions: `docs/PLAN.md` (D1–D63). How the work went, day by day: `docs/dev-journal.md`. The guide
+behind decisions: `docs/PLAN.md` (D1–D65). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
 ## Where we stopped (2026-10-03, ~10:30) — the start of AICUI's next version
@@ -13,7 +13,11 @@ model's story: `docs/guide-model-journal.md`.
   change): the 1080 Ti is free, coding runs the 27B whole on the card at **32K**, 13-14 tok/s.
 - Ian's blackjack project `~/aicui-test`: **all six goals done**, tests pass, `run.sh` launches it with the venv,
   the window scales (`SCALED | RESIZABLE`). Changes 18-75 in the changelog. Some game bugs left — not the point yet.
-- Prompts for Ian to paste: `~/Desktop/prompts.txt` on the test SSD.
+- Prompts for Ian to paste: `~/Desktop/prompts.txt` on the test SSD. **Install test packages with
+  `~/cinminai-debs/install-debs.sh FILES…`** (stops if apt would remove or downgrade anything; 3 Oct the sidebar was
+  removed by apt). Vision/video test tools: `spikes/vision/`; on the SSD `~/cinminai-src/vision`, `~/cinminai-src/tools`
+  (uv, yt-dlp, cmake, whisper.cpp v1.9.4), projectors + whisper model in `~/cinminai-models/vision`, results in
+  `~/Pictures/vision-test`, `~/Videos/vision-test`. D64 (seeing) measured; D65 (simple, accurate choices).
 - **Next version of the agent and AICUI** (in order; Ian: "a great spot to start the next version"):
   1. **Compaction keeps a map:** when a file read is summarized, keep its outline (classes, functions, line
      numbers), and shorten old reads before anything else.

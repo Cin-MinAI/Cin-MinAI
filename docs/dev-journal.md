@@ -7,6 +7,68 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-03 (afternoon) — the assistant learns to see: photos, a screenshot, and two videos
+
+*Ian asked how the assistant could read screenshots, images and video. The models we already use can — Qwen
+publishes vision projectors for the 27B and the 4B, and our llama.cpp build loads them. By the end of the
+afternoon a 28-minute repair video had become a scrollable guide. Ian: "That looks amazing. It does exactly what
+we wanted."*
+
+### What we did
+
+- **A screenshot of the blackjack game** (taken headless): the 27B found 3 of the 4 real UI bugs — the suit symbols
+  drawn as empty boxes, two labels on top of each other, a hint hidden under the buttons — in 85 s; the tuned 4B
+  guide, with the untuned base model's projector, found 2 in 27 s. The projector runs on the processor; on the card
+  the 27B needed two layers' feed-forward weights in RAM at 16K (at 32K with nothing spare, reading the image ran
+  out of card memory).
+- **Ian's decision (D64):** seeing is for everyone, not only coders; the 27B is the recommended model, the 4B is
+  offered as "works, quality not guaranteed". His use cases went into the plan: documents, recognition, video
+  summaries, "watch it for me", guided repair (an Audi timing belt), a home security system.
+- **Four phone photos** (count the shoe pairs, a letter photographed badly and well, "what's in this picture" with a
+  coffee-cup barcode as a hidden bonus), at 640×480: round 1 used the file names as requests and both models fell
+  into repetition loops; round 2 (requests in plain words, the writer's DRY guard) fixed the loops. On the bad photo
+  both models described a letter that wasn't there; on the good one the 4B read the gas emergency number right and
+  the 27B got it wrong while saying it was "100% confident"; both said honestly the barcode was too small to read.
+  Ian: "it was the pics not the models" — accepted, with a caveat the assistant always gives (D64): the picture's
+  quality decides the answer's; check numbers against the original.
+- **D65 (Ian):** every choice is a simple presentation with an easy, accurate description, so non-techy people
+  have the power of choice without needing to be into the technology.
+- **Video.** On the test install, user-level: uv, yt-dlp and cmake in `~/cinminai-src/tools`, whisper.cpp v1.9.4
+  built on the i7, its small English model; ffmpeg was already there. The pipeline (`spikes/vision/video_summary.py`):
+  speech → timestamped transcript, frames where the picture changes, the 27B describes each frame, then writes a
+  summary, what you need, a step table with times and frames, and the warnings.
+  - **Ian's own tutorial** ("OG Xbox RGH Tutorial", 2:38): 8½ minutes. Every step right, the 80 % compatibility
+    warning, and things he never said but the screen showed — the fixer's warning that it erases the compatibility
+    partition, the game folder's name. Wrong: "RGH" expanded as "Retail Hardware Mod", `default.xex` written as
+    "default.dzx". The local transcript beat YouTube's own captions.
+  - **"Easy Guide To Reballing an Xbox 360 Slim GPU"** (28:29, another channel): **13 minutes**, faster than the
+    video plays. A full procedure with temperatures, distances and times, the warnings that matter (bottom heat
+    against warping, never force the chip, a thin layer of flux), and one real catch: it corrected whisper's
+    "captain tape" to Kapton from the label on the first frame. Wrong: the 858D+ station read as "950D+" off that
+    same frame (the transcript had it right), "cotton tape" listed as a separate item.
+  - Ian, on why this matters: the hardware community favoured forums over videos — you scroll to where you are.
+    This turns a video back into a forum post.
+
+### What went wrong (mine, on record)
+
+**The sidebar and the panel icon disappeared.** At 07:35, installing the daemon with the Stop fix made apt remove
+the sidebar, the applet and the desktop meta-package: the sidebar still installed was the old build, which demanded
+*exactly* daemon 0.0.1. I had loosened the dependencies that morning but shipped only the packages I'd changed.
+Ian noticed it in the afternoon; the current builds of the three went back on (install only, nothing removed),
+and journal and writing had kept working. Now the test machine installs through `distro/install-debs.sh` (copy in
+`~/cinminai-debs`), which runs apt's dry run first and stops before the password prompt if anything would be removed
+or downgraded.
+
+### What we learned
+
+- **Small numbers are the weak spot of reading pictures** — phone numbers, model numbers, file names — at any
+  resolution we tried; the structure and the meaning come through well.
+- **Sound and picture check each other** — the Kapton catch — but not always (858D+): it would be worth having the
+  model compare the two explicitly.
+- **A dependency change touches every package that has the dependency**, not only the ones being worked on.
+
+---
+
 ## 2026-10-03 (late morning) — all six goals, the BIOS change, and a game Ian can launch
 
 *The blackjack project finished: goals 5 and 6 done, a launcher, a scalable window. Along the way the loop guard
