@@ -173,6 +173,67 @@ def doing(raw: str) -> str:
     return f"{verb} {what.group(1)}" if what else verb
 
 
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr", "p",
+        "li", "option", "td", "th", "tr"}  # never closed, or closed implicitly often enough not to count
+
+
+def check_file(full: str) -> str:
+    """Problems in a file just changed, said plainly ("" when none): Python that doesn't compile or defines a name
+    twice in one place (2026-10-03: a duplicated _draw_buttons — Python silently used the second — confused the
+    agent's own click tests), HTML whose tags don't balance, JSON that doesn't parse."""
+    try:
+        text = open(full, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    ext = os.path.splitext(full)[1].lower()
+    if ext == ".py":
+        import ast
+        try:
+            tree_ = ast.parse(text)
+        except SyntaxError as e:
+            return f"doesn't compile: {e.msg}, line {e.lineno}"
+        found = []
+        for scope in [tree_] + [n for n in ast.walk(tree_) if isinstance(n, ast.ClassDef)]:
+            seen: dict[str, int] = {}
+            for node in scope.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    if node.name in seen and not node.decorator_list:  # @x.setter etc. redefine on purpose
+                        where = f"class {scope.name}" if isinstance(scope, ast.ClassDef) else "the file"
+                        found.append(f"{node.name} is defined twice in {where} (lines {seen[node.name]} and "
+                                     f"{node.lineno}); Python uses only the last one")
+                    seen[node.name] = node.lineno
+        return "; ".join(found)
+    if ext in (".html", ".htm"):
+        from html.parser import HTMLParser
+        stack: list[tuple[str, int]] = []
+        problems: list[str] = []
+
+        class Tags(HTMLParser):
+            def handle_starttag(self, tag, attrs):
+                if tag not in VOID:
+                    stack.append((tag, self.getpos()[0]))
+
+            def handle_endtag(self, tag):
+                if tag in VOID:
+                    return
+                if any(t == tag for t, _ in stack):
+                    while stack and stack[-1][0] != tag:
+                        t, line = stack.pop()
+                        problems.append(f"<{t}> on line {line} is never closed")
+                    stack.pop()
+                else:
+                    problems.append(f"</{tag}> on line {self.getpos()[0]} closes nothing")
+        Tags().feed(text)
+        problems += [f"<{t}> on line {line} is never closed" for t, line in stack if t not in ("html", "body", "head")]
+        return "; ".join(problems[:5])
+    if ext == ".json":
+        try:
+            json.loads(text)
+        except ValueError as e:
+            return f"isn't valid JSON: {e}"
+    return ""
+
+
 def venv_of(root: str) -> str | None:
     """The project's own Python environment (.venv or venv), as made with `python3 -m venv`."""
     for name in (".venv", "venv"):
@@ -492,9 +553,13 @@ class Agent:
                 self.event("goals")
                 return f"goal {g['id']} added"
             if t == "goal_done":
+                ok, report = self.verify()
+                if not ok:  # the user can still tick it by hand in AICUI
+                    return (f"goal {a['id']} NOT ticked — the checks failed:\n{report}\nFix this, then tick the goal "
+                            "again.")
                 self.goals.set_done(int(a["id"]), True)
                 self.event("goals")
-                return f"goal {a['id']} ticked"
+                return f"goal {a['id']} ticked. Checks:\n{report}"
             return f"unknown tool {t}"
         except (OSError, ValueError, re.error, KeyError, StopIteration) as e:
             return f"error: {e}"
@@ -528,7 +593,14 @@ class Agent:
         e = self.log.after(rel, before, model=self.model_name, goal=open_goal,
                            what=f"{a['tool']} {rel}")
         self.event("change", id=e["id"], file=rel, added=e["added"], removed=e["removed"])
-        return f"{rel} changed (+{e['added']} -{e['removed']}), logged as change {e['id']}"
+        done = f"{rel} changed (+{e['added']} -{e['removed']}), logged as change {e['id']}"
+        problem = check_file(full)
+        if problem:
+            later = " (if you're still writing this file in parts, finish it first)" \
+                if "compile" in problem and a["tool"] in ("write", "append") else ""
+            self.event("check", file=rel, problem=problem)
+            return f"{done}. Check: {problem}{later}."
+        return done + (". Check: compiles, nothing defined twice." if rel.endswith(".py") else "")
 
     def run(self, command: str) -> str:
         self.refresh()
@@ -536,24 +608,57 @@ class Agent:
             return "error: administrator commands aren't allowed in this session (no admin)"
         if not self.allowed("run", f"\033[36m$ {command}\033[0m"):
             return "the user said no to this command"
+        code, out = self.execute(command, RUN_TIMEOUT, self.sandbox)
+        if code is None:
+            return f"error: still running after {RUN_TIMEOUT} s, stopped"
+        self.say(out[-3000:])
+        tail = out[-OBS_CHARS:] if len(out) > OBS_CHARS else out
+        return f"exit {code}\n{tail}"
+
+    def execute(self, command: str, timeout: int, sandbox: bool) -> tuple[int | None, str]:
+        """A command in the project folder: (exit code or None after the timeout, output)."""
         # the project's venv first on the path (after bash -l's profile, which may set PATH), and no window: the AI
         # can't see one, and a program waiting on a window it can't close would hold the step until the timeout
         prefix = f"export VIRTUAL_ENV={shlex.quote(self.venv)} PATH={shlex.quote(self.venv + '/bin')}:$PATH; " \
             if self.venv else ""
         argv = ["bash", "-lc", prefix + command]
-        if self.sandbox:
+        if sandbox:
             argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
                     "--bind", self.root, self.root, "--unshare-net", "--die-with-parent", "--chdir", self.root, *argv]
         env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy",
                "PYGAME_HIDE_SUPPORT_PROMPT": "1"}
         try:
-            r = subprocess.run(argv, cwd=self.root, capture_output=True, text=True, timeout=RUN_TIMEOUT, env=env)
+            r = subprocess.run(argv, cwd=self.root, capture_output=True, text=True, timeout=timeout, env=env)
         except subprocess.TimeoutExpired:
-            return f"error: still running after {RUN_TIMEOUT} s, stopped"
-        out = (r.stdout + r.stderr).strip()
-        self.say(out[-3000:])
-        tail = out[-OBS_CHARS:] if len(out) > OBS_CHARS else out
-        return f"exit {r.returncode}\n{tail}"
+            return None, ""
+        return r.returncode, (r.stdout + r.stderr).strip()
+
+    # --- checks: after every change, and before a goal is ticked ---------------------------------------------
+    def verify(self) -> tuple[bool, str]:
+        """Before a goal is ticked: the project's tests, and its entry point started for a few seconds the way the
+        user would start it — the agent's "it works" isn't evidence (2026-10-03: "all four tests pass" with one of
+        them never run; tests that passed while the game crashed on its first frame)."""
+        lines, ok = [], True
+        tests = [rel for rel, is_dir, _ in tree(self.root) if not is_dir and rel.count(os.sep) <= 1
+                 and re.match(r"(test_.*|.*_test)\.py$", os.path.basename(rel))]
+        for rel in tests[:6]:
+            code, out = self.execute(f"timeout 120 python3 {shlex.quote(rel)}", 150, self.bwrap)
+            passed = code == 0
+            ok &= passed
+            lines.append(f"{rel}: {'passed' if passed else 'FAILED'}" + ("" if passed else "\n" + out[-800:]))
+        entry = next((rel for rel in ("run.sh", "main.py") if os.path.isfile(os.path.join(self.root, rel))), None) \
+            or next((rel for rel, is_dir, _ in tree(self.root) if not is_dir and os.path.basename(rel) == "main.py"),
+                    None)
+        if entry:
+            how = f"./{entry}" if entry.endswith(".sh") else f"python3 {shlex.quote(entry)}"
+            code, out = self.execute(f"timeout 5 {how}", 30, self.bwrap)
+            started = code in (0, 124)  # 124: still running after 5 s — a program with a window or a main loop
+            ok &= started
+            lines.append(f"{entry}: " + ("started" + (" and kept running" if code == 124 else " and finished")
+                                         if started else f"CRASHED (exit {code})\n" + out[-800:]))
+        if not tests and not entry:
+            lines.append("no tests (test_*.py) and no entry point (run.sh, main.py) to check")
+        return ok, "\n".join(lines)
 
 
 # --- the model -------------------------------------------------------------------------------------------------

@@ -333,6 +333,44 @@ class AgentTest(unittest.TestCase):
         a.lite = 2  # both now maps: reading again is allowed
         self.assertIn("return a - b", a.do(read))
 
+    def test_every_change_is_checked(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        dup = "class UI:\n    def draw(self):\n        pass\n\n    def draw(self):\n        return 1\n"
+        r = a.change({"tool": "write", "path": "ui.py", "content": dup})
+        self.assertIn("logged as change", r)  # the salvage path looks for this
+        self.assertIn("draw is defined twice in class UI (lines 2 and 5)", r)
+        r = a.change({"tool": "write", "path": "half.py", "content": "def f(:\n"})
+        self.assertIn("doesn't compile", r)
+        self.assertIn("finish it first", r)
+        self.assertIn("nothing defined twice", a.change({"tool": "write", "path": "ok.py", "content": "x = 1\n"}))
+        page = "<html><body>\n<section id='rsvp'>\n<form>\n<p>Name\n</section>\n</div>\n</body></html>\n"
+        r = a.change({"tool": "write", "path": "index.html", "content": page})
+        self.assertIn("<form> on line 3 is never closed", r)
+        self.assertIn("</div> on line 6 closes nothing", r)
+        self.assertNotIn("Check", a.change({"tool": "write", "path": "notes.txt", "content": "hi\n"}))
+
+    @unittest.skipUnless(shutil.which("bash") and os.name == "posix", "runs commands")
+    def test_a_goal_is_ticked_only_when_the_checks_pass(self):
+        """2026-10-03: "all four split tests pass" with one never run; tests green while the game crashed at start."""
+        with open(os.path.join(self.root, "test_app.py"), "w", encoding="utf-8") as f:
+            f.write("from app import add\nassert add(2, 2) == 4, 'add is wrong'\n")
+        with open(os.path.join(self.root, "main.py"), "w", encoding="utf-8") as f:
+            f.write("import app\nprint(app.add(1, 1))\n")
+        g = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append).goals.add("Fix add")
+        a = Agent(self.root, Scripted([step("", tool="goal_done", id=g["id"]),
+                                       step("", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("", tool="goal_done", id=g["id"]),
+                                       step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
+        a.bwrap = False  # the test machine may have no bwrap
+        a.turn("fix it")
+        results = [m["content"] for m in a.chat.sent[-1] if m["content"].startswith("Result: ")]
+        self.assertIn("NOT ticked", results[0])
+        self.assertIn("test_app.py: FAILED", results[0])
+        self.assertIn("add is wrong", results[0])
+        self.assertIn("ticked. Checks:", results[2])
+        self.assertIn("main.py: started and finished", results[2])
+        self.assertTrue(a.goals.load()[0]["done"])
+
     def test_progress_events_and_idle(self):
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
         a.turn("go")

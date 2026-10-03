@@ -222,6 +222,8 @@ class Workspace(Gtk.ApplicationWindow):
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "note":  # a step that went wrong (cut off, not valid), told to the model as it was
                 self.thought(e.get("text", ""), "Note")
+            elif e["kind"] == "check":  # a problem found in a file the AI just changed
+                self.thought(f"{e.get('file', '')}: {e.get('problem', '')}", "Check")
             elif e["kind"] == "busy":
                 if self.busy is None or e.get("step") != self.busy.get("step"):
                     self.busy_since = e.get("t", time.time())
