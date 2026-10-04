@@ -1,37 +1,104 @@
-# Cin-MinAI OS
+<p align="center">
+  <img src="artwork/logo/logo.svg" alt="Cin-MinAI" width="160">
+</p>
 
-A Linux Mint Cinnamon–derived distribution with a local AI assistant built into the operating
-system: a desktop sidebar, panel applet, and hotkey; awareness of your real terminals, of
-Firefox, and of LibreOffice documents; Linux and hardware knowledge; and a human-controlled
-boundary for anything privileged or hardware-writing.
+<h1 align="center">Cin-MinAI</h1>
 
-**Status:** M0 spikes — see [docs/PLAN.md](docs/PLAN.md). Design: [docs/SPEC.md](docs/SPEC.md).
-Spike results: [docs/spikes.md](docs/spikes.md).
-What we can't do alone and would love help with: [docs/HELP-WANTED.md](docs/HELP-WANTED.md).
+<p align="center">
+  <b>Linux Mint with an AI assistant built in.</b><br>
+  It runs on your own computer, on your own graphics card. Nothing you type leaves the machine unless you ask it to.
+</p>
 
-## Core rule
+<p align="center">
+  <!-- TODO(D70): the Hugging Face download page, once the ISO is uploaded -->
+  <a href="https://huggingface.co/cinminai"><b>⬇ Download (Hugging Face)</b></a> ·
+  <a href="docs/install/make-usb-stick.md">Make a USB stick</a> ·
+  <a href="#what-it-does-today">What it does</a> ·
+  <a href="docs/PLAN.md">Every decision</a>
+</p>
 
-The assistant may recommend, explain, and prepare a dangerous action.
-It never approves one. The user owns the computer, and the user owns the button.
+<!-- TODO(screenshot): the desktop with the sidebar open, answering a question -->
+<p align="center"><img src="artwork/live-desktop-2026-09-27.png" alt="The Cin-MinAI desktop" width="820"></p>
 
-## Targets
+> **Alpha.** It works and it's tested on real hardware, but it's early. Try it from a USB stick first —
+> trying it changes nothing on your computer.
 
-- Base: Linux Mint Cinnamon 22.x (Ubuntu 24.04), x86-64
-- NVIDIA optional; tuned for Pascal (GTX 1070 / 1080 Ti) through modern RTX, with CPU fallback
-- Model runs locally (llama.cpp, tuned per machine); nothing leaves the machine unless you use a web feature
+## Try it
 
-## How it's built — credits
+1. **Download** the ISO from Hugging Face. The page shows its SHA-256, so you can check the file is really ours.
+2. **Write it to a USB stick** with balenaEtcher or Rufus, from Windows, no commands —
+   [step-by-step guide](docs/install/make-usb-stick.md).
+3. **Start your computer from the stick and try it.** The assistant works right away, even with no internet:
+   a small model comes on the stick.
+4. **Install it** on a drive when you're ready.
+5. **Use it every day** and find out what it's good for. That's the point.
+
+## What it does today
+
+<!-- TODO(screenshot) for each item below, from the test install -->
+
+**A guide that's always there.** A sidebar (or press <kbd>Super</kbd>+<kbd>A</kbd>) that answers in plain words,
+made for people coming from Windows: *"Where's my C: drive?"*, *"How do I do updates, like Windows Update?"* It
+knows Mint's real menu names, gives numbered steps, and opens the right settings page for you. In English, Spanish,
+Portuguese, French, German and Japanese.
+
+**It checks your computer and explains what it finds.** *"Is my disk OK? It froze twice today."* — it reads the
+system's own records and explains what's wrong and what to do first, without the terminal. (On our test machine
+it traced freezes to a kernel that didn't suit an old SSD, and the fix was a click in Update Manager.)
+
+**It builds things with you.** AICUI, the AI workspace: describe a project and it writes it, runs it, checks it,
+and shows you every change. On ten-year-old hardware it built a blackjack game you launch with one button and a
+wedding web page with RSVP, a menu and a countdown. It asks before it does anything, every time, unless you
+tell it otherwise.
+
+**It can see.** Show it a photo, a screenshot of an error, a scanned letter or a video: it describes it,
+summarizes it, or reads it out. Point it at a repair video and ask what happens at the part you're stuck on.
+
+**It writes with you.** A writing space for stories, letters and long projects, and a private journal.
+
+**It works inside LibreOffice.** It edits your document with you — every change previewed, one click to undo.
+(Firefox is next.)
+
+**It fits your computer.** It picks the model that runs well on your graphics card and leaves room for your
+desktop, and it tells you what it chose and why. Bigger models are an optional download.
+
+**You stay in charge.** The assistant may recommend, explain and prepare an action. It never approves one: anything
+that changes your system asks first, and administrator actions ask for your password every time.
+
+## What you need
+
+- A 64-bit PC that can run Linux Mint 22 (most PCs from the last ten years), and an 8 GB USB stick to try it.
+- For the assistant at full speed: a graphics card with **6 GB** of memory or more — **NVIDIA** (GTX 10-series
+  and newer) or **AMD** (through Vulkan; we have no AMD card, so that path is less tested — reports welcome).
+  Without one it still works, slowly, on the processor.
+- Disk space: what Linux Mint needs (20 GB), plus about 3 GB for the built-in model; more for the optional
+  bigger models.
+
+## How it's made
+
+Cin-MinAI is built **in the open, under the oversight of the people it's for** (PLAN D26). Every decision, result
+and failure is written down:
+
+- [docs/PLAN.md](docs/PLAN.md) — the decisions log and the milestones · [docs/SPEC.md](docs/SPEC.md) — the design
+- [docs/dev-journal.md](docs/dev-journal.md) — how the work went, day by day
+- [docs/guide-model-journal.md](docs/guide-model-journal.md) — how the built-in model was tested, tuned and chosen
+- [docs/HELP-WANTED.md](docs/HELP-WANTED.md) — what we can't do alone and would love help with
+
+Under the hood: Linux Mint 22.3 Cinnamon (Ubuntu 24.04), llama.cpp for every model, a desktop service on D-Bus that
+everything talks to, and signed `.deb` packages from our own apt repository.
+
+## Credits
 
 Cin-MinAI is led by **Ian McClenathan** (Brickmii): vision, decisions, hardware, and every approval.
-It is built with AI assistants, in the open, each used where it worked best — **none preferred**:
+It is built with AI assistants, each used where it worked best — **none preferred**:
 
 - **Gemini** (Google) — the initial plan.
-- **Claude** (Anthropic, via Claude Code) — lead developer on the dev PC: specification and
-  decisions log, the M0 spikes, the guide eval and held-out eval, the transition knowledge base and
-  corpus tooling, write-ups. Commits carry a `Co-Authored-By: Claude` line.
-- **Codex / ChatGPT** (OpenAI) — junior developer and backup on the test machine: the llama.cpp
-  test build, the Qwen VRAM recovery, the bakeoff harness (`bench/`), candidate inventory and
-  checksummed downloads, the Vulkan build dependencies. Its brief is `AGENTS.md`.
+- **Claude** (Anthropic, via Claude Code) — lead developer: specification and decisions log, the desktop service,
+  sidebar, AICUI, packaging and ISO, the evals, the guide model's training tools, write-ups. Commits carry a
+  `Co-Authored-By: Claude` line.
+- **Codex / ChatGPT** (OpenAI) — junior developer and backup on the test machine: the llama.cpp test build, the
+  bakeoff harness (`bench/`), candidate inventory and checksummed downloads, the Vulkan build dependencies. Its
+  brief is `AGENTS.md`.
 
 **Standing on the shoulders of others.** Cin-MinAI is a layer on top of decades of other people's work:
 
@@ -47,14 +114,13 @@ It is built with AI assistants, in the open, each used where it worked best — 
   public release of ChatGPT in 2022, which put these tools in everyone's hands and pushed the whole field, open
   models included, forward.
 
-The assistants build the project; they are **not** the source of the guide model's training data.
-That corpus is written by local open-weight models (Apache-2.0) and published with its scripts
-(PLAN D32), so anyone can inspect or rebuild it. Every decision and result — including the
-failures — is in `docs/` (PLAN D26: built in the open, under the oversight of its community).
-
+The assistants build the project; they are **not** the source of the guide model's training data. That corpus is
+written by local open-weight models (Apache-2.0) and published with its scripts (PLAN D32), so anyone can inspect
+or rebuild it.
 
 ## Licence
 
-Our code is **GPL-3.0-or-later** (`LICENSE`). Data and documents — the training corpora, eval tasks and
-docs — are **CC BY-SA 4.0**; our fine-tuned guide models are **Apache-2.0**, like their base. What covers
-what, and the licences of what we build on: [`LICENSING.md`](LICENSING.md).
+Our code is **GPL-3.0-or-later** (`LICENSE`). Data and documents — the training corpora, eval tasks and docs — are
+**CC BY-SA 4.0**; our fine-tuned guide models are **Apache-2.0**, like their base. What covers what, and the
+licences of what we build on: [`LICENSING.md`](LICENSING.md). Cin-MinAI is not affiliated with or endorsed by
+Linux Mint.
