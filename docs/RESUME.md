@@ -6,6 +6,22 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
+## Where we stopped (2026-10-04) — Cin-MinAI 0.0.1 is public
+
+- **Live:** site https://cin-minai.github.io (repo `Cin-MinAI/cin-minai.github.io`), source
+  github.com/Cin-MinAI/Cin-MinAI (public), ISO huggingface.co/CinMin/Cin-MinAI-OS (5.9 GB, SHA-256 `ae74be30…`), guide
+  `CinMin/guide-4b`, signed apt `cin-minai.github.io/cinminai-apt` (repo `Cin-MinAI/cinminai-apt`). Journal: "Cin-MinAI
+  0.0.1 is public".
+- **Signing (D72): every signing needs Ian's key stick.** Build packages unattended with
+  `SIGNING_GNUPGHOME=~/cinminai-build/gnupg-release-public SIGNING_KEY=7EA74B93128AA95865E2BA3977CA19E6264470F6`;
+  Ian runs `distro/release-sign.sh D` in a WSL terminal (passphrase); then the signed `$M1/repo` (dists, pool,
+  keyring .asc; `.gitattributes: * -text`) is copied into a `cinminai-apt` clone and pushed. The PC holds no secret key.
+- **Next:** (1) the **first update** — AICUI's agent with `python3 -P` (a project's `cin_minai/` folder replaced it) and
+  the web search's plain browser identity; build at HEAD, Ian signs, push, check from the public address. (2) Small
+  follow-ups: the guide model card's "repository opens with the release" line, DistroWatch submission (Ian's call).
+  (3) Guide cycle 1, parked: measure the noise (HO's recipe, second seed) and score on the GPU. (4) M3 → M4 → M4b →
+  M5–M7. Ideas: D74 (Steam), D75 (FF16 on the 1080 Ti, recorded with Ian's Elgato HD60), D76 (Ian's creator apps).
+
 ## Where we stopped (2026-10-03, evening) — AICUI's next version done; direction talk recorded
 
 - **Test SSD state.** All 11 packages installed; latest: aicui `0.0.1+git20261003.204240`, daemon `…195159`,
