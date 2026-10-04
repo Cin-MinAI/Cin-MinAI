@@ -43,6 +43,7 @@ CSS = b"""
 .dot.off { color: alpha(@theme_fg_color, 0.5); }
 .dot.bad { color: #e01b24; }
 #chat { padding: 8px 10px; }
+#project, #journal { padding: 2px 6px 2px 10px; }
 .bubble { padding: 8px 10px; border-radius: 10px; }
 .bubble.user { background: alpha(@theme_selected_bg_color, 0.25); }
 .bubble.assistant { background: alpha(@theme_fg_color, 0.06); }
@@ -58,6 +59,12 @@ CSS = b"""
 .proposal .cell { font-family: monospace; font-size: 88%; padding: 1px 4px; border: 1px solid alpha(@theme_fg_color, 0.12); }
 #input { padding: 6px 8px 8px 8px; }
 """
+
+
+def margined(box) -> None:
+    """A dialog's content with room around it (2026-10-04: the text touched the dialog's left edge)."""
+    for side in ("start", "end", "top"):
+        getattr(box, f"set_margin_{side}")(12)
 
 
 class Sidebar(Gtk.Application):
@@ -479,6 +486,7 @@ class Sidebar(Gtk.Application):
         entry = Gtk.Entry(placeholder_text="A working title, e.g. The Bottle", activates_default=True)
         box = dialog.get_content_area()
         box.set_spacing(6)
+        margined(box)
         box.pack_start(Gtk.Label(label="What should we call it? You can change it later.", xalign=0), False, False, 6)
         box.pack_start(entry, False, False, 6)
         shape = Gtk.ComboBoxText()  # D56: the whole story circle in one chapter, or over chapters
@@ -622,6 +630,7 @@ class Sidebar(Gtk.Application):
         dialog.set_default_response(Gtk.ResponseType.OK)
         box = dialog.get_content_area()
         box.set_spacing(6)
+        margined(box)
         box.pack_start(Gtk.Label(label=words.MANUSCRIPT_INTRO, xalign=0, wrap=True, max_width_chars=44), False, False, 6)
         name = Gtk.Entry(text=GLib.get_real_name() if GLib.get_real_name() not in ("", "Unknown") else "",
                          placeholder_text="Your name, as it should appear", activates_default=True)
@@ -660,6 +669,7 @@ class Sidebar(Gtk.Application):
         dialog.set_default_response(Gtk.ResponseType.OK)
         box = dialog.get_content_area()
         box.set_spacing(6)
+        margined(box)
         fields = []
         for label in (["PIN (4 digits)", "The same PIN again"] if confirm else ["PIN"]):
             box.pack_start(Gtk.Label(label=label, xalign=0), False, False, 2)
