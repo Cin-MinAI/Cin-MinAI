@@ -103,6 +103,20 @@ printf '#!/bin/sh\nexit 101\n' > "$rootfs/usr/sbin/policy-rc.d"; chmod 755 "$roo
 # and the result doesn't depend on the day's Ubuntu or Mint mirror.
 cp "$M1/build-key.gpg" "$rootfs/tmp/cinminai-build.gpg"
 echo "deb [signed-by=/tmp/cinminai-build.gpg] file:/mnt/cinminai-repo $REPO_SUITE $REPO_COMPONENT" > "$rootfs/tmp/cinminai-build.list"
+# Our packages' dependencies that the Mint image doesn't carry (AICUI needs git, found 2026-10-03: "git but it is
+# not installable") come from the same dated Ubuntu snapshot the llama.cpp build uses — so they're the same on every
+# build — and only those: priority 50 means "install only if not installed", so nothing already in the image is
+# upgraded or replaced.
+cp /usr/share/keyrings/ubuntu-archive-keyring.gpg "$rootfs/tmp/cinminai-ubuntu.gpg"
+for suite in noble noble-updates noble-security; do
+    echo "deb [signed-by=/tmp/cinminai-ubuntu.gpg] https://snapshot.ubuntu.com/ubuntu/$UBUNTU_SNAPSHOT $suite main universe"
+done >> "$rootfs/tmp/cinminai-build.list"
+printf 'Package: *\nPin: origin "snapshot.ubuntu.com"\nPin-Priority: 50\n' > "$rootfs/tmp/cinminai-build.pref"
+resolv_saved=""
+if [[ -e $rootfs/etc/resolv.conf || -L $rootfs/etc/resolv.conf ]]; then
+    resolv_saved=$b/resolv.conf.image; cp -a "$rootfs/etc/resolv.conf" "$resolv_saved"; rm -f "$rootfs/etc/resolv.conf"
+fi
+cp /etc/resolv.conf "$rootfs/etc/resolv.conf"   # name lookups for the snapshot, during the build only
 mkdir -p "$rootfs/tmp/cinminai-lists/partial"
 # apt's update hooks rebuild the command-not-found database and the software catalogue (AppStream) from
 # the lists apt can see — during the build, only ours — so Mint's would be replaced by near-empty ones
@@ -112,6 +126,7 @@ upstream_kept=(var/lib/command-not-found var/cache/swcatalog var/lib/swcatalog)
 mkdir -p "$b/kept"
 for d in "${upstream_kept[@]}"; do [[ -d $rootfs/$d ]] && { mkdir -p "$b/kept/$(dirname "$d")"; cp -a "$rootfs/$d" "$b/kept/$d"; }; done
 aptopts=(-o Dir::Etc::sourcelist=/tmp/cinminai-build.list -o Dir::Etc::sourceparts=-
+         -o Dir::Etc::preferences=/tmp/cinminai-build.pref -o Dir::Etc::preferencesparts=-
          -o Dir::State::Lists=/tmp/cinminai-lists -o APT::Get::List-Cleanup=0)
 chroot "$rootfs" apt-get "${aptopts[@]}" update
 chroot "$rootfs" env DEBIAN_FRONTEND=noninteractive SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
@@ -137,7 +152,9 @@ log "chroot: clean up (build-only files, and logs and caches that differ between
 chroot "$rootfs" apt-get clean
 cleanup; mounts=()
 rm -rf "$rootfs/tmp/cinminai-build.gpg" "$rootfs/tmp/cinminai-build.list" "$rootfs/tmp/cinminai-lists" \
-       "$rootfs/usr/sbin/policy-rc.d"
+       "$rootfs/tmp/cinminai-ubuntu.gpg" "$rootfs/tmp/cinminai-build.pref" "$rootfs/usr/sbin/policy-rc.d"
+rm -f "$rootfs/etc/resolv.conf"
+[[ -n $resolv_saved ]] && cp -a "$resolv_saved" "$rootfs/etc/resolv.conf"   # the image's own, exactly as it was
 rmdir "$rootfs/mnt/cinminai-repo"
 for f in var/log/apt/history.log var/log/apt/term.log var/log/apt/eipp.log.xz var/log/dpkg.log \
          var/log/alternatives.log var/cache/ldconfig/aux-cache; do
