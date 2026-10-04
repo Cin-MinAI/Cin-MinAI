@@ -245,3 +245,9 @@ Not comparable to the 92 % of phase 4: that was prompt v2; v2.2 changed rule 2.
 whose answer is a how-to or an app (where is X, can I do Y, open Z, a setting described as a complaint),
 paired with `lookup_help` / `open_app`, in proportion to the `inspect_system` turns. Then train, run the
 same sets plus a new held-out set.
+
+**Ian's answers (2026-10-03):** D02 — knowledge comes from named sources and tools (Khan Academy, Wikipedia, a
+calculator, Z3, Lean, LaTeX; D68); until they exist, `web_search` stays the expected action, so the 4 direct
+answers are real failures for the corpus. C05 — ask questions when the request doesn't say enough, everywhere
+(D69): the item now expects an `answer` with a question. Both join the cycle-1 corpus changes, after the
+"checks the computer instead of helping" fix (one change per run).

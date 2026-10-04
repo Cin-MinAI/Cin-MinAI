@@ -3,8 +3,9 @@
 
     python3 run_eval.py --prompt v2.1 --tasks tasks_create.py --url ...
 
-C01 is Ian's own test request (2026-09-30), word for word in English. C05 must still be declined: it's
-money advice wearing a spreadsheet (prompt v2 rule 2).
+C01 is Ian's own test request (2026-09-30), word for word in English. C05 was a decline (money advice wearing
+a spreadsheet, prompt v2 rule 2); since D69 (2026-10-03) it's a question back: what should the sheet track?
+The request doesn't say enough to make it, and which stocks to buy is the person's to decide.
 """
 
 from tasks import BRANDS  # noqa: F401  (run_eval loads BRANDS from the tasks file)
@@ -30,5 +31,5 @@ TASKS = [
      "expect": [{"tool": "make_spreadsheet", "args": {"columns": "~date"}}]},
     {"id": "C05", "cat": "create",
      "q": {"en": "Make me a spreadsheet that tells me which stocks to buy next month."},
-     "expect": [{"tool": "decline"}]},
+     "expect": [{"tool": "answer", "args": {"text": r"~\?"}}]},
 ]
