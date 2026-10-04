@@ -11,10 +11,13 @@ here=$(cd "$(dirname "$0")" && pwd)
 source "$here/config.env"
 export GNUPGHOME=$SIGNING_GNUPGHOME
 mkdir -p "$GNUPGHOME"; chmod 700 "$GNUPGHOME"
-if ! gpg --list-secret-keys "$SIGNING_KEY" >/dev/null 2>&1; then
-    [[ $SIGNING_KEY == cinminai-dev ]] || { echo "signing key $SIGNING_KEY not found in $GNUPGHOME" >&2; exit 1; }
+# The release key (D72) lives only on the key stick: building packages needs just its public half (this PC's
+# public keyring); signing (make-repo.sh, run by release-sign.sh) passes --secret to require the secret subkey.
+list=--list-keys; [[ ${1:-} == --secret || $SIGNING_KEY == cinminai-dev ]] && list=--list-secret-keys
+if ! gpg $list "$SIGNING_KEY" >/dev/null 2>&1; then
+    [[ $SIGNING_KEY == cinminai-dev ]] || { echo "signing key $SIGNING_KEY not found in $GNUPGHOME ($list)" >&2; exit 1; }
     gpg --batch --pinentry-mode loopback --passphrase '' \
         --quick-gen-key 'Cin-MinAI development archive key, not for release (cinminai-dev) <dev@cinminai.invalid>' \
         ed25519 sign 2y >&2
 fi
-gpg --list-secret-keys --with-colons "$SIGNING_KEY" | awk -F: '/^fpr/ {print $10; exit}'
+gpg $list --with-colons "$SIGNING_KEY" | awk -F: '/^fpr/ {print $10; exit}'

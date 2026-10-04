@@ -8,7 +8,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 source "$here/config.env"
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$here" log -1 --format=%ct)}
-fpr=$("$here/signing-key.sh")
+fpr=$("$here/signing-key.sh" --secret)
 export GNUPGHOME=$SIGNING_GNUPGHOME
 repo=$M1/repo
 # Rebuilt from scratch each time: the repo carries the current packages only (apt needs no history), and a
