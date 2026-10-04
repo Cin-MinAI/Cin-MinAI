@@ -63,6 +63,12 @@ change and waits for you…
 <p align="center"><img src="artwork/screenshots/aicui-edit-done.png" alt="AICUI after the edit: Done, the note quoted, and where it sits on the page" width="820"><br>
 <img src="artwork/screenshots/wedding-page-edited.png" alt="The wedding page in Firefox with the new swimming-gear note under the parking note" width="820"></p>
 
+**It teaches as it goes.** Ask it to explain before it fixes: *"Don't fix it yet, tell me what I did wrong."* It
+walks through your mistake line by line, waits until you want the fix, then runs your code to prove it works.
+
+<p align="center"><img src="artwork/screenshots/aicui-explains-then-fixes.png" alt="AICUI explaining two mistakes in a two-line Python script, line by line, then asking: Want me to fix it now?" width="820"><br>
+<img src="artwork/screenshots/aicui-fixed-and-checked.png" alt="AICUI after the fix: it ran the script, which printed Hello World twice, and summed up the two changes" width="820"></p>
+
 **Coming next: it can see.** Working in our lab, not yet in this release: show it a photo, a screenshot of an error, a scanned letter or a video, and it describes it, summarizes it, or reads it out. Point it at a repair video and ask what happens at the part you're stuck on — it watches so you don't have to scrub back and forth.
 
 **It writes with you.** A writing space for stories, letters and long projects, and a private journal.
