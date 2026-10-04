@@ -10,5 +10,5 @@ cp -r "$repo/src/cin_minai/sidebar" "$py/"
 find "$py" -name __pycache__ -prune -exec rm -rf {} +
 cat > "$stage/usr/share/doc/cinminai-sidebar/copyright" <<COPY
 Cin-MinAI assistant sidebar: GPL-3.0-or-later (/usr/share/common-licenses/GPL-3).
-Source: https://github.com/Brickmii/Cin-MinAI
+Source: https://github.com/Cin-MinAI/Cin-MinAI
 COPY

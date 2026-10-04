@@ -11,5 +11,5 @@ cp -r "$repo/src/libreoffice-extension/." "$ext/"
 find "$ext" -name __pycache__ -prune -exec rm -rf {} +
 cat > "$stage/usr/share/doc/cinminai-libreoffice/copyright" <<COPY
 Cin-MinAI LibreOffice extension: GPL-3.0-or-later (/usr/share/common-licenses/GPL-3).
-Source: https://github.com/Brickmii/Cin-MinAI
+Source: https://github.com/Cin-MinAI/Cin-MinAI
 COPY

@@ -16,5 +16,5 @@ install -d "$stage/usr/share/doc/cinminai-daemon"
 cat > "$stage/usr/share/doc/cinminai-daemon/copyright" <<COPY
 Cin-MinAI assistant daemon: GPL-3.0-or-later (/usr/share/common-licenses/GPL-3).
 The guide's help cards and prompt (usr/share/cinminai/guide): CC BY-SA 4.0.
-Source: https://github.com/Brickmii/Cin-MinAI
+Source: https://github.com/Cin-MinAI/Cin-MinAI
 COPY
