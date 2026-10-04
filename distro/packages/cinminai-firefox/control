@@ -1,0 +1,14 @@
+Package: cinminai-firefox
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: web
+Priority: optional
+Depends: firefox, cinminai-daemon (>= @RELEASE@)
+Description: Cin-MinAI in Firefox (summarize the YouTube video you have open)
+ Installs the Cin-MinAI Firefox extension, signed by Mozilla, through Firefox's
+ policy, so it is there without any step. When you ask the assistant about
+ "this video", the extension reads the YouTube video open in the front tab: its
+ transcript (as the page shows it) and YouTube's preview pictures. It can read
+ youtube.com only, only when asked, and sends nothing anywhere: the assistant
+ on this computer writes the summary.

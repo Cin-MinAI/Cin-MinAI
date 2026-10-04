@@ -69,7 +69,7 @@ walks through your mistake line by line, waits until you want the fix, then runs
 <p align="center"><img src="artwork/screenshots/aicui-explains-then-fixes.png" alt="AICUI explaining two mistakes in a two-line Python script, line by line, then asking: Want me to fix it now?" width="820"><br>
 <img src="artwork/screenshots/aicui-fixed-and-checked.png" alt="AICUI after the fix: it ran the script, which printed Hello World twice, and summed up the two changes" width="820"></p>
 
-**Coming next: it can see.** Working in our lab, not yet in this release: show it a photo, a screenshot of an error, a scanned letter or a video, and it describes it, summarizes it, or reads it out. Point it at a repair video and ask what happens at the part you're stuck on — it watches so you don't have to scrub back and forth.
+**It can see (update 3).** Watching a YouTube video in Firefox? Ask "summarize this video": it reads the video's transcript and YouTube's preview pictures and tells you what's in it, without the ad breaks and without playing it (the Firefox extension can read youtube.com only, and only when you ask). Show it a photo, a screenshot of an error, a scanned letter or a video file, and it describes it, summarizes it or reads it out. The summary is written on this computer; numbers it read or heard are named so you can check them.
 
 **It writes with you.** A writing space for stories, letters and long projects, and a private journal.
 
@@ -83,8 +83,9 @@ desktop, and it tells you what it chose and why. Bigger models are an optional d
 that changes your system asks first, and administrator actions ask for your password every time.
 
 **Nothing about you, anywhere.** Cin-MinAI has no ads, no telemetry and no account. Its only connections are the ones
-you'd expect: updates (from Linux Mint, Ubuntu and our signed repository), models you choose to download, and web
-searches you click — and it shows you exactly what a search will send. (Programs like Firefox keep their own
+you'd expect: updates (from Linux Mint, Ubuntu and our signed repository), models you choose to download, web
+searches you click — and it shows you exactly what a search will send — and, when you ask it to summarize a YouTube
+video, that video's preview pictures from YouTube. (Programs like Firefox keep their own
 settings, as on any Mint system.)
 
 ## What you need
