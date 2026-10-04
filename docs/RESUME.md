@@ -1,9 +1,9 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 evening** (latest: journal "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-03 night** (latest: journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
-behind decisions: `docs/PLAN.md` (D1–D65). How the work went, day by day: `docs/dev-journal.md`. The guide
+behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
 ## Where we stopped (2026-10-03, evening) — AICUI's next version done; direction talk recorded
@@ -40,10 +40,30 @@ model's story: `docs/guide-model-journal.md`.
   the discipline we can use now — for actions and for the **persistent personality with recollection** Ian wants
   (addressed memories, recall by shared context path, append-only episodes, summaries as reversible folds).
   "A binary allows for a switch but no wall for the switch to exist on. Quaddle supplies the switch and the wall."
-- **Open next steps (Ian picks):** D62 publishing (needs Ian's dev email + GitHub account first); persistent memory
-  and personality for the assistant (design with the Choice Atom discipline); D63 senior/junior; the D64 use cases
-  (documents, video guides, guided repair, "watch it for me", home security); small AICUI polish (wedding cards wider
-  than the text column, countdown wrapping 3+1 on a phone).
+- **Persistence (night of 3 Oct) — now in the plan:** **D66** memory and personality (`docs/memory-design.md`:
+  one shared daemon-owned memory, addressed hash-chained record, facts as reversible folds, "keep the changes, fold
+  the sameness", visible remembering with hideable notices, never the sealed journal / secrets / declined requests;
+  seven starting personalities by people matching, the system never lies while Buddy/Coach/Teacher may play;
+  personality grows through habits — Ian's 3+1 nesting, `spikes/habits/`), **D67** the Choice Atom as the
+  architecture of action and memory (Γ policy / d proposed / T_d deterministic / w checked / R append-only record;
+  reversible actions paired with their inverse). New milestone **M4b** after M4. Ian's Quaddle research and his Tang
+  Nano 20K testbed archive (flash dump, the board's later bitstream, the 1 July Gowin project) sit in
+  `docs/kernel doc/` — beside the project, ignored by git; independent check script there (23 checks pass). **Still
+  to rescue:** the board's newer HDL source and `quaddle/node.py`, on the Mint NVMe — when that drive is next in.
+- **Build order from here (Ian: finish the early steps first, then the full OS plan with this incorporated):**
+  1. **Early steps to finish:** mark M0's bakeoff done in PLAN; M1 — the live-USB splash, an automated install
+     test, CI and publishing (waits on Ian: `cinminai-apt` Pages repo, a Hugging Face org, the offline signing key);
+     Alpha/M2 — the guide model copied into installed systems (needed before boot check 2), LibreOffice/writer/
+     journal/web features packaged and boot-tested, the sidebar's cards seen on screen; a fresh ISO with everything
+     since 28 Sept through the VM boot test. Then the guide's cycle 1 list.
+  2. **M3** — the terminal relay as a real package, command cards, terminal context.
+  3. **M4** — the action boundary built as Choice Atoms (D67): one action path, approvals, the admin lane, the
+     record as audit log, replay, security tests.
+  4. **M4b** — memory and personality (D66), on M4's record (v0.1 slices: Ian's call, suggested 1–3).
+  5. **M5 → M6 → M7** — first boot and hardware, Firefox packaging, the deeper fork and installer pages → boot check 2
+     → **v0.1**. M8–M11 as planned (AICUI = M9/M10 already well started; D62 publishing, D63 senior/junior, D64 use
+     cases fit there).
+  Small AICUI polish when convenient (wedding cards wider than the text column, countdown wrapping 3+1 on a phone).
 
 ## State right now
 

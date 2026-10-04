@@ -7,6 +7,84 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-03 (night) — persistence: habits on the bitcode, a memory design, and the Quaddle board
+
+*Ian: "we are pretty much at that point where persistence needs to be discussed. We literally put a whole AI suite
+on a Mint port and integrated AI into Mint directly to assist with operation." The night turned his Quaddle
+research into a design for the assistant's memory and personality, and ended with his FPGA testbed archived.*
+
+### The state machine, checked
+
+Ian added the second Quaddle document, *Quaddle Number Theory State Machine* (19 Sept, the FPGA implementation
+contract). Claude checked its verifiable core with an independent script (`docs/kernel doc/
+quaddle_state_machine_check.py`, outside git): the successor T(a,b,c,h) = (b, c, f, h⊕1) is one 16-cycle and matches
+the table; the cyclic word 0000100101101111 holds every 3-bit word twice and both stride-2 phases list all eight; both
+Clifford sign cocycles are associative on all 4,096 triples and c₁,₃ gives a bit-coded Cl(1,3); the orbit tables for
+n = 2…8 match — 23 checks, all pass. What carries over to the OS is the architecture: *the chooser need not be the
+system whose state changes* (the AI chooses, a verified core acts), staged steps that emit their invariant flags,
+verified kernel and experimental modules behind a hard wall ("if a hypothesis fails, remove the hypothesis"), a
+deterministic test mode for the chooser (replay), and every reversible action paired with its inverse. Ian's
+`docs/kernel doc/` stays beside the project and out of it (`.gitignore`): "I didn't want to clog up the project with
+something outside what its intention is."
+
+### Personality: people matching, and play
+
+Ian: as with hardware matching, *people matching* — six or seven starting personalities; "If people want Sailor Moon
+telling them how to change a water pump I'm trying to help. If they wanna do something dangerous I'm not trying to
+help but I'm also not trying to know anything about it." The principles that came out: the personality is the
+person's; **the system never lies** (what actions did, test results, warnings, what it remembers); Buddy, Coach and
+Teacher **may play** — entertain, push, coax (Ian) — in the open, and "seriously?" always gets a straight answer;
+your hardware, your software, your call, with logical safeguards; serious harm to others is declined without a
+lecture and **never remembered**.
+
+### Habits on the bitcode
+
+Ian: the personality should evolve through habits — "frequent choices become habits and are easier to process
+through a streamlined process of addresses identified as the function of that habit… it doesn't need that number".
+A habit is an address where the choice has closed: |Γ| > 1 (ask the model) becoming |Γ| = 1 (just do it).
+Experiments in `spikes/habits/`: a flat 4-bit history read on Quaddle's circular four-channel order separates
+behaviour and detects alternation perfectly (0101/1010), but forms false habits on a coin toss; 4+4 nesting helps.
+Then Ian's **3+1**: "a to z is 0 and 1, i is 0–1, and w is 0−(1+1)+(1+1)" — three bits of switching (with i, the
+relation, read from their changes) plus w, the working address, the only thing that nests up. Three levels of 3+1,
+strict at the bottom (a window closes only on a full round trip) and forgiving above: real habits form in ~27 uses
+and hold steady, a change of mind is noticed after ~36, a coin toss forms a false habit ~3 % of the time — no
+thresholds stored anywhere. (Ian, on the coin toss: it "gets annoyed and just says the same thing over and over".)
+A new habit is offered before it's automatic, and never for irreversible actions.
+
+### The memory design
+
+`docs/memory-design.md`, a draft Ian went through: one shared memory owned by the daemon, shaped by the Choice Atom —
+the policy decides what may be kept, the model only proposes, a deterministic store writes, every memory has an
+address (area → project → session → moment), and an append-only, hash-chained record keeps every step. Facts are
+reversible folds linked to their sources. Ian's answers: one shared memory; remember on its own, visibly, with undo,
+the notices hideable from the panel icon or the sidebar; the sealed journal never; and for retention — **"keep the
+changes, fold the sameness"**: moments of change are kept for good, unchanged stretches fold into spans, and the
+change itself is memorized, so a fact unfolds into its history (P–V–P applied to time).
+
+### The Tang Nano 20K
+
+Ian plugged in his Quaddle testbed. On the dev PC it read as a Gowin GW2AR-18C with an 8 MB Winbond flash, running
+user code 0x315E with the security bit set (no readback from the chip). The Gowin project turned up on this PC, inside
+Gowin's install folder: `quaddle_op` (the framed bit a(b)c in gates), `quaddle_node` (sense → record → select → act;
+RECORD the only writer, SELECT the only reader, an additive argmax), `quaddle_addr_tree` (a value stored as a
+position, recalled by walking it), `quaddle_self` ("have I walked this path before?" lights an LED live). Ian said the
+board held a later build; to keep it, Claude installed usbipd-win (with Ian's approval), ran openFPGALoader v1.1.1 in
+WSL, and dumped the whole flash in 66 s: the board's bitstream does differ from the 1 July build on disk (33 % of
+bytes match). Archived in `docs/kernel doc/tang-nano-20k/` with a README; the board reloaded its design on replug
+(same user code). The newer source and the Python golden model are on the Mint box's NVMe — to copy when that drive
+is next connected.
+
+### What we learned
+
+- **Memory is a choice discipline, not a bigger context.** What may be kept, who proposes, what writes, where it
+  lives, and that nothing is silently erased — the same shape as Ian's hardware self, where only RECORD writes and
+  only SELECT reads.
+- **Habits need nesting, not thresholds** — a flat window can't tell a habit from a lucky streak; a wall above the
+  first wall can.
+- **Look for the source before dumping the binary** — and then dump anyway when the running build is the newer one.
+
+---
+
 ## 2026-10-03 (evening) — what the next OS might be, and where Quaddle fits
 
 *No code tonight: a conversation about direction. Nothing here is a decision or a commitment (Ian: "I don't want

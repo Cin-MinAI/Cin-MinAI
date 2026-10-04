@@ -1,7 +1,7 @@
 # Memory and personality — design draft (for discussion)
 
-Drafted 2026-10-03 from Ian's answers and the evening's discussion (journal: "what the next OS might be, and where
-Quaddle fits"). **A draft, not a decision**: once Ian has been through it, it becomes SPEC §22 and a PLAN entry.
+Drafted 2026-10-03 from Ian's answers and the evening's discussion; **taken into the plan the same night as PLAN D66 (with D67) and milestone M4b** (journal: "what the next OS might be, and where
+Quaddle fits"). The open points in §8 are still Ian's; it moves into SPEC as §22 when M4b is built.
 Experiments behind the habits part: `spikes/habits/`.
 
 ## 1. What we want
