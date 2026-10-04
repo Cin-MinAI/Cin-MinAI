@@ -57,6 +57,12 @@ MIXES = {
     "journal": {"clear": 0.15, "system": 0.05, "report": 0.18, "walk": 0.20, "vague": 0.15, "decline": 0.12,
                 "safety": 0.08, "chat": 0.07},
     "jtest": {"walk": 0.4, "report": 0.4, "decline": 0.1, "chat": 0.1},  # smoke tests of the new turns
+    # Guide cycle 1, step 1 (2026-10-03): the shipped guide checks the computer when the answer is a how-to or
+    # an app (9 eval items: "is there a dark mode", "open my files", "where did my download go"). Its training
+    # mix had 72 inspect_system turns and no open_app at all. These sessions add how-tos asked about the machine
+    # and requests to open something, beside real system checks and reports, so the contrast is in one session.
+    "c1": {"howto": 0.35, "open": 0.25, "clear": 0.10, "system": 0.10, "report": 0.10, "decline": 0.05,
+           "chat": 0.05},
 }
 MIX = MIXES["v1"]
 
@@ -84,6 +90,42 @@ SYSTEM = {  # topic -> (what they ask about, a result generator)
     "network": "why the internet is slow or not working", "printers": "whether the printer is ready",
     "sound": "why there's no sound", "display": "a second screen or the display", "battery": "the battery",
     "drivers": "the graphics driver", "overview": "what kind of computer this is",
+}
+# "howto" turns: knowledge-base topics whose answer is a setting or a place, asked the way a beginner talks about
+# the machine (cycle 1, step 1)
+HOWTO = ["explorer", "dark_mode", "display_scale", "text_size", "screen_timeout", "night_light", "mouse",
+         "startup_apps", "default_apps", "sound_output", "wallpaper", "taskbar", "media", "recycle_bin", "clock",
+         "keyboard_layout", "lock_screen", "screenshot", "desktop_shortcut", "switch_windows", "onscreen_kb",
+         "uninstall", "install", "pdf", "zip", "frozen"]
+# "open" turns: label key -> what the person asks to open, in their words (the call is ours, the words the teacher's)
+OPEN = {
+    "files": "their files (they may say File Explorer, My Documents or My Computer)",
+    "mouse": "the mouse settings (the pointer is too slow or too fast)",
+    "system_settings": "the settings (they may say Control Panel)",
+    "update_manager": "the updates window (they may say Windows Update)",
+    "software_manager": "the place to get new programs (they may say the Microsoft Store)",
+    "display": "the screen settings (resolution, a second monitor)",
+    "sound": "the sound settings (volume, speakers)",
+    "printers": "the printer settings",
+    "bluetooth": "the Bluetooth settings, to pair headphones",
+    "network": "the network or Wi-Fi settings",
+    "calculator": "the calculator",
+    "text_editor": "a plain text editor (they may say Notepad)",
+    "screenshot": "the screenshot tool (they may say Snipping Tool)",
+    "system_monitor": "the program that shows what's running (they may say Task Manager)",
+    "firefox": "the web browser (they may say the internet or Edge)",
+    "writer": "the word processor (they may say Word)",
+    "calc": "the spreadsheet program (they may say Excel)",
+    "backgrounds": "the wallpaper settings",
+    "keyboard": "the keyboard settings",
+    "date_time": "the date and time settings",
+    "accessibility": "the accessibility settings (bigger text, a screen reader)",
+    "power": "the power settings (sleep, when the screen turns off)",
+    "startup_apps": "the list of programs that start by themselves at login",
+    "themes": "the settings for how the desktop looks (themes, dark colours)",
+    "timeshift": "system restore points (they may say System Restore)",
+    "document_viewer": "the PDF viewer (they may say Adobe Reader)",
+    "email": "the email program (they may say Outlook)",
 }
 CHAT = ["thanks, that worked", "a quick compliment", "saying they'll try it later",
         "telling what happened after following the steps", "a friendly remark about their day"]
@@ -190,6 +232,10 @@ ASK = {
     "safety": "a question about {what}",
     "chat": "a short message: {what}",
     "report": "a question about {what} on this computer",
+    "howto": "a message about {what}, the way a beginner writes about THIS computer: a complaint ('my … is too …', "
+             "'it keeps …'), 'where did … go?', 'where is …?', 'is there …?' or 'can I …?' — not starting with 'how "
+             "do I'. What they need is how to do or change it",
+    "open": "a request to open {what} now, in a few words; sometimes with the reason",
     "follow": "a short reply after doing the step the assistant just gave ({what}): usually it worked and they "
               "say what they see now; sometimes they ask where exactly to click, using only what the step said",
 }
@@ -309,6 +355,23 @@ def contained(a: str, b: str) -> float:
     return len(small & big) / len(small)
 
 
+# Generation-only (never stored): after open_app the reply says it's open and, at most, where to look first.
+OPEN_GUIDE = ("\n\nThe program is open now. Reply in one or two short sentences: say it's open, using its name "
+              "exactly as in the result, and if it helps, the one thing to look for first. No numbered steps.")
+
+
+def open_checks(reply: str, lang: str, name: str, said: list[str]) -> list[str]:
+    """The reply after open_app: the program's name as the result gave it, short, no steps, no invented names."""
+    fails = R.stage_b({"lang": lang, "must": [[name]], "must_not": T.NO_CMD + WRONG_ANY}, reply)
+    size = len(reply) if lang == "ja" else len(reply.split())
+    if R.STEP.findall(reply) or size > (120 if lang == "ja" else 45):
+        fails.append("too long after opening")
+    bad = invented_names(reply, lang, [name] + said)
+    if bad:
+        fails.append("invented names: " + ", ".join(bad[:3]))
+    return fails
+
+
 def forced(tool: str) -> dict:
     return {"anyOf": [s for s in R.schema(None)["anyOf"] if s["properties"]["tool"]["const"] == tool]}
 
@@ -321,7 +384,7 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
     for attempt in range(2):
         s = seed + 17 * attempt
         try:
-            if kind in ("clear", "safety"):
+            if kind in ("clear", "safety", "howto"):
                 call = t.chat(ctx, schema=forced("lookup_help"), temperature=0.2, max_tokens=120, seed=s)
                 card = T.resolve(KB[topic]["card"], lang)
                 must = [[T.label(k, lang) for k in (m if isinstance(m, list) else [m])] for m in KB[topic]["must"]]
@@ -362,6 +425,15 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                     fails.append("invented names: " + ", ".join(bad[:3]))
                 if not re.search(r"[?？]\s*$", reply.strip()):
                     fails.append("doesn't end with a question")
+                out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
+            elif kind == "open":
+                call = json.dumps({"tool": "open_app", "args": {"app": topic}})
+                name = T.label(topic, lang)
+                res = {"role": "user", "content": f"Result of open_app:\n{json.dumps({'opened': name}, ensure_ascii=False)}"
+                                                  f"\n\n{R.STYLE_V2}"}
+                ogen = [{"role": "system", "content": system + GEN_GUIDE + OPEN_GUIDE}] + ctx[1:]
+                reply = t.chat(ogen + [{"role": "assistant", "content": call}, res], temperature=0.2, max_tokens=200, seed=s)
+                fails = open_checks(reply, lang, name, [m["content"] for m in ctx if m["role"] == "user" and not m["content"].startswith("Result of ")])
                 out = [{"role": "assistant", "content": call}, res, {"role": "assistant", "content": reply}]
             elif kind == "walk_first":
                 call = t.chat(ctx, schema=forced("lookup_help"), temperature=0.2, max_tokens=120, seed=s)
@@ -420,7 +492,7 @@ def assistant_turns(t, lang, kind, topic, q, msgs, seed, rnd) -> list[dict] | No
                     fails.append("too long for small talk")
                 out = [{"role": "assistant", "content": json.dumps({"tool": "answer", "args": {"text": text}},
                                                                    ensure_ascii=False)}]
-            if kind in ("clear", "safety", "system") and T.mixed_language(out[-1]["content"], lang):
+            if kind in ("clear", "safety", "system", "howto", "open") and T.mixed_language(out[-1]["content"], lang):
                 fails.append("a line in another language")
             if not fails:
                 return out
@@ -462,6 +534,12 @@ def session(t, sid, lang, rnd, evalq, stats) -> dict | None:
         if kind == "report":
             topic = rnd.choice(list(SYSTEM))
             what = SYSTEM[topic]
+        elif kind == "howto":
+            topic = rnd.choice([x for x in HOWTO if lang in KB[x].get("langs", T.KB.ALL)])
+            what = KB[topic]["windows"]
+        elif kind == "open":
+            topic = rnd.choice([k for k in OPEN if T.label(k, lang)])
+            what = OPEN[topic]
         elif kind == "clear":
             topic = shared if ("vague" in kinds and rnd.random() < 0.5) else rnd.choice(TRANSITION)
             what = KB[topic]["windows"]

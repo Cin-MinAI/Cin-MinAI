@@ -34,6 +34,11 @@ PRESETS = {
           "safety": 0.08, "chat": 0.08},
 }
 FOLLOW_ONLY = {"g": False, "h": True}
+# Guide cycle 1, step 1 (2026-10-03): HO's mix unchanged (preset h, the same picks: its kinds are drawn only from
+# sessions that aren't from a c1 run) plus turns of the new kinds on top, as many as the inspect_system turns
+# (system + report = 72 of 360): how-tos asked about the machine, and requests to open something.
+EXTRA = {"c1": {"howto": 43, "open": 29}}
+BASE = {"c1": "h"}
 
 
 def load_merge():
@@ -53,11 +58,12 @@ def names_program(segs: list) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--turns", type=int, required=True), ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--out", required=True), ap.add_argument("--preset", choices=list(PRESETS), default="g")
+    ap.add_argument("--out", required=True), ap.add_argument("--preset", choices=list(PRESETS) + list(EXTRA), default="g")
     ap.add_argument("--office", type=int, default=0,
                     help="add N office examples (datasets/office/corpus.jsonl, a document shared; one call each)")
     o = ap.parse_args()
-    shares, follow_only = PRESETS[o.preset], FOLLOW_ONLY[o.preset]
+    base = BASE.get(o.preset, o.preset)
+    shares, follow_only, extra = PRESETS[base], FOLLOW_ONLY[base], EXTRA.get(o.preset, {})
     M = load_merge()
     rnd = random.Random(o.seed)
     sessions = [json.loads(l) for l in open(os.path.join(SESSIONS, "corpus.jsonl"), encoding="utf-8")]
@@ -69,10 +75,11 @@ def main() -> None:
         for ti, (kind, segs) in enumerate(ts):
             if kind == "walk" and follow_only and len(segs) < 2:
                 continue  # nothing to train: a walkthrough without a follow-up
+            if kind in shares and str(s["meta"].get("source_run", "")).startswith("c1"):
+                continue  # a c1 run's other turns don't change the base mix's picks
             pool[kind].append((si, ti, kind == "report" and names_program(segs)))
     picked, short = set(), {}
-    for kind, share in shares.items():
-        want = round(o.turns * share)
+    for kind, want in [(k, round(o.turns * v)) for k, v in shares.items()] + list(extra.items()):
         cands = pool[kind][:]
         rnd.shuffle(cands)
         cands.sort(key=lambda c: not c[2])  # stable: preferred first, random within each group

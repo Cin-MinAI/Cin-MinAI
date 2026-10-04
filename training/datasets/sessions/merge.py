@@ -74,7 +74,7 @@ def turns(s: dict) -> list[tuple[str, list[list[dict]]]]:
             out[-1][1].append([u, a])
             i += 2
             continue
-        n = 4 if json.loads(a["content"])["tool"] in ("lookup_help", "inspect_system") else 2
+        n = 4 if json.loads(a["content"])["tool"] in ("lookup_help", "inspect_system", "open_app") else 2
         out.append((kinds.pop(0), [m[i:i + n]]))
         i += n
     if kinds:
@@ -107,7 +107,15 @@ def check_segment(kind: str, lang: str, seg: list[dict], ctx: list[dict], first:
         cards = [m["content"] for m in ctx if m["role"] == "user" and m["content"].startswith("Result of ")]
         fails = G.one_step(reply, lang)
         bad = G.invented_names(reply, lang, cards + said)
-    elif kind in ("clear", "safety", "walk"):
+    elif kind == "open":
+        call = json.loads(seg[1]["content"])
+        if call["tool"] != "open_app":
+            return ["wrong tool"]
+        name = T.label(call["args"]["app"], lang)
+        if name is None or json.loads(seg[2]["content"].split("\n", 1)[1].split("\n\n")[0]).get("opened") != name:
+            return ["result doesn't match the call"]
+        fails, bad = G.open_checks(reply, lang, name, said), []
+    elif kind in ("clear", "safety", "walk", "howto"):
         if json.loads(seg[1]["content"])["tool"] != "lookup_help":
             return ["wrong tool"]
         topic = card_topic(seg[2]["content"], lang)
@@ -164,7 +172,7 @@ def check_segment(kind: str, lang: str, seg: list[dict], ctx: list[dict], first:
         reply = text
     if bad:
         fails.append("invented names")
-    if kind in ("clear", "safety", "system") and T.mixed_language(reply, lang):
+    if kind in ("clear", "safety", "system", "howto", "open") and T.mixed_language(reply, lang):
         fails.append("a line in another language")
     if kind in ("walk", "report"):
         fails += question_language(reply, lang)
