@@ -263,9 +263,9 @@ Each milestone has an exit test. Nothing moves forward on a red exit test.
 | **Model bakeoff** | §3 above. | `docs/benchmarks.md` written. |
 
 Exit: go/no-go per spike in `docs/spikes.md`. Done (2026-09-24/25): terminal emulation, ISO remaster,
-terminal relay, desktop surface, streaming, sandbox, admin, LibreOffice, Firefox. Remaining: model
-bakeoff (both tracks, incl. the guide model). Spikes on the Mint
-box follow D21 and are cleaned up when M0 closes.
+terminal relay, desktop surface, streaming, sandbox, admin, LibreOffice, Firefox. The model bakeoffs followed
+(the guide's cycle 0, D43; writing and coding, D60) — **M0 is closed** (2026-10-03). Spikes on the Mint box follow
+D21 and are cleaned up as M0's leftovers are retired.
 
 ### M1 — Distro skeleton
 

@@ -51,9 +51,9 @@ model's story: `docs/guide-model-journal.md`.
   `docs/kernel doc/` — beside the project, ignored by git; independent check script there (23 checks pass). **Still
   to rescue:** the board's newer HDL source and `quaddle/node.py`, on the Mint NVMe — when that drive is next in.
 - **Build order from here (Ian: finish the early steps first, then the full OS plan with this incorporated):**
-  1. **Early steps to finish:** mark M0's bakeoff done in PLAN; M1 — the live-USB splash, an automated install
+  1. **Early steps to finish:** (M0 closed, 3 Oct); M1 — the live-USB splash, an automated install
      test, CI and publishing (waits on Ian: `cinminai-apt` Pages repo, a Hugging Face org, the offline signing key);
-     Alpha/M2 — the guide model copied into installed systems (needed before boot check 2), LibreOffice/writer/
+     Alpha/M2 — (the guide model already reaches installed systems: the 2 Oct install test reports it), LibreOffice/writer/
      journal/web features packaged and boot-tested, the sidebar's cards seen on screen; a fresh ISO with everything
      since 28 Sept through the VM boot test. Then the guide's cycle 1 list.
   2. **M3** — the terminal relay as a real package, command cards, terminal context.
