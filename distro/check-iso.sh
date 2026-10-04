@@ -65,6 +65,9 @@ case $splash in *themes/cinminai/cinminai.plymouth*) ok "live boot splash is our
 if ( cd "$mnt" && grep -E ' \./(casper/(filesystem\.(squashfs|manifest|size)|initrd\.lz)|boot/grub/grub\.cfg|isolinux/live\.cfg|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then
     ok "md5sum.txt matches the changed files (incl. the guide model)"; else bad "md5sum.txt"; fi
 if ( cd "$mnt" && ls cinminai/models/*.gguf >/dev/null 2>&1 ); then ok "the guide model is on the ISO"; else bad "no guide model on the ISO"; fi
+inside=$(unsquashfs -l "$mnt/casper/filesystem.squashfs" 2>/dev/null | grep -c '\.gguf$' || true)
+if [[ $inside == 0 ]]; then ok "the guide model is beside the live system, not inside it too (D48)"
+else bad "the live system carries $inside model file(s) inside it as well (the ISO grows by the model's size)"; fi
 umount "$mnt"; rmdir "$mnt"
 
 # Mint's command-not-found database and software catalogue must be upstream's (apt's update hooks rebuilt

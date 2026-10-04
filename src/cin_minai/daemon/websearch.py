@@ -16,7 +16,19 @@ import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) Cin-MinAI/0.0.1 (+https://github.com/Cin-MinAI)"
+def _firefox_version(ini: str = "/usr/lib/firefox/application.ini") -> str:
+    """The installed Firefox's major version, so searches look like this machine's own browser."""
+    try:
+        with open(ini, encoding="utf-8") as f:
+            m = re.search(r"^Version=(\d+)", f.read(), re.M)
+        return m.group(1) if m else "140"
+    except OSError:
+        return "140"
+
+
+# A plain browser identity (Ian, 2026-10-04): the project is counted by downloads and stars, never through its users'
+# searches — naming Cin-MinAI here told every site that this person runs it, against "nothing about you is sent".
+UA = f"Mozilla/5.0 (X11; Linux x86_64; rv:{_firefox_version()}.0) Gecko/20100101 Firefox/{_firefox_version()}.0"
 TIMEOUT = 12
 MAX_BYTES = 1_500_000
 PAGE_CHARS = 2400       # per source, for the guide's 8K context: three sources fit with room to answer
@@ -31,7 +43,7 @@ class SearchError(Exception):
 def _get(url: str, accept: str = "text/html", form: dict | None = None) -> tuple[str, str]:
     if not url.startswith("https://"):
         raise SearchError("only https pages are read")
-    headers = {"User-Agent": UA, "Accept": accept, "Accept-Language": "en;q=0.8"}
+    headers = {"User-Agent": UA, "Accept": accept, "Accept-Language": "en-US,en;q=0.5"}
     data = None
     if form is not None:  # a form post, the way the results page's own search box sends it
         data = urllib.parse.urlencode(form).encode()

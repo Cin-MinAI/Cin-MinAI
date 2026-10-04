@@ -167,6 +167,10 @@ done
 rm -rf "$b/kept"
 
 # --- 4. repack ------------------------------------------------------------------------
+# The guide model sits beside the live system on the ISO, never inside it (D48). cinminai-guide-model's install hook
+# downloads it when no install media is found and GUIDE_URL is set — which, in this chroot, it isn't, so it did:
+# the first release build carried the model twice (8.6 GB, 2026-10-04). check-iso.sh checks for this.
+rm -f "$rootfs"/usr/share/cinminai/models/*.gguf "$rootfs"/usr/share/cinminai/models/*.gguf.part
 log "manifest + size"
 # Upstream's manifest format ("name[:arch]<TAB>version", as ${binary:Package} prints it).
 chroot "$rootfs" dpkg-query -W --showformat='${binary:Package}\t${Version}\n' > "$b/iso/filesystem.manifest"
