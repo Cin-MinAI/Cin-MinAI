@@ -177,14 +177,17 @@ class Sidebar(Gtk.Application):
     def hello(self) -> None:
         self.bubble("assistant", "Hello! I can help you use this computer: finding things, how-to steps, "
                                  "and checking how it's doing. What would you like to do?")
-        # the writing modes, visible where a newcomer looks (2026-10-01: behind the header's New icon, not found)
-        row = Gtk.Box(spacing=6)
+        # the writing modes, visible where a newcomer looks (2026-10-01: behind the header's New icon, not found).
+        # A FlowBox, so the buttons wrap: in a plain row their total width became the chat's minimum width, and on
+        # a 1024-pixel screen the whole conversation was cut off at the sidebar's edge (boot test, 2026-10-03).
+        row = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False, column_spacing=6,
+                          row_spacing=6, min_children_per_line=1, max_children_per_line=3)
         for label, cb in (("Start a writing project", lambda b: self.new_project()),
                           ("Open the journal", lambda b: self.open_journal()),
                           ("Open AICUI (coding)", lambda b: self.open_aicui())):
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
-            row.pack_start(b, False, False, 0)
+            row.add(b)
         self.chat.pack_start(row, False, False, 0)
         row.show_all()
 
@@ -524,7 +527,8 @@ class Sidebar(Gtk.Application):
         box.pack_start(head, False, False, 0)
         for line in words.offer_lines(offer):
             box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
-        buttons = Gtk.Box(spacing=6)
+        buttons = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False, column_spacing=6,
+                              row_spacing=6, min_children_per_line=1, max_children_per_line=3)  # wraps when narrow
         get = Gtk.Button(label="Use it" if offer.get("downloaded") else "Bring back" if offer.get("parked_on")
                          else "Download")
         get.get_style_context().add_class("suggested-action")
@@ -544,7 +548,7 @@ class Sidebar(Gtk.Application):
         never.connect("clicked", lambda b: (self.proxy.call("ModelDecline", GLib.Variant("(s)", (offer["file"],)),
                                                             Gio.DBusCallFlags.NONE, -1, None, None), box.destroy()))
         for b in (get, later, never):
-            buttons.pack_start(b, False, False, 0)
+            buttons.add(b)
         box.pack_start(buttons, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
