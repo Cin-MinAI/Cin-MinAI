@@ -1,0 +1,13 @@
+Package: cinminai-shell
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: python3 (>= 3.12), python3-pyte, bash
+Description: Cin-MinAI terminal sharing
+ Lets the Cin-MinAI assistant see the terminals you choose to share: each
+ command, its output and whether it worked, so it can help when something
+ fails. Off until you turn it on; shared terminals show a diamond in the
+ prompt, and "ai off" makes one private. Nothing is captured at password
+ prompts, and nothing leaves the computer.

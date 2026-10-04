@@ -1,7 +1,7 @@
 Package: cinminai-branding
 Version: @VERSION@
 Architecture: all
-Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: plymouth, python3

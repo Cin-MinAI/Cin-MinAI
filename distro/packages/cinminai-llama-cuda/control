@@ -1,7 +1,7 @@
 Package: cinminai-llama-cuda
 Version: @VERSION@
 Architecture: amd64
-Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: cinminai-llama (= @VERSION@), libcudart12, libcublas12, libcublaslt12

@@ -1,7 +1,7 @@
 Package: cinminai-llama
 Version: @VERSION@
 Architecture: amd64
-Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: libc6 (>= 2.39), libstdc++6, libgcc-s1, libgomp1, libvulkan1

@@ -1,7 +1,7 @@
 Package: cinminai-libreoffice
 Version: @VERSION@
 Architecture: all
-Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: libreoffice-core, python3-uno, python3-gi, gir1.2-glib-2.0

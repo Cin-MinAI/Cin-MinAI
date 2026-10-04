@@ -1,7 +1,7 @@
 Package: cinminai-daemon
 Version: @VERSION@
 Architecture: all
-Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: python3 (>= 3.12), python3-gi, gir1.2-glib-2.0, cinminai-llama (>= @RELEASE@)

@@ -1,0 +1,7 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The terminal relay (M3, D77), started by start.bash for terminals the person shares with the assistant.
+# -P: never import from the current folder (a project's cin_minai/ copy must not replace ours, 2026-10-04).
+# A broken relay must never close every terminal: without Python, the person gets a plain shell.
+[ -x /usr/bin/python3 ] || exec /bin/bash -i
+exec /usr/bin/python3 -P -m cin_minai.shell.relay "$@"

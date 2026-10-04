@@ -1,7 +1,7 @@
 Package: cinminai-guide-model
 Version: @VERSION@
 Architecture: all
-Maintainer: Cin-MinAI <https://github.com/Brickmii/Cin-MinAI>
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
 Depends: coreutils, curl
@@ -9,5 +9,5 @@ Description: The Cin-MinAI guide model (fetched and checked)
  The small model built into Cin-MinAI (cycle 0: Qwen3.5-4B, fine-tuned, Q4_K_M,
  2.8 GB, Apache-2.0). The file is too big for a package: this one copies it from
  the Cin-MinAI USB stick or DVD when present, or downloads it, and checks its
- SHA-256 before use. Model card: https://github.com/Brickmii/Cin-MinAI
+ SHA-256 before use. Model card: https://huggingface.co/CinMin/guide-4b
  (training/guide/MODEL_CARD.md).
