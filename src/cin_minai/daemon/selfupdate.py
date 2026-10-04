@@ -62,9 +62,10 @@ class Watcher:
 
 
 def loads(timeout: int = 60) -> tuple[bool, str]:
-    """Does the installed code load? In a separate process, with the same Python and environment."""
+    """Does the installed code load? In a separate process, with the same Python and environment (-P: not whatever
+    the current folder holds)."""
     try:
-        r = subprocess.run([sys.executable, "-c", "import cin_minai.daemon.service, cin_minai.daemon.__main__"],
+        r = subprocess.run([sys.executable, "-P", "-c", "import cin_minai.daemon.service, cin_minai.daemon.__main__"],
                            capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, str(e)

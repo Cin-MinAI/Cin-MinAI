@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>Linux Mint with an AI assistant built in.</b><br>
-  It runs on your own computer, on your own graphics card. Nothing you type leaves the machine unless you ask it to.
+  It runs on your own computer, on your own graphics card. Nothing you type leaves the machine unless you ask it to.<br>
+  <b>Free. No ads, no telemetry, no account.</b> Download it and use it wherever, however you need it.
 </p>
 
 <p align="center">
@@ -17,8 +18,8 @@
   <a href="docs/PLAN.md">Every decision</a>
 </p>
 
-<!-- TODO(screenshot): the desktop with the sidebar open, answering a question -->
-<p align="center"><img src="artwork/live-desktop-2026-09-27.png" alt="The Cin-MinAI desktop" width="820"></p>
+<p align="center"><img src="artwork/screenshots/sidebar-web-search.png" alt="The Cin-MinAI sidebar answering &quot;Who started Linux?&quot;: it shows exactly what would be sent to the web, waits for the Search click, then answers with its sources" width="720"><br>
+<sub>The guide, on an installed system. Questions about the world go to the web only when you click Search — and it shows exactly what would be sent.</sub></p>
 
 > **Alpha.** It works and it's tested on real hardware, but it's early. Try it from a USB stick first —
 > trying it changes nothing on your computer.
@@ -29,7 +30,7 @@
 2. **Write it to a USB stick** with balenaEtcher or Rufus, from Windows, no commands —
    [step-by-step guide](docs/install/make-usb-stick.md).
 3. **Start your computer from the stick and try it.** The assistant works right away, even with no internet:
-   a small model comes on the stick.
+   a small model comes on the stick. No picture? See the [hardware notes](docs/hardware.md).
 4. **Install it** on a drive when you're ready.
 5. **Use it every day** and find out what it's good for. That's the point.
 
@@ -51,6 +52,18 @@ and shows you every change. On ten-year-old hardware it built a blackjack game y
 wedding web page with RSVP, a menu and a countdown. It asks before it does anything, every time, unless you
 tell it otherwise.
 
+<p align="center"><img src="artwork/screenshots/aicui-wedding-page.png" alt="AICUI with the wedding project open: the file tree, six goals ticked, the AI terminal; beside it the finished page in Firefox with its countdown" width="820"></p>
+
+*"Can you add a note on the bottom to bring swimming gear if you are staying for the day?"* — it shows the exact
+change and waits for you…
+
+<p align="center"><img src="artwork/screenshots/aicui-asks-before-editing.png" alt="AICUI showing its change to index.html as a diff, with an amber bar: Waiting for you: allow edit index.html? Allow, Always, No" width="820"></p>
+
+…then makes it, checks it, and tells you where it went:
+
+<p align="center"><img src="artwork/screenshots/aicui-edit-done.png" alt="AICUI after the edit: Done, the note quoted, and where it sits on the page" width="820"><br>
+<img src="artwork/screenshots/wedding-page-edited.png" alt="The wedding page in Firefox with the new swimming-gear note under the parking note" width="820"></p>
+
 **It can see.** Show it a photo, a screenshot of an error, a scanned letter or a video: it describes it,
 summarizes it, or reads it out. Point it at a repair video and ask what happens at the part you're stuck on.
 
@@ -65,6 +78,11 @@ desktop, and it tells you what it chose and why. Bigger models are an optional d
 **You stay in charge.** The assistant may recommend, explain and prepare an action. It never approves one: anything
 that changes your system asks first, and administrator actions ask for your password every time.
 
+**Nothing about you, anywhere.** Cin-MinAI has no ads, no telemetry and no account. Its only connections are the ones
+you'd expect: updates (from Linux Mint, Ubuntu and our signed repository), models you choose to download, and web
+searches you click — and it shows you exactly what a search will send. (Programs like Firefox keep their own
+settings, as on any Mint system.)
+
 ## What you need
 
 - A 64-bit PC that can run Linux Mint 22 (most PCs from the last ten years), and an 8 GB USB stick to try it.
@@ -73,6 +91,9 @@ that changes your system asks first, and administrator actions ask for your pass
   Without one it still works, slowly, on the processor.
 - Disk space: what Linux Mint needs (20 GB), plus about 3 GB for the built-in model; more for the optional
   bigger models.
+- **[Hardware notes](docs/hardware.md)** — what the assistant can't see when the screen is black: giving the whole
+  graphics card to the AI (in the right order!), black screens on NVIDIA cards, kernels and older disks, starting
+  from the USB stick.
 
 ## How it's made
 
@@ -83,6 +104,15 @@ and failure is written down:
 - [docs/dev-journal.md](docs/dev-journal.md) — how the work went, day by day
 - [docs/guide-model-journal.md](docs/guide-model-journal.md) — how the built-in model was tested, tuned and chosen
 - [docs/HELP-WANTED.md](docs/HELP-WANTED.md) — what we can't do alone and would love help with
+
+### From the first boot — phone photos, failures included
+
+| | |
+|---|---|
+| <img src="docs/images/boot-check-1/09-lookup-check-decline.jpg" alt="The sidebar on the first live USB: a Wi-Fi how-to, a disk check and a polite no" width="380"> | <img src="docs/images/screen-first/04-assistant-which-driver.jpg" alt="The assistant opening Driver Manager and checking which graphics driver the 1080 Ti needs" width="380"> |
+| The first live USB (28 Sept): a how-to, a check and a polite no. "17 GB and empty" was true of the USB session's memory and misleading — fixed the next day. | Real hardware: *"There's 2 drivers, which one is for my computer?"* — it opens Driver Manager and checks. |
+| <img src="docs/images/boot-check-1/01-grub-menu-still-mint.jpg" alt="The first boot menu, still saying Linux Mint" width="380"> | <img src="docs/images/boot-check-1/12-shutdown-at-spi-not-responding.jpg" alt="A shutdown dialog: at-spi-registryd not responding" width="380"> |
+| The very first boot menu still said "Linux Mint". | And the first shutdown hung on a program that wasn't responding. Both fixed; [the whole story](docs/dev-journal.md). |
 
 Under the hood: Linux Mint 22.3 Cinnamon (Ubuntu 24.04), llama.cpp for every model, a desktop service on D-Bus that
 everything talks to, and signed `.deb` packages from our own apt repository.

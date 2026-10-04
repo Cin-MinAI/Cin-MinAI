@@ -192,7 +192,9 @@ class Workspace(Gtk.ApplicationWindow):
         flags = {"auto": " --auto", "none": " --no-permissions"}.get(mode, "")
         if hasattr(self, "admin") and self.admin.get_active():
             flags += " --admin"
-        return f"{sys.executable} -m cin_minai.aicui.agent{flags} {GLib.shell_quote(self.root)}"
+        # -P: the project folder is the agent's working directory, and plain -m would put it first on the import path —
+        # a project that contains a cin_minai/ folder (Ian's diag-test, 2026-10-04) replaced the agent's own code
+        return f"{sys.executable} -P -m cin_minai.aicui.agent{flags} {GLib.shell_quote(self.root)}"
 
     def restart_agent(self, widget) -> None:
         """A new permission choice: written where the agent reads it before every question, so it holds at once, even

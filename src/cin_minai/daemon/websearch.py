@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) Cin-MinAI/0.1 (+https://github.com/Brickmii/Cin-MinAI)"
+UA = "Mozilla/5.0 (X11; Linux x86_64) Cin-MinAI/0.0.1 (+https://github.com/Cin-MinAI)"
 TIMEOUT = 12
 MAX_BYTES = 1_500_000
 PAGE_CHARS = 2400       # per source, for the guide's 8K context: three sources fit with room to answer
