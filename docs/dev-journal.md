@@ -1124,3 +1124,12 @@ The first public alpha is out, with its page. Ian: *"The release has to be with 
   the Steam and FF16 plans, Ian's creator apps and the no-ads/no-telemetry promise.
 - **Guide cycle 1** is parked until after the release: run C1 gave no gain, and the CPU and GPU scored the same file
   85 % vs 90 % — decisions are scored on the GPU from now on, and the noise gets measured first.
+
+**Update 1, the same day — the update path, end to end.** Built at HEAD (`0.0.1+git20261004.081119`): AICUI's agent and
+the self-update check start Python with `-P`, and web searches use the installed Firefox's plain identity. Ian signed
+it with the stick (`release-sign.sh`), it was pushed to `cinminai-apt` and checked from the public address the way apt
+does (good signature, 11 packages verified). The test SSD, installed before the release, needed one switch — the new
+`cinminai-archive-keyring` (the release key and the new address) through `install-debs.sh`; then **Update Manager
+showed the update, Ian installed it and rebooted: "went smooth."** Checked afterwards: all 11 packages at `081119` from
+`cin-minai.github.io/cinminai-apt`, the dev key gone, the agent loads inside `diag-test`, the search says Firefox 157.
+(On the way: `git pull` in WSL hangs — WSL has no GitHub key; git for the apt repo runs from Windows.)

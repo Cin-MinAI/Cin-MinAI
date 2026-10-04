@@ -16,8 +16,9 @@ model's story: `docs/guide-model-journal.md`.
   `SIGNING_GNUPGHOME=~/cinminai-build/gnupg-release-public SIGNING_KEY=7EA74B93128AA95865E2BA3977CA19E6264470F6`;
   Ian runs `distro/release-sign.sh D` in a WSL terminal (passphrase); then the signed `$M1/repo` (dists, pool,
   keyring .asc; `.gitattributes: * -text`) is copied into a `cinminai-apt` clone and pushed. The PC holds no secret key.
-- **Next:** (1) the **first update** — AICUI's agent with `python3 -P` (a project's `cin_minai/` folder replaced it) and
-  the web search's plain browser identity; build at HEAD, Ian signs, push, check from the public address. (2) Small
+- **Update 1 done (2026-10-04):** AICUI `-P` + plain browser identity, signed by Ian, live, installed on the test SSD through
+  Update Manager (the SSD now on the release channel and key). Git for `cinminai-apt` runs from Windows (WSL has no GitHub key).
+- **Next:** (2) Small
   follow-ups: the guide model card's "repository opens with the release" line, DistroWatch submission (Ian's call).
   (3) Guide cycle 1, parked: measure the noise (HO's recipe, second seed) and score on the GPU. (4) M3 → M4 → M4b →
   M5–M7. Ideas: D74 (Steam), D75 (FF16 on the 1080 Ti, recorded with Ian's Elgato HD60), D76 (Ian's creator apps).
