@@ -63,6 +63,12 @@ XML = f"""
     <!-- "Try it first" on a command card (M3 slice 4): the command on a throwaway copy of the terminal's folder, in
          the sandbox; a job: Action "sandbox" running, then done with what happened (JSON). The folder isn't touched -->
     <method name="TerminalTry"><arg type="s" name="text" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <!-- reading a picture (D64, D78): the file's path and the person's request; a job. If the reading model's projector
+         isn't here yet: Action "vision_setup" state "proposal" (JSON: id, model, size_mb, recommended) and nothing
+         more; VisionSetup fetches it (Action "download" progress), then reads the picture -->
+    <method name="AskImage"><arg type="s" name="path" direction="in"/><arg type="s" name="request" direction="in"/>
+      <arg type="u" name="id" direction="out"/></method>
+    <method name="VisionSetup"><arg type="s" name="offer" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- "Put in Writer": a new Writer document in Documents with this text (an answer), opened; never overwrites -->
     <method name="MakeDocument"><arg type="s" name="title" direction="in"/><arg type="s" name="text" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
@@ -147,6 +153,7 @@ class Service:
         # D60: writing may use a bigger model the user chose; the card holds one model at a time
         self.store = ModelStore()
         self.writing_backend: tuple[str, LlamaCppBackend] | None = None
+        self.vision_offers: dict[str, tuple[str, str]] = {}  # "set up reading pictures?": id -> (path, request)
         self.bigger_offers: dict[str, str] = {}  # offered "ask the bigger model", by id: the question with its terminal
         self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
         self.writer = Writer(self.writing_chat)
@@ -345,6 +352,24 @@ class Service:
             (text,) = params.unpack()
             from . import terminal
             inv.return_value(GLib.Variant("(s)", (json.dumps(terminal.send(text), ensure_ascii=False),)))
+        elif method in ("AskImage", "VisionSetup"):
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            if method == "AskImage":
+                path, request = params.unpack()
+                fetch_first = False
+            else:
+                (oid,) = params.unpack()
+                path, request = self.vision_offers.pop(oid, (None, None))
+                fetch_first = True
+                if path is None:
+                    inv.return_dbus_error(f"{IFACE}.Error.Offer", "that offer has expired")
+                    return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.job(self.next_id, lambda on_text, on_action, p=path, r=request, f=fetch_first:
+                     self.look(p, r, f, on_text, on_action))
         elif method == "TerminalSharing":
             (choice,) = params.unpack()
             from . import terminal
@@ -512,6 +537,43 @@ class Service:
                     on_action("bigger_model", {}, "proposal", json.dumps({"id": oid, "model": plan["model"]}))
             return {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]), "timings": out["timings"]}
         self.job(rid, answer)
+
+    # --- reading pictures (D64, D78) ---------------------------------------------------------------------
+    def look(self, path: str, request: str, fetch_first: bool, on_text, on_action) -> dict:
+        from . import vision
+        if not os.path.isfile(path):
+            raise BackendError("That picture isn't there any more.")
+        inference = config.load()["inference"]
+        choice = vision.choose(self.store, inference)
+        proj = choice["projector"]
+        if not choice["projector_ready"]:
+            if not fetch_first:  # ask first: it's a download (D30)
+                import uuid
+                oid = uuid.uuid4().hex[:12]
+                self.vision_offers = {oid: (path, request)}
+                on_action("vision_setup", {}, "proposal", json.dumps({
+                    "id": oid, "model": choice["model"], "size_mb": round(proj.size / 2**20),
+                    "recommended": choice["recommended"]}))
+                return {"tool": "vision", "needs": proj.file}
+            try:
+                self.store.download(proj, lambda have, total: on_action(
+                    "download", {"file": proj.file}, "running", json.dumps({
+                        "model": proj.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}"})),
+                    self.cancel)
+            except DownloadStopped:
+                on_text("Stopped. What was downloaded is kept, so it can carry on later.")
+                return {"tool": "vision", "done": False}
+        on_action("vision", {"model": choice["model"], "file": os.path.basename(path)}, "running", "")
+        reader = LlamaCppBackend(vision.backend_settings(choice, self.store, inference), log)
+        self.backend.unload()  # one card, one model: the guide comes back with the next question
+        try:
+            reply, timing = reader.chat(vision.messages(path, request), max_tokens=1500, on_text=on_text,
+                                        cancel=self.cancel, sampling=vision.SAMPLING)
+        finally:
+            reader.unload()
+        on_action("vision", {"model": choice["model"]}, "done", json.dumps({
+            "model": choice["model"], "recommended": choice["recommended"]}))
+        return {"tool": "vision", "model": choice["model"], "reply_chars": len(reply), "timings": [timing]}
 
     # --- a bigger model for an unusual terminal error (M3; Ian, 2026-10-04: only when no card fits, and asked) ---
     BIGGER_SYSTEM = ("You help a person with an error in their Linux Mint terminal. Say what caused it in plain "

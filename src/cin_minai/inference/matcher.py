@@ -45,6 +45,33 @@ class Model:
     source: str = ""        # "repo@revision" on Hugging Face ("" = ships on the ISO)
     sha256: str = ""
     size: int = 0           # file bytes
+    remote: str = ""        # the file's name in the source repository, when ours differs ("" = the same)
+
+
+# Vision (D64, D78): the projector each model reads pictures with, from its own Hugging Face repository (pinned; the
+# checksums are the files the lab used on 2026-10-03). They're all called mmproj-F16.gguf there; ours say whose.
+PROJECTORS = {
+    "Qwen3.8-27B-UD-IQ3_XXS.gguf": Model("Vision for Qwen3.8-27B", "Qwen3.8-27B-mmproj-F16.gguf", 927607488, 0, 0, 0,
+                                         source="unsloth/Qwen3.8-27B-GGUF@4ca720788d1e01f1bff70c033e0d0028fd02e502",
+                                         sha256="cbb841a9ee0636b2ec172f5bb8df2ea8dfeb01e90fe7c6126581d662a0b4e43e",
+                                         size=927607488, remote="mmproj-F16.gguf"),
+    # the tuned guide reads pictures with its untuned base model's projector: it works, quality not guaranteed (D64)
+    "Qwen3.5-4B-guide-HO-Q4_K_M.gguf": Model("Vision for the guide (Qwen3.5-4B)", "Qwen3.5-4B-mmproj-F16.gguf",
+                                             672423616, 0, 0, 0,
+                                             source="unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523",
+                                             sha256="cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864",
+                                             size=672423616, remote="mmproj-F16.gguf"),
+}
+VISION_CONTEXT = 16384
+IMAGE_MIB = 600  # room for reading the picture: at 16K this gives the 27B two layers in RAM on a free 1080 Ti, as measured
+
+
+def vision_plan(m: Model, machine: Machine) -> dict | None:
+    """How this machine runs m while it reads pictures: like plan(), with room kept for the image."""
+    if machine.cards:
+        card = dict(machine.cards[0], free_mib=machine.cards[0]["free_mib"] - IMAGE_MIB)
+        machine = dataclasses.replace(machine, cards=[card, *machine.cards[1:]])
+    return plan(m, machine, VISION_CONTEXT)
 
 
 # best first, per task; the figures from the files (gguf.py), the order from our measurements

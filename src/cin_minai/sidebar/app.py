@@ -21,7 +21,8 @@ import gi
 
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk  # noqa: E402
 
 from . import words  # noqa: E402
 from .dock import Dock  # noqa: E402
@@ -157,6 +158,9 @@ class Sidebar(Gtk.Application):
         self.go = self.icon_button("go-next-symbolic", "Ask", lambda b: self.on_ask(self.entry))
         self.stop = self.icon_button("media-playback-stop-symbolic", "Stop the answer", self.on_stop)
         inputs = Gtk.Box(spacing=4, name="input")
+        # a picture to read (D64, D78): this button, or drop the file anywhere on the sidebar
+        inputs.pack_start(self.icon_button("image-x-generic-symbolic", "Show me a picture: a photo, a screenshot, "
+                                           "a scanned letter (or drop it here)", self.on_pick_image), False, False, 0)
         inputs.pack_start(self.entry, True, True, 0)
         inputs.pack_end(self.stop, False, False, 0)
         inputs.pack_end(self.go, False, False, 0)
@@ -167,6 +171,9 @@ class Sidebar(Gtk.Application):
                           (self.scroll, True), (Gtk.Separator(), False), (inputs, False)):
             box.pack_start(w, expand, expand, 0)
         win.add(box)
+        win.drag_dest_set(Gtk.DestDefaults.ALL, [], Gdk.DragAction.COPY)
+        win.drag_dest_add_uri_targets()
+        win.connect("drag-data-received", self.on_drop)
         box.show_all()
         self.stop.hide()
         self.project_box.hide()
@@ -337,6 +344,76 @@ class Sidebar(Gtk.Application):
         if self.reply is not None and not self.reply_started:
             self.reply.set_text(words.waiting(state, status.get("build", "")))
 
+    # --- pictures (D64, D78) ------------------------------------------------------------------------------
+    def on_pick_image(self, button) -> None:
+        dialog = Gtk.FileChooserDialog(title="Show the assistant a picture", parent=self.win,
+                                       action=Gtk.FileChooserAction.OPEN)
+        dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Show it", Gtk.ResponseType.ACCEPT)
+        pics = Gtk.FileFilter()
+        pics.set_name("Pictures")
+        for ext in words.PICTURE_TYPES:
+            pics.add_pattern("*" + ext)
+            pics.add_pattern("*" + ext.upper())
+        dialog.add_filter(pics)
+        dialog.set_current_folder(GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES) or GLib.get_home_dir())
+        if dialog.run() == Gtk.ResponseType.ACCEPT:
+            path = dialog.get_filename()
+            dialog.destroy()
+            self.ask_image(path)
+        else:
+            dialog.destroy()
+
+    def on_drop(self, widget, context, x, y, data, info, time_) -> None:
+        for uri in data.get_uris() or []:
+            path = GLib.filename_from_uri(uri)[0] if uri.startswith("file://") else None
+            if path and path.lower().endswith(words.PICTURE_TYPES):
+                self.ask_image(path)
+                return
+        self.progress_line("I can read pictures (photos, screenshots, scans). Videos come next.")
+
+    def ask_image(self, path: str) -> None:
+        """The picture in the chat, then the question typed in the box (or "what's in this picture?")."""
+        if not self.proxy or self.rid is not None:
+            return
+        request = self.entry.get_text().strip()
+        self.entry.set_text("")
+        self.bubble("user", request or words.PICTURE_DEFAULT)
+        try:
+            thumb = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 240, 240, True)
+            pic = Gtk.Image.new_from_pixbuf(thumb)
+            pic.set_halign(Gtk.Align.END)
+            self.chat.pack_start(pic, False, False, 0)
+            pic.show()
+        except GLib.Error:
+            pass
+        self.terminal_turn = False
+        self.start_job("AskImage", (path, request), words.LOOKING, "(ss)")
+
+    def vision_setup_card(self, offer: dict) -> None:
+        """The reading model's projector isn't here yet: a download, so asked first (D30)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.vision_setup(offer), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        go = Gtk.Button(label="Download ({} MB)".format(offer.get("size_mb", "?")))
+        go.get_style_context().add_class("suggested-action")
+        no = Gtk.Button(label="Not now")
+
+        def fetch(b) -> None:
+            go.set_sensitive(False)
+            no.set_sensitive(False)
+            self.start_job("VisionSetup", offer.get("id", ""), "Getting it ready…")
+
+        go.connect("clicked", fetch)
+        no.connect("clicked", lambda b: box.destroy())
+        buttons.pack_start(go, False, False, 0)
+        buttons.pack_start(no, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
     def on_ask(self, entry: Gtk.Entry) -> None:
         text = entry.get_text().strip()
         if text and self.rid is None:
@@ -410,6 +487,16 @@ class Sidebar(Gtk.Application):
             self.progress_line(words.trying(json.loads(args[2] or "{}")))
         elif signal == "Action" and args[1] == "sandbox" and args[3] == "done":
             self.try_result(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "vision_setup" and args[3] == "proposal":
+            if self.reply is not None:
+                self.reply.get_style_context().remove_class("waiting")
+                self.reply.set_text(words.VISION_NEEDS)
+                self.reply_started = True
+            self.vision_setup_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "vision" and args[3] == "running":
+            self.progress_line(words.vision_reading(json.loads(args[2] or "{}")))
+        elif signal == "Action" and args[1] == "vision" and args[3] == "done":
+            self.progress_line(words.vision_caveat(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "terminal_offer" and args[3] == "proposal":
             self.terminal_offer_card()
         elif signal == "Action" and args[1] == "bigger_model" and args[3] == "proposal":

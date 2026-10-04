@@ -169,7 +169,7 @@ class ModelStore:
         if e and e.get("where") == "parked" and e.get("present"):
             return self.bring_back(model, on_progress, cancel)
         repo, _, rev = model.source.partition("@")
-        url = HF.format(repo=repo, rev=rev or "main", file=model.file)
+        url = HF.format(repo=repo, rev=rev or "main", file=getattr(model, "remote", "") or model.file)
         part = self.path(model.file) + ".part"
         have = os.path.getsize(part) if os.path.exists(part) else 0
         if have > model.size:  # not ours: start over

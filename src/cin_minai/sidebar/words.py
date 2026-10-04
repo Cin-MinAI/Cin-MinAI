@@ -552,3 +552,33 @@ def explain_question(command: str, lang: str = "en") -> str:
     recognises it and puts what the system knows about the command in front, cin_minai.daemon.commands)."""
     from cin_minai.daemon.commands import EXPLAIN
     return f"{EXPLAIN.get(lang, EXPLAIN['en'])}\n`{command}`"
+
+
+# --- pictures (D64, D78) ------------------------------------------------------------------------------------------
+PICTURE_TYPES = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff")
+PICTURE_DEFAULT = "What's in this picture?"
+LOOKING = "Looking at the picture… (loading the model that reads it can take a minute)"
+VISION_NEEDS = "To read pictures I need one more file first."
+
+
+def vision_setup(offer: dict) -> str:
+    who = offer.get("model", "the model")
+    size = offer.get("size_mb", "?")
+    if offer.get("recommended"):
+        return (f"{who} reads pictures best, and it needs its picture reader: one download, {size} MB, checked when "
+                "it arrives. Nothing leaves this computer when it reads.")
+    return (f"The built-in guide can read pictures with one download ({size} MB, checked when it arrives). It works, "
+            "but its answers aren't as good as a bigger model's: for letters and forms the 27B coding model reads "
+            "much better, if you have room for it.")
+
+
+def vision_reading(args: dict) -> str:
+    return f"Reading the picture with {args.get('model', 'the model')} (it stays on this computer)…"
+
+
+def vision_caveat(result: dict) -> str:
+    """D64: always said — the picture's quality decides the answer's."""
+    base = "A clear, well-lit picture gives the best answer: check numbers and dates against the original."
+    if not result.get("recommended"):
+        base += " Read by the built-in guide: it works, but a bigger model reads more reliably."
+    return base
