@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <!-- TODO(D70): the Hugging Face download page, once the ISO is uploaded -->
-  <a href="https://huggingface.co/CinMin"><b>⬇ Download (Hugging Face)</b></a> ·
+
+  <a href="https://huggingface.co/CinMin/Cin-MinAI-OS"><b>⬇ Download 0.0.1 (Hugging Face)</b></a> ·
   <a href="docs/install/make-usb-stick.md">Make a USB stick</a> ·
   <a href="#what-it-does-today">What it does</a> ·
   <a href="docs/PLAN.md">Every decision</a>
@@ -36,7 +36,6 @@
 
 ## What it does today
 
-<!-- TODO(screenshot) for each item below, from the test install -->
 
 **A guide that's always there.** A sidebar (or press <kbd>Super</kbd>+<kbd>A</kbd>) that answers in plain words,
 made for people coming from Windows: *"Where's my C: drive?"*, *"How do I do updates, like Windows Update?"* It
@@ -64,8 +63,7 @@ change and waits for you…
 <p align="center"><img src="artwork/screenshots/aicui-edit-done.png" alt="AICUI after the edit: Done, the note quoted, and where it sits on the page" width="820"><br>
 <img src="artwork/screenshots/wedding-page-edited.png" alt="The wedding page in Firefox with the new swimming-gear note under the parking note" width="820"></p>
 
-**It can see.** Show it a photo, a screenshot of an error, a scanned letter or a video: it describes it,
-summarizes it, or reads it out. Point it at a repair video and ask what happens at the part you're stuck on.
+**Coming next: it can see.** Working in our lab, not yet in this release: show it a photo, a screenshot of an error, a scanned letter or a video, and it describes it, summarizes it, or reads it out. Point it at a repair video and ask what happens at the part you're stuck on — it watches so you don't have to scrub back and forth.
 
 **It writes with you.** A writing space for stories, letters and long projects, and a private journal.
 
