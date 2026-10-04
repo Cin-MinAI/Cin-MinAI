@@ -4,7 +4,7 @@
 #
 #   wsl -d Ubuntu-24.04 -u root -- /path/to/distro/check-iso.sh [--rebuild]
 #
-# 1. the live system differs from upstream by exactly our packages (manifest diff: added lines only);
+# 1. the live system differs from upstream by exactly our packages and their named dependencies (added lines only);
 # 2. the boot setup is upstream's, unchanged (El Torito and partition-table report identical), so the image
 #    is still a hybrid that USB writers handle in one step;
 # 3. md5sum.txt matches the files it lists (casper's "check disc for defects" uses it), and the guide model
@@ -20,8 +20,10 @@ fail=0; ok() { echo "PASS  $*"; }; bad() { echo "FAIL  $*"; fail=1; }
 
 diff=$M1/out/$OUT_ISO.manifest-diff
 removed=$(grep -c '^<' "$diff" || true); added=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort | tr '\n' ' ')
-want="cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sidebar "
-[[ $removed == 0 && $added == "$want" ]] && ok "manifest: only our packages added ($added)" \
+# ours, plus the dependencies the image lacks, from the dated Ubuntu snapshot (git for AICUI, 2026-10-03) — named
+# one by one, so anything else that appears still fails
+want="cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sidebar git git-man liberror-perl "
+[[ $removed == 0 && $added == "$want" ]] && ok "manifest: only our packages and their named dependencies added ($added)" \
     || bad "manifest: removed $removed, added: $added"
 
 # The boot entries, their types, flags and sizes must match upstream's; their block positions may move
