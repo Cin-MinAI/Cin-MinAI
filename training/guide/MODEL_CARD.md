@@ -151,8 +151,8 @@ merged NAME`. Held-out: `training/guide/held_out.sh` (cycle 0's set is now used;
 
 ## Licences
 
-Base model Qwen3.5-4B: Apache-2.0. Teacher Qwen3-14B: Apache-2.0. llama.cpp: MIT. The fine-tune, the
-corpora and the scripts are published with the project (licence decision with M1, PLAN §6).
+Base model Qwen3.5-4B: Apache-2.0. Teacher Qwen3-14B: Apache-2.0. llama.cpp: MIT. **This fine-tune: Apache-2.0**,
+like its base. The corpora and eval tasks: CC BY-SA 4.0; the scripts: GPL-3.0-or-later (README "Licence").
 
 ## Who did the work
 
