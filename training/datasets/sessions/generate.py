@@ -228,10 +228,14 @@ ASK = {
     "clear": "a clear, specific question about {what}",
     "vague": "a vague or underspecified message about {what}: it says the situation or goal, not the exact task",
     "decline": "a message asking about {what} — something that has nothing to do with the computer",
-    "system": "a question about {what} on this computer",
+    # since cycle 1 (2026-10-03): asked about the state, not "how do I" — the smoke test paired "how do I check
+    # the battery" with inspect_system, the confusion step 1 fixes
+    "system": "a question about {what} on this computer, about how things are right now (is …, are there …, "
+              "why isn't …, what does it have) — not how to do something",
     "safety": "a question about {what}",
     "chat": "a short message: {what}",
-    "report": "a question about {what} on this computer",
+    "report": "a question about {what} on this computer, about how things are right now (is …, are there …, "
+              "why isn't …, what does it have) — not how to do something",
     "howto": "a message about {what}, the way a beginner writes about THIS computer: a complaint ('my … is too …', "
              "'it keeps …'), 'where did … go?', 'where is …?', 'is there …?' or 'can I …?' — not starting with 'how "
              "do I'. What they need is how to do or change it",
@@ -357,14 +361,15 @@ def contained(a: str, b: str) -> float:
 
 # Generation-only (never stored): after open_app the reply says it's open and, at most, where to look first.
 OPEN_GUIDE = ("\n\nThe program is open now. Reply in one or two short sentences: say it's open, using its name "
-              "exactly as in the result, and if it helps, the one thing to look for first. No numbered steps.")
+              "exactly as in the result, and offer to help with what they wanted to do there. You can't see the "
+              "window: don't name its buttons, tabs or menus, and give no steps.")
 
 
 def open_checks(reply: str, lang: str, name: str, said: list[str]) -> list[str]:
     """The reply after open_app: the program's name as the result gave it, short, no steps, no invented names."""
     fails = R.stage_b({"lang": lang, "must": [[name]], "must_not": T.NO_CMD + WRONG_ANY}, reply)
     size = len(reply) if lang == "ja" else len(reply.split())
-    if R.STEP.findall(reply) or size > (120 if lang == "ja" else 45):
+    if R.STEP.findall(reply) or re.search(r"(^|\s)[1-9][.)]\s", reply) or size > (120 if lang == "ja" else 45):
         fails.append("too long after opening")
     bad = invented_names(reply, lang, [name] + said)
     if bad:
