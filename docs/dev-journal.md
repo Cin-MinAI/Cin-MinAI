@@ -1147,3 +1147,17 @@ venv, which wasn't needed — no card covered tkinter, so it improvised: a tkint
 existing .venv), whose search words name venvs too (the guide's query "install tkinter in a virtual environment" had
 drawn the venv-creation card); (3) the card note still said Ctrl+Shift+V where To terminal was offered; (4) markdown
 shows raw in places (open). Terminal eval 14/14 (R11 is his own tinkter case).
+
+## 2026-10-04 (evening) — M3's exit test passes on the test SSD
+
+M3 exit: "the assistant diagnoses a seeded build failure from the user's real terminal and verifies the fix in the
+sandbox." Run on the SSD through the daemon, as the sidebar does (`/tmp/m3_exit.py`, a throwaway folder of our own):
+a real shared terminal runs `.venv/bin/python hello.py` in a folder with no venv → the sidebar's question "why didnt
+this work?" → "Looked at your terminal", a help lookup carrying the failed command → the fix `python3 -m venv .venv`
+→ **Try it first**: exit 0 on a copy of the folder at its real path, "It would create: .venv (1,013 files)", 2.4 s,
+pasta's private network; the real folder still held only hello.py. Networking in the sandbox checked separately: DNS
+resolves, HTTPS from PyPI in 0.1 s (pasta's "Couldn't get any nameserver address" is a note about the local
+resolver stub; now filtered from the output). The answer had led with "the venv wasn't activated" — a new card,
+`venv_missing`, now opens with "this folder has no virtual environment yet"; eval R13 (this exact case). Terminal
+eval **16/16**. On the way: a long install line in prompts.txt broke when copied (`…sandbox….deb: command not found`,
+then apt's unmet dependency) — install lines are now short globs (`./install-debs.sh *164858*.deb`).

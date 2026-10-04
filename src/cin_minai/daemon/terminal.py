@@ -276,7 +276,9 @@ def try_first(command: str, timeout: int = TRY_TIMEOUT) -> dict:
         gone = sorted(p for p in before if p not in after)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    out = extract(redact((r.stdout or "") + (r.stderr or "")).strip())
+    # pasta's own note when the host's resolver is a local stub (systemd-resolved); names still resolve (checked)
+    noise = re.compile(r"^Couldn't get any nameserver address$", re.M)
+    out = extract(redact(noise.sub("", (r.stdout or "") + (r.stderr or ""))).strip())
     return {"ok": True, "exit": r.returncode, "output": out, "net": net, "venv": bool(venv), "folder": cwd,
             "timed_out": r.returncode == -9, "made": _summary(made), "changed": _summary(changed),
             "deleted": _summary(gone), "seconds": round(time.time() - started, 1)}

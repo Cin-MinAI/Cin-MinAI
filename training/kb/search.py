@@ -248,6 +248,10 @@ KEYWORDS = {
     "venv_create": "ensurepip is not available virtual environment was not created successfully python3-venv venv "
                    "create virtual environment python3 -m venv fails entorno virtual ambiente virtual "
                    "environnement virtuel virtuelle umgebung 仮想環境",
+    "venv_missing": "no such file or directory .venv/bin/python .venv/bin/pip .venv/bin/activate no venv missing venv "
+                    "venv doesn't exist no virtual environment make a venv create venv here python3 -m venv "
+                    "no existe el entorno virtual ambiente virtual não existe pas d'environnement virtuel "
+                    "keine virtuelle umgebung 仮想環境がない",
     "venv_use": "venv .venv activate source activate virtual environment deactivate bad interpreter broken venv "
                 "moved folder renamed project .venv/bin/pip .venv/bin/python requirements.txt permission denied "
                 "activate entorno virtual activar ambiente virtual ativar environnement virtuel activer "

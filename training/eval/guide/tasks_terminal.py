@@ -53,6 +53,9 @@ SITUATIONS = {
     # Ian's own run on the test SSD, 2026-10-04, inside an activated .venv
     "T_TK": [cmd("pip install tinkter", "ERROR: Could not find a version that satisfies the requirement tinkter (from "
                  "versions: none)\nERROR: No matching distribution found for tinkter", 1, cwd=H + "/hello_world_test")],
+    # the M3 exit test on the SSD (2026-10-04): a folder without a venv
+    "T_NOVENV": [cmd(".venv/bin/python hello.py", "bash: .venv/bin/python: No such file or directory", 127,
+                     cwd=H + "/m3-exit-test")],
     "T_PEP668": [cmd("pip install requests",
                      "error: externally-managed-environment\n\n× This environment is externally managed\n╰─> To install "
                      "Python packages system-wide, try apt install\n    python3-xyz, where xyz is the package you are "
@@ -110,6 +113,11 @@ TASKS = [
      "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
      "must": [["python3-tk", "tkinter"]],
      "must_not": [r"rm -rf"]},
+    {"id": "R13", "cat": "terminal", "terminal": SITUATIONS["T_NOVENV"],
+     "q": {"en": ask(SITUATIONS["T_NOVENV"], "why didnt this work?")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     # the cause first: there's no venv here (the exit test's answer led with "it wasn't activated")
+     "must": [["python3 -m venv .venv"], ["~^[\\s\\S]{0,200}(no virtual environment|no venv|doesn't have|does not have|doesn't exist|does not exist|isn't there|missing|not found|no \\.venv)"]]},
     {"id": "R10", "cat": "terminal", "terminal": SITUATIONS["T_PEP668"],
      "q": {"en": ask(SITUATIONS["T_PEP668"], "what does this mean?"),
            "es": ask(SITUATIONS["T_PEP668"], "¿qué significa esto?")},

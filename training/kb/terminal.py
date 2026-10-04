@@ -52,6 +52,12 @@ TOPICS = [
              "python3-venv, then remove the half-made folder with rm -rf .venv (this deletes only the "
              "environment folder, not your code) and make it again: python3 -m venv .venv.",
      "must": [], "steps": False},
+    {"id": "venv_missing", "windows": "'No such file or directory' for .venv/bin/python, .venv/bin/pip or activate",
+     "card": "No such file or directory for .venv/bin/python, .venv/bin/pip or .venv/bin/activate: this folder has "
+             "no virtual environment yet (or it's in a different folder: check with ls -a). Make one here with "
+             "python3 -m venv .venv, then run your program with .venv/bin/python, or switch the environment on "
+             "first with source .venv/bin/activate.",
+     "must": [], "steps": False},
     {"id": "venv_use", "windows": "using a Python virtual environment (.venv): activate, broken after moving",
      "card": "Using a .venv: switch it on with source .venv/bin/activate (running .venv/bin/activate on its own "
              "says Permission denied: it has to be sourced). The prompt then shows (.venv); deactivate switches "

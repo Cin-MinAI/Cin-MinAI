@@ -316,6 +316,7 @@ hotkey and streams answers; killing the daemon doesn't affect the desktop and it
 - Start the eval harness here.
 
 Exit: the assistant diagnoses a seeded build failure from the user's real terminal and verifies the fix in the sandbox.
+**Status (2026-10-04):** exit test passed on the test SSD (journal, "M3's exit test passes"). Built: cinminai-shell (relay, D77), terminal context + terminal-error cards (eval 16/16), command cards with To terminal, cinminai-sandbox + Try it first, the bigger model for errors no card covers. Open: the sidebar's "let me see your terminals?" offer and cinminai-shell in the desktop metapackage; Explain on command cards; the other context providers (files, git, man, journal).
 
 ### M4 — Action boundary (built as Choice Atoms, D67)
 
