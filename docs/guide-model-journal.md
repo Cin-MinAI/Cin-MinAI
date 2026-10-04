@@ -251,3 +251,38 @@ calculator, Z3, Lean, LaTeX; D68); until they exist, `web_search` stays the expe
 answers are real failures for the corpus. C05 — ask questions when the request doesn't say enough, everywhere
 (D69): the item now expects an `answer` with a question. Both join the cycle-1 corpus changes, after the
 "checks the computer instead of helping" fix (one change per run).
+
+## Cycle 1, step 1: run C1 — no gain, and the CPU baseline misled us (2026-10-04)
+
+**Run C1** = HO's mix unchanged (360 turns, same picks) + 43 how-to-about-the-machine turns + 29 open-an-app turns
+(124 new sessions from the Qwen3-14B teacher, now on the dev PC's 4070; the shipped mix had **no** `open_app` turn
+at all). Same recipe as HO (1 epoch, lr 5e-5, 113 steps), merged and quantized the same way
+(`training/guide/cycle1.sh`). Both files scored on the same GPU build (7fe450e, RTX 4070), prompt v2.2:
+
+| Set | HO (shipped) | C1 |
+|---|---|---|
+| main (157) | **141 (90 %)** | 137 (87 %) |
+| diagnostics (18) | **16** | 14 |
+| create (7) | 4 | 4 |
+| web + writing (5) | 5 | 5 |
+| vague (19) | 0 | 0 |
+
+C1 fixed 3 items (S12 "open my files" → `open_app` files; T03-fr; O17) and broke 9: three the wrong way for this
+step (B03 DVDs, L08 small web text, T15 resolution → `inspect_system`), the formula range again (O01 es/pt), two
+diagnostics replies in Spanish (X03 in English, X06 without the facts), T21, O18. Still failing on both: L06
+"where did my download go", S04 memory, T08 C: drive, S11 mouse settings → `system_settings`.
+
+**Verdict: no gain; HO stays the guide.** One seed per run: a few items either way is within noise (MODEL_CARD
+"Limits"), but nothing points to an improvement on the habit we targeted.
+
+**The bigger finding — CPU and GPU disagree.** The cycle-1 baseline ran on the CPU (the pinned build saw no GPU in
+WSL: the CUDA runtime wasn't on the library path). The **same file** scores **85 % on the CPU and 90 % on the
+GPU** — same weights, same llama.cpp commit, temperature 0; the backends' arithmetic differs enough to flip close
+choices. Most of the "nine items that check the computer instead of helping" were CPU-only: on the GPU, HO already
+answers dark mode, startup programs, DVDs, small text and "delete my Downloads" right. Lessons:
+1. **Score decisions on the backend the product uses**, and say which. The live USB without a graphics card runs
+   the CPU path, so the CPU score matters too — it's a separate number, not noise to ignore.
+2. **A choice that flips with the backend is a weak choice**: the margin between "look it up" and "check the
+   computer" is thin for these items. That argues for clearer data, but not this data: C1 didn't widen it.
+3. **One seed can't separate a 3-item change from noise.** Before the next training change, measure the noise:
+   HO's recipe again with a second seed, same scoring. Then a change has a bar to clear.
