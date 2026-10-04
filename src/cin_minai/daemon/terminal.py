@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import time
 
 RECENT = 15 * 60          # a command older than this isn't "this"
@@ -191,6 +192,104 @@ def _latest(n: int) -> list[dict]:
             best, best_t, best_sock = cmds, when, t["sock"]
     LAST["sock"] = best_sock
     return best
+
+
+# --- try it first (M3 slice 4): the command on a copy of the terminal's folder, in the sandbox -----------------------
+TRY_MAX_BYTES = 500 << 20    # a bigger folder isn't copied: say so instead
+TRY_TIMEOUT = 180
+
+
+def _active_venv(sock: str, cwd: str) -> str | None:
+    """The venv activated in that terminal, read from its prompt: "(.venv) user@host:…$" (activate exports
+    VIRTUAL_ENV in the shell, where /proc can't see it; the prompt shows it)."""
+    from cin_minai.shell import ctl
+    lines = [l for l in ctl.request(sock, {"cmd": "screen"}, timeout=1.0).get("lines", []) if l.strip()]
+    m = re.match(r"\(([^)\s]+)\) ", lines[-1].lstrip("◆ ")) if lines else None
+    if m:
+        venv = os.path.join(cwd, m.group(1))
+        if os.path.isfile(os.path.join(venv, "bin", "activate")):
+            return venv
+    return None
+
+
+def _snapshot(root: str) -> dict:
+    out = {}
+    for dirpath, dirs, files in os.walk(root):
+        for f in files:
+            p = os.path.join(dirpath, f)
+            try:
+                st = os.lstat(p)
+            except OSError:
+                continue
+            out[os.path.relpath(p, root)] = (st.st_size, int(st.st_mtime))
+    return out
+
+
+def try_first(command: str, timeout: int = TRY_TIMEOUT) -> dict:
+    """Run a command the assistant suggested on a throwaway copy of the terminal's folder, in the sandbox (PLAN D1,
+    SPEC §8.2: no root, no D-Bus, no X server, only a private network), and say what happened. The copy is mounted at
+    the folder's real path, so absolute paths in it (a venv's) still work; the person's folder isn't touched."""
+    import shutil
+    import tempfile
+    try:
+        from cin_minai import sandbox
+    except ImportError:
+        return {"ok": False, "error": "The sandbox isn't installed (the cinminai-sandbox package)."}
+    started = time.time()
+    if re.match(r"\s*(sudo|pkexec|su)\b", command):
+        return {"ok": False, "error": "It needs your password, so it can't be tried in the sandbox: it would change "
+                                      "the system itself. Run it in the terminal if it's what you want."}
+    try:
+        from cin_minai.shell import ctl
+        sock = LAST["sock"] if LAST["sock"] and os.path.exists(LAST["sock"]) else next(iter(ctl.sockets()), None)
+        cwd = ctl.request(sock, {"cmd": "status"}, timeout=1.0).get("cwd") if sock else None
+    except Exception:
+        sock = cwd = None
+    if not cwd or not os.path.isdir(cwd):
+        return {"ok": False, "error": "There's no shared terminal to take the folder from."}
+    if os.path.realpath(cwd) == os.path.realpath(os.path.expanduser("~")):
+        return {"ok": False, "error": "Your terminal is in your home folder; trying a command works in a project "
+                                      "folder (cd into it first)."}
+    try:
+        sandbox.valid_place(cwd)
+    except ValueError:
+        return {"ok": False, "error": "That folder can't be tried in the sandbox."}
+    before = _snapshot(cwd)
+    size = sum(s for s, _ in before.values())
+    if size > TRY_MAX_BYTES:
+        return {"ok": False, "error": f"The folder is too big to copy for a try ({size >> 20} MB)."}
+    venv = None
+    try:
+        venv = _active_venv(sock, cwd)
+    except Exception:
+        pass
+    work = tempfile.mkdtemp(prefix="cinminai-try-")
+    try:
+        copy = os.path.join(work, "folder")
+        shutil.copytree(cwd, copy, symlinks=True)
+        prefix = f"export VIRTUAL_ENV={shlex.quote(venv)} PATH={shlex.quote(venv + '/bin')}:$PATH; " if venv else ""
+        net = sandbox.best_net()
+        r = sandbox.run(["bash", "-c", prefix + command], copy, net=net, limits=True, timeout=timeout, mount_at=cwd)
+        after = _snapshot(copy)
+        made = sorted(p for p in after if p not in before)
+        changed = sorted(p for p in after if p in before and after[p] != before[p])
+        gone = sorted(p for p in before if p not in after)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    out = extract(redact((r.stdout or "") + (r.stderr or "")).strip())
+    return {"ok": True, "exit": r.returncode, "output": out, "net": net, "venv": bool(venv), "folder": cwd,
+            "timed_out": r.returncode == -9, "made": _summary(made), "changed": _summary(changed),
+            "deleted": _summary(gone), "seconds": round(time.time() - started, 1)}
+
+
+def _summary(paths: list[str], limit: int = 6) -> dict:
+    """{"count", "top": the first few top-level names} — a new .venv is one line, not 1,500 files."""
+    tops = []
+    for p in paths:
+        t = p.split(os.sep)[0]
+        if t not in tops:
+            tops.append(t)
+    return {"count": len(paths), "top": tops[:limit]}
 
 
 def send(text: str) -> dict:

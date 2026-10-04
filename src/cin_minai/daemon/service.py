@@ -57,6 +57,9 @@ XML = f"""
     <!-- "To terminal" on a command card (M3, SPEC §6.4): put the command at the prompt of the terminal the assistant
          last read, as if typed, without Enter. JSON out: ok, error, warnings (root, ssh) -->
     <method name="TerminalSend"><arg type="s" name="text" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <!-- "Try it first" on a command card (M3 slice 4): the command on a throwaway copy of the terminal's folder, in
+         the sandbox; a job: Action "sandbox" running, then done with what happened (JSON). The folder isn't touched -->
+    <method name="TerminalTry"><arg type="s" name="text" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- "Put in Writer": a new Writer document in Documents with this text (an answer), opened; never overwrites -->
     <method name="MakeDocument"><arg type="s" name="title" direction="in"/><arg type="s" name="text" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
@@ -339,6 +342,21 @@ class Service:
             (text,) = params.unpack()
             from . import terminal
             inv.return_value(GLib.Variant("(s)", (json.dumps(terminal.send(text), ensure_ascii=False),)))
+        elif method == "TerminalTry":
+            (text,) = params.unpack()
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+
+            def trial(on_text, on_action, cmd=text):
+                from . import terminal
+                on_action("sandbox", {"command": cmd}, "running", "")
+                out = terminal.try_first(cmd)
+                on_action("sandbox", {"command": cmd}, "done", json.dumps(out, ensure_ascii=False))
+                return {"tool": "sandbox", "exit": out.get("exit"), "seconds": out.get("seconds")}
+            self.job(self.next_id, trial)
         elif method == "AskBigger":
             (oid,) = params.unpack()
             question = self.bigger_offers.pop(oid, None)

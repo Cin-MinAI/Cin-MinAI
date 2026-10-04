@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
-Depends: python3 (>= 3.12), python3-pyte, bash
+Depends: python3 (>= 3.12), python3-pyte, bash, cinminai-sandbox (>= @RELEASE@)
 Description: Cin-MinAI terminal sharing
  Lets the Cin-MinAI assistant see the terminals you choose to share: each
  command, its output and whether it worked, so it can help when something

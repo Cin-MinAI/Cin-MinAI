@@ -1,0 +1,12 @@
+Package: cinminai-sandbox
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: python3 (>= 3.12), bubblewrap, passt
+Description: Cin-MinAI sandbox for trying commands safely
+ Lets the Cin-MinAI assistant try a command it suggested before you run it:
+ on a throwaway copy of your folder, without root, without access to the rest
+ of your files, your desktop or your system, and with only a private network.
+ Your files aren't touched; you see what would happen, then decide.

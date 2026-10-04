@@ -108,7 +108,7 @@ def commands_in_result(result: str) -> list[dict]:
 def commands_in_text(text: str) -> list[dict]:
     """Commands the guide wrote itself: a fenced block, or a command in backticks. A block of several commands
     becomes one card per command (Ian's venv test, 2026-10-04: four commands, rm -rf among them, in one card that
-    a single Enter would have run), indentation removed; a line ending in \ continues on the next."""
+    a single Enter would have run), indentation removed; a line ending in a backslash continues on the next."""
     found = []
     for block in FENCE.findall(text):
         line_buf = ""
@@ -470,3 +470,50 @@ def sent_to_terminal(reply: dict) -> str:
         warn = "; ".join(reply.get("warnings") or [])
         return "It's at your prompt: check it, then press Enter in the terminal to run it." + (f" Careful: {warn}." if warn else "")
     return f"Not sent: {reply.get('error') or 'the terminal didn’t accept it'}."
+
+
+# --- try it first (M3 slice 4) -------------------------------------------------------------------------------
+TRYING = "Trying it on a copy of your folder…"
+
+
+def can_try(command: str) -> bool:
+    """Commands that change the system itself need the password, and the sandbox has no root: not offered."""
+    return not re.match(r"\s*(sudo|pkexec|su)\b", command)
+
+
+def trying(args: dict) -> str:
+    return f"Trying in the sandbox: {args.get('command', '')}"
+
+
+def try_verdict(r: dict) -> str:
+    if not r.get("ok"):
+        return f"Couldn't try it: {r.get('error', 'something went wrong')}"
+    if r.get("timed_out"):
+        return "It was still running after 3 minutes, so the try was stopped. Nothing in your folder changed."
+    head = ("It worked on the copy." if r.get("exit") == 0 else
+            f"It didn't work on the copy either (exit code {r.get('exit')}).")
+    tail = " Your folder wasn't touched: to do it for real, use To terminal and press Enter there."
+    if r.get("exit") == 0 and r.get("net") == "none":
+        tail = " (The sandbox had no internet, because passt isn't installed.)" + tail
+    return head + tail
+
+
+def _names(part: dict) -> str:
+    more = part["count"] - len(part["top"])
+    return ", ".join(part["top"]) + (f" ({part['count']} files)" if part["count"] > len(part["top"]) or more else "")
+
+
+def try_details(r: dict) -> list[tuple[str, bool]]:
+    """(text, monospace) lines under the verdict: what it would make, change and delete, then its output."""
+    if not r.get("ok"):
+        return []
+    out = []
+    for key, verb in (("made", "It would create"), ("changed", "It would change"), ("deleted", "It would delete")):
+        part = r.get(key) or {}
+        if part.get("count"):
+            out.append((f"{verb}: {_names(part)}", False))
+    if r.get("venv"):
+        out.append(("It ran with the terminal's active venv.", False))
+    if r.get("output"):
+        out.append((r["output"], True))
+    return out

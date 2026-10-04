@@ -406,6 +406,10 @@ class Sidebar(Gtk.Application):
             self.outline_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "review" and args[3] == "proposal":
             self.review_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "sandbox" and args[3] == "running":
+            self.progress_line(words.trying(json.loads(args[2] or "{}")))
+        elif signal == "Action" and args[1] == "sandbox" and args[3] == "done":
+            self.try_result(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "bigger_model" and args[3] == "proposal":
             self.bigger_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "bigger_model" and args[3] == "running":
@@ -816,6 +820,23 @@ class Sidebar(Gtk.Application):
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
 
+    def try_result(self, r: dict) -> None:
+        """What the command did on the copy (M3 slice 4): the verdict in the answer bubble, the details below."""
+        if self.reply is not None:
+            self.reply.get_style_context().remove_class("waiting")
+            self.reply.set_text(words.try_verdict(r))
+            self.reply_started = True
+        details = words.try_details(r)
+        if details:
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            box.get_style_context().add_class("command")
+            for text, mono in details:
+                label = Gtk.Label(label=text, xalign=0, wrap=True, selectable=mono, max_width_chars=30)
+                label.get_style_context().add_class("code" if mono else "note")
+                box.pack_start(label, False, False, 0)
+            self.chat.pack_start(box, False, False, 0)
+            box.show_all()
+
     def bigger_card(self, offer: dict) -> None:
         """A terminal error the built-in help doesn't cover: the person may ask the bigger model they already have
         (Ian, 2026-10-04: only when no card fits, and only if they say so). Nothing loads before the click."""
@@ -1075,6 +1096,13 @@ class Sidebar(Gtk.Application):
             send.connect("clicked", on_send)
             row = Gtk.Box(spacing=6)
             row.pack_start(send, False, False, 0)
+            if words.can_try(card["command"]):  # M3 slice 4: on a copy of the folder, in the sandbox
+                trial = Gtk.Button(label="Try it first")
+                trial.set_tooltip_text("Run it on a copy of your folder, in a sandbox: your files and your system "
+                                       "aren't touched. Then you decide.")
+                trial.connect("clicked", lambda b, c=card["command"]: (b.set_sensitive(False), self.start_job(
+                    "TerminalTry", c, words.TRYING)))
+                row.pack_start(trial, False, False, 0)
             box.pack_start(row, False, False, 0)
             box.pack_start(said, False, False, 0)
         for text in words.card_notes(card, self.terminal_turn):
