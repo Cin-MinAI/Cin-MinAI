@@ -177,6 +177,13 @@ class Guide:
         """Answer one message. Returns {"reply", "tool", "args", "timings": [...]}; raises BackendError."""
         self.trim()
         user = {"role": "user", "content": text}
+        # a message about the terminal gets the shared terminal's last commands in front of it (M3, §11.5; D77)
+        from . import terminal
+        commands = terminal.latest()
+        if terminal.about_terminal(text, commands):
+            user["content"] = terminal.context(commands) + "\n\n" + text
+            on_action("terminal", {}, "done", json.dumps({"commands": [c.get("cmd") for c in commands[-terminal.MAX_COMMANDS:]
+                                                                         if c.get("cmd")]}, ensure_ascii=False))
         doc, system, schema = self.document()
         messages = [{"role": "system", "content": system}] + self.history + [user]
         edits = set(self.data["documents"][doc["type"]]["edit"]) if doc else set()

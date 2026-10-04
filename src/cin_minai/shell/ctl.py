@@ -23,7 +23,7 @@ LINE = f'[ -r {START} ] && . {START}'
 
 
 def runtime_dir() -> str:
-    base = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/cinminai-{os.getuid()}"
+    base = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/cinminai-{getattr(os, 'getuid', lambda: 0)()}"
     return os.path.join(base, "cinminai")
 
 

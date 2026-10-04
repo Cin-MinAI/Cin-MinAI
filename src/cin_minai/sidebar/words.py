@@ -28,6 +28,8 @@ def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
     """(icon name, words) for a tool the guide used."""
     if tool == "lookup_help":
         return "system-search-symbolic", "Looked it up in the built-in help"
+    if tool == "terminal":
+        return "utilities-terminal-symbolic", "Looked at your terminal (changes nothing)"
     if tool == "inspect_system":
         what = f"Checked {TOPICS.get(args.get('topic', ''), 'this computer')} (changes nothing)"
         n = len(_problems(result))

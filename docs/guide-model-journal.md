@@ -286,3 +286,14 @@ answers dark mode, startup programs, DVDs, small text and "delete my Downloads" 
    computer" is thin for these items. That argues for clearer data, but not this data: C1 didn't widen it.
 3. **One seed can't separate a 3-item change from noise.** Before the next training change, measure the noise:
    HO's recipe again with a second seed, same scoring. Then a change has a bar to clear.
+
+## M3 slice 2: the guide and terminal context (2026-10-04)
+
+`training/eval/guide/tasks_terminal.py`: 8 items, the shared terminal's last commands put in front of the question
+exactly as the daemon formats them (`cin_minai.daemon.terminal.context`). The shipped guide (HO, GPU, v2.2):
+**3/8**. It looks the error up (right instinct: R01 `sudo update` → "how to update Linux Mint", R02 unable to locate
+package), but the built-in help has no terminal-error cards, so pygame, Permission denied and the gcc error come back
+empty; and where it answers alone it can invent a wrong fix — R06 `cd Documents/Taxes 2025` → "cd
+Documents/Taxes/2025" and even `mkdir` it, in English and German (the cause is the space). Riskiest outcome: the
+person is at a prompt and may type it. Next (D32: reliability comes from what's built around the model):
+terminal-error help cards, then terminal questions to the bigger model when one is installed.
