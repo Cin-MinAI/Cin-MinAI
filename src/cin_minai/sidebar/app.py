@@ -346,12 +346,12 @@ class Sidebar(Gtk.Application):
 
     # --- pictures (D64, D78) ------------------------------------------------------------------------------
     def on_pick_image(self, button) -> None:
-        dialog = Gtk.FileChooserDialog(title="Show the assistant a picture", parent=self.win,
+        dialog = Gtk.FileChooserDialog(title="Show the assistant a picture or a video", parent=self.win,
                                        action=Gtk.FileChooserAction.OPEN)
         dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Show it", Gtk.ResponseType.ACCEPT)
         pics = Gtk.FileFilter()
-        pics.set_name("Pictures")
-        for ext in words.PICTURE_TYPES:
+        pics.set_name("Pictures and videos")
+        for ext in words.PICTURE_TYPES + words.VIDEO_TYPES:
             pics.add_pattern("*" + ext)
             pics.add_pattern("*" + ext.upper())
         dialog.add_filter(pics)
@@ -366,10 +366,10 @@ class Sidebar(Gtk.Application):
     def on_drop(self, widget, context, x, y, data, info, time_) -> None:
         for uri in data.get_uris() or []:
             path = GLib.filename_from_uri(uri)[0] if uri.startswith("file://") else None
-            if path and path.lower().endswith(words.PICTURE_TYPES):
+            if path and path.lower().endswith(words.PICTURE_TYPES + words.VIDEO_TYPES):
                 self.ask_image(path)
                 return
-        self.progress_line("I can read pictures (photos, screenshots, scans). Videos come next.")
+        self.progress_line(words.NOT_A_PICTURE)
 
     def ask_image(self, path: str) -> None:
         """The picture in the chat, then the question typed in the box (or "what's in this picture?")."""
@@ -377,17 +377,20 @@ class Sidebar(Gtk.Application):
             return
         request = self.entry.get_text().strip()
         self.entry.set_text("")
-        self.bubble("user", request or words.PICTURE_DEFAULT)
+        moving = path.lower().endswith(words.VIDEO_TYPES)
+        self.bubble("user", request or (words.VIDEO_DEFAULT if moving else words.PICTURE_DEFAULT))
         try:
-            thumb = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 240, 240, True)
-            pic = Gtk.Image.new_from_pixbuf(thumb)
+            if moving:  # the file's name; a thumbnail would need the video decoded here
+                pic = Gtk.Label(label="🎞 " + os.path.basename(path), xalign=1, wrap=True, max_width_chars=30)
+            else:
+                pic = Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 240, 240, True))
             pic.set_halign(Gtk.Align.END)
             self.chat.pack_start(pic, False, False, 0)
             pic.show()
         except GLib.Error:
             pass
         self.terminal_turn = False
-        self.start_job("AskImage", (path, request), words.LOOKING, "(ss)")
+        self.start_job("AskImage", (path, request), words.WATCHING if moving else words.LOOKING, "(ss)")
 
     def vision_setup_card(self, offer: dict) -> None:
         """The reading model's projector isn't here yet: a download, so asked first (D30)."""
@@ -495,6 +498,10 @@ class Sidebar(Gtk.Application):
             self.vision_setup_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "vision" and args[3] == "running":
             self.progress_line(words.vision_reading(json.loads(args[2] or "{}")))
+        elif signal == "Action" and args[1] == "video" and args[3] == "running":
+            self.progress_line(words.video_step(json.loads(args[2] or "{}"), json.loads(args[4] or "{}")))
+        elif signal == "Action" and args[1] == "video" and args[3] == "done":
+            self.progress_line(words.video_caveat(json.loads(args[4] or "{}"), self.reply.get_text() if self.reply else ""))
         elif signal == "Action" and args[1] == "vision" and args[3] == "done":
             self.progress_line(words.vision_caveat(json.loads(args[4] or "{}"), self.reply.get_text() if self.reply else ""))
         elif signal == "Action" and args[1] == "terminal_offer" and args[3] == "proposal":

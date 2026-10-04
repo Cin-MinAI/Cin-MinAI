@@ -558,12 +558,25 @@ def explain_question(command: str, lang: str = "en") -> str:
 PICTURE_TYPES = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff")
 PICTURE_DEFAULT = "What's in this picture?"
 LOOKING = "Looking at the picture… (loading the model that reads it can take a minute)"
-VISION_NEEDS = "To read pictures I need one more file first."
+VISION_NEEDS = "To do that I need a download first."
+VIDEO_TYPES = (".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".mpg", ".mpeg", ".wmv", ".flv", ".3gp", ".ts")
+VIDEO_DEFAULT = "Summarize this video: tell me what I need to know."
+WATCHING = "Watching the video… (this takes a few minutes: you can do other things meanwhile)"
+NOT_A_PICTURE = "I can read pictures (photos, screenshots, scans) and watch videos. That file is neither."
 
 
 def vision_setup(offer: dict) -> str:
     who = offer.get("model", "the model")
     size = offer.get("size_mb", "?")
+    if offer.get("video"):
+        parts = (["the picture reader (to see what's shown)"] if offer.get("reader") else []) + \
+                (["the speech recognizer (to hear what's said)"] if offer.get("speech") else [])
+        what = " and ".join(parts) or "one more file"
+        line = (f"To watch videos I need {what}: {size} MB in all, downloaded once and checked when it arrives. "
+                "Nothing leaves this computer when it watches.")
+        if not offer.get("recommended"):
+            line += " The built-in guide will read the pictures: it works, but the 27B coding model sees more."
+        return line
     if offer.get("recommended"):
         return (f"{who} reads pictures best, and it needs its picture reader: one download, {size} MB, checked when "
                 "it arrives. Nothing leaves this computer when it reads.")
@@ -584,6 +597,24 @@ NUMBERS = re.compile(
     r"|[$€£¥]\s?\d[\d,.]*\d|\d[\d,.]*\d\s?(?:USD|EUR|dollars|euros)"    # amounts
     r"|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"                              # dates written with numbers
     r"|\b(?:account|acct|invoice|reference|ref)\.?\s*(?:no\.?|number|#)?\s*:?\s*[A-Z0-9-]{4,}", re.I)
+
+
+# a video's answer also: measurements and part/model numbers — the lab's video errors were a soldering station's model
+# number and a file extension (2026-10-03); temperatures and torques are what a viewer acts on
+MEASURES = re.compile(
+    r"(?<![\w.,])\d+(?:[.,]\d+)?\s?(?:°\s?[CF]|degrees|Nm|newton[- ]metres?|newton[- ]meters?|ft[- ]?lbs?|psi|bar|"
+    r"mm|cm|inch(?:es)?|V|volts?|amps?|A|W|watts?|ml|L|litres?|liters?|kg|g|lbs?|rpm|%)(?![\w°])"
+    r"|(?<![\w-])(?=[A-Z0-9-]*\d)(?=[A-Z0-9-]*[A-Z])[A-Z0-9][A-Z0-9-]{4,}(?![\w-])")
+
+
+def numbers_heard(answer: str) -> list[str]:
+    """numbers_read plus measurements and part numbers, for a video's answer."""
+    out = numbers_read(answer)
+    for m in MEASURES.finditer(answer or ""):
+        n = m.group(0).strip()
+        if n not in out and not any(n in o for o in out):
+            out.append(n)
+    return out
 
 
 def numbers_read(answer: str) -> list[str]:
@@ -607,6 +638,40 @@ def vision_caveat(result: dict, answer: str = "") -> str:
     base += "A clear, well-lit picture gives the best answer; check what matters against the original."
     if not result.get("recommended"):
         base += " Read by the built-in guide: it works, but a bigger model reads more reliably."
+    if result.get("reduced"):
+        base += f" It was slower this time: {result['reduced']}."
+    return base
+
+
+STAGES = {"speech": "listening to what's said", "frames": "picking the moments where the picture changes",
+          "summary": "writing the summary"}
+
+
+def video_step(args: dict, more: dict) -> str:
+    """One line that follows the job: listening, frame 4 of 23, writing."""
+    stage = more.get("stage", "")
+    if stage == "frame":
+        doing = f"looking at moment {more.get('n')} of {more.get('of')} ({more.get('at')})"
+    else:
+        doing = STAGES.get(stage, "working")
+        if stage == "speech" and more.get("length"):
+            doing += f" (the video is {more['length']} long)"
+    return f"Watching {args.get('file', 'the video')} with {args.get('model', 'the model')}: {doing}…"
+
+
+def video_caveat(result: dict, answer: str = "") -> str:
+    """D64/D65, said every time: what it went by, and that names and numbers need checking."""
+    base = f"Watched in {result['took']}: " if result.get("took") else ""
+    base += f"{result.get('frames', 0)} moments looked at"
+    base += ", and what's said in it." if result.get("speech") else "; I heard no speech in it."
+    found = numbers_heard(answer)
+    if found:
+        base += (" Numbers from the video: " + ", ".join(found[:8]) + ". Check them in the video before you rely "
+                 "on them: speech recognition and small text both mishear and misread.")
+    else:
+        base += " Names and numbers can be misheard: check what matters in the video."
+    if not result.get("recommended"):
+        base += " Watched with the built-in guide: it works, but a bigger model sees more."
     if result.get("reduced"):
         base += f" It was slower this time: {result['reduced']}."
     return base

@@ -63,7 +63,8 @@ XML = f"""
     <!-- "Try it first" on a command card (M3 slice 4): the command on a throwaway copy of the terminal's folder, in
          the sandbox; a job: Action "sandbox" running, then done with what happened (JSON). The folder isn't touched -->
     <method name="TerminalTry"><arg type="s" name="text" direction="in"/><arg type="u" name="id" direction="out"/></method>
-    <!-- reading a picture (D64, D78): the file's path and the person's request; a job. If the reading model's projector
+    <!-- reading a picture or watching a video (D64, D78): the file's path and the person's request; a job. A video
+         reports its steps as Action "video" running (JSON: stage speech/frames/frame/summary) and a summary. If the reading model's projector
          isn't here yet: Action "vision_setup" state "proposal" (JSON: id, model, size_mb, recommended) and nothing
          more; VisionSetup fetches it (Action "download" progress), then reads the picture -->
     <method name="AskImage"><arg type="s" name="path" direction="in"/><arg type="s" name="request" direction="in"/>
@@ -540,29 +541,35 @@ class Service:
 
     # --- reading pictures (D64, D78) ---------------------------------------------------------------------
     def look(self, path: str, request: str, fetch_first: bool, on_text, on_action) -> dict:
-        from . import vision
+        from . import video, vision
         if not os.path.isfile(path):
-            raise BackendError("That picture isn't there any more.")
+            raise BackendError("That file isn't there any more.")
+        moving = video.is_video(path)
         inference = config.load()["inference"]
         choice = vision.choose(self.store, inference)
-        proj = choice["projector"]
-        if not choice["projector_ready"]:
+        needed = [m for m in ([choice["projector"]] + ([video.WHISPER] if moving else [])) if not self.store.has(m.file)]
+        if needed:
             if not fetch_first:  # ask first: it's a download (D30)
                 import uuid
                 oid = uuid.uuid4().hex[:12]
                 self.vision_offers = {oid: (path, request)}
                 on_action("vision_setup", {}, "proposal", json.dumps({
-                    "id": oid, "model": choice["model"], "size_mb": round(proj.size / 2**20),
-                    "recommended": choice["recommended"]}))
-                return {"tool": "vision", "needs": proj.file}
-            try:
-                self.store.download(proj, lambda have, total: on_action(
-                    "download", {"file": proj.file}, "running", json.dumps({
-                        "model": proj.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}"})),
-                    self.cancel)
-            except DownloadStopped:
-                on_text("Stopped. What was downloaded is kept, so it can carry on later.")
-                return {"tool": "vision", "done": False}
+                    "id": oid, "model": choice["model"], "size_mb": round(sum(m.size for m in needed) / 2**20),
+                    "recommended": choice["recommended"], "video": moving,
+                    "reader": any(m is choice["projector"] for m in needed),
+                    "speech": any(m is video.WHISPER for m in needed)}))
+                return {"tool": "vision", "needs": [m.file for m in needed]}
+            for m in needed:
+                try:
+                    self.store.download(m, lambda have, total, m=m: on_action(
+                        "download", {"file": m.file}, "running", json.dumps({
+                            "model": m.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}"})),
+                        self.cancel)
+                except DownloadStopped:
+                    on_text("Stopped. What was downloaded is kept, so it can carry on later.")
+                    return {"tool": "vision", "done": False}
+        if moving:
+            return self.watch(path, request, choice, inference, on_text, on_action)
         close_ups = vision.places(path, request)  # "find the …": where the colours meet, looked at closely
         on_action("vision", {"model": choice["model"], "file": os.path.basename(path), "places": len(close_ups)},
                   "running", "")
@@ -577,6 +584,57 @@ class Service:
         on_action("vision", {"model": choice["model"]}, "done", json.dumps({
             "model": choice["model"], "recommended": choice["recommended"], "reduced": reduced}))
         return {"tool": "vision", "model": choice["model"], "reply_chars": len(reply), "timings": [timing]}
+
+    def watch(self, path: str, request: str, choice: dict, inference: dict, on_text, on_action) -> dict:
+        """A video: the speech, the key frames read one by one, then the summary — each step reported (it takes
+        minutes: the lab's 28-minute video took 13)."""
+        from . import video, vision
+        import base64
+
+        def step(stage: str, **more) -> None:
+            on_action("video", {"model": choice["model"], "file": os.path.basename(path)}, "running",
+                      json.dumps({"stage": stage, **more}))
+
+        started = time.monotonic()
+        length = video.duration(path)
+        work = video.workdir()
+        try:
+            step("speech", length=video.hms(length))
+            lines = video.transcript(path, work, self.store.path(video.WHISPER.file))
+            if self.cancel.is_set():
+                return {"tool": "video", "done": False}
+            step("frames")
+            frames = video.key_frames(path, work, length)
+            reader = LlamaCppBackend(vision.backend_settings(choice, self.store, inference), log)
+            self.backend.unload()  # one card, one model
+            try:
+                described = []
+                for i, (t, f) in enumerate(frames):
+                    if self.cancel.is_set():
+                        return {"tool": "video", "done": False}
+                    step("frame", n=i + 1, of=len(frames), at=video.hms(t))
+                    with open(f, "rb") as fh:
+                        data = base64.b64encode(fh.read()).decode()
+                    text, _ = reader.chat([{"role": "user", "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
+                        {"type": "text", "text": video.frame_prompt(t, lines)}]}],
+                        max_tokens=200, cancel=self.cancel, sampling=vision.SAMPLING)
+                    described.append((t, text.strip()))
+                step("summary")
+                reply, timing = reader.chat([{"role": "user", "content": video.summary_prompt(request, lines, described)}],
+                                            max_tokens=1800, on_text=on_text, cancel=self.cancel,
+                                            sampling=vision.SAMPLING)
+                reduced = reader.status().reduced
+            finally:
+                reader.unload()
+        finally:
+            video.cleanup(work)
+        on_action("video", {"model": choice["model"]}, "done", json.dumps({
+            "model": choice["model"], "recommended": choice["recommended"], "reduced": reduced,
+            "speech": bool(lines), "frames": len(frames), "length": video.hms(length),
+            "took": video.hms(time.monotonic() - started)}))
+        return {"tool": "video", "model": choice["model"], "frames": len(frames), "speech_lines": len(lines),
+                "reply_chars": len(reply), "timings": [timing]}
 
     # --- a bigger model for an unusual terminal error (M3; Ian, 2026-10-04: only when no card fits, and asked) ---
     BIGGER_SYSTEM = ("You help a person with an error in their Linux Mint terminal. Say what caused it in plain "

@@ -1,0 +1,14 @@
+Package: cinminai-whisper
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: libc6 (>= 2.39), libstdc++6, libgcc-s1, libgomp1, ffmpeg
+Description: whisper.cpp for the Cin-MinAI assistant (speech in videos)
+ The pinned whisper.cpp release (whisper-cli) that turns the speech in a video
+ into text, so the assistant can summarize the video from what is said as well
+ as what is shown. It runs on the processor; ffmpeg takes the sound and the key
+ pictures out of the video. The speech model itself is downloaded only when the
+ person asks for a video summary and agrees. Nothing here sends anything. How it
+ was built: /usr/share/doc/cinminai-whisper/BUILDINFO.

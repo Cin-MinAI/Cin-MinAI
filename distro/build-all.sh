@@ -8,6 +8,7 @@
 O=/c/Users/Ian/cinminai-train-out
 W() { MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 "$@"; }
 W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e bash build-llama.sh > $O/br-llama.log 2>&1 || { echo "LLAMA FAILED" > $O/br-done.log; exit 1; }
+W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e bash build-whisper.sh > $O/br-whisper.log 2>&1 || { echo "WHISPER FAILED" > $O/br-done.log; exit 1; }
 W --cd /mnt/c/Users/Ian/Cin-minAI/distro -e bash -c "bash build-packages.sh && bash make-repo.sh" > $O/br-pkgs.log 2>&1 || { echo "PKGS FAILED" > $O/br-done.log; exit 1; }
 W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e bash -c "bash build-iso.sh && bash check-iso.sh" > $O/br-iso.log 2>&1; echo "iso+checks exit $?" > $O/br-done.log
 W -u root --cd /mnt/c/Users/Ian/Cin-minAI/distro -e env BOOTTEST=1 bash build-iso.sh > $O/br-boottest-build.log 2>&1 || { echo "BOOTTEST BUILD FAILED" >> $O/br-done.log; exit 1; }
