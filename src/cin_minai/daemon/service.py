@@ -652,7 +652,7 @@ class Service:
                         "summarize it. Reload the page and ask again.")
                 return {"tool": "web_video", "error": "empty"}
             return self.read_video(choice, inference, label, request, lines, frames, length, started, on_text,
-                                   on_action, source="youtube")
+                                   on_action, source="youtube", author=info.get("author") or "")
         finally:
             video.cleanup(work)
 
@@ -661,11 +661,12 @@ class Service:
         on_action("video", {"model": choice["model"], "file": label}, "running", json.dumps({"stage": stage, **more}))
 
     def read_video(self, choice, inference, label, request, lines, frames, length, started, on_text, on_action,
-                   source: str = "file") -> dict:
+                   source: str = "file", author: str = "") -> dict:
         """The key frames read one by one, then the summary led by the request — each step reported (minutes: the
         lab's 28-minute video took 13)."""
         from . import video, vision
         import base64
+        title = label if source == "youtube" else ""  # a file's name isn't a title to trust
         reader = LlamaCppBackend(vision.backend_settings(choice, self.store, inference), log)
         self.backend.unload()  # one card, one model
         try:
@@ -678,11 +679,12 @@ class Service:
                     data = base64.b64encode(fh.read()).decode()
                 text, _ = reader.chat([{"role": "user", "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
-                    {"type": "text", "text": video.frame_prompt(t, lines)}]}],
+                    {"type": "text", "text": video.frame_prompt(t, lines, title, author)}]}],
                     max_tokens=200, cancel=self.cancel, sampling=vision.SAMPLING)
                 described.append((t, text.strip()))
             self.video_step(choice, label, on_action, "summary")
-            reply, timing = reader.chat([{"role": "user", "content": video.summary_prompt(request, lines, described)}],
+            reply, timing = reader.chat([{"role": "user", "content": video.summary_prompt(request, lines, described,
+                                                                                         title, author)}],
                                         max_tokens=1800, on_text=on_text, cancel=self.cancel,
                                         sampling=vision.SAMPLING)
             reduced = reader.status().reduced

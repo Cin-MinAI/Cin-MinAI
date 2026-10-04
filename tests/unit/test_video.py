@@ -53,6 +53,15 @@ class Prompts(unittest.TestCase):
         self.assertIn(V.DEFAULT_REQUEST, p)
         self.assertIn("nothing is said", p)
 
+    def test_the_pages_title_and_channel_win_over_a_misread_logo(self):
+        # 2026-10-04: "League of Joy" read as "League of Legends" from a preview picture, then a "branding mismatch"
+        f = V.frame_prompt(30, [], "How to DRAW RICK - Rick and Morty", "League of Joy - How to Draw")
+        self.assertIn('"How to DRAW RICK - Rick and Morty" by League of Joy - How to Draw', f)
+        s = V.summary_prompt("", [], [(0.0, "A drawing.")], "How to DRAW RICK", "League of Joy")
+        self.assertIn("misreading of small text", s)
+        self.assertIn("Don't speculate about mistakes", s)
+        self.assertNotIn("misreading", V.summary_prompt("", [], [(0.0, "A cat.")]))  # a file: no title to trust
+
     def test_which_files_are_videos(self):
         self.assertTrue(V.is_video("/home/a/Clip.MP4"))
         self.assertFalse(V.is_video("/home/a/letter.jpg"))

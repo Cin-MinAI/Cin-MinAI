@@ -105,15 +105,31 @@ def said_before(lines: list[tuple[float, str]], t: float, chars: int = 300) -> s
     return " ".join(text for start, text in lines if start <= t)[-chars:]
 
 
-def frame_prompt(t: float, lines: list[tuple[float, str]]) -> str:
+# 2026-10-04, a drawing video with no speech: from a 320x180 preview picture the 27B read the channel's logo
+# "League of Joy" as "League of Legends", then warned of a "branding mismatch… likely a watermark error by the
+# creator". The page's own title and channel were known and not passed; now they are, and they win.
+KNOWN = ("\nThe video is \"{title}\" by {author} (from the page itself: correct). Where a picture seems to show a "
+         "different name or title, it's a misreading of small text: go by these.")
+
+
+def known(title: str = "", author: str = "") -> str:
+    if not title:
+        return ""
+    return KNOWN.format(title=title, author=author or "an unnamed channel")
+
+
+def frame_prompt(t: float, lines: list[tuple[float, str]], title: str = "", author: str = "") -> str:
     said = said_before(lines, t)
-    return FRAME.format(when=hms(t), said=f"\n(What was being said just before: \"{said}\")" if said else "")
+    return FRAME.format(when=hms(t), said=f"\n(What was being said just before: \"{said}\")" if said else "") + \
+        known(title, author)
 
 
-def summary_prompt(request: str, lines: list[tuple[float, str]], frames: list[tuple[float, str]]) -> str:
+def summary_prompt(request: str, lines: list[tuple[float, str]], frames: list[tuple[float, str]],
+                   title: str = "", author: str = "") -> str:
     text = "\n".join(f"[{hms(t)}] {w}" for t, w in lines) or "(nothing is said in this video)"
     return SUMMARY.format(request=request.strip() or DEFAULT_REQUEST, transcript=text,
-                          frames="\n".join(f"[{hms(t)}] {d}" for t, d in frames))
+                          frames="\n".join(f"[{hms(t)}] {d}" for t, d in frames)) + known(title, author) + \
+        ("\nDon't speculate about mistakes by the video's maker." if title else "")
 
 
 def workdir() -> str:
