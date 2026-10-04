@@ -84,6 +84,25 @@ class CommandCards(unittest.TestCase):
                                "./backup.sh", 'cd "Documents/Taxes 2025"'])
         self.assertNotIn(".venv", got)  # a folder name in backticks isn't a command
 
+    def test_a_block_of_commands_is_one_card_each(self):
+        # the guide's real block from Ian's venv test (2026-10-04), indentation and all
+        text = "Try this:\n```bash\ndeactivate\n    rm -rf .venv\n    python3 -m venv .venv\n    source .venv/bin/activate\n```"
+        got = [c["command"] for c in words.commands_in_text(text)]
+        self.assertEqual(got, ["deactivate", "rm -rf .venv", "python3 -m venv .venv", "source .venv/bin/activate"])
+
+    def test_continued_lines_stay_together(self):
+        text = "```\nsudo apt install \\\n  python3-tk\n```"
+        self.assertEqual([c["command"] for c in words.commands_in_text(text)], ["sudo apt install python3-tk"])
+
+    def test_deleting_is_said(self):
+        notes = words.card_notes({"command": "rm -rf .venv"})
+        self.assertTrue(any("deletes .venv" in n for n in notes))
+        self.assertFalse(any("deletes" in n for n in words.card_notes({"command": "python3 -m venv .venv"})))
+
+    def test_terminal_note(self):
+        self.assertIn("To terminal", words.card_notes({"command": "ls"}, terminal=True)[-1])
+        self.assertIn("Ctrl+Shift+V", words.card_notes({"command": "ls"})[-1])
+
     def test_sent_to_terminal(self):
         self.assertIn("press Enter", words.sent_to_terminal({"ok": True, "warnings": []}))
         self.assertIn("root", words.sent_to_terminal({"ok": True, "warnings": ["this terminal is root"]}))

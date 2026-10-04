@@ -61,6 +61,12 @@ TOPICS = [
              "python3 -m venv .venv, then reinstall what the project needs, for example .venv/bin/pip install -r "
              "requirements.txt if the project has that file.",
      "must": [], "steps": False},
+    {"id": "tkinter", "windows": "getting tkinter (Python's window toolkit): pip install tkinter fails",
+     "card": "tkinter, Python's toolkit for windows and buttons, doesn't come from pip: pip install tkinter finds "
+             "nothing (and the name is easy to mistype). It comes from the system: sudo apt install python3-tk. "
+             "It then works in your existing .venv too, so there's no need to remake it. Check with python3 -c "
+             "\"import tkinter\": no message means it's there.",
+     "must": [], "steps": False},
     {"id": "dpkg_lock", "windows": "'Could not get lock' when installing or updating with apt",
      "card": "Could not get lock (/var/lib/dpkg/lock-frontend): another program is installing or updating right "
              "now, often {update_manager} in the background. Wait until it finishes, then try again. Don't delete "

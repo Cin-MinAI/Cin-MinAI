@@ -252,6 +252,10 @@ KEYWORDS = {
                 "moved folder renamed project .venv/bin/pip .venv/bin/python requirements.txt permission denied "
                 "activate entorno virtual activar ambiente virtual ativar environnement virtuel activer "
                 "virtuelle umgebung aktivieren 仮想環境 有効化",
+    "tkinter": "tkinter tinkter tkinker tk _tkinter python3-tk gui window toolkit install tkinter in a virtual "
+               "environment venv .venv pip install tkinter no matching "
+               "distribution found for tkinter could not find a version that satisfies the requirement tkinter "
+               "interfaz gráfica interface gráfica interface graphique grafische oberfläche ウィンドウ",
     "dpkg_lock": "could not get lock dpkg lock lock-frontend unable to acquire another process is using "
                  "apt busy waiting for cache lock bloqueo bloqueio verrou sperre ロック",
     "no_such_file": "no such file or directory file not found folder not found wrong path pwd ls cd "

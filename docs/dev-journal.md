@@ -1133,3 +1133,17 @@ does (good signature, 11 packages verified). The test SSD, installed before the 
 showed the update, Ian installed it and rebooted: "went smooth."** Checked afterwards: all 11 packages at `081119` from
 `cin-minai.github.io/cinminai-apt`, the dev key gone, the agent loads inside `diag-test`, the search says Firefox 157.
 (On the way: `git pull` in WSL hangs — WSL has no GitHub key; git for the apt repo runs from Windows.)
+
+## 2026-10-04 — M3: the first real terminal session, and what it taught
+
+Ian's venv test on the test SSD, with terminal sharing on: `install venv` (wrong command), `sudo apt install
+python3-venv`, `python3 -m venv .venv`, `.venv/bin/activate` twice (Permission denied — it has to be sourced),
+`source .venv/bin/activate`, `source .venv/bin/deactivate` (deactivate is a command, not a file), `pip install
+tinkter` (a typo, and tkinter never comes from pip). The relay kept all of it, without the sudo password. The sidebar
+read the terminal, named python3-tk correctly, and offered command cards with Copy and To terminal. Four things to fix,
+all fixed the same day: (1) one card held four commands with `rm -rf .venv` among them — a single Enter would have run
+them all: now one card per command, and a card that deletes says what it deletes; (2) the guide told him to remake the
+venv, which wasn't needed — no card covered tkinter, so it improvised: a tkinter card (python3-tk, works in the
+existing .venv), whose search words name venvs too (the guide's query "install tkinter in a virtual environment" had
+drawn the venv-creation card); (3) the card note still said Ctrl+Shift+V where To terminal was offered; (4) markdown
+shows raw in places (open). Terminal eval 14/14 (R11 is his own tinkter case).

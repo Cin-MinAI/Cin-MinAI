@@ -50,6 +50,9 @@ SITUATIONS = {
     "T_MOVED": [cmd(".venv/bin/pip install requests",
                     "bash: /home/sam/hello_world_test/.venv/bin/pip: /home/sam/hello_test/.venv/bin/python3: "
                     "bad interpreter: No such file or directory", 126, cwd=H + "/hello_world_test")],
+    # Ian's own run on the test SSD, 2026-10-04, inside an activated .venv
+    "T_TK": [cmd("pip install tinkter", "ERROR: Could not find a version that satisfies the requirement tinkter (from "
+                 "versions: none)\nERROR: No matching distribution found for tinkter", 1, cwd=H + "/hello_world_test")],
     "T_PEP668": [cmd("pip install requests",
                      "error: externally-managed-environment\n\n× This environment is externally managed\n╰─> To install "
                      "Python packages system-wide, try apt install\n    python3-xyz, where xyz is the package you are "
@@ -96,6 +99,11 @@ TASKS = [
      "q": {"en": ask(SITUATIONS["T_MOVED"], "my venv was working yesterday, what happened?")},
      "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
      "must": [["moved", "renamed", "rename", "move"], ["python3 -m venv"]]},
+    {"id": "R11", "cat": "terminal",
+     "q": {"en": ask(SITUATIONS["T_TK"], "how do I get tkinter in my venv?")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["python3-tk"]],
+     "must_not": [r"rm -rf"]},  # the venv is fine: remaking it (Ian's run) was unnecessary
     {"id": "R10", "cat": "terminal",
      "q": {"en": ask(SITUATIONS["T_PEP668"], "what does this mean?"),
            "es": ask(SITUATIONS["T_PEP668"], "¿qué significa esto?")},

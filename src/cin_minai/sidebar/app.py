@@ -1077,7 +1077,7 @@ class Sidebar(Gtk.Application):
             row.pack_start(send, False, False, 0)
             box.pack_start(row, False, False, 0)
             box.pack_start(said, False, False, 0)
-        for text in words.card_notes(card):
+        for text in words.card_notes(card, self.terminal_turn):
             note = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
             note.get_style_context().add_class("note")
             box.pack_start(note, False, False, 0)

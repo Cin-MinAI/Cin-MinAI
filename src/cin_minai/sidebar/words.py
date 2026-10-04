@@ -106,8 +106,24 @@ def commands_in_result(result: str) -> list[dict]:
 
 
 def commands_in_text(text: str) -> list[dict]:
-    """Commands the guide wrote itself: a fenced block, or a command in backticks."""
-    found = [m.strip() for m in FENCE.findall(text)] + INLINE.findall(text)
+    """Commands the guide wrote itself: a fenced block, or a command in backticks. A block of several commands
+    becomes one card per command (Ian's venv test, 2026-10-04: four commands, rm -rf among them, in one card that
+    a single Enter would have run), indentation removed; a line ending in \ continues on the next."""
+    found = []
+    for block in FENCE.findall(text):
+        line_buf = ""
+        for line in block.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.endswith("\\"):
+                line_buf += line[:-1].rstrip() + " "
+                continue
+            found.append(line_buf + line)
+            line_buf = ""
+        if line_buf.strip():
+            found.append(line_buf.strip())
+    found += [c.strip() for c in INLINE.findall(text)]
     return [{"command": c, "explain": "", "undo": ""} for c in found if c]
 
 
@@ -122,15 +138,22 @@ def merge_cards(*lists: list[dict]) -> list[dict]:
     return out
 
 
-def card_notes(card: dict) -> list[str]:
+DELETES = re.compile(r"\brm\s+(-\w+\s+)*(?P<what>[^\s;|&]+)")
+
+
+def card_notes(card: dict, terminal: bool = False) -> list[str]:
     notes = []
     if card.get("explain"):
         notes.append(f"What it does: {card['explain']}")
     if card.get("undo"):
         notes.append(f"To undo: {card['undo']}")
+    gone = DELETES.search(card["command"])
+    if gone:
+        notes.append(f"This deletes {gone.group('what')}. Make sure that's what you want gone.")
     if card["command"].lstrip().startswith("sudo") or "| sudo" in card["command"]:
         notes.append("It asks for your password: that's you saying yes.")
-    notes.append("Copy, then paste it in the Terminal with Ctrl+Shift+V and press Enter.")
+    notes.append("To terminal puts it at your prompt; press Enter there to run it." if terminal else
+                 "Copy, then paste it in the Terminal with Ctrl+Shift+V and press Enter.")
     return notes
 
 
