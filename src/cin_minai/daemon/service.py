@@ -57,6 +57,9 @@ XML = f"""
     <!-- "To terminal" on a command card (M3, SPEC §6.4): put the command at the prompt of the terminal the assistant
          last read, as if typed, without Enter. JSON out: ok, error, warnings (root, ssh) -->
     <method name="TerminalSend"><arg type="s" name="text" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <!-- terminal sharing (D77: offered, then on): "on" / "off" (new terminals), "never" (don't offer again), "later",
+         or "state"; JSON out: available (cinminai-shell installed), on, open (shared terminals now) -->
+    <method name="TerminalSharing"><arg type="s" name="choice" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- "Try it first" on a command card (M3 slice 4): the command on a throwaway copy of the terminal's folder, in
          the sandbox; a job: Action "sandbox" running, then done with what happened (JSON). The folder isn't touched -->
     <method name="TerminalTry"><arg type="s" name="text" direction="in"/><arg type="u" name="id" direction="out"/></method>
@@ -342,6 +345,14 @@ class Service:
             (text,) = params.unpack()
             from . import terminal
             inv.return_value(GLib.Variant("(s)", (json.dumps(terminal.send(text), ensure_ascii=False),)))
+        elif method == "TerminalSharing":
+            (choice,) = params.unpack()
+            from . import terminal
+            try:
+                out = terminal.set_sharing(choice)
+            except Exception as e:
+                out = {"available": False, "on": False, "open": 0, "error": str(e)}
+            inv.return_value(GLib.Variant("(s)", (json.dumps(out),)))
         elif method == "TerminalTry":
             (text,) = params.unpack()
             if self.busy:
@@ -488,6 +499,10 @@ class Service:
 
         def answer(on_text, on_action):
             out = self.guide.turn(text, on_text, on_action, self.cancel)
+            from . import terminal
+            if terminal.should_offer(text):  # D77: asked once, when it would help
+                terminal.offered()
+                on_action("terminal_offer", {}, "proposal", json.dumps(terminal.sharing()))
             if out.get("unusual"):  # no help card fits this terminal error: offer the bigger model, if it's here
                 plan = self.coding_plan()
                 if plan:

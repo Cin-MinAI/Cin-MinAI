@@ -5,7 +5,8 @@ Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Depends: cinminai-archive-keyring (>= @RELEASE@), cinminai-branding (>= @RELEASE@),
  cinminai-daemon (>= @RELEASE@), cinminai-sidebar (>= @RELEASE@), cinminai-applet (>= @RELEASE@),
  cinminai-llama (>= @RELEASE@), cinminai-libreoffice (>= @RELEASE@),
- cinminai-guide-model (>= @RELEASE@), cinminai-aicui (>= @RELEASE@)
+ cinminai-guide-model (>= @RELEASE@), cinminai-aicui (>= @RELEASE@), cinminai-shell (>= @RELEASE@),
+ cinminai-sandbox (>= @RELEASE@)
 Section: metapackages
 Priority: optional
 Description: Cin-MinAI desktop (metapackage)

@@ -410,6 +410,8 @@ class Sidebar(Gtk.Application):
             self.progress_line(words.trying(json.loads(args[2] or "{}")))
         elif signal == "Action" and args[1] == "sandbox" and args[3] == "done":
             self.try_result(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "terminal_offer" and args[3] == "proposal":
+            self.terminal_offer_card()
         elif signal == "Action" and args[1] == "bigger_model" and args[3] == "proposal":
             self.bigger_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "bigger_model" and args[3] == "running":
@@ -468,6 +470,19 @@ class Sidebar(Gtk.Application):
         item = Gtk.MenuItem(label="Coding (AICUI)…")
         item.connect("activate", lambda i: self.open_aicui())
         menu.append(item)
+        sharing = self.daemon_json("TerminalSharing", "state") or {}
+        if sharing.get("available"):  # D77: the switch, for after the one-time offer
+            menu.append(Gtk.SeparatorMenuItem())
+            check = Gtk.CheckMenuItem(label="Let the assistant see my terminals")
+            check.set_active(bool(sharing.get("on")))
+            check.set_tooltip_text("New terminals show ◆ and the assistant can read their commands and output. "
+                                   "Type ai off in one to make it private. Nothing leaves this computer.")
+
+            def toggled(item) -> None:
+                state = self.daemon_json("TerminalSharing", "on" if item.get_active() else "off") or {}
+                self.progress_line(words.terminal_sharing_said("on" if item.get_active() else "off", state))
+            check.connect("toggled", toggled)
+            menu.append(check)
         projects = self.daemon_json("ProjectList") or []
         if projects:
             sub = Gtk.Menu()
@@ -836,6 +851,40 @@ class Sidebar(Gtk.Application):
                 box.pack_start(label, False, False, 0)
             self.chat.pack_start(box, False, False, 0)
             box.show_all()
+
+    def terminal_offer_card(self) -> None:
+        """D77: asked once, when it would help. Nothing is shared before Yes; terminals already open stay as they are."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.TERMINAL_OFFER, xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        note = Gtk.Label(label=words.TERMINAL_OFFER_NOTE, xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        buttons = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=3, column_spacing=6,
+                              row_spacing=6, homogeneous=False)
+        said = Gtk.Label(xalign=0, wrap=True, max_width_chars=30)
+        said.get_style_context().add_class("note")
+
+        def answer(choice: str) -> None:
+            state = self.daemon_json("TerminalSharing", choice) or {}
+            buttons.destroy()
+            said.set_text(words.terminal_sharing_said(choice, state))
+            said.show()
+
+        for label, choice, suggested in (("Yes, share new terminals", "on", True), ("Not now", "later", False),
+                                         ("Don't ask again", "never", False)):
+            b = Gtk.Button(label=label)
+            if suggested:
+                b.get_style_context().add_class("suggested-action")
+            b.connect("clicked", lambda w, c=choice: answer(c))
+            buttons.add(b)
+        box.pack_start(buttons, False, False, 0)
+        box.pack_start(said, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+        said.hide()
 
     def bigger_card(self, offer: dict) -> None:
         """A terminal error the built-in help doesn't cover: the person may ask the bigger model they already have

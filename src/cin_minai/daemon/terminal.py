@@ -194,6 +194,75 @@ def _latest(n: int) -> list[dict]:
     return best
 
 
+# --- the offer (D77: offered, then on) ---------------------------------------------------------------------------
+# Asked once, when it would help: a question that names the terminal or a command while sharing is off. "Not now"
+# waits a day; "don't ask again" is kept. The switch is in the sidebar's menu.
+OFFER_WORDS = re.compile(r"\b(terminal|command|commands|bash|shell|prompt|commande|comando|comandos|befehl|"
+                         r"kommando|konsole)\b|ターミナル|端末|コマンド", re.I)
+OFFER_AGAIN = 24 * 3600
+
+
+def _offer_file() -> str:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(base, "cinminai", "terminal-sharing.json")
+
+
+def _offer_state() -> dict:
+    import json
+    try:
+        with open(_offer_file(), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_offer_state(state: dict) -> None:
+    import json
+    os.makedirs(os.path.dirname(_offer_file()), exist_ok=True)
+    with open(_offer_file(), "w", encoding="utf-8") as f:
+        json.dump(state, f)
+
+
+def sharing() -> dict:
+    """{"available": the shell package is installed, "on": new terminals are shared, "open": shared terminals now}"""
+    try:
+        from cin_minai.shell import ctl
+    except ImportError:
+        return {"available": False, "on": False, "open": 0}
+    try:
+        return {"available": True, "on": ctl.enabled(), "open": len([t for t in ctl.terminals() if t.get("ai")])}
+    except Exception:
+        return {"available": True, "on": False, "open": 0}
+
+
+def should_offer(text: str, now: float | None = None) -> bool:
+    if not OFFER_WORDS.search(text):
+        return False
+    s = sharing()
+    if not s["available"] or s["on"]:
+        return False
+    st = _offer_state()
+    return not st.get("never") and (now or time.time()) - st.get("offered", 0) >= OFFER_AGAIN
+
+
+def set_sharing(choice: str) -> dict:
+    """The person's answer or the menu's switch: on, off, never (don't ask again), or just the state."""
+    from cin_minai.shell import ctl
+    if choice == "on":
+        ctl.enable()
+    elif choice == "off":
+        ctl.disable()
+    elif choice == "never":
+        _save_offer_state(dict(_offer_state(), never=True))
+    elif choice == "later":
+        pass  # offered() already noted the time
+    return sharing()
+
+
+def offered(now: float | None = None) -> None:
+    _save_offer_state(dict(_offer_state(), offered=now or time.time()))
+
+
 # --- try it first (M3 slice 4): the command on a copy of the terminal's folder, in the sandbox -----------------------
 TRY_MAX_BYTES = 500 << 20    # a bigger folder isn't copied: say so instead
 TRY_TIMEOUT = 180

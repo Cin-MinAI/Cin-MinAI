@@ -517,3 +517,23 @@ def try_details(r: dict) -> list[tuple[str, bool]]:
     if r.get("output"):
         out.append((r["output"], True))
     return out
+
+
+# --- terminal sharing (D77: offered, then on) -------------------------------------------------------------------
+TERMINAL_OFFER = "Want me to see your terminals? Then I can read what went wrong instead of guessing."
+TERMINAL_OFFER_NOTE = ("New terminals show ◆ in the prompt while I can see them; type ai off in one to make it "
+                       "private. Password prompts are never captured, and nothing leaves this computer. You can turn "
+                       "it off any time in the New… menu.")
+
+
+def terminal_sharing_said(choice: str, state: dict) -> str:
+    if state.get("error") or not state.get("available", True):
+        return "Terminal sharing isn't available here (the cinminai-shell package isn't installed)."
+    if choice == "on":
+        return ("Done: new terminals are shared from now on (look for ◆). Terminals that are already open stay "
+                "private; close and reopen one to share it.")
+    if choice == "off":
+        return "Terminal sharing is off: new terminals are private. Ones already open stay as they are until closed."
+    if choice == "never":
+        return "I won't ask again. You can still turn it on in the New… menu."
+    return "No problem. I can ask another day, or you can turn it on in the New… menu."
