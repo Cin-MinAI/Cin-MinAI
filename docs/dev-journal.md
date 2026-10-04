@@ -1169,3 +1169,17 @@ model for errors no card covers, and the day's fixes (python3 -P, the plain brow
 warning). Mint's Update Manager does a dist-upgrade (`cache.upgrade(True)` in mintUpdate's checkAPT.py), so systems on
 0.0.1 get the two new packages and their Ubuntu dependencies with it. Signed by Ian with the stick, pushed to
 cinminai-apt, verified from the public address as apt does (13 packages, good signature).
+
+## 2026-10-04 (night) — vision slice 1 on the test SSD
+
+The sidebar reads pictures (picture button, or drop a file). First real run through the daemon: Ian's request
+"Summarize this letter I got" + goodscan.jpeg → the one-time offer (the 27B's reader, 885 MB) → download, check, read:
+a good summary — **in 9 minutes**, and closing with "Confidence: 100%" on misread phone numbers. Two findings:
+- **9 minutes:** the 27B ran entirely on the processor at 4K. The card had 11,018 MiB free, but the vision plan didn't
+  pass the measured desktop reserve (200 MiB since Ian's BIOS change), so the backend kept its 1.5 GB default and the
+  model didn't fit. Fixed as AICUI does it; now **40 s** (on the card at 16K, three layers in RAM; image read in 8 s).
+  A reading that does end up slower now says so.
+- **Numbers:** the photo is 640×480. Three readings of it gave the letter's phone numbers six different ways (lab 4B,
+  lab 27B, today), once "100% confident"; told to mark numbers "(check the original)", the 27B didn't. So the sidebar
+  names every phone number, amount, date and account number in a picture's answer itself — "Numbers read from the
+  picture: … Check them against the original" — whatever the model does; and the rules forbid confidence claims.

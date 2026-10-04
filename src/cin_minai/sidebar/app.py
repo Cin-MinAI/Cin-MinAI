@@ -496,7 +496,7 @@ class Sidebar(Gtk.Application):
         elif signal == "Action" and args[1] == "vision" and args[3] == "running":
             self.progress_line(words.vision_reading(json.loads(args[2] or "{}")))
         elif signal == "Action" and args[1] == "vision" and args[3] == "done":
-            self.progress_line(words.vision_caveat(json.loads(args[4] or "{}")))
+            self.progress_line(words.vision_caveat(json.loads(args[4] or "{}"), self.reply.get_text() if self.reply else ""))
         elif signal == "Action" and args[1] == "terminal_offer" and args[3] == "proposal":
             self.terminal_offer_card()
         elif signal == "Action" and args[1] == "bigger_model" and args[3] == "proposal":

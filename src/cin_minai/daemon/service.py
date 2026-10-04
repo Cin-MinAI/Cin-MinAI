@@ -569,10 +569,11 @@ class Service:
         try:
             reply, timing = reader.chat(vision.messages(path, request), max_tokens=1500, on_text=on_text,
                                         cancel=self.cancel, sampling=vision.SAMPLING)
+            reduced = reader.status().reduced  # e.g. it ended up on the processor: say so (it was silent once)
         finally:
             reader.unload()
         on_action("vision", {"model": choice["model"]}, "done", json.dumps({
-            "model": choice["model"], "recommended": choice["recommended"]}))
+            "model": choice["model"], "recommended": choice["recommended"], "reduced": reduced}))
         return {"tool": "vision", "model": choice["model"], "reply_chars": len(reply), "timings": [timing]}
 
     # --- a bigger model for an unusual terminal error (M3; Ian, 2026-10-04: only when no card fits, and asked) ---

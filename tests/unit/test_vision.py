@@ -86,10 +86,29 @@ class ThePicture(unittest.TestCase):
 
 class Words(unittest.TestCase):
     def test_the_caveat_is_always_said(self):
-        self.assertIn("check numbers and dates", words.vision_caveat({"recommended": True}))
+        self.assertIn("check what matters against the original", words.vision_caveat({"recommended": True}))
         self.assertIn("built-in guide", words.vision_caveat({"recommended": False}))
         self.assertIn("MB", words.vision_setup({"model": "Qwen3.8-27B IQ3_XXS", "size_mb": 885, "recommended": True}))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NumbersAreNamed(unittest.TestCase):
+    """The sidebar names the numbers read from a picture, whatever the model does (2026-10-04)."""
+
+    def test_the_letters_numbers(self):
+        # the 27B's real answer on the SSD: two phone numbers it misread, no "(check the original)"
+        answer = ("You can contact NPU by calling 860-872-7207. For questions about notification, you can also call "
+                  "Customer Service Center at 860-882-2555. Dated 12/30/2025, balance $1,204.50, account no. 4471-22.")
+        found = words.numbers_read(answer)
+        self.assertEqual(found[:2], ["860-872-7207", "860-882-2555"])
+        self.assertIn("12/30/2025", found)
+        self.assertIn("$1,204.50", found)
+        caveat = words.vision_caveat({"recommended": True}, answer)
+        self.assertIn("860-872-7207", caveat)
+        self.assertIn("Check them against the original", caveat)
+
+    def test_no_numbers_no_list(self):
+        self.assertNotIn("Numbers read", words.vision_caveat({"recommended": True}, "Six pairs of shoes on a rack."))

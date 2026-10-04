@@ -576,9 +576,34 @@ def vision_reading(args: dict) -> str:
     return f"Reading the picture with {args.get('model', 'the model')} (it stays on this computer)…"
 
 
-def vision_caveat(result: dict) -> str:
-    """D64: always said — the picture's quality decides the answer's."""
-    base = "A clear, well-lit picture gives the best answer: check numbers and dates against the original."
+NUMBERS = re.compile(
+    r"(?:\+?\d{1,3}[ .-]?)?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}"            # phone numbers
+    r"|[$€£¥]\s?\d[\d,.]*\d|\d[\d,.]*\d\s?(?:USD|EUR|dollars|euros)"    # amounts
+    r"|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"                              # dates written with numbers
+    r"|\b(?:account|acct|invoice|reference|ref)\.?\s*(?:no\.?|number|#)?\s*:?\s*[A-Z0-9-]{4,}", re.I)
+
+
+def numbers_read(answer: str) -> list[str]:
+    """Phone numbers, amounts, numeric dates and account numbers in a picture's answer, each once, in order. Said by
+    us, not left to the model: on 2026-10-04 it read a letter's numbers three different ways across three readings,
+    once "100% confident", and ignored the instruction to mark them."""
+    seen, out = set(), []
+    for m in NUMBERS.finditer(answer or ""):
+        n = m.group(0).strip()
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+def vision_caveat(result: dict, answer: str = "") -> str:
+    """D64: always said — the picture's quality decides the answer's; numbers read from it are named."""
+    found = numbers_read(answer)
+    base = ("Numbers read from the picture: " + ", ".join(found[:8]) + ". Check them against the original before "
+            "you use them: small digits in a photo are easy to misread. " if found else "")
+    base += "A clear, well-lit picture gives the best answer; check what matters against the original."
     if not result.get("recommended"):
         base += " Read by the built-in guide: it works, but a bigger model reads more reliably."
+    if result.get("reduced"):
+        base += f" It was slower this time: {result['reduced']}."
     return base

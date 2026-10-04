@@ -15,12 +15,15 @@ import mimetypes
 import os
 
 # the person's request, then these (the lab's round 2: they stopped guessed numbers and invented letters)
-RULES = ("Answer the request first, in plain words, in the language of the request. Any number, date, phone number, "
-         "code or web address you read from the picture: copy it exactly if it's clear; if it's small or blurry, "
-         "write it followed by (verify), or say it's too small to read. Never guess text, numbers, barcodes or "
-         "brands you can't actually read: say what you can't see. If you count things, give the number and say how "
-         "sure you are. If it's a document (a letter, a bill, a form), say what it is, what it says, and what the "
-         "reader has to do and by when.")
+# 2026-10-04: the 27B read a 640x480 letter's gas emergency number wrong and added "Confidence: 100%"; three readings
+# of the same photo gave six different phone numbers. Numbers from a picture are never presented as certain.
+RULES = ("Answer the request first, in plain words, in the language of the request. Phone numbers, amounts, dates, "
+         "account numbers and web addresses read from a picture: copy them as you see them and put (check the "
+         "original) after each one — small digits in a photo are easy to misread. Never give a confidence "
+         "percentage and never say you're sure of numbers. Never guess text, numbers, barcodes or brands you can't "
+         "actually read: say what you can't see. If you count things, give the number and how sure you are. If it's "
+         "a document (a letter, a bill, a form), say what it is, what it says, and what the reader has to do and by "
+         "when.")
 SAMPLING = {"temperature": 0, "repeat_penalty": 1.05, "dry_multiplier": 0.8, "dry_base": 1.75,
             "dry_allowed_length": 3, "dry_penalty_last_n": 1024}  # the lab: both models looped at temperature 0
 LONG_SIDE = 1600  # bigger photos are scaled down: the lab's 27B read a letter at this size; more costs minutes
@@ -57,17 +60,21 @@ def choose(store, inference_cfg: dict) -> dict:
     "projector_ready": bool, "recommended": bool} — the 27B if it's downloaded and runs here, else the guide."""
     from cin_minai.inference import matcher
     machine = matcher.read_machine(models_dir=store.root)
+    # the desktop's share of the card as measured here (200 MiB when it's drawn by the board's graphics), as AICUI
+    # passes it — without it the backend kept its 1.5 GB default and put the 27B on the processor (2026-10-04: 9 min)
+    reserve = matcher.margin_mib(machine.cards[0]) if machine.cards else 0
     for m in matcher.CATALOG["coding"]:
         if m.file in matcher.PROJECTORS and store.has(m.file):
             plan = matcher.vision_plan(m, machine)
             if plan:
+                plan = dict(plan, reserve_mib=reserve)
                 proj = matcher.PROJECTORS[m.file]
                 return {"model": m.name, "file": m.file, "path": store.path(m.file), "plan": plan, "projector": proj,
                         "projector_ready": store.has(proj.file), "recommended": True}
     guide = matcher.CATALOG["help"][0]
     proj = matcher.PROJECTORS[guide.file]
     return {"model": "the built-in guide", "file": guide.file, "path": inference_cfg.get("model", ""),
-            "plan": matcher.vision_plan(guide, machine) or {}, "projector": proj,
+            "plan": dict(matcher.vision_plan(guide, machine) or {}, reserve_mib=reserve), "projector": proj,
             "projector_ready": store.has(proj.file), "recommended": False}
 
 
