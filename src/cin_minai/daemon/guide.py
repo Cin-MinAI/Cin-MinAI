@@ -96,6 +96,7 @@ class Guide:
         self.history: list[dict] = []
         self.searches: dict[str, dict] = {}  # offered web searches, by id (D55): nothing is sent before Search
         self.terminal_question: str | None = None  # this turn's message with the terminal in front of it (M3)
+        self.terminal_hint = ""  # the failed command and its error, added to this turn's help lookups
         self.last_card: str | None = ""  # the last lookup's card id; None = nothing in the built-in help fit
 
     def search(self, sid: str, query: str, on_text: Callable[[str], None], on_action, cancel: threading.Event) -> dict:
@@ -165,8 +166,10 @@ class Guide:
         if tool == "lookup_help":
             # a terminal error needs a confident match (measured 2026-10-04: real ones score 14-29, an unknown error's
             # stray-word matches 2-6, e.g. `git push rejected` -> the printers card)
-            cid, card = self.help.lookup(str(args.get("query", "")), self.tools.lang,
-                                         TERMINAL_MIN_SCORE if self.terminal_question else 1.0)
+            query = str(args.get("query", ""))
+            if self.terminal_question:  # what failed, from the terminal itself: the model's query is often generic
+                query = f"{query} {self.terminal_hint}"
+            cid, card = self.help.lookup(query, self.tools.lang, TERMINAL_MIN_SCORE if self.terminal_question else 1.0)
             self.last_card = cid  # None: nothing in the built-in help fits
             return card
         if tool == "inspect_system":
@@ -193,6 +196,7 @@ class Guide:
         if terminal.about_terminal(text, commands):
             user["content"] = terminal.context(commands) + "\n\n" + text
             self.terminal_question = user["content"]  # for the bigger model, if no card fits (Ian, 2026-10-04)
+            self.terminal_hint = terminal.lookup_hint(commands)
             on_action("terminal", {}, "done", json.dumps({"commands": [c.get("cmd") for c in commands[-terminal.MAX_COMMANDS:]
                                                                          if c.get("cmd")]}, ensure_ascii=False))
         doc, system, schema = self.document()

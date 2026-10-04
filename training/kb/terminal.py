@@ -16,7 +16,7 @@ TOPICS = [
      "card": "Command not found: the terminal doesn't know that name. Check the spelling; commands are "
              "case-sensitive (ls, not LS). If it's a program that isn't installed, the message often says which "
              "package has it: install it from {software_manager}, or with sudo apt install followed by the "
-             "package name. Updating isn't a command called update: use {update_manager}, or run sudo apt update "
+             "package name. Updating isn't a command called update: open {update_manager} from the Menu (no terminal needed), or run sudo apt update "
              "and then sudo apt upgrade.",
      "must": [], "steps": False},
     {"id": "permission_denied", "windows": "'Permission denied' when running a script or opening a file",

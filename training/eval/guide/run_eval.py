@@ -358,9 +358,12 @@ def run_item(srv: Server, it: dict) -> dict:
         reply = args.get("text", "")
     elif tool == "lookup_help" and HELP is not None and ("card" in it or it["cat"] == "terminal"):
         # --help-json: the card the product's retrieval finds for the model's own query (not the task's)
-        from cin_minai.daemon.guide import TERMINAL_MIN_SCORE  # the daemon's rule for terminal errors
-        cid, result = HELP.lookup(str(args.get("query", "")), it["lang"],
-                                  TERMINAL_MIN_SCORE if it["cat"] == "terminal" else 1.0)
+        from cin_minai.daemon.guide import TERMINAL_MIN_SCORE  # the daemon's rules for terminal errors
+        query = str(args.get("query", ""))
+        if it.get("terminal"):
+            from cin_minai.daemon.terminal import lookup_hint
+            query = f"{query} {lookup_hint(it['terminal'])}"
+        cid, result = HELP.lookup(query, it["lang"], TERMINAL_MIN_SCORE if it["cat"] == "terminal" else 1.0)
         rec["help_card"] = cid
     elif tool == "lookup_help" and "card" in it:
         result = it["card"]

@@ -148,6 +148,19 @@ def context(commands: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def lookup_hint(commands: list[dict], limit: int = 200) -> str:
+    """The failed command and its first error lines, added to the guide's help lookup (the daemon knows them; the
+    model's own query is often generic — measured on the test SSD 2026-10-04: `pip install tinkter` looked up "how
+    to install Python packages in Linux Mint" and missed the tkinter card)."""
+    shown = [c for c in commands if c.get("cmd")]
+    if not shown:
+        return ""
+    last = next((c for c in reversed(shown) if c.get("exit") not in (0, None)), shown[-1])
+    lines = [l.strip() for l in (last.get("output") or "").splitlines() if l.strip()]
+    errors = [l for l in lines if ERROR.search(l)] or lines[-1:]
+    return redact(f"{last['cmd']} {' '.join(errors[:2])}")[:limit]
+
+
 def latest(n: int = MAX_COMMANDS) -> list[dict]:
     """The newest shared terminal's last commands ([] when nothing is shared or nothing has run). Never raises:
     reading the terminals must never take an answer down."""
