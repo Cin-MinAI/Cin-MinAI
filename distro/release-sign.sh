@@ -22,6 +22,10 @@ export GPG_TTY=$(tty || true)
 [[ -f $pub/fingerprint ]] || die "no release key on record ($pub); make it first with release-key.sh"
 fpr=$(cat "$pub/fingerprint")
 
+if [[ -z ${CINMINAI_KEY_REHEARSAL:-} ]] && mountpoint -q "$stick" && ! ls "$key" >/dev/null 2>&1; then
+    echo "Reconnecting the stick (the earlier connection went stale when it was ejected) — sudo may ask for your password."
+    sudo umount -l "$stick"
+fi
 if [[ -z ${CINMINAI_KEY_REHEARSAL:-} ]] && ! mountpoint -q "$stick"; then
     echo "Connecting the stick ($letter:) to Linux at $stick — sudo asks for your Linux password."
     sudo mkdir -p "$stick"
