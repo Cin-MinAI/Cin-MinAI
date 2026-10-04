@@ -11,7 +11,7 @@
 
 <p align="center">
   <!-- TODO(D70): the Hugging Face download page, once the ISO is uploaded -->
-  <a href="https://huggingface.co/cinminai"><b>⬇ Download (Hugging Face)</b></a> ·
+  <a href="https://huggingface.co/CinMin"><b>⬇ Download (Hugging Face)</b></a> ·
   <a href="docs/install/make-usb-stick.md">Make a USB stick</a> ·
   <a href="#what-it-does-today">What it does</a> ·
   <a href="docs/PLAN.md">Every decision</a>
