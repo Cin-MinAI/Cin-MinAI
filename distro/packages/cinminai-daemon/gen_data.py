@@ -38,6 +38,7 @@ def build(repo: str) -> dict:
     X = load(os.path.join(ev, "extract_labels.py"), "extract_labels")
     T = load(os.path.join(kb, "transition.py"), "kb_transition")
     L = load(os.path.join(kb, "lessons.py"), "kb_lessons")
+    K = load(os.path.join(kb, "terminal.py"), "kb_terminal")  # terminal-error cards (M3)
     S = load(os.path.join(kb, "search.py"), "kb_search")
 
     # v2 is the prompt the shipped guide was trained and measured with (MODEL_CARD.md); v2.1 = v2 plus one
@@ -74,7 +75,7 @@ def build(repo: str) -> dict:
         }
 
     cards = []
-    for source, mod in (("transition", T), ("lessons", L)):
+    for source, mod in (("transition", T), ("lessons", L), ("terminal", K)):
         for c in mod.TOPICS:
             if c["id"] not in S.KEYWORDS:
                 raise SystemExit(f"help card {c['id']} has no search words in training/kb/search.py")

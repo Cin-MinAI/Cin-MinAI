@@ -126,8 +126,10 @@ def home_short(path: str | None) -> str:
 
 def context(commands: list[dict]) -> str:
     """The block put in front of the person's message: the last commands, newest last."""
+    # "look it up first": measured 2026-10-04, the guide answered `cd Documents/Taxes 2025` from memory with a wrong
+    # fix; the help has a card for every classic terminal error (training/kb/terminal.py)
     parts = ["[The person's shared terminal: what they ran, newest last. You can't run anything in it; suggest "
-             "commands for them to run.]"]
+             "commands for them to run. Look the error up in the built-in help before answering.]"]
     for c in commands[-MAX_COMMANDS:]:
         if not c.get("cmd"):
             continue  # hidden (leading space): never shown

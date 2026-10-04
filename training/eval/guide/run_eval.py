@@ -356,7 +356,7 @@ def run_item(srv: Server, it: dict) -> dict:
     reply = None
     if tool in ("answer", "decline"):
         reply = args.get("text", "")
-    elif tool == "lookup_help" and "card" in it and HELP is not None:
+    elif tool == "lookup_help" and HELP is not None and ("card" in it or it["cat"] == "terminal"):
         # --help-json: the card the product's retrieval finds for the model's own query (not the task's)
         cid, result = HELP.lookup(str(args.get("query", "")), it["lang"])
         rec["help_card"] = cid

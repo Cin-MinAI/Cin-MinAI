@@ -297,3 +297,16 @@ empty; and where it answers alone it can invent a wrong fix — R06 `cd Document
 Documents/Taxes/2025" and even `mkdir` it, in English and German (the cause is the space). Riskiest outcome: the
 person is at a prompt and may type it. Next (D32: reliability comes from what's built around the model):
 terminal-error help cards, then terminal questions to the bigger model when one is installed.
+
+**Then, the same day — what we built around the model (D32), measured one change at a time** (real retrieval:
+the guide's own query → the daemon's help index → the card it gets back, `--help-json`):
+
+| Run | Terminal items |
+|---|---|
+| shipped guide, no terminal cards | 3/8, one confidently wrong fix |
+| + 9 terminal-error cards (`training/kb/terminal.py`) | 6/8 — every lookup finds its card; R06 still answered from memory, wrongly |
+| + "Look the error up in the built-in help before answering" in the terminal context's first line | **8/8** — R06 now `cd "Documents/Taxes 2025"` and the Tab tip, in English and German |
+
+No retraining. The cards name commands (the person is already at a prompt), each safe for a beginner, with what it
+does. (Two eval fixes on the way: terminal items accept a lookup, and the runner now answers terminal lookups from
+the real index.)

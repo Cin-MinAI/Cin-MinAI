@@ -228,4 +228,33 @@ KEYWORDS = {
     "video_call": "video call zoom teams skype whatsapp google meet camera microphone videollamada "
                   "videochamada chamada de vídeo appel vidéo visioconférence videoanruf videokonferenz "
                   "ビデオ通話 テレビ会議 カメラ",
+    # --- terminal.py (M3): the error words themselves, and how the guide phrases its lookups -------------------
+    "cmd_not_found": "command not found unknown command typo misspelled update sudo update terminal doesn't know "
+                     "comando no encontrado orden desconocida comando não encontrado commande introuvable "
+                     "befehl nicht gefunden unbekannter befehl コマンドが見つかりません",
+    "permission_denied": "permission denied script run script execute executable chmod not allowed access denied "
+                         "./script sh file permissions permiso denegado permissão negada permission refusée "
+                         "keine berechtigung zugriff verweigert 許可がありません 権限",
+    "spaces_in_names": "too many arguments space spaces in name folder name with space cd quotes quote filename "
+                       "demasiados argumentos espacio en el nombre muitos argumentos espaço trop d'arguments "
+                       "espace dans le nom zu viele argumente leerzeichen 引数が多すぎます 空白 スペース",
+    "apt_locate": "unable to locate package apt install package not found cannot find package apt-get chromium "
+                  "no se puede encontrar el paquete paquete no encontrado impossível encontrar o pacote "
+                  "impossible de trouver le paquet paket nicht gefunden パッケージが見つかりません",
+    "python_module": "modulenotfounderror no module named import error python module missing library pip install "
+                     "pygame venv externally-managed-environment importerror python library install "
+                     "módulo no encontrado biblioteca módulo não encontrado module introuvable modul nicht "
+                     "gefunden モジュールが見つかりません",
+    "dpkg_lock": "could not get lock dpkg lock lock-frontend unable to acquire another process is using "
+                 "apt busy waiting for cache lock bloqueo bloqueio verrou sperre ロック",
+    "no_such_file": "no such file or directory file not found folder not found wrong path pwd ls cd "
+                    "no existe el archivo o el directorio arquivo ou diretório não encontrado "
+                    "aucun fichier ou dossier de ce type datei oder verzeichnis nicht gefunden "
+                    "そのようなファイルやディレクトリはありません",
+    "compile_error": "compile error compiler error gcc g++ make build error undeclared identifier was not declared "
+                     "expected semicolon error 1 build failed c program c++ error de compilación erro de compilação "
+                     "erreur de compilation kompilierfehler übersetzungsfehler コンパイルエラー",
+    "sudo_password": "sudo password not shown typing password nothing appears sudoers not in the sudoers file "
+                     "administrator password contraseña sudo senha sudo mot de passe sudo sudo passwort "
+                     "パスワード 管理者",
 }
