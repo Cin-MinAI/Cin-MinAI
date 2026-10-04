@@ -573,7 +573,10 @@ def vision_setup(offer: dict) -> str:
 
 
 def vision_reading(args: dict) -> str:
-    return f"Reading the picture with {args.get('model', 'the model')} (it stays on this computer)…"
+    line = f"Reading the picture with {args.get('model', 'the model')} (it stays on this computer)…"
+    if args.get("places"):
+        line += f" {args['places']} places where those colours meet are looked at closely."
+    return line
 
 
 NUMBERS = re.compile(

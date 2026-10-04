@@ -25,7 +25,9 @@ class Inspect(unittest.TestCase):
     def test_overview_has_every_field(self):
         # regression: an edited comment swallowed the "gpu" field (2026-09-28)
         o = self.t.inspect("overview")
-        self.assertEqual(set(o), {"open_with", "os", "cpu", "ram_gb", "gpu", "disk_gb"}, o)
+        # this reads the real machine: one with a problem on record adds it, with its note (the test SSD, 2026-10-04)
+        self.assertEqual(set(o) - {"problems_found", "commands_note"},
+                         {"open_with", "os", "cpu", "ram_gb", "gpu", "disk_gb"}, o)
 
     def test_storage_installed(self):
         with mock.patch.object(tools, "live_session", return_value=False):

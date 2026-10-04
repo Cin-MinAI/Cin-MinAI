@@ -563,11 +563,13 @@ class Service:
             except DownloadStopped:
                 on_text("Stopped. What was downloaded is kept, so it can carry on later.")
                 return {"tool": "vision", "done": False}
-        on_action("vision", {"model": choice["model"], "file": os.path.basename(path)}, "running", "")
+        close_ups = vision.places(path, request)  # "find the …": where the colours meet, looked at closely
+        on_action("vision", {"model": choice["model"], "file": os.path.basename(path), "places": len(close_ups)},
+                  "running", "")
         reader = LlamaCppBackend(vision.backend_settings(choice, self.store, inference), log)
         self.backend.unload()  # one card, one model: the guide comes back with the next question
         try:
-            reply, timing = reader.chat(vision.messages(path, request), max_tokens=1500, on_text=on_text,
+            reply, timing = reader.chat(vision.messages(path, request, close_ups), max_tokens=1500, on_text=on_text,
                                         cancel=self.cancel, sampling=vision.SAMPLING)
             reduced = reader.status().reduced  # e.g. it ended up on the processor: say so (it was silent once)
         finally:

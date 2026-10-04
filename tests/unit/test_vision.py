@@ -84,6 +84,38 @@ class ThePicture(unittest.TestCase):
         self.assertEqual(max(out.size), V.LONG_SIDE)
 
 
+@unittest.skipIf(Image is None, "needs Pillow (on Mint's image)")
+class FindingByColour(unittest.TestCase):
+    """Ctrl+F for pictures (Ian, 2026-10-04): the places where the colours meet go to the model as close-ups."""
+
+    def shirt(self):
+        from PIL import ImageDraw
+        im = Image.new("RGB", (1200, 800), (200, 180, 140))
+        d = ImageDraw.Draw(im)
+        for i in range(8):
+            d.rectangle((900, 600 + i * 8, 928, 603 + i * 8), fill=(210, 30, 35))
+            d.rectangle((900, 604 + i * 8, 928, 607 + i * 8), fill=(245, 245, 245))
+        path = os.path.join(tempfile.mkdtemp(), "beach.png")
+        im.save(path)
+        return path
+
+    def test_a_search_by_colour_sends_close_ups(self):
+        path = self.shirt()
+        close = V.places(path, "Where's the guy in the red and white striped shirt?")
+        self.assertTrue(close)
+        self.assertEqual(close[0]["where"], "bottom right")
+        self.assertGreaterEqual(max(Image.open(io.BytesIO(base64.b64decode(close[0]["data"]))).size), V.CLOSE_UP)
+        msg = V.messages(path, "Where's the guy in the red and white striped shirt?", close)[0]["content"]
+        self.assertEqual(sum(c["type"] == "image_url" for c in msg), 1 + len(close))
+        self.assertIn("place 1 (bottom right)", msg[-1]["text"])
+
+    def test_other_questions_get_just_the_picture(self):
+        path = self.shirt()
+        self.assertEqual(V.places(path, "What colour is the shirt, red or white?"), [])  # not a search
+        self.assertEqual(V.places(path, "Find the dog"), [])                             # no colour to go by
+        self.assertEqual(len(V.messages(path, "Find the dog")[0]["content"]), 2)
+
+
 class Words(unittest.TestCase):
     def test_the_caveat_is_always_said(self):
         self.assertIn("check what matters against the original", words.vision_caveat({"recommended": True}))

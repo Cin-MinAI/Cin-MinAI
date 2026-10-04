@@ -1183,3 +1183,20 @@ a good summary — **in 9 minutes**, and closing with "Confidence: 100%" on misr
   lab 27B, today), once "100% confident"; told to mark numbers "(check the original)", the 27B didn't. So the sidebar
   names every phone number, amount, date and account number in a picture's answer itself — "Numbers read from the
   picture: … Check them against the original" — whatever the model does; and the rules forbid confidence claims.
+
+## 2026-10-04 (late) — find in a picture by colour (D79)
+
+Ian asked whether the assistant could "cheat a Where's Waldo" — a Ctrl+F for pictures — and pointed to his paper,
+*The Color Frame v2*, for the practical part: an opponent-colour encoding (red–green, and yellow–blue with the yellow
+pulled out of RGB's green). `daemon/colorfind.py` uses it to name colours per pixel with Pillow (on Mint's image;
+numpy isn't), then scores a grid of patches. Three things learned building it:
+- **White read as blue.** Applied to raw RGB, the yellow formula gives white Y = 255·(1 − 255/255) = 0, so C_x = −255:
+  every white and grey lands in the blue corner. Taking the white out first (subtract min(R, G, B), then the paper's
+  formula on what's left) puts greys at the centre and fixed every case.
+- **"Both colours here" isn't enough.** In a busy synthetic beach a red blob next to a white one outranked the striped
+  shirt. Scoring where the colours *meet* (a pixel of one with the other a step away) rewards alternation —
+  Waldo's stripes — and the shirt came first in 20 of 20 crowds, each with 40 red-ball-on-white-towel decoys.
+- **Fast:** ~0.1 s for a 1600×1000 picture on the i7-4790K, so it costs nothing in front of a 40 s model read.
+The four best places go to the vision model as close-ups (at least 448 px) after the whole picture, named by where they
+are ("bottom right"); the model picks one or says none. Not yet tried on a real Waldo page or with the model.
+

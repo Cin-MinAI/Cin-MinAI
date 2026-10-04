@@ -11,8 +11,10 @@ and unloaded after, so the guide comes back; the projector runs on the processor
 from __future__ import annotations
 
 import base64
+import io
 import mimetypes
 import os
+import re
 
 # the person's request, then these (the lab's round 2: they stopped guessed numbers and invented letters)
 # 2026-10-04: the 27B read a 640x480 letter's gas emergency number wrong and added "Confidence: 100%"; three readings
@@ -33,7 +35,7 @@ IMAGES = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff")
 def picture(path: str) -> tuple[str, str]:
     """(mime type, base64) of the picture as a viewer shows it: phone photos are often stored sideways with a
     rotation tag that llama.cpp ignores (the lab got a letter turned 90°), and big photos are scaled down. With
-    GdkPixbuf, which Mint ships (Pillow and ffmpeg aren't on its image)."""
+    GdkPixbuf, which Mint ships."""
     try:
         import gi
         gi.require_version("GdkPixbuf", "2.0")
@@ -91,8 +93,51 @@ def backend_settings(choice: dict, store, inference_cfg: dict) -> dict:
     return cfg
 
 
-def messages(path: str, request: str) -> list[dict]:
+# "find the … in this picture" (Ian, 2026-10-04: "a Ctrl+F for images"), in the six languages (D25)
+FIND = re.compile(r"\b(find|where|where's|locate|spot|search|dónde|donde|encuentra|busca|onde|encontre|procure|ache|"
+                  r"où|trouve|cherche|wo|finde|suche)\b|どこ|探", re.I)
+PLACES = 4
+CLOSE_UP = 448  # a place is shown at least this big, so a small figure in a crowd has pixels to be read from
+
+
+def places(path: str, request: str) -> list[dict]:
+    """For "find the man in the red and white shirt": the places in the picture where those colours meet, found in
+    a tenth of a second (colorfind, the practical part of Ian's Color Frame), each as a close-up the model can look
+    at: [{"where": "bottom right", "box": (…), "mime", "data"}]. None when the request isn't a search by colour,
+    or Pillow can't read the picture."""
+    from . import colorfind
+    names = colorfind.colours_in(request)
+    if not names or not FIND.search(request):
+        return []
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(path) as raw:
+            img = ImageOps.exif_transpose(raw).convert("RGB")
+    except Exception:
+        return []
+    out = []
+    for c in colorfind.candidates(img, names, top=PLACES):
+        crop = img.crop(c["box"])
+        if max(crop.size) < CLOSE_UP:
+            f = CLOSE_UP / max(crop.size)
+            crop = crop.resize((round(crop.width * f), round(crop.height * f)), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        crop.save(buf, "JPEG", quality=92)
+        out.append({"where": colorfind.where(c["box"], img.size), "box": c["box"], "mime": "image/jpeg",
+                    "data": base64.b64encode(buf.getvalue()).decode()})
+    return out
+
+
+def messages(path: str, request: str, close_ups: list[dict] | None = None) -> list[dict]:
     mime, data = picture(path)
-    return [{"role": "user", "content": [
-        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}},
-        {"type": "text", "text": f"{request.strip() or 'What is in this picture?'}\n\n{RULES}"}]}]
+    content = [{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}]
+    text = request.strip() or "What is in this picture?"
+    if close_ups:
+        for c in close_ups:
+            content.append({"type": "image_url", "image_url": {"url": f"data:{c['mime']};base64,{c['data']}"}})
+        text += ("\n\nAfter the whole picture come close-ups of the places where the colours asked for meet, in "
+                 "order: " + "; ".join(f"place {i} ({c['where']})" for i, c in enumerate(close_ups, 1)) + ". Look "
+                 "at each and say which one shows what was asked for and where it is in the whole picture, or that "
+                 "none of them does — then look in the whole picture yourself.")
+    content.append({"type": "text", "text": f"{text}\n\n{RULES}"})
+    return [{"role": "user", "content": content}]
