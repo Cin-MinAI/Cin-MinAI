@@ -245,6 +245,13 @@ KEYWORDS = {
                      "pygame venv externally-managed-environment importerror python library install "
                      "módulo no encontrado biblioteca módulo não encontrado module introuvable modul nicht "
                      "gefunden モジュールが見つかりません",
+    "venv_create": "ensurepip is not available virtual environment was not created successfully python3-venv venv "
+                   "create virtual environment python3 -m venv fails entorno virtual ambiente virtual "
+                   "environnement virtuel virtuelle umgebung 仮想環境",
+    "venv_use": "venv .venv activate source activate virtual environment deactivate bad interpreter broken venv "
+                "moved folder renamed project .venv/bin/pip .venv/bin/python requirements.txt permission denied "
+                "activate entorno virtual activar ambiente virtual ativar environnement virtuel activer "
+                "virtuelle umgebung aktivieren 仮想環境 有効化",
     "dpkg_lock": "could not get lock dpkg lock lock-frontend unable to acquire another process is using "
                  "apt busy waiting for cache lock bloqueo bloqueio verrou sperre ロック",
     "no_such_file": "no such file or directory file not found folder not found wrong path pwd ls cd "

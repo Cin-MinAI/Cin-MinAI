@@ -129,7 +129,8 @@ def context(commands: list[dict]) -> str:
     # "look it up first": measured 2026-10-04, the guide answered `cd Documents/Taxes 2025` from memory with a wrong
     # fix; the help has a card for every classic terminal error (training/kb/terminal.py)
     parts = ["[The person's shared terminal: what they ran, newest last. You can't run anything in it; suggest "
-             "commands for them to run. Look the error up in the built-in help before answering.]"]
+             "commands for them to run. Look the error up in the built-in help before answering; checking the "
+             "computer won't show a terminal error.]"]
     for c in commands[-MAX_COMMANDS:]:
         if not c.get("cmd"):
             continue  # hidden (leading space): never shown
@@ -156,12 +157,15 @@ def latest(n: int = MAX_COMMANDS) -> list[dict]:
         return []
 
 
+LAST = {"sock": None}  # the terminal the assistant last read: "To terminal" sends there
+
+
 def _latest(n: int) -> list[dict]:
     try:
         from cin_minai.shell import ctl
     except ImportError:
         return []  # cinminai-shell isn't installed
-    best, best_t = [], 0.0
+    best, best_t, best_sock = [], 0.0, None
     for t in ctl.terminals():
         if not t.get("ai"):
             continue  # `ai off` in that terminal
@@ -171,5 +175,19 @@ def _latest(n: int) -> list[dict]:
             continue
         when = max((c.get("end") or c.get("start") or 0 for c in cmds), default=0)
         if when > best_t:
-            best, best_t = cmds, when
+            best, best_t, best_sock = cmds, when, t["sock"]
+    LAST["sock"] = best_sock
     return best
+
+
+def send(text: str) -> dict:
+    """Put a command at the prompt of the terminal the assistant last read, as if typed — never with Enter (SPEC §6.1:
+    the person runs it). The relay refuses at a password prompt, while a program runs, or with `ai off`."""
+    try:
+        from cin_minai.shell import ctl
+        sock = LAST["sock"] if LAST["sock"] and os.path.exists(LAST["sock"]) else next(iter(ctl.sockets()), None)
+        if not sock:
+            return {"ok": False, "error": "No shared terminal is open."}
+        return ctl.request(sock, {"cmd": "send", "text": text})
+    except Exception as e:
+        return {"ok": False, "error": f"Couldn't reach the terminal ({type(e).__name__})."}

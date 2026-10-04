@@ -46,6 +46,21 @@ TOPICS = [
              "an environment with python3 -m venv .venv. The import name isn't always the package name: pygame "
              "can come from pygame or pygame-ce, cv2 from opencv-python, PIL from pillow.",
      "must": [], "steps": False},
+    {"id": "venv_create", "windows": "making a Python virtual environment fails ('ensurepip is not available')",
+     "card": "The virtual environment was not created successfully because ensurepip is not available: the "
+             "part of Python that makes environments isn't installed. Install it with sudo apt install "
+             "python3-venv, then remove the half-made folder with rm -rf .venv (this deletes only the "
+             "environment folder, not your code) and make it again: python3 -m venv .venv.",
+     "must": [], "steps": False},
+    {"id": "venv_use", "windows": "using a Python virtual environment (.venv): activate, broken after moving",
+     "card": "Using a .venv: switch it on with source .venv/bin/activate (running .venv/bin/activate on its own "
+             "says Permission denied: it has to be sourced). The prompt then shows (.venv); deactivate switches "
+             "it off. Without activating, use its programs directly: .venv/bin/python and .venv/bin/pip. A .venv "
+             "breaks when the project folder is moved or renamed (bad interpreter, or No such file for "
+             ".venv/bin/pip): make it again with rm -rf .venv (deletes only the environment, not your code), "
+             "python3 -m venv .venv, then reinstall what the project needs, for example .venv/bin/pip install -r "
+             "requirements.txt if the project has that file.",
+     "must": [], "steps": False},
     {"id": "dpkg_lock", "windows": "'Could not get lock' when installing or updating with apt",
      "card": "Could not get lock (/var/lib/dpkg/lock-frontend): another program is installing or updating right "
              "now, often {update_manager} in the background. Wait until it finishes, then try again. Don't delete "

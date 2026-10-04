@@ -38,6 +38,22 @@ SITUATIONS = {
                   "main.c:7:5: note: each undeclared identifier is reported only once for each function it appears in",
                   1, cwd=H + "/code")],
     "T_CD": [cmd("cd Documents/Taxes 2025", "bash: cd: too many arguments", 1)],
+    # venv breakages (Ian's test, 2026-10-04: "correct a venv setup in the hello world folder")
+    "T_ENSUREPIP": [cmd("python3 -m venv .venv",
+                        "The virtual environment was not created successfully because ensurepip is not\navailable.  "
+                        "On Debian/Ubuntu systems, you need to install the python3-venv\npackage using the following "
+                        "command.\n\n    apt install python3.12-venv\n\nYou may need to use sudo with that command.  "
+                        "After installing the python3-venv\npackage, recreate your virtual environment.\n\n"
+                        "Failing command: /home/sam/hello_world_test/.venv/bin/python3", 1, cwd=H + "/hello_world_test")],
+    "T_ACTIVATE": [cmd(".venv/bin/activate", "bash: .venv/bin/activate: Permission denied", 126,
+                       cwd=H + "/hello_world_test")],
+    "T_MOVED": [cmd(".venv/bin/pip install requests",
+                    "bash: /home/sam/hello_world_test/.venv/bin/pip: /home/sam/hello_test/.venv/bin/python3: "
+                    "bad interpreter: No such file or directory", 126, cwd=H + "/hello_world_test")],
+    "T_PEP668": [cmd("pip install requests",
+                     "error: externally-managed-environment\n\n× This environment is externally managed\n╰─> To install "
+                     "Python packages system-wide, try apt install\n    python3-xyz, where xyz is the package you are "
+                     "trying to\n    install.", 1, cwd=H + "/hello_world_test")],
 }
 
 TASKS = [
@@ -68,4 +84,21 @@ TASKS = [
      "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
      "must": [["\"Documents/Taxes 2025\"", "'Documents/Taxes 2025'", "Taxes\\ 2025", "quote", "space",
                "Anführungszeichen", "Leerzeichen"]]},
+    {"id": "R07", "cat": "terminal",
+     "q": {"en": ask(SITUATIONS["T_ENSUREPIP"], "why can't I make a venv?")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["python3-venv", "python3.12-venv"], ["python3 -m venv"]]},
+    {"id": "R08", "cat": "terminal",
+     "q": {"en": ask(SITUATIONS["T_ACTIVATE"], "how do I turn on my venv? this didn't work")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["source .venv/bin/activate", ". .venv/bin/activate"]]},
+    {"id": "R09", "cat": "terminal",
+     "q": {"en": ask(SITUATIONS["T_MOVED"], "my venv was working yesterday, what happened?")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["moved", "renamed", "rename", "move"], ["python3 -m venv"]]},
+    {"id": "R10", "cat": "terminal",
+     "q": {"en": ask(SITUATIONS["T_PEP668"], "what does this mean?"),
+           "es": ask(SITUATIONS["T_PEP668"], "¿qué significa esto?")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [[".venv", "venv", "virtual environment", "entorno virtual"]]},
 ]

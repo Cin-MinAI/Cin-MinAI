@@ -319,3 +319,10 @@ its best stray-word match (`git push rejected` → the printers card, a segfault
 names), scores 2–6, while real terminal matches score 14–29. Terminal lookups now need a score of 8: below it the
 guide is told nothing fits (and the offer appears). Terminal items still 8/8; `sudo update` now draws the
 command-not-found card.
+
+**Venv cards and command cards (2026-10-04, for Ian's test: "correct a venv setup in the hello world folder").**
+Two cards (`venv_create`: ensurepip missing → python3-venv; `venv_use`: activate must be sourced, a venv breaks when
+the project moves → rebuild it) and four eval items (R07–R10: ensurepip, running activate, bad interpreter after a
+move, pip outside a venv). 12/13: R09 "my venv was working yesterday, what happened?" checked the computer's drivers
+(the old habit); one more clause in the terminal context — "checking the computer won't show a terminal error" —
+**13/13**. Answers end in command cards with Copy and **To terminal** (the command at the prompt, never Enter).

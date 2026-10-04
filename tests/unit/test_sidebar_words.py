@@ -74,6 +74,21 @@ class CommandCards(unittest.TestCase):
     def test_plain_text_has_no_cards(self):
         self.assertEqual(words.commands_in_text("Open Update Manager and click Install."), [])
 
+    def test_terminal_answers_get_cards(self):
+        # the guide's real answers to terminal questions (M3 eval, 2026-10-04)
+        text = ("1. Check if there's a `.venv` folder.\n2. If yes, run `.venv/bin/pip install pygame`.\n"
+                "3. If no, create one with `python3 -m venv .venv`.\n4. Run `chmod +x backup.sh`, then `./backup.sh`.\n"
+                '5. Type `cd "Documents/Taxes 2025"` and press Enter.')
+        got = [c["command"] for c in words.commands_in_text(text)]
+        self.assertEqual(got, [".venv/bin/pip install pygame", "python3 -m venv .venv", "chmod +x backup.sh",
+                               "./backup.sh", 'cd "Documents/Taxes 2025"'])
+        self.assertNotIn(".venv", got)  # a folder name in backticks isn't a command
+
+    def test_sent_to_terminal(self):
+        self.assertIn("press Enter", words.sent_to_terminal({"ok": True, "warnings": []}))
+        self.assertIn("root", words.sent_to_terminal({"ok": True, "warnings": ["this terminal is root"]}))
+        self.assertIn("password prompt", words.sent_to_terminal({"ok": False, "error": "the terminal is at a password prompt"}))
+
 
 
 class ProposalCard(unittest.TestCase):

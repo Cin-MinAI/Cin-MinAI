@@ -77,6 +77,7 @@ class Sidebar(Gtk.Application):
         self.reply_started = False
         self.pending_ask: str | None = None
         self.cards: list[dict] = []        # commands from the tools' results, shown under the answer (D53)
+        self.terminal_turn = False         # this answer read the shared terminal: cards get "To terminal" (M3)
 
     # --- window ------------------------------------------------------------------------------------
     def build(self) -> None:
@@ -347,6 +348,7 @@ class Sidebar(Gtk.Application):
             self.pending_ask = text
             return
         self.bubble("user", text)
+        self.terminal_turn = False
         self.reply = self.bubble("assistant", words.waiting(self.state(), (self.prop("Status", {}) or {}).get("build", "")))
         self.reply.get_style_context().add_class("waiting")
         self.reply_started = False
@@ -427,6 +429,8 @@ class Sidebar(Gtk.Application):
         elif signal == "Action" and args[3] == "proposal":
             self.proposal_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[3] == "done":
+            if args[1] == "terminal":
+                self.terminal_turn = True
             self.action_line(*words.action(args[1], json.loads(args[2] or "{}"), args[4]))
             self.cards += words.commands_in_result(args[4])
         elif signal == "Error":
@@ -1051,12 +1055,37 @@ class Sidebar(Gtk.Application):
         top.pack_start(code, True, True, 0)
         top.pack_end(copy, False, False, 0)
         box.pack_start(top, False, False, 0)
+        if self.terminal_turn:  # the answer was about the shared terminal: offer to put it at the prompt (SPEC §6.4)
+            send = Gtk.Button(label="To terminal")
+            send.set_tooltip_text("Put this command at your terminal's prompt. It doesn't run until you press Enter there.")
+            said = Gtk.Label(xalign=0, wrap=True, max_width_chars=30)
+            said.get_style_context().add_class("note")
+
+            def on_send(b) -> None:
+                def done(proxy, result) -> None:
+                    try:
+                        reply = json.loads(proxy.call_finish(result).unpack()[0])
+                    except (GLib.Error, ValueError) as e:
+                        reply = {"ok": False, "error": str(e)}
+                    said.set_text(words.sent_to_terminal(reply))
+                    said.show()
+                self.proxy.call("TerminalSend", GLib.Variant("(s)", (card["command"],)), Gio.DBusCallFlags.NONE,
+                                5000, None, done)
+
+            send.connect("clicked", on_send)
+            row = Gtk.Box(spacing=6)
+            row.pack_start(send, False, False, 0)
+            box.pack_start(row, False, False, 0)
+            box.pack_start(said, False, False, 0)
         for text in words.card_notes(card):
             note = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
             note.get_style_context().add_class("note")
             box.pack_start(note, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
+        for child in box.get_children():  # the "sent" note stays hidden until there's something to say
+            if isinstance(child, Gtk.Label) and not child.get_text():
+                child.hide()
 
     def finish_reply(self, error: str | None = None) -> None:
         if self.reply is not None and not error:

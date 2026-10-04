@@ -85,7 +85,10 @@ def waiting(state: str, build: str) -> str:
 # --- commands to copy (PLAN D53) -----------------------------------------------------------------------
 
 FENCE = re.compile(r"```[a-z]*\n(.+?)\n?```", re.S)
-INLINE = re.compile(r"`((?:sudo |systemctl |apt |dkms |uname|fsck |echo \d+ \| sudo )[^`\n]+)`")
+INLINE = re.compile(r"`((?:sudo |systemctl |apt |dkms |uname|fsck |echo \d+ \| sudo "
+                    # M3: ordinary shell commands, now that answers can be about the person's terminal
+                    r"|python3? |pip3? |\.venv/bin/|source |\. \.venv|cd |chmod |ls\b|pwd\b|mkdir |git |make\b|gcc |"
+                    r"bash |\./)[^`\n]*)`")
 
 
 def _problems(result: str) -> list[dict]:
@@ -436,3 +439,11 @@ def bigger_running(args: dict) -> str:
 
 def bigger_done(result: dict) -> str:
     return f"Answered by {result.get('model') or 'the bigger model'}; the assistant comes back with your next question"
+
+
+def sent_to_terminal(reply: dict) -> str:
+    """What happened after "To terminal" (M3)."""
+    if reply.get("ok"):
+        warn = "; ".join(reply.get("warnings") or [])
+        return "It's at your prompt: check it, then press Enter in the terminal to run it." + (f" Careful: {warn}." if warn else "")
+    return f"Not sent: {reply.get('error') or 'the terminal didn’t accept it'}."

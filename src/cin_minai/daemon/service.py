@@ -54,6 +54,9 @@ XML = f"""
          person chose to ask the coding model they already have (Ian, 2026-10-04); it's loaded, answers, and is
          unloaded so the guide comes back -->
     <method name="AskBigger"><arg type="s" name="offer" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <!-- "To terminal" on a command card (M3, SPEC §6.4): put the command at the prompt of the terminal the assistant
+         last read, as if typed, without Enter. JSON out: ok, error, warnings (root, ssh) -->
+    <method name="TerminalSend"><arg type="s" name="text" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- "Put in Writer": a new Writer document in Documents with this text (an answer), opened; never overwrites -->
     <method name="MakeDocument"><arg type="s" name="title" direction="in"/><arg type="s" name="text" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
@@ -332,6 +335,10 @@ class Service:
                 out = self.guide.search(sid, query, on_text, on_action, self.cancel)
                 return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"])}
             self.job(self.next_id, search)
+        elif method == "TerminalSend":
+            (text,) = params.unpack()
+            from . import terminal
+            inv.return_value(GLib.Variant("(s)", (json.dumps(terminal.send(text), ensure_ascii=False),)))
         elif method == "AskBigger":
             (oid,) = params.unpack()
             question = self.bigger_offers.pop(oid, None)

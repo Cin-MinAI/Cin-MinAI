@@ -66,6 +66,24 @@ class WhatItSees(unittest.TestCase):
         self.assertIn("full-screen", T.context(vim))
 
 
+class Sending(unittest.TestCase):
+    def test_no_terminal_says_so(self):
+        real = T.LAST["sock"]
+        T.LAST["sock"] = None
+        try:
+            from cin_minai.shell import ctl
+            socks = ctl.sockets
+            ctl.sockets = lambda: []
+            try:
+                reply = T.send("ls")
+            finally:
+                ctl.sockets = socks
+        finally:
+            T.LAST["sock"] = real
+        self.assertFalse(reply["ok"])
+        self.assertIn("No shared terminal", reply["error"])
+
+
 class Redaction(unittest.TestCase):
     def test_credentials(self):
         cases = {
