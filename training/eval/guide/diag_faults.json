@@ -1,0 +1,101 @@
+{
+ "source": "tests/fixtures/diag/2026-09-30-v300-during-7.0.json via report.guide_view; picked per topic as Tools.problems does",
+ "topics": {
+  "overview": [
+   {
+    "code": "S401",
+    "now": true,
+    "problem": "Kernel 7.0.0-34-generic had problems in 2 of 2 starts; kernel 6.14.0-37-generic had none on this computer. A newer kernel isn't always better for older hardware.",
+    "cause": "Something in kernel 7.0.0-34-generic doesn't suit this computer.",
+    "fix": "Switch to the long-term kernel, without the terminal.",
+    "steps": [
+     "Open Update Manager, then View → Linux kernels.",
+     "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep 6.14.0-37-generic.",
+     "Remove kernel 7.0.0-34-generic in the same window, then restart."
+    ]
+   },
+   {
+    "code": "I301",
+    "now": true,
+    "problem": "The connection to your main disk (sda, KINGSTON SV300S37A120G) failed 15 times: commands sent to the disk failed (94 WRITE) and the link was reset. The errors point at the cable link (checksum errors on the wire). Failed writes can leave files damaged.",
+    "cause": "It happens with kernel 7.0.0-34-generic, not with 6.14.0-37-generic. Newer kernels send bigger pieces of data at a time (failed pieces here: up to 4096 KiB); an older disk or a borderline cable can choke on them.",
+    "fix": "Switch to the kernel that works (Update Manager, View, Linux kernels). Until then, make this kernel send smaller pieces to the disk, the way older kernels do.",
+    "command": "echo 1280 | sudo tee /sys/block/sda/queue/max_sectors_kb",
+    "command_explained": "Limits each write to sda to 1280 KiB (it's 4096 now). Nothing is written to the disk by this. It lasts only until the next restart, so don't restart after it.",
+    "undo": "A restart undoes it."
+   }
+  ],
+  "storage": [
+   {
+    "code": "S401",
+    "now": true,
+    "problem": "Kernel 7.0.0-34-generic had problems in 2 of 2 starts; kernel 6.14.0-37-generic had none on this computer. A newer kernel isn't always better for older hardware.",
+    "cause": "Something in kernel 7.0.0-34-generic doesn't suit this computer.",
+    "fix": "Switch to the long-term kernel, without the terminal.",
+    "steps": [
+     "Open Update Manager, then View → Linux kernels.",
+     "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep 6.14.0-37-generic.",
+     "Remove kernel 7.0.0-34-generic in the same window, then restart."
+    ]
+   },
+   {
+    "code": "I301",
+    "now": true,
+    "problem": "The connection to your main disk (sda, KINGSTON SV300S37A120G) failed 15 times: commands sent to the disk failed (94 WRITE) and the link was reset. The errors point at the cable link (checksum errors on the wire). Failed writes can leave files damaged.",
+    "cause": "It happens with kernel 7.0.0-34-generic, not with 6.14.0-37-generic. Newer kernels send bigger pieces of data at a time (failed pieces here: up to 4096 KiB); an older disk or a borderline cable can choke on them.",
+    "fix": "Switch to the kernel that works (Update Manager, View, Linux kernels). Until then, make this kernel send smaller pieces to the disk, the way older kernels do.",
+    "command": "echo 1280 | sudo tee /sys/block/sda/queue/max_sectors_kb",
+    "command_explained": "Limits each write to sda to 1280 KiB (it's 4096 now). Nothing is written to the disk by this. It lasts only until the next restart, so don't restart after it.",
+    "undo": "A restart undoes it."
+   }
+  ],
+  "display": [
+   {
+    "code": "S401",
+    "now": true,
+    "problem": "Kernel 7.0.0-34-generic had problems in 2 of 2 starts; kernel 6.14.0-37-generic had none on this computer. A newer kernel isn't always better for older hardware.",
+    "cause": "Something in kernel 7.0.0-34-generic doesn't suit this computer.",
+    "fix": "Switch to the long-term kernel, without the terminal.",
+    "steps": [
+     "Open Update Manager, then View → Linux kernels.",
+     "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep 6.14.0-37-generic.",
+     "Remove kernel 7.0.0-34-generic in the same window, then restart."
+    ]
+   },
+   {
+    "code": "G101",
+    "now": true,
+    "problem": "The NVIDIA driver (nvidia-driver-580) is installed, but it isn't loaded for the running kernel (7.0.0-34-generic). The screen falls back to a basic mode and the assistant can't use the graphics card.",
+    "cause": "The driver file for kernel 7.0.0-34-generic reads back damaged. That usually means the disk or its connection had trouble, not the driver itself.",
+    "fix": "First make sure the disk is healthy (ask: is my disk OK?). Then put a fresh copy of the driver in place.",
+    "command": "sudo dkms install --force nvidia/580.178.04 -k 7.0.0-34-generic",
+    "command_explained": "Builds the NVIDIA driver again for kernel 7.0.0-34-generic and replaces the damaged copy. Nothing else changes.",
+    "undo": "Nothing to undo: it's the same driver version."
+   }
+  ],
+  "drivers": [
+   {
+    "code": "S401",
+    "now": true,
+    "problem": "Kernel 7.0.0-34-generic had problems in 2 of 2 starts; kernel 6.14.0-37-generic had none on this computer. A newer kernel isn't always better for older hardware.",
+    "cause": "Something in kernel 7.0.0-34-generic doesn't suit this computer.",
+    "fix": "Switch to the long-term kernel, without the terminal.",
+    "steps": [
+     "Open Update Manager, then View → Linux kernels.",
+     "Install the long-term kernel series (on Mint 22: 6.8, supported to 2029), or keep 6.14.0-37-generic.",
+     "Remove kernel 7.0.0-34-generic in the same window, then restart."
+    ]
+   },
+   {
+    "code": "G101",
+    "now": true,
+    "problem": "The NVIDIA driver (nvidia-driver-580) is installed, but it isn't loaded for the running kernel (7.0.0-34-generic). The screen falls back to a basic mode and the assistant can't use the graphics card.",
+    "cause": "The driver file for kernel 7.0.0-34-generic reads back damaged. That usually means the disk or its connection had trouble, not the driver itself.",
+    "fix": "First make sure the disk is healthy (ask: is my disk OK?). Then put a fresh copy of the driver in place.",
+    "command": "sudo dkms install --force nvidia/580.178.04 -k 7.0.0-34-generic",
+    "command_explained": "Builds the NVIDIA driver again for kernel 7.0.0-34-generic and replaces the damaged copy. Nothing else changes.",
+    "undo": "Nothing to undo: it's the same driver version."
+   }
+  ]
+ }
+}

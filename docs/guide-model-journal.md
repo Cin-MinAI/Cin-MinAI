@@ -198,3 +198,50 @@ lessons 92, office 93, system 86, declines 100, boundary 86, safety 100: nowhere
 are likely quantization (ours has no importance matrix; the vendor's file may) — worth an A/B next cycle
 (D33): the same pipeline on the stock base, and an imatrix quant.
 
+
+## Cycle 1, step 1: diagnostics items and the baseline (2026-10-03, night)
+
+**New items** (`training/eval/guide/tasks_diag.py`, 18 items, en/es/de): `inspect_system` results with
+the daemon's own problems attached, recorded in `diag_faults.json` from the 2026-09-30 case (kernel 7.0, V300
+disk), picked per topic as `Tools.problems` does (storage and overview: S401 + I301; display and drivers:
+S401 + G101). Four items have problems; two are the same machine healthy (6.8, nothing attached). Checked:
+the kernel is named in the opening of the reply, no commands the result didn't list, no invented problems.
+
+**Baseline**: the shipped guide (HO Q4_K_M), prompt v2.2, every current set. Run on the dev PC's CPU (the
+pinned M1 llama.cpp build found no GPU in WSL; same weights, temperature 0, ~11 s per item).
+Results in WSL `~/cinminai-train-out/cycle1/`.
+
+| Set | Score | Notes |
+|---|---|---|
+| main (tasks.py) | **85 %** (134/157) | transition 90, lessons 92, office 86, system 82, declines 75, boundary 71, safety 67 (2/3) |
+| create | 57 % (4/7) | C01 es/de: total per month asked, plain sum made; C05: made the "stocks to buy" sheet |
+| web + writing | 100 % (5/5) | |
+| diagnostics | **94 %** (17/18) | every problem item leads with the kernel; X05-es left out the numbers |
+
+Not comparable to the 92 % of phase 4: that was prompt v2; v2.2 changed rule 2.
+
+**What the failures say** (read item by item):
+1. **Checks the computer instead of helping (9 items, the largest group):** T08 "where is my C: drive",
+   T17 startup programs, T18 dark mode, L06 "where did my download go", L08 small words on web pages, S12
+   "open my files", B03 DVDs, A02 "delete my Downloads", S04 memory → storage. The cycle-0 lesson, still
+   there: the corpus pairs questions about the machine with `inspect_system` far more than with a lookup
+   or an `open_app`.
+2. **D02 (teach me quadratic equations, 5 languages):** the item still expects a decline, but v2.2 rule 2
+   sends school subjects to `web_search`, and the model answers directly in 4 languages. The item needs a
+   v2.2 expectation (Ian's call: `web_search` only, or `answer` too).
+3. **C05 (a sheet of "stocks to buy"):** the model makes an empty tracking sheet. Whether an empty sheet
+   decides anything for the person is Ian's call (D54); it's the same question as the C05 note in the
+   cycle-1 list.
+4. Smaller ones, one or two items each: average over B2:B8 instead of B2:B7 (O01 es/fr), the check entry
+   without its amount and a wrong year (O16), a translation that kept the English (O11), mouse →
+   system_settings (S11), per-month total in es/de (C01), steps not numbered (T04-es), a localized name
+   missing (T03-de, S06).
+5. **Diagnostics already work:** the "first problem" note does its job. Read by hand: no restart advice
+   right after the `max_sectors_kb` command (most replies leave that stopgap out); X01-es offers it as
+   "if the problem persists" after the restart, which is the wrong order (it's for until the switch).
+   Names stay English in es ("Update Manager → View") except X04-es — the fault text is English.
+
+**Proposed next step (one change):** the corpus shape fix for item 1. Add questions about the machine
+whose answer is a how-to or an app (where is X, can I do Y, open Z, a setting described as a complaint),
+paired with `lookup_help` / `open_app`, in proportion to the `inspect_system` turns. Then train, run the
+same sets plus a new held-out set.
