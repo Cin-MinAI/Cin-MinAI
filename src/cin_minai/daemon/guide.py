@@ -190,8 +190,11 @@ class Guide:
         self.trim()
         user = {"role": "user", "content": text}
         # a message about the terminal gets the shared terminal's last commands in front of it (M3, §11.5; D77)
-        from . import terminal
-        commands = terminal.latest()
+        from . import commands as cmdfacts, terminal
+        explained = cmdfacts.is_explain(text)
+        if explained:  # "Explain" on a command card: the system's facts in front, no terminal context
+            user["content"] = cmdfacts.context(explained) + "\n\n" + text
+        commands = [] if explained else terminal.latest()
         self.terminal_question, self.last_card = None, ""
         if terminal.about_terminal(text, commands):
             user["content"] = terminal.context(commands) + "\n\n" + text

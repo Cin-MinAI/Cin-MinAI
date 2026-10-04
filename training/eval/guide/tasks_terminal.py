@@ -22,6 +22,19 @@ def ask(commands, question):
     return context(commands) + "\n\n" + question
 
 
+def explain(command, lang="en"):
+    """What the daemon sends for "Explain": the system's facts about the command, then the sidebar's question."""
+    from cin_minai.daemon.commands import context as facts
+    from cin_minai.sidebar.words import explain_question
+    return facts(command) + "\n\n" + explain_question(command, lang)
+
+
+# an Explain answer must never call a valid command wrong (measured 2026-10-04: "sudo apt upgrade is not correct",
+# "chmod +x … is not recognized … a typo", after the command-not-found card)
+# ("doesn't exist" is left out: "if the folder doesn't exist…" is a fair thing to say about cd)
+CALLED_WRONG = [r"not correct", r"incorrect", r"not recognized", r"typo", r"not found", r"no es correcto"]
+
+
 SITUATIONS = {
     # Ian's own first capture, 2026-10-04
     "T_UPD": [cmd("sudo update", "\nsudo: update: command not found", 1, secret=True)],
@@ -118,6 +131,24 @@ TASKS = [
      "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
      # the cause first: there's no venv here (the exit test's answer led with "it wasn't activated")
      "must": [["python3 -m venv .venv"], ["~^[\\s\\S]{0,200}(no virtual environment|no venv|doesn't have|does not have|doesn't exist|does not exist|isn't there|missing|not found|no \\.venv)"]]},
+    # "Explain" on a command card (M3): the question the sidebar sends, exactly (cin_minai.sidebar.words.explain_question)
+    {"id": "E01", "cat": "terminal", "q": {"en": explain("sudo apt upgrade")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["install", "newer", "update"], ["password", "sudo", "administrator", "changes"]],
+     "must_not": CALLED_WRONG},
+    {"id": "E02", "cat": "terminal", "q": {"en": explain("chmod +x backup.sh")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["run", "executable", "program"]], "must_not": CALLED_WRONG + [r"delet"]},
+    {"id": "E03", "cat": "terminal", "q": {"en": explain("rm -rf .venv")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["delete", "remove"], [".venv", "environment"]], "must_not": CALLED_WRONG},
+    {"id": "E04", "cat": "terminal", "q": {"en": explain("python3 -m venv .venv"),
+                                           "es": explain("python3 -m venv .venv", "es")},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["virtual environment", "entorno virtual", "venv"], [".venv"]], "must_not": CALLED_WRONG},
+    {"id": "E05", "cat": "terminal", "q": {"en": explain('cd "Documents/Taxes 2025"')},
+     "expect": [{"tool": "answer"}, {"tool": "lookup_help"}],
+     "must": [["folder", "directory"], ["Taxes 2025"]], "must_not": CALLED_WRONG + [r"delet", r"creat"]},
     {"id": "R10", "cat": "terminal", "terminal": SITUATIONS["T_PEP668"],
      "q": {"en": ask(SITUATIONS["T_PEP668"], "what does this mean?"),
            "es": ask(SITUATIONS["T_PEP668"], "¿qué significa esto?")},

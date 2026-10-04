@@ -537,3 +537,18 @@ def terminal_sharing_said(choice: str, state: dict) -> str:
     if choice == "never":
         return "I won't ask again. You can still turn it on in the New… menu."
     return "No problem. I can ask another day, or you can turn it on in the New… menu."
+
+
+# --- Explain on a command card (M3, SPEC §6.4) --------------------------------------------------------------------
+def ui_lang() -> str:
+    """The desktop's language, as one of the six (D25); English otherwise."""
+    import os
+    code = (os.environ.get("LANGUAGE") or os.environ.get("LC_ALL") or os.environ.get("LANG") or "en")[:2]
+    return code if code in ("en", "es", "pt", "fr", "de", "ja") else "en"
+
+
+def explain_question(command: str, lang: str = "en") -> str:
+    """The question "Explain" sends, in the desktop's language: the command in backticks after it (the daemon
+    recognises it and puts what the system knows about the command in front, cin_minai.daemon.commands)."""
+    from cin_minai.daemon.commands import EXPLAIN
+    return f"{EXPLAIN.get(lang, EXPLAIN['en'])}\n`{command}`"

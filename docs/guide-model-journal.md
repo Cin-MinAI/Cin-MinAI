@@ -326,3 +326,11 @@ the project moves → rebuild it) and four eval items (R07–R10: ensurepip, run
 move, pip outside a venv). 12/13: R09 "my venv was working yesterday, what happened?" checked the computer's drivers
 (the old habit); one more clause in the terminal context — "checking the computer won't show a terminal error" —
 **13/13**. Answers end in command cards with Copy and **To terminal** (the command at the prompt, never Enter).
+
+**Explain on command cards (2026-10-04).** First measurement, the plain question: 22/22 by the checks but two answers
+called valid commands wrong ("sudo apt upgrade is not correct", "chmod +x … is not recognized… a typo") — the guide
+looked up "command…" and drew the command-not-found card; the checks were too lax. Fix in what's built around the
+model: for an Explain question the daemon puts the system's facts in front (`cin_minai/daemon/commands.py`: a short
+table for the subcommands and flags newcomers meet, the manual's whatis line, bash's help for builtins) and says the
+command is valid and to answer directly. With a check that no answer calls a valid command wrong: **22/22, every
+answer read and correct.**

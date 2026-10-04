@@ -1125,6 +1125,12 @@ class Sidebar(Gtk.Application):
         top.pack_start(code, True, True, 0)
         top.pack_end(copy, False, False, 0)
         box.pack_start(top, False, False, 0)
+        explain = Gtk.Button(label="Explain")  # SPEC §6.4: what it does, and whether it changes anything
+        explain.set_tooltip_text("Ask what this command does, in plain words, and whether it changes anything")
+        explain.connect("clicked", lambda b, c=card["command"]: self.ask(words.explain_question(c, words.ui_lang())))
+        explain_row = Gtk.Box(spacing=6)
+        explain_row.pack_start(explain, False, False, 0)
+        box.pack_start(explain_row, False, False, 0)
         if self.terminal_turn:  # the answer was about the shared terminal: offer to put it at the prompt (SPEC §6.4)
             send = Gtk.Button(label="To terminal")
             send.set_tooltip_text("Put this command at your terminal's prompt. It doesn't run until you press Enter there.")

@@ -136,3 +136,23 @@ class TheLinesThatMatter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Explain(unittest.TestCase):
+    """Explain on a command card (M3): the system's facts in front; a valid command is never called wrong."""
+
+    def test_the_question_is_recognised(self):
+        from cin_minai.daemon import commands as C
+        from cin_minai.sidebar import words
+        for lang in ("en", "es", "ja"):
+            self.assertEqual(C.is_explain(words.explain_question("chmod +x backup.sh", lang)), "chmod +x backup.sh")
+        self.assertIsNone(C.is_explain("why didn't this work?"))
+
+    def test_facts(self):
+        from cin_minai.daemon import commands as C
+        facts = C.describe("sudo apt upgrade")
+        self.assertTrue(facts[0].startswith("sudo: runs the rest of the line as administrator"))
+        self.assertIn("installs newer versions", facts[1])
+        self.assertEqual(len(C.describe("rm -rf .venv")), 2)  # -r and -f, both said
+        self.assertIn("creates a Python virtual environment", C.describe("python3 -m venv .venv")[0])
+        self.assertIn("it's a valid command", C.context("chmod +x a.sh"))
