@@ -12,8 +12,11 @@ it is the backup if the lead's setup on the dev PC breaks.
 - **Claude Code** (lead): architecture, specs, spike verdicts, reviews.
 - **Codex** (junior, on the Mint box): tasks the lead hands over (see "Your current task"). **If the
   lead is unavailable**, you and Ian carry on from this file plus `docs/`: same rules, same decision
-  log. The Mint box has **no GitHub or Google credentials, by design** (Ian keeps the footprint
-  minimal); the lead keeps a read-only copy of `docs/` + this file in `~/cin-minai/repo-docs/`
+  log. The Mint box's own Mint install (the NVMe) has **no GitHub or Google credentials, by design**
+  (Ian keeps the footprint minimal). The Cin-MinAI test SSD in the same box is different (2026-10-03):
+  it carries **the machine's own accounts** — a development email, Hugging Face, Thunderbird on that
+  email — which belong to the assistant and the OS, not to Ian (D62), plus Ian's GitHub sign-in in
+  Firefox for the repos. The lead keeps a read-only copy of `docs/` + this file in `~/cin-minai/repo-docs/`
   (see its `VERSION`). The repo itself is `git@github.com:Brickmii/Cin-MinAI.git` (private).
 - Hand-offs between lead and Codex go through `~/cin-minai/notes/` on the Mint box (dated Markdown
   notes, both directions).
