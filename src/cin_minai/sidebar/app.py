@@ -68,6 +68,26 @@ def margined(box) -> None:
         getattr(box, f"set_margin_{side}")(12)
 
 
+
+class Answer(Gtk.Label):
+    """An answer bubble: shows the model's Markdown formatted, and gives back the text as written (get_text), which
+    the command cards, "Put in Writer" and the caveats read."""
+
+    def __init__(self, text: str = "") -> None:
+        super().__init__(xalign=0, wrap=True, selectable=True, max_width_chars=30)
+        self.raw = ""
+        self.set_text(text)
+
+    def set_text(self, text: str) -> None:
+        self.raw = text or ""
+        try:
+            self.set_markup(words.markdown(self.raw))
+        except Exception:  # markup it can't show: the words as written
+            Gtk.Label.set_text(self, self.raw)
+
+    def get_text(self) -> str:
+        return self.raw
+
 class Sidebar(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
@@ -228,7 +248,10 @@ class Sidebar(Gtk.Application):
         row.show_all()
 
     def bubble(self, kind: str, text: str) -> Gtk.Label:
-        label = Gtk.Label(label=text, xalign=0, wrap=True, selectable=True, max_width_chars=30)
+        if kind == "user":
+            label = Gtk.Label(label=text, xalign=0, wrap=True, selectable=True, max_width_chars=30)
+        else:
+            label = Answer(text)
         label.set_line_wrap_mode(2)  # Pango WORD_CHAR
         frame = Gtk.Box()
         frame.get_style_context().add_class("bubble")

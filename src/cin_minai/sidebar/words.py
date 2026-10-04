@@ -681,3 +681,68 @@ def video_caveat(result: dict, answer: str = "") -> str:
     if result.get("reduced"):
         base += f" It was slower this time: {result['reduced']}."
     return base
+
+
+# --- answers as formatted text --------------------------------------------------------------------------------
+# The models write Markdown; the sidebar showed it raw ("**[0:30]**", "* ") — worst in long video summaries
+# (2026-10-04). Shown as Pango markup; the label keeps the raw text for the command cards, Writer and the caveats.
+_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*|__(?=\S)(.+?)(?<=\S)__")
+_ITALIC = re.compile(r"(?<![\w*])\*(?=[^\s*])(.+?)(?<=[^\s*])\*(?![\w*])")
+_CODE = re.compile(r"`([^`\n]+)`")
+_LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
+_BULLET = re.compile(r"^(\s*)[-*+]\s+(.*)$")
+_RULE = re.compile(r"^\s*([-*_])(\s*\1){2,}\s*$")
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _inline(text: str) -> str:
+    """One line of Markdown, escaped, with bold, italic, code and links; code is left alone inside."""
+    parts = re.split(r"(`[^`\n]+`)", text)
+    out = []
+    for part in parts:
+        if _CODE.fullmatch(part):
+            out.append("<tt>" + _escape(part[1:-1]) + "</tt>")
+            continue
+        links = []
+
+        def keep(m):
+            links.append(f'<a href="{_escape(m.group(2))}">{_escape(m.group(1))}</a>')
+            return f"\x00{len(links) - 1}\x00"
+        part = _escape(_LINK.sub(keep, part))
+        part = _BOLD.sub(lambda m: "<b>" + (m.group(1) or m.group(2)) + "</b>", part)
+        part = _ITALIC.sub(r"<i>\1</i>", part)
+        part = re.sub("\x00(\\d+)\x00", lambda m: links[int(m.group(1))], part)
+        out.append(part)
+    return "".join(out)
+
+
+def markdown(text: str) -> str:
+    """Pango markup for an answer written in Markdown: headings and **bold** in bold, *italic*, `code` and fenced
+    blocks in a fixed-width font, bullets as •, links clickable. Anything else stays as written."""
+    out, fenced = [], False
+    for line in (text or "").split("\n"):
+        if line.strip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            out.append("<tt>" + _escape(line) + "</tt>")
+            continue
+        m = _HEADING.match(line)
+        if m:
+            out.append("<b>" + _inline(m.group(1).strip("*")) + "</b>")
+            continue
+        if _RULE.match(line):
+            out.append("")
+            continue
+        m = _BULLET.match(line)
+        if m:
+            depth = len(m.group(1).replace("\t", "    ")) // 2
+            out.append("  " * depth + "• " + _inline(m.group(2)))
+            continue
+        out.append(_inline(line))
+    return "\n".join(out)
+
