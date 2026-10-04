@@ -28,6 +28,9 @@ TEXT_START = re.compile(r'^\s*\{\s*"tool"\s*:\s*"(answer|decline)"\s*,\s*"args"\
 ESCAPES = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
 
 
+TERMINAL_MIN_SCORE = 8.0
+
+
 class TextStream:
     """Feeds on the tool call as it is generated; hands out the answer/decline text as soon as it comes."""
 
@@ -92,6 +95,8 @@ class Guide:
         self.office = office
         self.history: list[dict] = []
         self.searches: dict[str, dict] = {}  # offered web searches, by id (D55): nothing is sent before Search
+        self.terminal_question: str | None = None  # this turn's message with the terminal in front of it (M3)
+        self.last_card: str | None = ""  # the last lookup's card id; None = nothing in the built-in help fit
 
     def search(self, sid: str, query: str, on_text: Callable[[str], None], on_action, cancel: threading.Event) -> dict:
         """The user clicked Search (SPEC §7.5): fetch, then answer from the pages only, with their numbers."""
@@ -158,7 +163,11 @@ class Guide:
         if doc is not None and tool in self.data["documents"][doc["type"]]["read"]:
             return json.dumps(self.office.read(doc, tool, args), ensure_ascii=False, default=str)
         if tool == "lookup_help":
-            _, card = self.help.lookup(str(args.get("query", "")), self.tools.lang)
+            # a terminal error needs a confident match (measured 2026-10-04: real ones score 14-29, an unknown error's
+            # stray-word matches 2-6, e.g. `git push rejected` -> the printers card)
+            cid, card = self.help.lookup(str(args.get("query", "")), self.tools.lang,
+                                         TERMINAL_MIN_SCORE if self.terminal_question else 1.0)
+            self.last_card = cid  # None: nothing in the built-in help fits
             return card
         if tool == "inspect_system":
             return json.dumps(self.tools.inspect(str(args.get("topic", "overview"))), ensure_ascii=False)
@@ -180,8 +189,10 @@ class Guide:
         # a message about the terminal gets the shared terminal's last commands in front of it (M3, §11.5; D77)
         from . import terminal
         commands = terminal.latest()
+        self.terminal_question, self.last_card = None, ""
         if terminal.about_terminal(text, commands):
             user["content"] = terminal.context(commands) + "\n\n" + text
+            self.terminal_question = user["content"]  # for the bigger model, if no card fits (Ian, 2026-10-04)
             on_action("terminal", {}, "done", json.dumps({"commands": [c.get("cmd") for c in commands[-terminal.MAX_COMMANDS:]
                                                                          if c.get("cmd")]}, ensure_ascii=False))
         doc, system, schema = self.document()
@@ -241,4 +252,7 @@ class Guide:
                                       max_tokens=600, on_text=on_text, cancel=cancel)
         timings.append(t2)
         self.history += [user, {"role": "assistant", "content": raw}, followup, {"role": "assistant", "content": reply}]
-        return {"reply": reply, "tool": tool, "args": args, "result": result, "timings": timings}
+        out = {"reply": reply, "tool": tool, "args": args, "result": result, "timings": timings}
+        if self.terminal_question and tool == "lookup_help" and self.last_card is None:
+            out["unusual"] = self.terminal_question  # a terminal error no card covers: the bigger model may be offered
+        return out

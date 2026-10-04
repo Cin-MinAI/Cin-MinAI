@@ -50,6 +50,10 @@ XML = f"""
          Search, with the query they saw (or edited). Nothing is sent before this call (D55, SPEC §7.5) -->
     <method name="Search"><arg type="s" name="offer" direction="in"/><arg type="s" name="query" direction="in"/>
       <arg type="u" name="id" direction="out"/></method>
+    <!-- a terminal error no help card covers (Action "bigger_model" state "proposal", its result has the id): the
+         person chose to ask the coding model they already have (Ian, 2026-10-04); it's loaded, answers, and is
+         unloaded so the guide comes back -->
+    <method name="AskBigger"><arg type="s" name="offer" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- "Put in Writer": a new Writer document in Documents with this text (an answer), opened; never overwrites -->
     <method name="MakeDocument"><arg type="s" name="title" direction="in"/><arg type="s" name="text" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
@@ -134,6 +138,7 @@ class Service:
         # D60: writing may use a bigger model the user chose; the card holds one model at a time
         self.store = ModelStore()
         self.writing_backend: tuple[str, LlamaCppBackend] | None = None
+        self.bigger_offers: dict[str, str] = {}  # offered "ask the bigger model", by id: the question with its terminal
         self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
         self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
@@ -327,6 +332,16 @@ class Service:
                 out = self.guide.search(sid, query, on_text, on_action, self.cancel)
                 return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"])}
             self.job(self.next_id, search)
+        elif method == "AskBigger":
+            (oid,) = params.unpack()
+            question = self.bigger_offers.pop(oid, None)
+            if self.busy or question is None:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy" if self.busy else f"{IFACE}.Error.Offer",
+                                      "still answering; Cancel first" if self.busy else "that offer has expired")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.job(self.next_id, lambda on_text, on_action, q=question: self.ask_bigger(q, on_text, on_action))
         elif method == "JournalWrite":
             (private,) = params.unpack()
             if self.busy or self.journal is None:
@@ -448,8 +463,54 @@ class Service:
 
         def answer(on_text, on_action):
             out = self.guide.turn(text, on_text, on_action, self.cancel)
+            if out.get("unusual"):  # no help card fits this terminal error: offer the bigger model, if it's here
+                plan = self.coding_plan()
+                if plan:
+                    import uuid
+                    oid = uuid.uuid4().hex[:12]
+                    self.bigger_offers = {oid: out["unusual"]}  # only the newest offer stands
+                    on_action("bigger_model", {}, "proposal", json.dumps({"id": oid, "model": plan["model"]}))
             return {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]), "timings": out["timings"]}
         self.job(rid, answer)
+
+    # --- a bigger model for an unusual terminal error (M3; Ian, 2026-10-04: only when no card fits, and asked) ---
+    BIGGER_SYSTEM = ("You help a person with an error in their Linux Mint terminal. Say what caused it in plain "
+                     "words, then the exact command or steps that fix it, each with what it does. Point out anything "
+                     "that changes the system or deletes something. You can't run anything yourself. Reply in the "
+                     "person's language, briefly, without headings.")
+
+    def coding_plan(self) -> dict | None:
+        """The coding model the person already has on this computer (in use for AICUI, or any downloaded one that
+        runs here) — never a download."""
+        try:
+            plan = self.store.in_use("coding")
+            if plan:
+                return plan
+            machine = matcher.read_machine(models_dir=self.store.root)
+            for m in matcher.CATALOG["coding"]:
+                p = matcher.plan(m, machine, matcher.CONTEXT["coding"]) if self.store.has(m.file) else None
+                if p:
+                    return {"model": m.name, "file": m.file, **p, "context": matcher.CONTEXT["coding"],
+                            "reserve_mib": matcher.margin_mib(machine.cards[0]) if machine.cards else 0}
+        except Exception as e:  # finding a model must never take the answer down
+            log(f"coding plan: {type(e).__name__}: {e}")
+        return None
+
+    def ask_bigger(self, question: str, on_text, on_action) -> dict:
+        plan = self.coding_plan()
+        if not plan:
+            raise BackendError("The bigger model isn't on this computer any more.")
+        on_action("bigger_model", {"model": plan["model"]}, "running", "")
+        big = LlamaCppBackend(backend_cfg(config.load()["inference"], plan, self.store.path(plan["file"])), log)
+        self.backend.unload()  # the card holds one model: the guide comes back with the next question
+        try:
+            reply, timing = big.chat([{"role": "system", "content": self.BIGGER_SYSTEM},
+                                      {"role": "user", "content": question}],
+                                     max_tokens=900, on_text=on_text, cancel=self.cancel)
+        finally:
+            big.unload()
+        on_action("bigger_model", {"model": plan["model"]}, "done", json.dumps({"model": plan["model"]}))
+        return {"tool": "bigger_model", "model": plan["model"], "reply_chars": len(reply), "timings": [timing]}
 
     # --- the writing model (D60) ----------------------------------------------------------------------------
     def writing_cfg(self, plan: dict) -> dict:

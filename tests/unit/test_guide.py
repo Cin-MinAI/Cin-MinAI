@@ -164,6 +164,42 @@ class GuideTest(unittest.TestCase):
             self.assertFalse(g.history[0]["content"].startswith("Result of "))
         self.assertLessEqual(sum(len(m["content"]) for m in g.history[:-4]), 2000)
 
+    def terminal_turn(self, query, text="why didn't this work?"):
+        """A turn with a shared terminal whose last command just failed (M3)."""
+        import time
+        from cin_minai.daemon import terminal
+        failed = [{"cmd": "frobnicate --now", "cwd": "/tmp", "exit": 1, "output": "frobnicate: quantum flux too low",
+                   "start": time.time() - 5, "end": time.time() - 4}]
+        real = terminal.latest
+        terminal.latest = lambda n=3: failed
+        try:
+            g, b = guide([json.dumps({"tool": "lookup_help", "args": {"query": query}}), "Here's what happened."])
+            res, _, actions = turn(g, text)
+        finally:
+            terminal.latest = real
+        return res, actions, b
+
+    def test_terminal_context_goes_in_front_and_is_said(self):
+        res, actions, b = self.terminal_turn("permission denied running a script")
+        sent = b.sent[0]["messages"][-1]["content"]
+        self.assertIn("$ frobnicate --now", sent)
+        self.assertTrue(sent.endswith("why didn't this work?"))
+        self.assertEqual(actions[0][0], "terminal")
+
+    def test_unknown_terminal_error_is_marked_unusual(self):
+        res, _, _ = self.terminal_turn("frobnicate quantum flux too low")
+        self.assertIn("$ frobnicate --now", res.get("unusual", ""))
+
+    def test_known_terminal_error_isnt_unusual(self):
+        res, _, _ = self.terminal_turn("permission denied running a script")
+        self.assertNotIn("unusual", res)
+
+    def test_no_terminal_no_unusual(self):
+        g, _ = guide(['{"tool": "lookup_help", "args": {"query": "frobnicate quantum flux"}}', "ok"])
+        res, _, actions = turn(g, "how do I frobnicate?")
+        self.assertNotIn("unusual", res)
+        self.assertNotIn("terminal", [a[0] for a in actions])
+
     def test_bad_json_is_an_error(self):
         from cin_minai.inference.backend import BackendError
         g, _ = guide(['{"tool": '])

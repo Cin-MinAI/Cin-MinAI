@@ -113,13 +113,14 @@ class HelpIndex:
                 scores.append((cid, s))
         return sorted(scores, key=lambda x: -x[1])
 
-    def lookup(self, query: str, lang: str) -> tuple[str | None, str]:
-        """(card id, text for the model). No match: id None and a short note."""
+    def lookup(self, query: str, lang: str, min_score: float = 1.0) -> tuple[str | None, str]:
+        """(card id, text for the model). No match: id None and a short note. min_score: how sure a match must be
+        (terminal errors ask for more: an unknown error otherwise finds a wrong card by a stray word)."""
         if not tokens(query) and re.search(r"linux|mint|cin-?minai|ubuntu", query, re.I) and "what_is_linux" in self.cards:
             # nothing left but the system's name: "what is Linux (Mint)?"
             return "what_is_linux", resolve(self.cards["what_is_linux"]["card"], self.labels, lang)
         ranked = self.rank(query)
-        if not ranked or ranked[0][1] < 1.0:
+        if not ranked or ranked[0][1] < min_score:
             return None, "Nothing in the built-in help matches this."
         cid = ranked[0][0]
         return cid, resolve(self.cards[cid]["card"], self.labels, lang)

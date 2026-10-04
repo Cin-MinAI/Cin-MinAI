@@ -418,3 +418,21 @@ def document_title(first_line: str) -> str:
     t = first_line.strip().strip("#*:").strip()
     words_ = t.split()
     return " ".join(words_[:8]).rstrip(",.;:") if words_ else "From the assistant"
+
+
+# --- the bigger model for an unusual terminal error (M3) ---------------------------------------------------------
+def bigger_offer(offer: dict) -> str:
+    return f"This error isn't in the built-in help. Ask {offer.get('model') or 'the bigger model'}?"
+
+
+def bigger_note(offer: dict) -> str:
+    return ("It's the larger model already on this computer. Loading it takes about a minute, and the assistant is "
+            "back to normal with your next question. Nothing leaves this computer.")
+
+
+def bigger_running(args: dict) -> str:
+    return f"Loading {args.get('model') or 'the bigger model'}…"
+
+
+def bigger_done(result: dict) -> str:
+    return f"Answered by {result.get('model') or 'the bigger model'}; the assistant comes back with your next question"

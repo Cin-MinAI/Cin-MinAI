@@ -404,6 +404,12 @@ class Sidebar(Gtk.Application):
             self.outline_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "review" and args[3] == "proposal":
             self.review_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "bigger_model" and args[3] == "proposal":
+            self.bigger_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "bigger_model" and args[3] == "running":
+            self.progress_line(words.bigger_running(json.loads(args[2] or "{}")))
+        elif signal == "Action" and args[1] == "bigger_model" and args[3] == "done":
+            self.progress_line(words.bigger_done(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "web_search" and args[3] == "proposal":
             self.search_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "web_search" and args[3] == "running":
@@ -800,6 +806,35 @@ class Sidebar(Gtk.Application):
 
         go.connect("clicked", search)
         no.connect("clicked", dismiss)
+        buttons.pack_start(go, False, False, 0)
+        buttons.pack_start(no, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def bigger_card(self, offer: dict) -> None:
+        """A terminal error the built-in help doesn't cover: the person may ask the bigger model they already have
+        (Ian, 2026-10-04: only when no card fits, and only if they say so). Nothing loads before the click."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.bigger_offer(offer), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        note = Gtk.Label(label=words.bigger_note(offer), xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        go = Gtk.Button(label="Ask it")
+        go.get_style_context().add_class("suggested-action")
+        no = Gtk.Button(label="No thanks")
+
+        def ask(button) -> None:
+            go.set_sensitive(False)
+            no.set_sensitive(False)
+            self.start_job("AskBigger", offer.get("id", ""), "Loading the bigger model…")
+
+        go.connect("clicked", ask)
+        no.connect("clicked", lambda b: box.destroy())
         buttons.pack_start(go, False, False, 0)
         buttons.pack_start(no, False, False, 0)
         box.pack_start(buttons, False, False, 0)

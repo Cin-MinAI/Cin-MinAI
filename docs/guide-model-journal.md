@@ -310,3 +310,12 @@ the guide's own query → the daemon's help index → the card it gets back, `--
 No retraining. The cards name commands (the person is already at a prompt), each safe for a beginner, with what it
 does. (Two eval fixes on the way: terminal items accept a lookup, and the runner now answers terminal lookups from
 the real index.)
+
+**The bigger model, only when no card fits (Ian's choice, 2026-10-04).** A terminal question whose lookup finds no
+card ends with an offer — "This error isn't in the built-in help. Ask <the coding model>?" — when a coding model is
+already on the computer (never a download); on the click it loads (~40 s on the 1080 Ti), answers, and unloads so
+the guide comes back. Building the trigger showed a second problem: for an unknown error the help index still returned
+its best stray-word match (`git push rejected` → the printers card, a segfault → uninstall, nonsense → spaces in
+names), scores 2–6, while real terminal matches score 14–29. Terminal lookups now need a score of 8: below it the
+guide is told nothing fits (and the offer appears). Terminal items still 8/8; `sudo update` now draws the
+command-not-found card.
