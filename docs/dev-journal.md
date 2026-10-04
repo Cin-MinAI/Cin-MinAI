@@ -7,6 +7,33 @@ journal (`docs/guide-model-journal.md`). Newest entry first.
 
 ---
 
+## 2026-10-03 (late night) — accounts, and the first ISO with AICUI
+
+*Ian asked for a checklist of the accounts and organisations to make (now on the dev PC's desktop: a development
+email, GitHub org + `cinminai-apt`, Hugging Face org + token, AMO two-factor, an optional Anthropic console with a
+spending limit, and a USB stick for the offline signing key — phone for passkeys and the authenticator, recovery codes
+kept off the phone). Then: "start the fresh ISO".*
+
+- **Run 1** failed at once: the llama.cpp and ISO steps run as root in WSL, git refused the repository owned by
+  another user, and the per-build version line (from the morning) got no commit time. Fixed with
+  `safe.directory` for that one call.
+- **Run 2** failed in the ISO step: *"cinminai-aicui: Depends: git but it is not installable"* — the first ISO
+  since AICUI joined the desktop package, and the build only sees Mint's image and our repo. Fixed by adding the
+  same dated Ubuntu snapshot the llama.cpp build uses, pinned so it can only add packages the image lacks (priority
+  50), never upgrade the image's; it brought exactly git, git-man and liberror-perl.
+- **Run 3:** the ISO built; the live boot test and the unattended install test passed (AICUI and the guide model on
+  the installed system, the assistant answering, a clean shutdown); `check-iso.sh`'s manifest check — which names
+  every package allowed into the image — failed only on the three new ones, was updated to name them, and all 8 checks
+  pass on the same ISO.
+- Two items RESUME still listed as open were already done (the live-USB splash, the guide model in installed systems).
+  The installed system's screenshot shows two small ones: Mint's own Welcome window (M7) and the sidebar's button row
+  running out of room at 1024 px.
+
+**Lesson:** a feature isn't in the product until it's in the ISO — AICUI had worked for two days on the test SSD,
+installed by hand, with a dependency the image didn't have.
+
+---
+
 ## 2026-10-03 (night) — persistence: habits on the bitcode, a memory design, and the Quaddle board
 
 *Ian: "we are pretty much at that point where persistence needs to be discussed. We literally put a whole AI suite

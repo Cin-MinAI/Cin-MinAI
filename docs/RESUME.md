@@ -51,11 +51,16 @@ model's story: `docs/guide-model-journal.md`.
   `docs/kernel doc/` — beside the project, ignored by git; independent check script there (23 checks pass). **Still
   to rescue:** the board's newer HDL source and `quaddle/node.py`, on the Mint NVMe — when that drive is next in.
 - **Build order from here (Ian: finish the early steps first, then the full OS plan with this incorporated):**
-  1. **Early steps to finish:** (M0 closed, 3 Oct); M1 — the live-USB splash, an automated install
-     test, CI and publishing (waits on Ian: `cinminai-apt` Pages repo, a Hugging Face org, the offline signing key);
-     Alpha/M2 — (the guide model already reaches installed systems: the 2 Oct install test reports it), LibreOffice/writer/
-     journal/web features packaged and boot-tested, the sidebar's cards seen on screen; a fresh ISO with everything
-     since 28 Sept through the VM boot test. Then the guide's cycle 1 list.
+  1. **Early steps to finish:** M0 closed (3 Oct). **Fresh ISO done (3 Oct night, c128a30):** everything since
+     2 Oct incl. AICUI; all 8 `check-iso.sh` checks pass, VM boot test PASS, unattended install test PASS
+     (AICUI and the guide model on the installed system). Two build fixes on the way: the per-build version reads
+     git as root, and dependencies the Mint image lacks (git for AICUI) come from the dated Ubuntu snapshot,
+     install-only. Already done (RESUME had them open): the live-USB splash, the guide model in installed systems.
+     Still open: M1 — an automated install test is done (the VM install test); **CI and publishing** (waits on
+     Ian: the accounts checklist on the dev PC's desktop — dev email, GitHub org + `cinminai-apt`, Hugging Face org
+     + token, the offline signing-key USB stick); Alpha/M2 — the sidebar's cards checked on screen; the sidebar's
+     button row overflows at 1024 px ("Open AICU…"); Mint's own Welcome window still opens (M7's mintwelcome
+     fork). Then the guide's cycle 1 list.
   2. **M3** — the terminal relay as a real package, command cards, terminal context.
   3. **M4** — the action boundary built as Choice Atoms (D67): one action path, approvals, the admin lane, the
      record as audit log, replay, security tests.
