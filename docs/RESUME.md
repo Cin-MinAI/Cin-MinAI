@@ -58,9 +58,10 @@ model's story: `docs/guide-model-journal.md`.
      install-only. Already done (RESUME had them open): the live-USB splash, the guide model in installed systems.
      Still open: M1 — an automated install test is done (the VM install test); **CI and publishing** (waits on
      Ian: the accounts checklist on the dev PC's desktop — dev email, GitHub org + `cinminai-apt`, Hugging Face org
-     + token, the offline signing-key USB stick); Alpha/M2 — the sidebar's cards checked on screen; the sidebar's
-     button row overflows at 1024 px ("Open AICU…"); Mint's own Welcome window still opens (M7's mintwelcome
-     fork). Then the guide's cycle 1 list.
+     + token, the offline signing-key USB stick); Alpha/M2 — the sidebar checked on the test install's 4K screen (4 Oct: the welcome
+     buttons now wrap — fixed, 8cd7e83 — the new-project dialog and the project bar look right; to confirm at 1024 px
+     in the next VM boot test); polish: the new-project dialog's text and the project bar's "Writing: …" label touch
+     the left edge (no inner margin); Mint's own Welcome window still opens (M7's mintwelcome fork). Then the guide's cycle 1 list.
   2. **M3** — the terminal relay as a real package, command cards, terminal context.
   3. **M4** — the action boundary built as Choice Atoms (D67): one action path, approvals, the admin lane, the
      record as audit log, replay, security tests.
