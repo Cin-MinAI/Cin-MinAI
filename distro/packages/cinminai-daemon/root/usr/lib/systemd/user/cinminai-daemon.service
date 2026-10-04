@@ -1,6 +1,6 @@
 [Unit]
 Description=Cin-MinAI assistant
-Documentation=https://github.com/Brickmii/Cin-MinAI
+Documentation=https://github.com/Cin-MinAI/Cin-MinAI
 # restart after a crash, but never loop (SPEC §4.1): 3 starts in 5 minutes at most
 StartLimitIntervalSec=300
 StartLimitBurst=3

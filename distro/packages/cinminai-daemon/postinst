@@ -3,4 +3,11 @@
 set -e
 if [ "$1" = configure ]; then
     python3 -m compileall -q /usr/lib/python3/dist-packages/cin_minai >/dev/null 2>&1 || true
+    # The service file comes with every update (its date changes even when its content doesn't): tell the systemd of
+    # each logged-in user to read it again, so they don't see "unit file changed on disk, run daemon-reload"
+    # (Ian, 2026-10-04). Best effort: never fails the install.
+    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        user=$(id -nu "$uid" 2>/dev/null) || continue
+        systemctl --user --machine="$user@" daemon-reload >/dev/null 2>&1 || true
+    done
 fi

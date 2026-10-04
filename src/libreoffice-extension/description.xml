@@ -4,7 +4,7 @@
   <identifier value="org.cinminai.libreoffice"/>
   <version value="0.2"/>
   <display-name><name lang="en">Cin-MinAI Assistant</name></display-name>
-  <publisher><name lang="en" xlink:href="https://github.com/Brickmii/Cin-MinAI">Cin-MinAI</name></publisher>
+  <publisher><name lang="en" xlink:href="https://github.com/Cin-MinAI/Cin-MinAI">Cin-MinAI</name></publisher>
   <dependencies>
     <OpenOffice.org-minimal-version value="4.0" xmlns:d="http://openoffice.org/extensions/description/2006" d:name="LibreOffice"/>
   </dependencies>
