@@ -1,10 +1,24 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-03 night** (latest: journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-04 late night** (latest: journal "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-04, late night) — vision is update 3
+
+- **Update 3 (D64, D78–D80):** the sidebar reads pictures and watches videos — files (whisper.cpp in
+  `cinminai-whisper`, ffmpeg) and the YouTube video open in Firefox (transcript panel + storyboard through our
+  extension, `cinminai-firefox`, Mozilla-signed 0.2.0 by `distro/firefox-sign.py`, force-installed by policy; helper on
+  the session bus as `org.cinminai.Firefox`, shipped in the daemon package). Answers render Markdown. Packages
+  `…233846` (15) built against the release key; Ian signs with the stick, then push `cinminai-apt`, then the website
+  card (prepared in the scratchpad clone: "In update 3"). Find-by-colour (D79, `colorfind.py`) is in but waits for a
+  Waldo page with a known answer.
+- **Next ISO build:** `check-iso.sh`'s want list needs cinminai-whisper, cinminai-firefox, ffmpeg and ffmpeg's
+  libraries (the list prints what was added).
+- **Next:** M4 (Choice Atoms, D67) → M4b → M5–M7. Later for video: a Firefox page-menu entry, guided repair, "watch it
+  for me" (screen recording, also the fallback for pages without a transcript).
 
 ## Where we stopped (2026-10-04, night) — M3 shipped as update 2
 

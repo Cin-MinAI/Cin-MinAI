@@ -1200,3 +1200,35 @@ numpy isn't), then scores a grid of patches. Three things learned building it:
 The four best places go to the vision model as close-ups (at least 448 px) after the whole picture, named by where they
 are ("bottom right"); the model picks one or says none. Not yet tried on a real Waldo page or with the model.
 
+
+## 2026-10-04 (late night) — it watches videos: files, and the YouTube video open in Firefox (update 3)
+
+**Video files** (slice 2): whisper.cpp v1.9.4 built in the llama.cpp build root and packaged (`cinminai-whisper`,
+processor only, depends on ffmpeg, which Mint's image lacks); the multilingual small speech model fetched once,
+asked first, in the same offer as the picture reader. End to end on the test SSD, driven over D-Bus as the sidebar
+does: Ian's 2:38 RGH tutorial, "What do I need, and what are the steps?" → offer (465 MB, 28 s) → speech 60 s → 7 key
+frames read by the 27B → summary, **4:43 in all** (the lab: 8½ min). Steps, timestamps, the 80 % compatibility warning
+right; the executable's name misheard ("default dot sex" → `default.dsx`; it's `default.xex`), and the model said
+it was unclear — the lab's file-extension slip again, now flagged.
+
+**The concept problem.** Ian opened a YouTube video, asked the sidebar to summarize it, and got a web search
+recommending three online summarizer sites. Three ways to fix it were weighed; Ian chose our Firefox extension,
+"to stick with known trustworthy sources like YouTube to avoid bad actors" (D80). What we learned getting there:
+- YouTube's caption files come back **empty** without the token its own player adds — fetched directly, and even the
+  player's own request in a Firefox driven by automation (YouTube can tell). The next step would have hidden the
+  automation flag; the permission system refused it as evading YouTube's bot detection, and rightly: we read what the
+  page shows the person, nothing more. Dropped.
+- **Storyboards** — YouTube's own preview pictures, a 320×180 frame every 5 s over the whole video — need no token.
+- Ian checked by hand that the **transcript panel** ("Show transcript") shows in his Firefox. So the extension reads
+  that panel and the storyboard, only on youtube.com, only when asked; frames where the picture changes go to the
+  vision model. Nothing plays, and **the ads are in neither**. Ian: the turkey video's ad breaks are "exactly where a
+  user like me would lose the motivation to watch."
+- Ian's surprise test, a Rick-and-Morty drawing video with **no speech at all**: a step-by-step from the pictures
+  alone. One bad slip: the channel's logo "League of Joy" read as "League of Legends", and then a "branding mismatch…
+  likely a watermark error by the creator". The page's own title and channel now go to the model as correct.
+- Ian: "Oh you cooked alright… I am blown the fuck away", and "Not frontier level but working level for sure."
+
+Also: answers in the sidebar are formatted (bold, bullets, code, links) instead of raw Markdown; the extension 0.2.0 is
+signed by Mozilla (unlisted, `distro/firefox-sign.py`) and installed by Firefox's policy (`cinminai-firefox`); the
+README names the new connection (a video's preview pictures, when asked). Find-by-colour (D79) waits for a Waldo page
+whose answer Ian knows.
