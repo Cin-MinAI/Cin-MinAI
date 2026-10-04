@@ -17,7 +17,7 @@ it is the backup if the lead's setup on the dev PC breaks.
   it carries **the machine's own accounts** — a development email, Hugging Face, Thunderbird on that
   email — which belong to the assistant and the OS, not to Ian (D62), plus Ian's GitHub sign-in in
   Firefox for the repos. The lead keeps a read-only copy of `docs/` + this file in `~/cin-minai/repo-docs/`
-  (see its `VERSION`). The repo itself is `git@github.com:Cin-MinAI/Cin-MinAI.git` (private).
+  (see its `VERSION`). The repo itself is `git@github.com:Cin-MinAI/Cin-MinAI.git` (public since 2026-10-04).
 - Hand-offs between lead and Codex go through `~/cin-minai/notes/` on the Mint box (dated Markdown
   notes, both directions).
 

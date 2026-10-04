@@ -1097,3 +1097,30 @@ adapters (OBD-II, NAND reader, a Rock Band controller clone); and conversations 
 ("confused inventors"), AI's head start for defenders, and where hardware goes when AI becomes like phones.
 Ian's reason for the project: someone on Reddit asked what it takes to build a community AI program — *work,
 and joining others doing the work, until it's big enough to organise.* This is that work.
+
+## 2026-10-04 — Cin-MinAI 0.0.1 is public
+
+The first public alpha is out, with its page. Ian: *"The release has to be with the page message."*
+
+- **Where:** the website **https://cin-minai.github.io** (the assistants — OS, learning Linux, coding, teaching, writing,
+  planning — each with a real request; the wedding and hello-world stories in screenshots; "you own the computer, and
+  the button"; try it; built in the open with Ian's phone photos), the source **github.com/Cin-MinAI/Cin-MinAI** (moved
+  into the org and made public), the ISO **huggingface.co/CinMin/Cin-MinAI-OS** (5.9 GB, SHA-256 `ae74be30…`, size and
+  hash checked on Hugging Face), the guide **huggingface.co/CinMin/guide-4b**, and the signed apt repository
+  **cin-minai.github.io/cinminai-apt** (11 packages, Archive Key `7EA7…70F6`, verified from the public address the way
+  apt does).
+- **The key ceremony (D72):** Ian: "Require the key any time for a signing." The master key and signing subkey were made
+  in memory and live only on a dedicated stick; the PC keeps the public key. Rehearsed end to end with a throwaway key
+  first; the real signing was Ian's, at the keyboard.
+- **Caught before publishing:** (1) the first release ISO was 8.6 GB — with `GUIDE_URL` set, the guide package's install
+  hook downloaded the model *into* the live system too; fixed in `build-iso.sh`, and `check-iso.sh` now fails on it;
+  the rebuilt ISO passed all checks, the boot test and the install test. (2) The README said "it can see" — vision and
+  video summaries are lab tools, not in 0.0.1; now "coming next" everywhere. (3) AICUI's agent could be replaced by a
+  project folder holding a `cin_minai/` copy (Ian's diag-test) — `python3 -P`; and the web search named Cin-MinAI to
+  every site — now the installed Firefox's plain identity (Ian: count the project, never the people). Both fixes reach
+  installed systems with the first update, signed with the stick.
+- **Decided along the way:** D68–D76 — knowledge from named sources, ask when the request doesn't say enough, the org
+  and the newcomer's path, the OS on Hugging Face as an AI system, the key stick, hardware notes (Ian's BIOS order),
+  the Steam and FF16 plans, Ian's creator apps and the no-ads/no-telemetry promise.
+- **Guide cycle 1** is parked until after the release: run C1 gave no gain, and the CPU and GPU scored the same file
+  85 % vs 90 % — decisions are scored on the GPU from now on, and the noise gets measured first.
