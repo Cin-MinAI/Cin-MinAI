@@ -7,9 +7,10 @@ set -euo pipefail
 stage=$1 repo=$2
 py=$stage/usr/lib/python3/dist-packages/cin_minai
 install -d "$py"
-for pkg in daemon inference diag; do
+for pkg in daemon inference diag firefox; do
     cp -r "$repo/src/cin_minai/$pkg" "$py/"
 done
+rm -rf "$py/firefox/extension"  # the extension itself ships signed, through Firefox's policy (D14)
 find "$py" -name __pycache__ -prune -exec rm -rf {} +
 python3 gen_data.py "$stage/usr/share/cinminai/guide" "$repo"
 install -d "$stage/usr/share/doc/cinminai-daemon"

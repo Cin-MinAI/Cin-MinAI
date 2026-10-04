@@ -1,0 +1,8 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Started by Firefox for the Cin-MinAI extension (native messaging); see cin_minai/firefox/host.py.
+import sys
+
+from cin_minai.firefox.host import main
+
+sys.exit(main())

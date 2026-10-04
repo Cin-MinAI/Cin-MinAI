@@ -1,0 +1,7 @@
+{
+  "name": "org.cinminai.assistant",
+  "description": "Cin-MinAI assistant: reads the YouTube video open in Firefox when you ask about it",
+  "path": "/usr/libexec/cinminai-firefox-host",
+  "type": "stdio",
+  "allowed_extensions": ["assistant@cinminai.org"]
+}

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Cin-MinAI Assistant",
+  "version": "0.2.0",
+  "description": "Lets the Cin-MinAI assistant on this computer read the YouTube video you have open when you ask it to: the transcript and the preview pictures, nothing else. The answer comes from the model on this computer.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "assistant@cinminai.org",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  },
+  "permissions": ["nativeMessaging", "scripting"],
+  "host_permissions": ["*://www.youtube.com/*"],
+  "background": { "scripts": ["background.js"] },
+  "icons": { "48": "icon.svg", "96": "icon.svg" }
+}

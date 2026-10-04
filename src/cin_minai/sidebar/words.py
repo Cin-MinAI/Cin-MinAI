@@ -644,12 +644,14 @@ def vision_caveat(result: dict, answer: str = "") -> str:
 
 
 STAGES = {"speech": "listening to what's said", "frames": "picking the moments where the picture changes",
-          "summary": "writing the summary"}
+          "pictures": "getting YouTube's preview pictures", "summary": "writing the summary"}
 
 
 def video_step(args: dict, more: dict) -> str:
     """One line that follows the job: listening, frame 4 of 23, writing."""
     stage = more.get("stage", "")
+    if stage == "asking_firefox":
+        return "Looking at the video open in Firefox…"
     if stage == "frame":
         doing = f"looking at moment {more.get('n')} of {more.get('of')} ({more.get('at')})"
     else:
@@ -663,7 +665,11 @@ def video_caveat(result: dict, answer: str = "") -> str:
     """D64/D65, said every time: what it went by, and that names and numbers need checking."""
     base = f"Watched in {result['took']}: " if result.get("took") else ""
     base += f"{result.get('frames', 0)} moments looked at"
-    base += ", and what's said in it." if result.get("speech") else "; I heard no speech in it."
+    if result.get("source") == "youtube":  # YouTube's transcript and preview pictures: no ads in either
+        base += (", with the video's transcript." if result.get("speech") else "; the video has no transcript.")
+        base += " Ads aren't in the transcript or the pictures, so they're not in the summary."
+    else:
+        base += ", and what's said in it." if result.get("speech") else "; I heard no speech in it."
     found = numbers_heard(answer)
     if found:
         base += (" Numbers from the video: " + ", ".join(found[:8]) + ". Check them in the video before you rely "

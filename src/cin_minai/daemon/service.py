@@ -133,6 +133,9 @@ XML = f"""
 WHERE = {"cuda": "graphics card", "vulkan": "graphics card", "cpu": "processor"}
 
 
+WEB_VIDEO = "firefox:current-video"  # a setup offer made for the video open in Firefox
+
+
 def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
@@ -369,8 +372,12 @@ class Service:
                     return
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
-            self.job(self.next_id, lambda on_text, on_action, p=path, r=request, f=fetch_first:
-                     self.look(p, r, f, on_text, on_action))
+            if path == WEB_VIDEO:  # the offer was for the video open in Firefox: read it again, it may have changed
+                self.job(self.next_id, lambda on_text, on_action, r=request:
+                         self.web_video(r, True, on_text, on_action))
+            else:
+                self.job(self.next_id, lambda on_text, on_action, p=path, r=request, f=fetch_first:
+                         self.look(p, r, f, on_text, on_action))
         elif method == "TerminalSharing":
             (choice,) = params.unpack()
             from . import terminal
@@ -523,6 +530,11 @@ class Service:
             self.job(rid, gather)
             return
 
+        from . import webvideo
+        if webvideo.asks_about_video(text):  # the YouTube video open in Firefox (D78), never a summarizer site
+            self.job(rid, lambda on_text, on_action: self.web_video(text, False, on_text, on_action))
+            return
+
         def answer(on_text, on_action):
             out = self.guide.turn(text, on_text, on_action, self.cancel)
             from . import terminal
@@ -540,34 +552,45 @@ class Service:
         self.job(rid, answer)
 
     # --- reading pictures (D64, D78) ---------------------------------------------------------------------
+    def ready_to_see(self, key: str, request: str, moving: bool, speech: bool, fetch_first: bool, on_text,
+                     on_action) -> tuple[dict | None, dict, dict | None]:
+        """The model that sees, with what it still needs downloaded — asked first (D30), fetched on the second call.
+        (choice, inference, None) when ready; (None, inference, result) when the job ends here."""
+        from . import video, vision
+        inference = config.load()["inference"]
+        choice = vision.choose(self.store, inference)
+        needed = [m for m in ([choice["projector"]] + ([video.WHISPER] if speech else [])) if not self.store.has(m.file)]
+        if not needed:
+            return choice, inference, None
+        if not fetch_first:
+            import uuid
+            oid = uuid.uuid4().hex[:12]
+            self.vision_offers = {oid: (key, request)}
+            on_action("vision_setup", {}, "proposal", json.dumps({
+                "id": oid, "model": choice["model"], "size_mb": round(sum(m.size for m in needed) / 2**20),
+                "recommended": choice["recommended"], "video": moving,
+                "reader": any(m is choice["projector"] for m in needed),
+                "speech": any(m is video.WHISPER for m in needed)}))
+            return None, inference, {"tool": "vision", "needs": [m.file for m in needed]}
+        for m in needed:
+            try:
+                self.store.download(m, lambda have, total, m=m: on_action(
+                    "download", {"file": m.file}, "running", json.dumps({
+                        "model": m.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}"})),
+                    self.cancel)
+            except DownloadStopped:
+                on_text("Stopped. What was downloaded is kept, so it can carry on later.")
+                return None, inference, {"tool": "vision", "done": False}
+        return choice, inference, None
+
     def look(self, path: str, request: str, fetch_first: bool, on_text, on_action) -> dict:
         from . import video, vision
         if not os.path.isfile(path):
             raise BackendError("That file isn't there any more.")
         moving = video.is_video(path)
-        inference = config.load()["inference"]
-        choice = vision.choose(self.store, inference)
-        needed = [m for m in ([choice["projector"]] + ([video.WHISPER] if moving else [])) if not self.store.has(m.file)]
-        if needed:
-            if not fetch_first:  # ask first: it's a download (D30)
-                import uuid
-                oid = uuid.uuid4().hex[:12]
-                self.vision_offers = {oid: (path, request)}
-                on_action("vision_setup", {}, "proposal", json.dumps({
-                    "id": oid, "model": choice["model"], "size_mb": round(sum(m.size for m in needed) / 2**20),
-                    "recommended": choice["recommended"], "video": moving,
-                    "reader": any(m is choice["projector"] for m in needed),
-                    "speech": any(m is video.WHISPER for m in needed)}))
-                return {"tool": "vision", "needs": [m.file for m in needed]}
-            for m in needed:
-                try:
-                    self.store.download(m, lambda have, total, m=m: on_action(
-                        "download", {"file": m.file}, "running", json.dumps({
-                            "model": m.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}"})),
-                        self.cancel)
-                except DownloadStopped:
-                    on_text("Stopped. What was downloaded is kept, so it can carry on later.")
-                    return {"tool": "vision", "done": False}
+        choice, inference, ended = self.ready_to_see(path, request, moving, moving, fetch_first, on_text, on_action)
+        if ended:
+            return ended
         if moving:
             return self.watch(path, request, choice, inference, on_text, on_action)
         close_ups = vision.places(path, request)  # "find the …": where the colours meet, looked at closely
@@ -586,55 +609,91 @@ class Service:
         return {"tool": "vision", "model": choice["model"], "reply_chars": len(reply), "timings": [timing]}
 
     def watch(self, path: str, request: str, choice: dict, inference: dict, on_text, on_action) -> dict:
-        """A video: the speech, the key frames read one by one, then the summary — each step reported (it takes
-        minutes: the lab's 28-minute video took 13)."""
-        from . import video, vision
-        import base64
-
-        def step(stage: str, **more) -> None:
-            on_action("video", {"model": choice["model"], "file": os.path.basename(path)}, "running",
-                      json.dumps({"stage": stage, **more}))
-
+        """A video file: the speech (whisper.cpp), the key frames (ffmpeg), then the shared reading."""
+        from . import video
         started = time.monotonic()
         length = video.duration(path)
         work = video.workdir()
+        label = os.path.basename(path)
         try:
-            step("speech", length=video.hms(length))
+            self.video_step(choice, label, on_action, "speech", length=video.hms(length))
             lines = video.transcript(path, work, self.store.path(video.WHISPER.file))
             if self.cancel.is_set():
                 return {"tool": "video", "done": False}
-            step("frames")
+            self.video_step(choice, label, on_action, "frames")
             frames = video.key_frames(path, work, length)
-            reader = LlamaCppBackend(vision.backend_settings(choice, self.store, inference), log)
-            self.backend.unload()  # one card, one model
-            try:
-                described = []
-                for i, (t, f) in enumerate(frames):
-                    if self.cancel.is_set():
-                        return {"tool": "video", "done": False}
-                    step("frame", n=i + 1, of=len(frames), at=video.hms(t))
-                    with open(f, "rb") as fh:
-                        data = base64.b64encode(fh.read()).decode()
-                    text, _ = reader.chat([{"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
-                        {"type": "text", "text": video.frame_prompt(t, lines)}]}],
-                        max_tokens=200, cancel=self.cancel, sampling=vision.SAMPLING)
-                    described.append((t, text.strip()))
-                step("summary")
-                reply, timing = reader.chat([{"role": "user", "content": video.summary_prompt(request, lines, described)}],
-                                            max_tokens=1800, on_text=on_text, cancel=self.cancel,
-                                            sampling=vision.SAMPLING)
-                reduced = reader.status().reduced
-            finally:
-                reader.unload()
+            return self.read_video(choice, inference, label, request, lines, frames, length, started, on_text,
+                                   on_action)
         finally:
             video.cleanup(work)
+
+    def web_video(self, request: str, fetch_first: bool, on_text, on_action) -> dict:
+        """The YouTube video open in Firefox (D78): its transcript and storyboard, through our extension."""
+        from . import video, webvideo
+        on_action("video", {"model": "", "file": "Firefox"}, "running", json.dumps({"stage": "asking_firefox"}))
+        info = webvideo.from_firefox()
+        trouble = webvideo.problem(info)
+        if trouble:
+            on_text(trouble)
+            return {"tool": "web_video", "error": info.get("error") or "unreadable"}
+        choice, inference, ended = self.ready_to_see(WEB_VIDEO, request, True, False, fetch_first, on_text, on_action)
+        if ended:
+            return ended
+        started = time.monotonic()
+        length = float(info.get("length") or 0)
+        label = info.get("title") or "the video"
+        work = video.workdir()
+        try:
+            lines = webvideo.lines(info)
+            self.video_step(choice, label, on_action, "pictures", length=video.hms(length), lines=len(lines))
+            frames = webvideo.key_frames(info, work)
+            if not lines and not frames:
+                on_text("I couldn't get this video's transcript or its preview pictures from YouTube, so I can't "
+                        "summarize it. Reload the page and ask again.")
+                return {"tool": "web_video", "error": "empty"}
+            return self.read_video(choice, inference, label, request, lines, frames, length, started, on_text,
+                                   on_action, source="youtube")
+        finally:
+            video.cleanup(work)
+
+    @staticmethod
+    def video_step(choice: dict, label: str, on_action, stage: str, **more) -> None:
+        on_action("video", {"model": choice["model"], "file": label}, "running", json.dumps({"stage": stage, **more}))
+
+    def read_video(self, choice, inference, label, request, lines, frames, length, started, on_text, on_action,
+                   source: str = "file") -> dict:
+        """The key frames read one by one, then the summary led by the request — each step reported (minutes: the
+        lab's 28-minute video took 13)."""
+        from . import video, vision
+        import base64
+        reader = LlamaCppBackend(vision.backend_settings(choice, self.store, inference), log)
+        self.backend.unload()  # one card, one model
+        try:
+            described = []
+            for i, (t, f) in enumerate(frames):
+                if self.cancel.is_set():
+                    return {"tool": "video", "done": False}
+                self.video_step(choice, label, on_action, "frame", n=i + 1, of=len(frames), at=video.hms(t))
+                with open(f, "rb") as fh:
+                    data = base64.b64encode(fh.read()).decode()
+                text, _ = reader.chat([{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}},
+                    {"type": "text", "text": video.frame_prompt(t, lines)}]}],
+                    max_tokens=200, cancel=self.cancel, sampling=vision.SAMPLING)
+                described.append((t, text.strip()))
+            self.video_step(choice, label, on_action, "summary")
+            reply, timing = reader.chat([{"role": "user", "content": video.summary_prompt(request, lines, described)}],
+                                        max_tokens=1800, on_text=on_text, cancel=self.cancel,
+                                        sampling=vision.SAMPLING)
+            reduced = reader.status().reduced
+        finally:
+            reader.unload()
         on_action("video", {"model": choice["model"]}, "done", json.dumps({
             "model": choice["model"], "recommended": choice["recommended"], "reduced": reduced,
-            "speech": bool(lines), "frames": len(frames), "length": video.hms(length),
+            "speech": bool(lines), "frames": len(frames), "length": video.hms(length), "source": source,
             "took": video.hms(time.monotonic() - started)}))
-        return {"tool": "video", "model": choice["model"], "frames": len(frames), "speech_lines": len(lines),
-                "reply_chars": len(reply), "timings": [timing]}
+        return {"tool": "video", "source": source, "model": choice["model"], "frames": len(frames),
+                "speech_lines": len(lines), "reply_chars": len(reply), "timings": [timing]}
 
     # --- a bigger model for an unusual terminal error (M3; Ian, 2026-10-04: only when no card fits, and asked) ---
     BIGGER_SYSTEM = ("You help a person with an error in their Linux Mint terminal. Say what caused it in plain "
