@@ -6,6 +6,17 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
+## Where we stopped (2026-10-04, night) — M3 shipped as update 2
+
+- **M3 (terminal integration + sandboxed execution) is done and published** as update 2 (`…174301`, 13 packages,
+  signed by Ian). Exit test passed on the test SSD. Packages: cinminai-shell (relay, D77 offered-then-on, ◆, ai off),
+  cinminai-sandbox (bwrap + pasta; security suite 48/48 as a package). Daemon: `terminal.py` (context, lookup hint,
+  To terminal, Try it first, the offer), `commands.py` (Explain facts). Terminal eval `training/eval/guide/
+  tasks_terminal.py`: 22/22 (run with `--help-json`, GPU). SSD test tools: `/tmp/term_test.py`, `/tmp/m3_exit.py`
+  (a shared terminal of our own, driven by a script). Install lines for test debs: short globs only.
+- **Next:** M4 (the action boundary as Choice Atoms, D67) → M4b → M5–M7. Parked: guide cycle 1 (measure noise first),
+  markdown shown raw in some answers, the other context providers (files, git, man, journal).
+
 ## Where we stopped (2026-10-04) — Cin-MinAI 0.0.1 is public
 
 - **Live:** site https://cin-minai.github.io (repo `Cin-MinAI/cin-minai.github.io`), source

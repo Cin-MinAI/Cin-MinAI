@@ -1161,3 +1161,11 @@ resolver stub; now filtered from the output). The answer had led with "the venv 
 `venv_missing`, now opens with "this folder has no virtual environment yet"; eval R13 (this exact case). Terminal
 eval **16/16**. On the way: a long install line in prompts.txt broke when copied (`…sandbox….deb: command not found`,
 then apt's unmet dependency) — install lines are now short globs (`./install-debs.sh *164858*.deb`).
+
+**Update 2, the same evening — M3 to every installed system.** All 13 packages at `0.0.1+git20261004.174301`:
+terminal sharing offered then on (D77) with the ◆ and `ai off`, the assistant reading the shared terminal when asked,
+13 terminal-error cards, command cards with Copy / To terminal / Try it first / Explain, cinminai-sandbox, the bigger
+model for errors no card covers, and the day's fixes (python3 -P, the plain browser identity, no "unit file changed"
+warning). Mint's Update Manager does a dist-upgrade (`cache.upgrade(True)` in mintUpdate's checkAPT.py), so systems on
+0.0.1 get the two new packages and their Ubuntu dependencies with it. Signed by Ian with the stick, pushed to
+cinminai-apt, verified from the public address as apt does (13 packages, good signature).
