@@ -1232,3 +1232,23 @@ Also: answers in the sidebar are formatted (bold, bullets, code, links) instead 
 signed by Mozilla (unlisted, `distro/firefox-sign.py`) and installed by Firefox's policy (`cinminai-firefox`); the
 README names the new connection (a video's preview pictures, when asked). Find-by-colour (D79) waits for a Waldo page
 whose answer Ian knows.
+
+## 2026-10-05 (early) — a 42-minute video, in 16½ minutes
+
+Update 3 installed on the test SSD through Update Manager; the signed extension arrived by policy (0.2.0, Mozilla's
+signature verified, the temporary copy gone). First long video: Chef Jean-Pierre's 42:09 Thanksgiving turkey,
+834 transcript lines. It read all 60 key frames, then failed at the very end: the summary request was 28,813 tokens
+against a 16,384 window, and the sidebar showed llama-server's raw JSON. Fixed the same night:
+- **Part by part:** when it won't fit, stretches that do get notes (times, numbers flagged), and the summary is
+  made from the notes. Run 2: 3 parts, **18:22**, a good summary — cut off mid-list at 1,800 tokens, "(check the
+  video)" after every line, and "refrigerator" named as a number ("ref" + "rigerator").
+- Run 3 with those fixed (2,600 tokens, about 15 grouped points, the flag only after numbers and names, the
+  account-number pattern needing a whole word and a digit): **16:29**, a complete 15-step guide from prep to plating
+  with the chef's tips, only 155 °F and 180 °F named to check, no ads. Ian: "It did it… Holy shit."
+- llama-server's refusals now read as plain sentences everywhere ("That was more than the model can read at once…").
+
+Also: the website got the writing assistant's story — an unedited passage from "The Indigo Incident" (Ian: "You judge
+which is best"; chosen over "Missed the Moon" ch. 3, which restates one realisation four times). Two leftover wait
+loops from 4 Oct were found and stopped (one started WSL every 20 s); dev helpers now live locally in
+`C:\Users\Ian\cinminai-devtools` and on the SSD, kept out of the repo by Ian's choice. Pibody reviewed for choice and
+persistence ideas, to draw on when a problem calls for one (no commitment). These fixes ship as update 4.
