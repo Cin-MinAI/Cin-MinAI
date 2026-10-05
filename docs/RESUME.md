@@ -6,6 +6,17 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
+## Where we stopped (2026-10-05, early) — update 4 is out
+
+- **Update 4** (`…072730`, 15 packages, signed by Ian, verified live): long videos summarized part by part (Chef
+  Jean-Pierre's 42:09 turkey in 16:29 on the 1080 Ti), finished step lists (2,600 tokens, ~15 grouped points),
+  "(check the video)" only after numbers and names, the account-number pattern fixed, llama-server refusals in plain
+  words. Website: the writing assistant's story (an unedited passage from "The Indigo Incident").
+- Dev helpers (screenshots, apt check, video through the assistant, odt to text): `C:\Users\Ian\cinminai-devtools`
+  and `~/cinminai-devtools` on the SSD — local only, not in the repo (Ian's choice).
+- **Next:** M4 (Choice Atoms, D67). Pibody (github.com/Brickmii/Pibody) has choice and persistence ideas to draw on
+  when a problem calls for one — no commitment.
+
 ## Where we stopped (2026-10-04, late night) — vision is update 3
 
 - **Update 3 (D64, D78–D80):** the sidebar reads pictures and watches videos — files (whisper.cpp in
