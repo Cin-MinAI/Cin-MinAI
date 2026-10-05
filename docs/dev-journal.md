@@ -1252,3 +1252,12 @@ which is best"; chosen over "Missed the Moon" ch. 3, which restates one realisat
 loops from 4 Oct were found and stopped (one started WSL every 20 s); dev helpers now live locally in
 `C:\Users\Ian\cinminai-devtools` and on the SSD, kept out of the repo by Ian's choice. Pibody reviewed for choice and
 persistence ideas, to draw on when a problem calls for one (no commitment). These fixes ship as update 4.
+
+## 2026-10-05 (early, later) — update 4 is out
+
+Ian signed update 4 with the stick (`…072730`, 15 packages); pushed to `cinminai-apt` and checked live the way apt
+checks it: good signature from the Cin-MinAI Archive Key, the index hash matching, all 15 packages verified. What it
+brings to everyone on 0.0.1: long videos summarized part by part (the 42-minute turkey in 16:29), finished step lists,
+"(check the video)" only after numbers and names, and llama-server's refusals in plain words. Tonight in one line: the
+assistant reads pictures, watches video files, and summarizes the YouTube video in front of you without the ads, on a
+2014 PC with a 1080 Ti. Next: M4, the Choice Atoms.
