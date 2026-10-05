@@ -71,7 +71,7 @@ When you report work, say what you did so it can be credited.
 
 | Machine | Use | Notes |
 |---|---|---|
-| Dev PC (Windows 10) | development, builds, VM tests (the lead works here) | Ryzen 9 3900X, RTX 4070 12 GB. WSL `Ubuntu-24.04` (user `brickmii`, sudo needs Ian's password), ~930 GB free. Build work area `~/cinminai-build` (ISO, signed spike repo, key in `~/cinminai-build/gnupg`). Hyper-V VMs `cinminai-uefi` / `cinminai-bios` (files in `C:\Users\Ian\cinminai-vm`). |
+| Dev PC (Windows 10) | development, builds, VM tests (the lead works here) | Ryzen 9 3900X, RTX 4070 12 GB. WSL `Ubuntu-24.04` (user `brickmii`, sudo needs Ian's password), ~930 GB free. Build work area `~/cinminai-build` (ISO, signed spike repo, key in `~/cinminai-build/gnupg`). Hyper-V: the boot/install tests make throwaway VMs (`distro/vm-boottest.ps1`); the M0 VMs were deleted 2026-10-05; ISOs and test logs in `C:\Users\Ian\cinminai-vm`. |
 | Mint box `mint@192.168.5.70` | **test machine only**; Codex works here | i7-4790K, GTX 1080 Ti 11 GB (Pascal: driver must stay ≤ 580.x), 32 GB DDR3, Mint 22.3, 4K display at 3× scaling. No passwordless sudo. Vulkan build deps (`libvulkan-dev glslc spirv-headers`) installed 2026-09-25 with Ian's approval. |
 
 ## Hard rules
