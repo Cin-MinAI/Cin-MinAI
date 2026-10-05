@@ -596,7 +596,8 @@ NUMBERS = re.compile(
     r"(?:\+?\d{1,3}[ .-]?)?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}"            # phone numbers
     r"|[$€£¥]\s?\d[\d,.]*\d|\d[\d,.]*\d\s?(?:USD|EUR|dollars|euros)"    # amounts
     r"|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b"                              # dates written with numbers
-    r"|\b(?:account|acct|invoice|reference|ref)\.?\s*(?:no\.?|number|#)?\s*:?\s*[A-Z0-9-]{4,}", re.I)
+    r"|\b(?:account|acct|invoice|reference|ref)\b\.?\s*(?:no\b\.?|number|#)?\s*:?\s*(?=[A-Z-]*\d)[A-Z0-9-]{4,}", re.I)
+# (2026-10-05: without the word ends and the digit, "refrigerator" was an account number: "ref" + "rigerator")
 
 
 # a video's answer also: measurements and part/model numbers — the lab's video errors were a soldering station's model

@@ -125,6 +125,14 @@ class Words(unittest.TestCase):
         speech = words.vision_setup({"video": True, "speech": True, "size_mb": 465, "recommended": True})
         self.assertNotIn("picture reader", speech)
 
+    def test_words_are_not_numbers(self):
+        # 2026-10-05, the 42-minute turkey: "refrigerator" was named as a number to check ("ref" + "rigerator")
+        found = words.numbers_heard("Keep it in the refrigerator, roast to 155°F. Reference: the video. Ref# AB-1234.")
+        self.assertNotIn("refrigerator", " ".join(found))
+        self.assertIn("155°F", found)
+        self.assertIn("Ref# AB-1234", found)
+        self.assertEqual(words.numbers_heard("Refer to the referee's account of it."), [])
+
     def test_steps_and_caveat(self):
         line = words.video_step({"file": "belt.mp4", "model": "Qwen3.8-27B"}, {"stage": "frame", "n": 4, "of": 23,
                                                                                 "at": "1:10"})

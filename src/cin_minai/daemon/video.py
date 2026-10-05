@@ -32,8 +32,9 @@ SUMMARY = ("Below are the timestamped transcript of a video (automatic speech re
            "numbers wrong) and descriptions of its key frames. The person asked: \"{request}\"\n"
            "Answer that first, in plain words, in the language of the request. Then, as far as it helps them: what the "
            "video is about; the main points or steps in order, each with its time [m:ss]; any warnings or tips it "
-           "gives. Use only what's in the transcript and the frames, and say where something is unclear. Numbers, "
-           "names and part numbers heard or read: put (check the video) after each one.\n\nTRANSCRIPT:\n{transcript}"
+           "gives. Group small steps so the list stays short enough to read (about 15 points at most), and finish it. "
+           "Use only what's in the transcript and the frames, and say where something is unclear. After a number, "
+           "a name or a part number heard or read, put (check the video); not after other lines.\n\nTRANSCRIPT:\n{transcript}"
            "\n\nKEY FRAMES:\n{frames}")
 DEFAULT_REQUEST = "Summarize this video: tell me what I need to know."
 # A long video doesn't fit the model's window in one go (2026-10-05: Chef Jean-Pierre's 42-minute turkey, 834 transcript
@@ -41,19 +42,20 @@ DEFAULT_REQUEST = "Summarize this video: tell me what I need to know."
 # writes notes for each stretch of the video, and the summary from the notes. Characters per token, on the safe side:
 # English runs near 4, timestamps denser; no tokenizer call needed.
 CHARS_PER_TOKEN = 3.0
-SUMMARY_TOKENS = 1800  # the summary's own length
+SUMMARY_TOKENS = 2600  # the summary's own length (1800 cut the 42-minute video's list off mid-line, 2026-10-05)
 NOTES_TOKENS = 700     # one stretch's notes
 NOTES = ("Below is part {n} of {of} of a video ({start} to {end}): its timestamped transcript (automatic speech "
          "recognition: it may get names and numbers wrong) and descriptions of key frames. Write compact notes for a "
          "summary to be made later from all the parts: what happens here, the steps or points in order with their "
-         "times [m:ss], warnings and tips, and names, amounts and numbers as heard, each followed by (check the "
-         "video). Only what is in this part; no introduction.\n\nTRANSCRIPT:\n{transcript}\n\nKEY FRAMES:\n{frames}")
+         "times [m:ss], warnings and tips, and names, amounts and numbers as heard, each number or name followed by "
+         "(check the video). Only what is in this part; no introduction.\n\nTRANSCRIPT:\n{transcript}\n\nKEY FRAMES:\n{frames}")
 FROM_NOTES = ("Below are notes on a video, made part by part from its transcript (automatic speech recognition) and its "
               "key frames. The person asked: \"{request}\"\n"
               "Answer that first, in plain words, in the language of the request. Then, as far as it helps them: what "
               "the video is about; the main points or steps in order, each with its time [m:ss]; any warnings or tips "
-              "it gives. Use only what's in the notes, and say where something is unclear. Keep \"(check the video)\" "
-              "after numbers, names and part numbers.\n\nNOTES:\n{notes}")
+              "it gives. Group small steps so the list stays short enough to read (about 15 points at most), and "
+              "finish it. Use only what's in the notes, and say where something is unclear. Keep \"(check the "
+              "video)\" after numbers, names and part numbers only, not after other lines.\n\nNOTES:\n{notes}")
 
 
 def is_video(path: str) -> bool:
