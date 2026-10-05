@@ -654,6 +654,8 @@ def video_step(args: dict, more: dict) -> str:
         return "Looking at the video open in Firefox…"
     if stage == "frame":
         doing = f"looking at moment {more.get('n')} of {more.get('of')} ({more.get('at')})"
+    elif stage == "notes":  # a long video: notes part by part, then the summary
+        doing = f"taking notes, part {more.get('n')} of {more.get('of')} (from {more.get('at')})"
     else:
         doing = STAGES.get(stage, "working")
         if stage == "speech" and more.get("length"):

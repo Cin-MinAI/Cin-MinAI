@@ -682,10 +682,24 @@ class Service:
                     {"type": "text", "text": video.frame_prompt(t, lines, title, author)}]}],
                     max_tokens=200, cancel=self.cancel, sampling=vision.SAMPLING)
                 described.append((t, text.strip()))
+            from cin_minai.inference import matcher
+            prompt = video.summary_prompt(request, lines, described, title, author)
+            if not video.fits(prompt, matcher.VISION_CONTEXT, video.SUMMARY_TOKENS):  # a long video: part by part
+                stretches = video.parts(lines, described, matcher.VISION_CONTEXT)
+                notes = []
+                for i, part in enumerate(stretches, 1):
+                    if self.cancel.is_set():
+                        return {"tool": "video", "done": False}
+                    self.video_step(choice, label, on_action, "notes", n=i, of=len(stretches),
+                                    at=video.hms(part["start"]))
+                    text, _ = reader.chat([{"role": "user", "content": video.notes_prompt(
+                        part, i, len(stretches), title, author)}], max_tokens=video.NOTES_TOKENS, cancel=self.cancel,
+                        sampling=vision.SAMPLING)
+                    notes.append(text)
+                prompt = video.summary_from_notes(request, notes, title, author)
             self.video_step(choice, label, on_action, "summary")
-            reply, timing = reader.chat([{"role": "user", "content": video.summary_prompt(request, lines, described,
-                                                                                         title, author)}],
-                                        max_tokens=1800, on_text=on_text, cancel=self.cancel,
+            reply, timing = reader.chat([{"role": "user", "content": prompt}],
+                                        max_tokens=video.SUMMARY_TOKENS, on_text=on_text, cancel=self.cancel,
                                         sampling=vision.SAMPLING)
             reduced = reader.status().reduced
         finally:

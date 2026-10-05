@@ -36,6 +36,24 @@ SUMMARY = ("Below are the timestamped transcript of a video (automatic speech re
            "names and part numbers heard or read: put (check the video) after each one.\n\nTRANSCRIPT:\n{transcript}"
            "\n\nKEY FRAMES:\n{frames}")
 DEFAULT_REQUEST = "Summarize this video: tell me what I need to know."
+# A long video doesn't fit the model's window in one go (2026-10-05: Chef Jean-Pierre's 42-minute turkey, 834 transcript
+# lines + 60 frames = 28,813 tokens against 16,384, and it failed at the very end, after every frame was read). Then it
+# writes notes for each stretch of the video, and the summary from the notes. Characters per token, on the safe side:
+# English runs near 4, timestamps denser; no tokenizer call needed.
+CHARS_PER_TOKEN = 3.0
+SUMMARY_TOKENS = 1800  # the summary's own length
+NOTES_TOKENS = 700     # one stretch's notes
+NOTES = ("Below is part {n} of {of} of a video ({start} to {end}): its timestamped transcript (automatic speech "
+         "recognition: it may get names and numbers wrong) and descriptions of key frames. Write compact notes for a "
+         "summary to be made later from all the parts: what happens here, the steps or points in order with their "
+         "times [m:ss], warnings and tips, and names, amounts and numbers as heard, each followed by (check the "
+         "video). Only what is in this part; no introduction.\n\nTRANSCRIPT:\n{transcript}\n\nKEY FRAMES:\n{frames}")
+FROM_NOTES = ("Below are notes on a video, made part by part from its transcript (automatic speech recognition) and its "
+              "key frames. The person asked: \"{request}\"\n"
+              "Answer that first, in plain words, in the language of the request. Then, as far as it helps them: what "
+              "the video is about; the main points or steps in order, each with its time [m:ss]; any warnings or tips "
+              "it gives. Use only what's in the notes, and say where something is unclear. Keep \"(check the video)\" "
+              "after numbers, names and part numbers.\n\nNOTES:\n{notes}")
 
 
 def is_video(path: str) -> bool:
@@ -130,6 +148,42 @@ def summary_prompt(request: str, lines: list[tuple[float, str]], frames: list[tu
     return SUMMARY.format(request=request.strip() or DEFAULT_REQUEST, transcript=text,
                           frames="\n".join(f"[{hms(t)}] {d}" for t, d in frames)) + known(title, author) + \
         ("\nDon't speculate about mistakes by the video's maker." if title else "")
+
+
+def fits(prompt: str, context: int, reply_tokens: int) -> bool:
+    return len(prompt) / CHARS_PER_TOKEN + reply_tokens + 400 <= context
+
+
+def parts(lines: list[tuple[float, str]], frames: list[tuple[float, str]], context: int) -> list[dict]:
+    """The video in stretches whose notes prompt fits the window: [{"start", "end", "lines", "frames"}], in order."""
+    room = (context - NOTES_TOKENS - 400) * CHARS_PER_TOKEN - len(NOTES) - 400
+    items = sorted([(t, "line", w) for t, w in lines] + [(t, "frame", d) for t, d in frames], key=lambda x: x[0])
+    out, cur, size = [], {"lines": [], "frames": []}, 0
+    for t, kind, text in items:
+        cost = len(text) + 12
+        if size + cost > room and (cur["lines"] or cur["frames"]):
+            out.append(cur)
+            cur, size = {"lines": [], "frames": []}, 0
+        cur["lines" if kind == "line" else "frames"].append((t, text[: int(room)]))
+        size += cost
+    if cur["lines"] or cur["frames"]:
+        out.append(cur)
+    for part in out:
+        times = [t for t, _ in part["lines"] + part["frames"]]
+        part["start"], part["end"] = min(times), max(times)
+    return out
+
+
+def notes_prompt(part: dict, n: int, of: int, title: str = "", author: str = "") -> str:
+    return NOTES.format(n=n, of=of, start=hms(part["start"]), end=hms(part["end"]),
+                        transcript="\n".join(f"[{hms(t)}] {w}" for t, w in part["lines"]) or "(nothing is said here)",
+                        frames="\n".join(f"[{hms(t)}] {d}" for t, d in part["frames"]) or "(none)") + known(title, author)
+
+
+def summary_from_notes(request: str, notes: list[str], title: str = "", author: str = "") -> str:
+    return FROM_NOTES.format(request=request.strip() or DEFAULT_REQUEST,
+                             notes="\n\n".join(f"Part {i}:\n{n.strip()}" for i, n in enumerate(notes, 1))) + \
+        known(title, author) + ("\nDon't speculate about mistakes by the video's maker." if title else "")
 
 
 def workdir() -> str:

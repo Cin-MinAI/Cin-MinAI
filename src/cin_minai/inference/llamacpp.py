@@ -102,6 +102,21 @@ class Spawner:
         return box[0]
 
 
+def server_error(status: int, body: str) -> str:
+    """What the person reads when llama-server refuses a request: plain words, the server's own text after them for
+    the log (2026-10-05: a 42-minute video's summary showed the raw JSON of "exceeds the available context size")."""
+    try:
+        err = json.loads(body).get("error", {})
+    except ValueError:
+        err = {}
+    if err.get("type") == "exceed_context_size_error":
+        return ("That was more than the model can read at once "
+                f"({err.get('n_prompt_tokens', '?')} pieces of text, room for {err.get('n_ctx', '?')}). "
+                "Try a shorter text, or ask about one part of it.")
+    detail = (err.get("message") or body or "").strip()[:200]
+    return f"The model couldn't answer this time (its server said {status}{': ' + detail if detail else ''})."
+
+
 def need_mib(model_bytes: int, context: int) -> int:
     """Graphics memory a load needs: the weights plus KV cache and buffers. Calibrated on the shipped
     guide (2,654 MiB file, 8K context, q8_0 cache: 3,032 MiB peak, MODEL_CARD.md), with a margin."""
@@ -355,7 +370,7 @@ class LlamaCppBackend(InferenceBackend):
                          headers={"Content-Type": "application/json"})
             r = conn.getresponse()
             if r.status != 200:
-                raise BackendError(f"the model server answered {r.status}: {r.read(300).decode(errors='replace')}")
+                raise BackendError(server_error(r.status, r.read(2000).decode(errors="replace")))
             for raw in r:
                 if cancel is not None and cancel.is_set():
                     raise Cancelled("cancelled")

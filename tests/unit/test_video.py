@@ -68,6 +68,46 @@ class Prompts(unittest.TestCase):
         self.assertEqual(V.VIDEOS, words.VIDEO_TYPES)  # the sidebar offers what the daemon watches
 
 
+class LongVideos(unittest.TestCase):
+    """2026-10-05: a 42-minute video (834 lines, 60 frames) was 28,813 tokens against a 16,384 window."""
+
+    def long_video(self):
+        lines = [(i * 3.0, "and then you take the turkey and you rub the butter all over the skin like this " * 1)
+                 for i in range(834)]
+        frames = [(i * 42.0, "A chef in a white jacket holds a roasting pan with a golden turkey on a wooden board.")
+                  for i in range(60)]
+        return lines, frames
+
+    def test_too_long_is_split_into_parts_that_fit(self):
+        lines, frames = self.long_video()
+        self.assertFalse(V.fits(V.summary_prompt("", lines, frames), 16384, V.SUMMARY_TOKENS))
+        parts = V.parts(lines, frames, 16384)
+        self.assertGreater(len(parts), 1)
+        for i, p in enumerate(parts, 1):
+            self.assertTrue(V.fits(V.notes_prompt(p, i, len(parts), "Turkey", "Chef"), 16384, V.NOTES_TOKENS))
+        self.assertEqual(sum(len(p["lines"]) for p in parts), len(lines))  # nothing lost
+        self.assertEqual(sum(len(p["frames"]) for p in parts), len(frames))
+        self.assertEqual([p["start"] for p in parts], sorted(p["start"] for p in parts))  # in order
+
+    def test_the_summary_from_notes_fits_and_keeps_the_request(self):
+        s = V.summary_from_notes("how long per pound?", ["[0:10] Oven at 325 F (check the video)."] * 6, "T", "C")
+        self.assertTrue(V.fits(s, 16384, V.SUMMARY_TOKENS))
+        self.assertIn('"how long per pound?"', s)
+        self.assertIn("Part 6:", s)
+
+    def test_a_short_video_stays_in_one_go(self):
+        self.assertTrue(V.fits(V.summary_prompt("", V.parse_srt(SRT), [(0.0, "A belt.")]), 16384, V.SUMMARY_TOKENS))
+
+    def test_the_server_refusal_in_plain_words(self):
+        from cin_minai.inference.llamacpp import server_error
+        body = ('{"error":{"code":400,"message":"request (28813 tokens) exceeds the available context size (16384 '
+                'tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":28813,"n_ctx":16384}}')
+        said = server_error(400, body)
+        self.assertTrue(said.startswith("That was more than the model can read at once"))
+        self.assertNotIn("{", said)
+        self.assertIn("couldn't answer", server_error(500, "boom"))
+
+
 class TheModel(unittest.TestCase):
     def test_pinned_and_checked(self):
         self.assertEqual(len(V.WHISPER.sha256), 64)
