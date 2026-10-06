@@ -32,15 +32,50 @@ PROTECTED_MODULES = re.compile(
     r"^(ext[234]|btrfs|xfs|vfat|fat|fuse|overlay|loop|dm_.*|md_mod|nvme.*|ahci|ata.*|sd_mod|"
     r"usb_storage|uas|i8042|usbhid|hid.*|evdev|serio|drm.*|nvidia.*|amdgpu|i915|nouveau|"
     r"bridge|bonding|cfg80211|mac80211|rfkill)$")
-WRITE_ROOT = "/etc/"
-PROTECTED_PATHS = (
-    "/etc/sudoers", "/etc/sudoers.d", "/etc/shadow", "/etc/gshadow", "/etc/passwd",
-    "/etc/group", "/etc/polkit-1", "/etc/pam.d", "/etc/security", "/etc/dbus-1",
-    "/etc/systemd", "/etc/apt", "/etc/cinminai", "/etc/ld.so", "/etc/profile",
-    "/etc/environment", "/etc/crontab", "/etc/cron.", "/etc/fstab", "/etc/default/grub",
-    "/etc/grub.d", "/etc/modprobe.d", "/etc/udev",
-)
-MAX_WRITE = 1 << 20
+# write_file is an allowlist, not a denylist: much of /etc is code run as root
+# (dispatcher scripts, kernel hooks, logrotate, anything shell-sourced), and a
+# person approving a password dialog can't tell which.  The assistant writes only
+# its own drop-in files (cinminai-<name>.conf, so undo = write it back empty) in
+# directories whose every line is checked here.  New places need a checker.
+OWN_FILE_RE = re.compile(r"^cinminai-[a-z0-9][a-z0-9-]{0,40}\.conf$")
+MODPROBE_LINE_RE = re.compile(
+    r"^(options [A-Za-z0-9_-]{1,64}( [A-Za-z0-9_]{1,64}=[A-Za-z0-9_.,:-]{1,128}){1,16}"
+    r"|blacklist [A-Za-z0-9_-]{1,64})$")
+# Blacklisting these would leave the machine unbootable or without a keyboard;
+# display drivers (nouveau, amdgpu, i915) can be blacklisted: the firmware
+# framebuffer still draws the screen, and blacklisting nouveau is a common fix.
+BLACKLIST_PROTECTED = re.compile(
+    r"^(ext[234]|btrfs|xfs|vfat|fat|fuse|overlay|loop|dm_.*|md_mod|nvme.*|ahci|ata.*|sd_mod|"
+    r"usb_storage|uas|i8042|usbhid|hid.*|evdev|serio|xhci.*|ehci.*)$")
+SYSCTL_LINE_RE = re.compile(r"^([a-z0-9_.]+) ?= ?([0-9]{1,10})$")
+SYSCTL_KEYS = {  # key: (lowest, highest)
+    "vm.swappiness": (0, 200),
+    "vm.vfs_cache_pressure": (1, 1000),
+    "vm.max_map_count": (65530, 2147483642),
+    "fs.inotify.max_user_watches": (8192, 4194304),
+    "fs.inotify.max_user_instances": (128, 8192),
+}
+
+
+def _modprobe_line(line: str) -> None:
+    if not MODPROBE_LINE_RE.fullmatch(line):
+        raise Reject(f"modprobe.d accepts only 'options' and 'blacklist' lines: {line[:80]!r}")
+    word, module = line.split()[:2]
+    if word == "blacklist" and BLACKLIST_PROTECTED.fullmatch(module.replace("-", "_")):
+        raise Reject(f"{module} is needed to boot or type; it can't be blacklisted")
+
+
+def _sysctl_line(line: str) -> None:
+    match = SYSCTL_LINE_RE.fullmatch(line)
+    if not match or match.group(1) not in SYSCTL_KEYS:
+        raise Reject(f"sysctl.d accepts only {', '.join(sorted(SYSCTL_KEYS))}: {line[:80]!r}")
+    low, high = SYSCTL_KEYS[match.group(1)]
+    if not low <= int(match.group(2)) <= high:
+        raise Reject(f"{match.group(1)} must be between {low} and {high}")
+
+
+WRITE_DIRS = {"/etc/modprobe.d": _modprobe_line, "/etc/sysctl.d": _sysctl_line}
+MAX_WRITE = 64 << 10
 GLOB_CHARS = "*?["
 
 # run_argv is not an arbitrary root shell.  It is the typed escape hatch for the
@@ -77,20 +112,27 @@ def check_package(package: str, removing: bool = False) -> str:
 def check_write(path: str, content: bytes, mode: int) -> str:
     if not isinstance(path, str) or "\0" in path or any(c in path for c in GLOB_CHARS):
         raise Reject("path contains an invalid character")
-    if not path.startswith(WRITE_ROOT) or os.path.normpath(path) != path:
-        raise Reject(f"only normalized absolute paths under {WRITE_ROOT} can be written")
-    if any(path == p or path.startswith(p if p.endswith(".") else p + "/") or path.startswith(p + ".")
-           for p in PROTECTED_PATHS):
-        raise Reject(f"{path} is protected")
-    parent = os.path.dirname(path)
+    parent, name = os.path.split(path)
+    if os.path.normpath(path) != path or parent not in WRITE_DIRS or not OWN_FILE_RE.fullmatch(name):
+        raise Reject(f"only cinminai-<name>.conf in {' or '.join(sorted(WRITE_DIRS))} can be written")
+    if len(content) > MAX_WRITE:
+        raise Reject(f"content too large ({len(content)} bytes)")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Reject("content is not UTF-8 text") from exc
+    if "\r" in text or "\\\n" in text:
+        raise Reject("content has carriage returns or line continuations")
+    for line in text.split("\n"):
+        line = line.strip()
+        if line and not line.startswith("#"):
+            WRITE_DIRS[parent](line)
     if not os.path.isdir(parent) or os.path.realpath(parent) != parent:
         raise Reject(f"{parent} is unresolved or goes through a symlink")
     if os.path.islink(path):
         raise Reject(f"{path} is a symlink")
     if os.path.exists(path) and not stat.S_ISREG(os.lstat(path).st_mode):
         raise Reject(f"{path} is not a regular file")
-    if len(content) > MAX_WRITE:
-        raise Reject(f"content too large ({len(content)} bytes)")
     if mode not in (0o644, 0o640, 0o600):
         raise Reject(f"mode {oct(mode)} not allowed")
     return path

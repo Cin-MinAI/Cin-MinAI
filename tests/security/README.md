@@ -24,14 +24,15 @@ Safe rejection probes (none may show polkit):
 python3 tests/security/admin_call.py restart dbus.service
 python3 tests/security/admin_call.py remove sudo
 python3 tests/security/admin_call.py write /etc/sudoers x
-python3 tests/security/admin_call.py write /etc/cinminai-missing-parent/x.conf x
+python3 tests/security/admin_call.py write /etc/NetworkManager/dispatcher.d/99-cinminai-x x
+python3 tests/security/admin_call.py write /etc/modprobe.d/cinminai-x.conf "install x /bin/sh"
 python3 tests/security/admin_call.py unload nvme
 python3 tests/security/admin_call.py run /usr/sbin/wipefs --all '/dev/sd*'
 python3 tests/security/admin_call.py run /usr/sbin/wipefs --all "$(findmnt -nro SOURCE / | sed 's/[0-9]*$//')"
 ```
 
-For positive tests, use only disposable fixtures: a harmless test service, a throwaway package, a test file under
-`/etc`, the `dummy` kernel module, and an unmounted loop device backed by a temporary file. Record the state before
+For positive tests, use only disposable fixtures: a harmless test service, a throwaway package, `/etc/sysctl.d/cinminai-test.conf`
+(`vm.swappiness = 60`), the `dummy` kernel module, and an unmounted loop device backed by a temporary file. Record the state before
 each call and restore it afterward. Never pass an installed disk to `RunArgv`.
 
 After the eight verbs, one denial, and the rejection probes, inspect `/var/log/cinminai/admin.log`. Every accepted

@@ -910,6 +910,11 @@ set_service_enabled   load_module   unload_module   run_argv (always destructive
 * The Cinnamon polkit dialog names the action; the in-sidebar dialog is where the full detail is shown.
 * The model never sees or handles passwords; they are typed into the polkit agent only.
 * Every request, approval, denial, and result goes to an append-only audit log.
+* `write_file` is an **allowlist**: only the assistant's own `cinminai-<name>.conf` drop-ins (undo = write it back
+  empty), only in `/etc/modprobe.d` (`options` and `blacklist` lines; nothing that blocks booting or typing) and
+  `/etc/sysctl.d` (a few named settings with limits), every line checked. Much of `/etc` is code run as root, and a
+  person at a password dialog can't tell which; a new place needs its own checker in source. `run_argv` is the same:
+  a few block-device programs with their own option grammar, never the system disk or a disk in use.
 
 ### 8.5 Hardware write rule
 

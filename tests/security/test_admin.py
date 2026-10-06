@@ -27,15 +27,58 @@ class AdminPolicyTests(unittest.TestCase):
             policy.check_write("/etc/*.conf", b"x", 0o644)
 
     def test_unresolved_path_is_rejected(self):
-        with self.assertRaisesRegex(policy.Reject, "unresolved"):
+        with self.assertRaises(policy.Reject):
             policy.check_write("/etc/cinminai-parent-that-does-not-exist/x.conf", b"x", 0o644)
         with self.assertRaisesRegex(policy.Reject, "unresolved"):
             policy.check_run_argv(["/usr/sbin/wipefs", "--all", "/dev/cinminai-missing"], protected=set())
 
     def test_protected_system_files_are_rejected(self):
-        for path in ("/etc/sudoers", "/etc/shadow", "/etc/systemd/system/x.service", "/etc/apt/sources.list"):
+        for path in ("/etc/sudoers", "/etc/shadow", "/etc/systemd/system/x.service", "/etc/apt/sources.list",
+                     # code run as root that a denylist missed
+                     "/etc/NetworkManager/dispatcher.d/99-x", "/etc/kernel/postinst.d/x", "/etc/logrotate.d/x",
+                     "/etc/bash.bashrc", "/etc/rc.local", "/etc/default/grub", "/etc/udev/rules.d/99-x.rules",
+                     # the right directories, but not the assistant's own file
+                     "/etc/modprobe.d/blacklist.conf", "/etc/sysctl.d/99-sysctl.conf",
+                     "/etc/modprobe.d/cinminai-x.conf/../alsa-base.conf", "/etc/modprobe.d/cinminai-X.conf"):
             with self.subTest(path=path), self.assertRaises(policy.Reject):
                 policy.check_write(path, b"x", 0o600)
+
+    def test_write_content_is_checked_line_by_line(self):
+        ok = {
+            "/etc/modprobe.d/cinminai-nouveau.conf": b"# Cin-MinAI: G101\nblacklist nouveau\noptions nouveau modeset=0\n",
+            "/etc/modprobe.d/cinminai-nvidia.conf": b"options nvidia NVreg_PreserveVideoMemoryAllocations=1\n",
+            "/etc/sysctl.d/cinminai-watches.conf": b"fs.inotify.max_user_watches = 524288\nvm.swappiness=10\n",
+        }
+        bad = {
+            "/etc/modprobe.d/cinminai-a.conf": (
+                b"install nouveau /bin/sh -c 'id > /tmp/x'\n",  # modprobe runs 'install' lines as root
+                b"remove nvidia /bin/true\n",
+                b"softdep nvidia pre: evil\n",
+                b"options nvidia x=1 ; rm\n",
+                b"options nvidia x=1 \\\n y=2\n",
+                b"blacklist nvme\n",  # unbootable
+                b"blacklist usbhid\n",
+                b"options nvidia x=1\r\ninstall y /bin/sh\n",
+                b"\xff\xfe",
+            ),
+            "/etc/sysctl.d/cinminai-a.conf": (
+                b"kernel.core_pattern = |/tmp/x\n",  # runs a program as root on any crash
+                b"kernel.modprobe = /tmp/x\n",
+                b"vm.swappiness = 900\n",
+                b"vm.swappiness = -1\n",
+                b"-vm.swappiness = 10\n",
+            ),
+        }
+        with mock.patch.object(policy.os.path, "isdir", return_value=True), \
+             mock.patch.object(policy.os.path, "realpath", side_effect=lambda p: p), \
+             mock.patch.object(policy.os.path, "exists", return_value=False):
+            for path, content in ok.items():
+                with self.subTest(path=path):
+                    self.assertEqual(policy.check_write(path, content, 0o644), path)
+            for path, contents in bad.items():
+                for content in contents:
+                    with self.subTest(content=content), self.assertRaises(policy.Reject):
+                        policy.check_write(path, content, 0o644)
 
     def test_boot_critical_block_target_is_rejected(self):
         fake_block = SimpleNamespace(st_mode=stat.S_IFBLK)
