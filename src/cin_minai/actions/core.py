@@ -17,13 +17,19 @@ mode is the person's: "ask" (the default) asks for everything; "auto" lets rever
 are shown, recorded, and can be undone.
 
 A reversible action declares the paths it touches; before it runs, those are copied to the undo store, and undo puts
-them back and proves it (the hashes must match what was there before). An action is reversible only if it says so
-*and* can be undone that way; when an undo of a kind has ever failed, the chooser asks for that kind again.
+them back and proves it (the hashes must match what was there before). Files an action creates whose names are only
+known afterwards are returned by it ({"created": [paths]}) and recorded then. Undo never destroys later work: it acts
+only on files still exactly as the action left them, and otherwise refuses and says so. An action is reversible only if
+it says so *and* can be undone that way; when an undo of a kind has ever failed, the chooser asks for that kind again.
+
+Kinds whose paths would say something about the person's content (a journal entry's title) keep their paths only in
+the private undo store; the record holds their hashes.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import threading
@@ -42,6 +48,10 @@ class ActionError(RuntimeError):
     pass
 
 
+class Changed(ActionError):
+    """Undo refused: a file was changed after the action, and undoing would lose that later work."""
+
+
 @dataclass(frozen=True)
 class Kind:
     """A kind of action the assistant may take. realize() is the only code that changes anything."""
@@ -53,6 +63,7 @@ class Kind:
     check: Callable[[dict, Any], bool] = lambda args, result: True
     touches: Callable[[dict], list[str]] = lambda args: []   # paths a reversible action may change
     destructive: bool = False                            # the stronger dialog (SPEC §8.3)
+    private_paths: bool = False                          # paths stay out of the record (they'd reveal content)
 
     def __post_init__(self):
         if self.lane not in LANES:
@@ -144,6 +155,19 @@ class Actions:
             self.notify("waiting", p)
         return p
 
+    def perform(self, name: str, args: dict, reason: str = "") -> Proposal:
+        """An action the person started themselves (they clicked it): theirs to decide, so it runs — recorded the same
+        way, with its undo where it has one."""
+        kind = self.kinds.get(name)
+        if kind is None:
+            raise ActionError(f"no such action: {name}")
+        p = Proposal(uuid.uuid4().hex[:12], kind, dict(args), "person", reason)
+        self.record.add("proposed", id=p.id, kind=name, lane=kind.lane, reversible=kind.reversible, by="person",
+                        summary=kind.summary(args), reason=reason[:300])
+        self.record.add("allowed", id=p.id, kind=name, by="person")
+        self._run(p)
+        return p
+
     def answer(self, action_id: str, allow: bool) -> Proposal:
         with self._lock:
             p = self.open.pop(action_id, None)
@@ -180,6 +204,7 @@ class Actions:
             self.notify("failed", p)
             return
         p.state = "done"
+        self._seal(p)
         self.record.add("done", id=p.id, kind=p.kind.name, undo=bool(p.undo))
         self.notify("done", p)
 
@@ -197,12 +222,48 @@ class Actions:
                 shutil.copy2(path, copy)
             manifest.append({"path": path, "before": before, "copy": copy})
         p.manifest = manifest
+        self._write_manifest(d, manifest)
         self.record.add("snapshot", id=p.id, kind=p.kind.name,
-                        files=[{"path": m["path"], "before": m["before"]} for m in manifest])
+                        files=[self._file_entry(p.kind, m["path"], before=m["before"]) for m in manifest])
         return d
 
+    @staticmethod
+    def _file_entry(kind: Kind, path: str, **hashes) -> dict:
+        return dict(hashes) if kind.private_paths else {"path": path, **hashes}
+
+    @staticmethod
+    def _write_manifest(d: str, manifest: list) -> None:
+        tmp = os.path.join(d, "manifest.json.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False)
+        os.replace(tmp, os.path.join(d, "manifest.json"))
+
+    @staticmethod
+    def _read_manifest(d: str) -> list:
+        with open(os.path.join(d, "manifest.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def _seal(self, p: Proposal) -> None:
+        """After a reversible action: add the files it created, and fingerprint every file as the action left it."""
+        if not p.undo:
+            return
+        created = []
+        if isinstance(p.result, dict):
+            created = [os.path.abspath(x) for x in p.result.get("created", [])]
+        known = {m["path"] for m in p.manifest}
+        for path in created:
+            if path not in known:
+                p.manifest.append({"path": path, "before": None, "copy": None})
+        for m in p.manifest:
+            m["after"] = _sha(m["path"])
+        self._write_manifest(p.undo, p.manifest)
+        self.record.add("sealed", id=p.id, kind=p.kind.name,
+                        files=[self._file_entry(p.kind, m["path"], before=m["before"], after=m["after"])
+                               for m in p.manifest])
+
     def undo(self, action_id: str, reason: str = "asked") -> bool:
-        """Put back what a reversible action changed, and prove it: every file's hash must match what was there."""
+        """Put back what a reversible action changed, and prove it: every file's hash must match what was there.
+        Refuses (Changed) if a file was changed after the action — undoing would lose that later work."""
         entries = self.record.of(action_id)
         snap = next((e for e in entries if e["event"] == "snapshot"), None)
         if snap is None:
@@ -210,16 +271,24 @@ class Actions:
         if any(e["event"] == "undone" for e in entries):
             raise ActionError("already undone")
         d = os.path.join(self.undo_dir, action_id)
+        try:
+            manifest = self._read_manifest(d)
+        except OSError:
+            raise ActionError("its undo copy is gone (older than the undo store keeps)")
+        if any(e["event"] == "sealed" for e in entries):
+            if [m for m in manifest if _sha(m["path"]) != m.get("after")]:
+                self.record.add("undo-refused", id=action_id, kind=snap["kind"], why="changed since")
+                raise Changed("changed since the assistant made it; undoing would lose those changes")
         ok = True
-        for n, f in enumerate(snap["files"]):
-            path, before = f["path"], f["before"]
+        for m in manifest:
+            path, before = m["path"], m["before"]
             try:
                 if before is None:
                     if os.path.lexists(path):
                         os.remove(path)
                 else:
                     os.makedirs(os.path.dirname(path), exist_ok=True)
-                    shutil.copy2(os.path.join(d, str(n)), path)
+                    shutil.copy2(m["copy"], path)
             except OSError:
                 ok = False
             ok = ok and _sha(path) == before

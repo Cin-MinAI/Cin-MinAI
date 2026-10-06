@@ -59,7 +59,7 @@ class TestWalls(Base):
         self.actions.mode = "auto"
         p = self.actions.propose("write_note", {"path": self.note(), "text": "hi"})
         self.assertEqual(p.state, "done")
-        self.assertEqual([e["event"] for e in self.record.of(p.id)], ["proposed", "auto", "snapshot", "done"])
+        self.assertEqual([e["event"] for e in self.record.of(p.id)], ["proposed", "auto", "snapshot", "sealed", "done"])
 
     def test_irreversible_always_asks_even_in_auto(self):
         self.actions.mode = "auto"
@@ -139,12 +139,55 @@ class TestUndo(Base):
             self.actions.undo(q.id)
 
 
+class TestLaterWork(Base):
+    def test_undo_refuses_when_the_file_was_changed_afterwards(self):
+        from cin_minai.actions.core import Changed
+        self.actions.mode = "auto"
+        p = self.actions.propose("write_note", {"path": self.note(), "text": "draft"})
+        with open(self.note(), "a") as f:
+            f.write(" and an hour of the person's own writing")
+        with self.assertRaises(Changed):
+            self.actions.undo(p.id)
+        with open(self.note()) as f:
+            self.assertIn("hour", f.read())                    # nothing touched
+
+    def test_created_files_are_recorded_and_undone(self):
+        def make(args):
+            path = os.path.join(self.home, "Report (2).odt")    # the name is only known when it's made
+            with open(path, "w") as f:
+                f.write("doc")
+            return {"created": [path]}
+        self.actions.register(Kind("make_doc", "user", True, lambda a: "make a document", make))
+        p = self.actions.perform("make_doc", {})
+        self.assertEqual(p.state, "done")
+        self.assertTrue(self.actions.undo(p.id))
+        self.assertEqual(tree(self.home), {})
+
+    def test_private_paths_stay_out_of_the_record(self):
+        def entry(args):
+            path = os.path.join(self.home, "2026-10-06 — my secret title.odt")
+            with open(path, "w") as f:
+                f.write("x")
+            return {"created": [path]}
+        self.actions.register(Kind("journal_entry", "user", True, lambda a: "write a journal entry", entry,
+                                   private_paths=True))
+        p = self.actions.perform("journal_entry", {})
+        with open(self.record.path) as f:
+            self.assertNotIn("secret", f.read())
+        self.assertTrue(self.actions.undo(p.id))
+
+    def test_what_the_person_starts_runs_and_is_recorded_as_theirs(self):
+        p = self.actions.perform("send_mail", {"to": "x"})
+        self.assertEqual(p.state, "done")
+        self.assertEqual([e.get("by") for e in self.record.of(p.id)][:2], ["person", "person"])
+
+
 class TestRecord(Base):
     def test_every_step_is_recorded_in_order_and_survives_a_reload(self):
         p = self.actions.propose("write_note", {"path": self.note(), "text": "hi"})
         self.actions.answer(p.id, True)
         events = [e["event"] for e in Record(self.record.path).of(p.id)]
-        self.assertEqual(events, ["proposed", "allowed", "snapshot", "done"])
+        self.assertEqual(events, ["proposed", "allowed", "snapshot", "sealed", "done"])
 
     def test_content_never_goes_into_the_record(self):
         self.actions.mode = "auto"
