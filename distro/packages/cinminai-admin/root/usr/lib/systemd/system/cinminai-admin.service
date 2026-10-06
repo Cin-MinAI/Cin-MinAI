@@ -10,7 +10,10 @@ User=root
 Group=root
 PrivateTmp=yes
 ProtectHome=yes
-ProtectKernelTunables=yes
+# No ProtectKernelTunables: it makes /sys read-only, and package scripts run through
+# InstallPackage call `udevadm trigger ... || true` (libfprint, udisks2, dmraid on the
+# test SSD) - the install "succeeds" but the device stays unset until a reboot. apt
+# maintainer scripts run as root anyway, so it bought little here.
 ProtectControlGroups=yes
 ProtectClock=yes
 RestrictRealtime=yes

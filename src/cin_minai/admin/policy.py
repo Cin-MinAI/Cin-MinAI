@@ -256,7 +256,7 @@ def check_block_target(path: str, protected: Iterable[str]) -> str:
     if not is_block:
         raise Reject(f"not a block device: {path!r}")
     if resolved in {os.path.realpath(p) for p in protected}:
-        raise Reject(f"{path} is boot-critical")
+        raise Reject(f"{path} is the system disk or in use (mounted or swap); unmount it first")
     return resolved
 
 

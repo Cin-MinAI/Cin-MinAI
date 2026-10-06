@@ -85,7 +85,7 @@ class AdminPolicyTests(unittest.TestCase):
         with mock.patch.object(policy.os.path, "exists", return_value=True), \
              mock.patch.object(policy.os.path, "realpath", side_effect=lambda p: p), \
              mock.patch.object(policy.os, "stat", return_value=fake_block):
-            with self.assertRaisesRegex(policy.Reject, "boot-critical"):
+            with self.assertRaisesRegex(policy.Reject, "system disk or in use"):
                 policy.check_run_argv(["/usr/sbin/wipefs", "--all", "/dev/nvme0n1"], protected={"/dev/nvme0n1"})
 
     def test_one_explicit_nonboot_block_target_is_normalized(self):
