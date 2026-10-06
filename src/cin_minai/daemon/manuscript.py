@@ -256,7 +256,13 @@ def make(project: Project, author: str, contact: str = "", letter: bool | None =
     author = re.sub(r"\s+", " ", author).strip() or "Author"
     letter = letter_paper() if letter is None else letter
     base = free_base(project.folder, f"{project.title} — manuscript")
-    write_odt(base + ".odt", project.title, author, contact, chapters, letter)
-    write_docx(base + ".docx", project.title, author, contact, chapters, letter)
+
+    def both():
+        write_odt(base + ".odt", project.title, author, contact, chapters, letter)
+        write_docx(base + ".docx", project.title, author, contact, chapters, letter)
+
+    from cin_minai.actions import hook
+    hook.run("make_manuscript", both, "a manuscript (.odt and .docx) in the writing project",
+             created=lambda _: [base + ".odt", base + ".docx"])
     return {"odt": base + ".odt", "docx": base + ".docx", "chapters": len(chapters), "words": word_count(chapters),
             "paper": "Letter" if letter else "A4", "files": [c["file"] for c in chapters]}

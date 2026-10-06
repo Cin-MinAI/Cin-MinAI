@@ -84,6 +84,7 @@ class Proposal:
     undo: str | None = None
     asked: bool = False
     manifest: list = field(default_factory=list)
+    error: BaseException | None = None
 
 
 class SimpleBoundary:
@@ -191,6 +192,7 @@ class Actions:
             ok = bool(p.kind.check(p.args, p.result))
         except Exception as e:                                # noqa: BLE001 — every failure is recorded, not raised on
             p.state = "failed"
+            p.error = e
             self.record.add("failed", id=p.id, kind=p.kind.name, error=str(e)[:300])
             if p.undo:
                 self.undo(p.id, reason="the action failed")

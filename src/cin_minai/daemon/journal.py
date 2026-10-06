@@ -170,7 +170,10 @@ class Journal:
             with open(path, "xb") as f:
                 f.write(sealed)
         else:
-            path = odt.write(self.root, f"{stamp} — {title}", title, [text], header=header)
+            from cin_minai.actions import hook
+            path, _ = hook.run("journal_entry",
+                               lambda: odt.write(self.root, f"{stamp} — {title}", title, [text], header=header),
+                               "a journal entry", created=lambda p: [p])
         entry = {"file": os.path.basename(path), "title": "" if private else title, "when": when.isoformat(timespec="minutes"),
                  "private": private, "words": len(text.split())}
         self.index["entries"].append(entry)

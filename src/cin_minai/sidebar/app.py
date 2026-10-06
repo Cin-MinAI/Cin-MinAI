@@ -497,6 +497,9 @@ class Sidebar(Gtk.Application):
 
     def on_signal(self, proxy, sender, signal, params) -> None:
         args = params.unpack()
+        if signal == "ActionCard":           # M4: drawn from the daemon's record, whatever question it came from
+            self.action_card(json.loads(args[0]))
+            return
         if self.rid is None or (self.rid != -1 and args[0] != self.rid):
             return  # another client's question (e.g. Firefox, a test)
         if signal == "Token" and self.reply is not None:
@@ -918,6 +921,72 @@ class Sidebar(Gtk.Application):
         card.show_all()
 
     # --- web search (D55) ---------------------------------------------------------------------------------
+    def action_card(self, card: dict) -> None:
+        """An action the assistant proposes or took (M4, PLAN D85, SPEC §8.3): from the daemon's record of it, never
+        from model text. Waiting: Allow / No. Done: an Undo where it has one."""
+        event = card.get("event")
+        if event == "waiting":
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            box.get_style_context().add_class("proposal")
+            for text, cls in words.action_lines(card):
+                label = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+                label.get_style_context().add_class(cls)
+                box.pack_start(label, False, False, 0)
+            buttons = Gtk.Box(spacing=6)
+            allow = Gtk.Button(label="Allow")
+            allow.get_style_context().add_class("suggested-action")
+            no = Gtk.Button(label="No")
+
+            def answer(button, yes: bool) -> None:
+                allow.set_sensitive(False)
+                no.set_sensitive(False)
+
+                def done(proxy, res) -> None:
+                    try:
+                        proxy.call_finish(res)
+                    except GLib.Error as e:
+                        self.bubble("note", words.action_error(e.message))
+                    box.destroy()
+
+                self.proxy.call("ActionAnswer", GLib.Variant("(sb)", (card["id"], yes)), Gio.DBusCallFlags.NONE,
+                                -1, None, done)
+
+            allow.connect("clicked", answer, True)
+            no.connect("clicked", answer, False)
+            buttons.pack_start(allow, False, False, 0)
+            buttons.pack_start(no, False, False, 0)
+            box.pack_start(buttons, False, False, 0)
+            self.chat.pack_start(box, False, False, 0)
+            box.show_all()
+            return
+        if event == "done" and card.get("undo"):
+            row = Gtk.Box(spacing=6)
+            label = Gtk.Label(label=words.action_done(card), xalign=0, wrap=True, max_width_chars=24)
+            label.get_style_context().add_class("note")
+            undo = Gtk.Button(label="Undo")
+
+            def take_back(button) -> None:
+                undo.set_sensitive(False)
+
+                def done(proxy, res) -> None:
+                    try:
+                        (ok,) = proxy.call_finish(res).unpack()
+                        label.set_text(words.action_undone(ok))
+                    except GLib.Error as e:
+                        label.set_text(words.action_error(e.message))
+                        undo.set_sensitive(True)
+
+                self.proxy.call("ActionUndo", GLib.Variant("(s)", (card["id"],)), Gio.DBusCallFlags.NONE, -1, None,
+                                done)
+
+            undo.connect("clicked", take_back)
+            row.pack_start(label, True, True, 0)
+            row.pack_start(undo, False, False, 0)
+            self.chat.pack_start(row, False, False, 0)
+            row.show_all()
+        elif event == "failed":
+            self.bubble("note", words.action_failed(card))
+
     def search_card(self, offer: dict) -> None:
         """The query that would be sent, editable; nothing is sent until Search (SPEC §7.5)."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)

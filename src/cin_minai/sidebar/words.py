@@ -749,3 +749,35 @@ def markdown(text: str) -> str:
         out.append(_inline(line))
     return "\n".join(out)
 
+
+
+# --- M4: action cards (PLAN D85, SPEC §8.3) ----------------------------------------------------------------------
+def action_lines(card: dict) -> list[tuple[str, str]]:
+    """The waiting card's lines: what it wants to do, why, and what's special about it."""
+    lines = [("The assistant wants to:", "what"), (card.get("summary", "do something"), "")]
+    if card.get("reason"):
+        lines.append((f"Why: {card['reason']}", "note"))
+    if card.get("lane") == "admin":
+        lines.append(("After Allow, your password is asked for — the assistant is not the administrator.", "note"))
+    elif not card.get("reversible"):
+        lines.append(("This can't be undone.", "note"))
+    if card.get("destructive"):
+        lines.append(("Back up first: this changes a disk or the system's start-up.", "note"))
+    return lines
+
+
+def action_done(card: dict) -> str:
+    return f"Done: {card.get('summary', '')}"
+
+
+def action_undone(ok: bool) -> str:
+    return "Undone — it's back as it was." if ok else "It couldn't be put back fully; the record shows what's left."
+
+
+def action_failed(card: dict) -> str:
+    return f"That didn't work, so nothing was changed ({card.get('summary', '')})."
+
+
+def action_error(message: str) -> str:
+    """D-Bus errors arrive as 'GDBus.Error:org.cinminai…: the reason'; the person reads the reason."""
+    return message.split(": ", 1)[-1] if ": " in message else message

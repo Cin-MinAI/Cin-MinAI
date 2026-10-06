@@ -296,19 +296,33 @@ class Tools:
         """A new spreadsheet in Documents, opened in Calc (SPEC §7.9, D53). Our code writes every formula;
         it never overwrites a file. Filling it in needs the user to share it (D20): the result says how."""
         from . import sheets
+        from cin_minai.actions import hook
         folder = os.path.join(HOME, "Documents")
-        try:
+
+        def make_and_open() -> dict:
+            """The action itself: make the file, then open it in Calc (also when it runs later, after Allow)."""
             made = sheets.make(folder, str(args.get("title") or "Spreadsheet"), list(args.get("columns") or []),
                                [list(map(str, r)) for r in (args.get("rows") or []) if isinstance(r, list)],
                                str(args.get("total") or "none"))
+            made["opened"] = False
+            try:
+                from gi.repository import Gio
+                made["opened"] = Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(made["file"]).get_uri(),
+                                                                    None)
+            except Exception:
+                pass
+            return made
+
+        try:
+            made, _ = hook.run("make_spreadsheet", make_and_open, "a new spreadsheet in Documents",
+                               created=lambda m: [m["file"]], person=False)
         except OSError as e:
             return {"created": None, "error": f"couldn't create the file: {e.strerror or e}"}
-        opened = False
-        try:
-            from gi.repository import Gio
-            opened = Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(made["file"]).get_uri(), None)
-        except Exception:
-            pass
+        if made is None:
+            return {"created": None, "waiting_for_the_user": True,
+                    "note": "The spreadsheet is ready to be made. The user is asked in the sidebar to allow it; "
+                            "tell them to click Allow there. It opens in Calc once allowed."}
+        opened = made["opened"]
         return {"created": "~/Documents/" + os.path.basename(made["file"]), "opened_in": self.label("calc") if opened else None,
                 "columns": made["columns"], "sheets": made["sheets"],
                 "totals": {"sum": "a total of the amount column, beside the list",

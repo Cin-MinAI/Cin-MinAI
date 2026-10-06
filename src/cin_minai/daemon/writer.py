@@ -602,7 +602,10 @@ class Writer:
         if not scenes:
             return {"file": None, "scenes": 0}
         name = f"Chapter {chapter} — {outline['chapter_title']}" if chapter else outline["chapter_title"]
-        path = odt.write(project.folder, name, name, scenes, header=f"Rough draft — {project.title}")
+        from cin_minai.actions import hook
+        path, _ = hook.run("write_chapter",
+                           lambda: odt.write(project.folder, name, name, scenes, header=f"Rough draft — {project.title}"),
+                           "a rough-draft chapter in the writing project", created=lambda p: [p])
         words = sum(len(t.split()) for t in scenes)
         # the scenes' summaries, until the review reads the file itself (D57: the writer may edit it first)
         summary = " ".join(summaries) if chapter else ""

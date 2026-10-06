@@ -17,6 +17,7 @@ import time
 
 from gi.repository import Gio, GLib
 
+from cin_minai.actions import hook
 from cin_minai.actions.core import ActionError, Actions
 from cin_minai.inference.backend import BackendError, Cancelled, InferenceBackend
 
@@ -209,6 +210,7 @@ class Service:
         GLib.timeout_add_seconds(UPDATE_CHECK_S, self.check_update)
         # M4: one path for every action (PLAN D67, D85)
         self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
+        hook.install(self.actions)
 
     def check_update(self) -> bool:
         """D59: restart into an installed update once it's complete, loads, and the daemon has been idle a while.
@@ -377,7 +379,13 @@ class Service:
 
             def work():
                 try:
-                    out, err = json.dumps(office.decide(pid, apply), ensure_ascii=False), None
+                    if apply:
+                        decided, _ = hook.run("office_edit", lambda: office.decide(pid, True),
+                                              "apply the prepared edit to the shared document (undo: Ctrl+Z in it)",
+                                              reversible=False)
+                    else:
+                        decided = office.decide(pid, False)
+                    out, err = json.dumps(decided, ensure_ascii=False), None
                 except OfficeError as e:
                     out, err = None, str(e)
                 GLib.idle_add(lambda: (inv.return_dbus_error(f"{IFACE}.Error.Office", err) if err
@@ -415,7 +423,8 @@ class Service:
                 from . import odt
                 folder = os.path.join(os.path.expanduser("~"), "Documents")
                 title = (title or "").strip()[:80] or "From the assistant"
-                path = odt.write(folder, title, title, [text], header="")
+                path, _ = hook.run("make_document", lambda: odt.write(folder, title, title, [text], header=""),
+                                   "a new Writer document in Documents", created=lambda p: [p])
             except OSError as e:
                 inv.return_dbus_error(f"{IFACE}.Error.Document", f"couldn't save the document: {e.strerror or e}")
                 return
@@ -431,7 +440,8 @@ class Service:
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
 
             def search(on_text, on_action, sid=sid, query=query):
-                out = self.guide.search(sid, query, on_text, on_action, self.cancel)
+                out, _ = hook.run("web_search", lambda: self.guide.search(sid, query, on_text, on_action, self.cancel),
+                                  "a web search (the question left the computer)", reversible=False)
                 return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"])}
             self.job(self.next_id, search)
         elif method == "TerminalSend":
@@ -479,7 +489,9 @@ class Service:
             def trial(on_text, on_action, cmd=text):
                 from . import terminal
                 on_action("sandbox", {"command": cmd}, "running", "")
-                out = terminal.try_first(cmd)
+                out, _ = hook.run("try_in_sandbox", lambda: terminal.try_first(cmd),
+                                  "try a command in the sandbox (nothing outside it changes)", lane="sandboxed",
+                                  reversible=False)
                 on_action("sandbox", {"command": cmd}, "done", json.dumps(out, ensure_ascii=False))
                 return {"tool": "sandbox", "exit": out.get("exit"), "seconds": out.get("seconds")}
             self.job(self.next_id, trial)
@@ -881,9 +893,11 @@ class Service:
             m = next(x for ms in matcher.CATALOG.values() for x in ms if x.file == plan["file"])
             gb = lambda b: f"{b / 2**30:.1f}"  # noqa: E731
             try:
-                self.store.download(m, lambda have, total: on_action(
+                hook.run("download_model", lambda: self.store.download(m, lambda have, total: on_action(
                     "download", {"file": m.file}, "running",
-                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total)})), self.cancel)
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total)})), self.cancel),
+                    f"download the model {m.name} from Hugging Face (checked before use)", reversible=False,
+                    private=False)
             except DownloadStopped:
                 on_text("Stopped. What was downloaded is kept, so it can carry on later.")
                 return {"tool": "model", "done": False}
