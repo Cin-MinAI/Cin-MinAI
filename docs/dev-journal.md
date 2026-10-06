@@ -1267,7 +1267,7 @@ assistant reads pictures, watches video files, and summarizes the YouTube video 
 **Why.** Ian wrote the page that now opens the website and `docs/WHY.md`: installing Windows 98 and the frontier
 feeling of a computer that was yours; Lafayette's fiber fight with Cox and BellSouth; Windows 11's local-account
 workarounds removed (Microsoft's own words, linked); *"I call you out, monster. I won't stand down anymore."*; one mic,
-one chance; *"use your computer like you use your car."* His tagline. The same day his son turned 18.
+one chance; *"use your computer like you use your car."* His tagline.
 
 **Two decisions.** **D81** — say what you want, watch it get made: voice → code → CAD → printer, resting on M4, with
 open printer control as part of the choice. **D82** — model offerings: the 4B guide as the base that never goes away;
