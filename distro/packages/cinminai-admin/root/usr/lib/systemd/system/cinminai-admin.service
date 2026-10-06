@@ -1,0 +1,18 @@
+[Unit]
+Description=Cin-MinAI admin mechanism (polkit-checked, D-Bus activated)
+Documentation=https://github.com/Cin-MinAI/Cin-MinAI
+
+[Service]
+Type=dbus
+BusName=org.cinminai.Admin1
+ExecStart=/usr/libexec/cinminai/cinminai-admin
+User=root
+Group=root
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictRealtime=yes
+LockPersonality=yes
+UMask=0022

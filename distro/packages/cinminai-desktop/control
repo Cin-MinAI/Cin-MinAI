@@ -7,7 +7,7 @@ Depends: cinminai-archive-keyring (>= @RELEASE@), cinminai-branding (>= @RELEASE
  cinminai-llama (>= @RELEASE@), cinminai-libreoffice (>= @RELEASE@),
  cinminai-guide-model (>= @RELEASE@), cinminai-aicui (>= @RELEASE@), cinminai-shell (>= @RELEASE@),
  cinminai-sandbox (>= @RELEASE@), cinminai-whisper (>= @RELEASE@),
- cinminai-firefox (>= @RELEASE@)
+ cinminai-firefox (>= @RELEASE@), cinminai-admin (>= @RELEASE@)
 Section: metapackages
 Priority: optional
 Description: Cin-MinAI desktop (metapackage)

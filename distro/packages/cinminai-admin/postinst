@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+if [ "$1" = configure ]; then
+    install -d -o root -g adm -m 0750 /var/log/cinminai
+    install -o root -g adm -m 0640 /dev/null /var/log/cinminai/admin.log.tmp
+    if [ ! -e /var/log/cinminai/admin.log ]; then
+        mv /var/log/cinminai/admin.log.tmp /var/log/cinminai/admin.log
+    else
+        rm -f /var/log/cinminai/admin.log.tmp
+        chown root:adm /var/log/cinminai/admin.log
+        chmod 0640 /var/log/cinminai/admin.log
+    fi
+    install -d -o root -g root -m 0700 /var/lib/cinminai/admin-backups
+    python3 -m compileall -q /usr/lib/python3/dist-packages/cin_minai/admin >/dev/null 2>&1 || true
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    dbus-send --system --type=method_call --dest=org.freedesktop.DBus \
+        /org/freedesktop/DBus org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
+fi

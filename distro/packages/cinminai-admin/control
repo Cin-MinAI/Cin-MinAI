@@ -1,0 +1,11 @@
+Package: cinminai-admin
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: admin
+Priority: optional
+Depends: python3 (>= 3.12), python3-gi, dbus, polkitd, systemd, apt, kmod, util-linux, e2fsprogs, dosfstools
+Description: Privileged action mechanism for Cin-MinAI
+ A root-owned, D-Bus-activated mechanism with a small typed vocabulary.
+ Every request is validated before a fresh polkit administrator check and is
+ written to a local hash-chained audit log. It provides no privileged shell.
