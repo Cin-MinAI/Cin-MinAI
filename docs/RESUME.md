@@ -1,10 +1,37 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-06 early** (latest: journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-06 later** (latest: journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-06, later) — M4 slices 1–2 done; Codex on slice 3
+
+- **Decisions since the morning:** D83 (host assistant), D84 (everything Mint offers, the assistant can teach — on the
+  base model; the 4B guide is the benchmark), D85 (permission modes: Ask default, Auto only for reversible actions,
+  irreversible and admin always ask, the assistant is never the admin), D86 (automatic search as its own setting,
+  offered once; the public promise in README/website changes in the same update as the feature, not before).
+- **M4 slice 1 (pushed, 97c81b7):** `src/cin_minai/actions/` — `record.py` (append-only, hash-chained, torn-line-safe;
+  no content), `core.py` (the D85 walls outside the chooser, Ask/Auto, undo with proof; undo refuses when a file was
+  changed after the action), daemon D-Bus `ActionAnswer` / `ActionUndo` / `ActionList` / `ActionCard` / `ActionMode`;
+  SPEC §8.3 updated for D85. Tests `tests/unit/test_actions.py`.
+- **M4 slice 2 (pushed, 3457153):** the daemon's real actions on the one path via `actions/hook.py` — documents,
+  spreadsheets (the guide's own tool now **asks** in Ask mode), story chapters, journal entries (no titles in the
+  record), manuscripts, all with Undo; Apply, web search, downloads, Try it first recorded. Sidebar draws Allow/No and
+  Undo cards from the record. 320 unit tests pass. **Not yet seen on a real screen with the real guide** — needs the
+  Mint box booted into the test SSD; check how the 4B handles "waiting for your Allow" (D84: base model first).
+- **Codex (working now, Mint box):** task note `~/cin-minai/notes/2026-10-06-where-we-are-for-codex.md` —
+  (1) `cinminai-admin` packaged from the M0 spike and verified on the test SSD (M4 slice 3; Claude wires it into the
+  action path afterwards), (2) `tests/security/` against the real sandbox and mechanism (SPEC §16.1), (3) a first SBOM
+  of the release ISO (inventory only). Its report comes back as `~/cin-minai/notes/<date>-codex-<topic>-report.md`.
+- **Open for Ian:** a security-suite idea from Codex (`~/cin-minai/notes/2026-10-06-security-suite-idea-for-claude.md`)
+  has a draft decision (D87) awaiting his review — not in PLAN yet.
+- **Next for Claude:** the D84 coverage audit (started: the guide has 91 help cards — 63 Windows-transition, 15
+  lessons, 13 terminal; next, list what the release ISO ships — menu apps, System Settings modules, system tools — and
+  match), then M4 slice 4 (replay + security tests) once Codex reports, then wire `cinminai-admin`.
+- **Session note:** an output safety classifier kept stopping benign replies late in this session after a long
+  defensive-security discussion; a fresh session resets it. A feedback draft is queued (`/feedback`).
 
 ## Where we stopped (2026-10-06, early) — WHY, D81/D82, Flash-Next measured
 
