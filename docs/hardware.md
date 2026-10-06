@@ -84,7 +84,14 @@ from the menu.
 |---|---|---|---|
 | USB hard disk | 4 min 09 s | about 2 | about 4½ |
 | One third on a SATA SSD, the rest on the USB disk | 2 min 12 s | 2¼ – 2¾ | about 6½ |
-| NVMe | *measuring now* | | |
+| **NVMe** (a budget Patriot P300) | **1 min 18 s** | **about 8** | **about 24** |
+
+On the NVMe the same old PC runs this model about **four times faster** than from the USB hard disk: a first answer
+in about a minute and a half instead of six and a half, and a page of text read in under a minute.
+
+**Keep some room free on the drive.** A nearly full budget NVMe (ours was 85–94 % full) can slow to a crawl while
+*writing* — copying the model onto it took over two hours. Reading, which is what running a model does, wasn't
+affected.
 
 (Speeds are in tokens — pieces of words — per second. Smaller models that fit in memory barely care where they're
 stored, once loaded.)
