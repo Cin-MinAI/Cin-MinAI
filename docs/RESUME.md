@@ -1,10 +1,25 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-04 late night** (latest: journal "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-06 early** (latest: journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-06, early) — WHY, D81/D82, Flash-Next measured
+
+- **WHY.md and the website** open with Ian's own story (pushed). **D81** (voice → code → CAD → printer) and **D82**
+  (model offerings, with the measured Flash-Next numbers) are in PLAN; the storage ladder is in `docs/hardware.md`.
+- **Qwen3.8-Flash-Next** (UD-Q2_K_XL) measured on the Mint box: USB disk / ⅓ SATA SSD / NVMe — warm writing 1.9 / 2.2–2.8
+  / 7.9 tok/s, long-text reading 4.6 / 6.6 / 24.4; quality 14/14; census: 57 % of expert slots carry 95 % of our work.
+  Needs llama.cpp v0.6.0 (built for sm_61 only, in user folders: test SSD `~/cinminai-src/llama-0.6.0`, Mint
+  `~/cin-minai/llama-0.6.0`; the packaged pin is still v0.5.0). Model copies: the USB drive "USB Storage"
+  (`Cin-MinAI models/Qwen3.8-Flash-Next`), the test SSD (`~/cinminai-models/Qwen3.8-Flash-Next`, part 3 + links) and the
+  Mint NVMe (`~/cin-minai/models/Qwen3.8-Flash-Next`, 79 GB — remove when done). Results: `~/cin-minai/flash-bench/`.
+- **Still to measure:** Flash-Next on the dev PC (RTX 4070 + 3900X, native Windows llama.cpp; C: now has room), 32K
+  context, a real AICUI task (blackjack) against the 27B. Then the offer card, the matcher's drive awareness, the
+  llama.cpp pin bump.
+- **M4** waits on the choice-architecture research (private, Ian's call).
 
 ## Where we stopped (2026-10-05, early) — update 4 is out
 
@@ -126,7 +141,7 @@ model's story: `docs/guide-model-journal.md`.
 
 ## State right now
 
-- **Repository:** pushed; nothing running on the dev PC (WSL stopped, no VMs but the two M0 ones, off).
+- **Repository:** pushed; nothing running on the dev PC (the M0 VMs were deleted 2026-10-05; the tests make their own).
   C: 85 GB free.
 - **The Mint box** now has three systems on three drives: its own Mint (NVMe, with Ian's `qwen14b.service`),
   Windows (SATA), and **Cin-MinAI installed on the 120 GB SSD** (boot check 2). On the SSD system: kernel

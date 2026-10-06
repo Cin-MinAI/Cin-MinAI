@@ -1261,3 +1261,44 @@ brings to everyone on 0.0.1: long videos summarized part by part (the 42-minute 
 "(check the video)" only after numbers and names, and llama-server's refusals in plain words. Tonight in one line: the
 assistant reads pictures, watches video files, and summarizes the YouTube video in front of you without the ads, on a
 2014 PC with a 1080 Ti. Next: M4, the Choice Atoms.
+
+## 2026-10-05/06 — why it exists, and a 125B model on a 2014 PC
+
+**Why.** Ian wrote the page that now opens the website and `docs/WHY.md`: installing Windows 98 and the frontier
+feeling of a computer that was yours; Lafayette's fiber fight with Cox and BellSouth; Windows 11's local-account
+workarounds removed (Microsoft's own words, linked); *"I call you out, monster. I won't stand down anymore."*; one mic,
+one chance; *"use your computer like you use your car."* His tagline. The same day his son turned 18.
+
+**Two decisions.** **D81** — say what you want, watch it get made: voice → code → CAD → printer, resting on M4, with
+open printer control as part of the choice. **D82** — model offerings: the 4B guide as the base that never goes away;
+upgrades matched to the machine (card, RAM *and the drive*), measured after download; a model explorer of what's on
+Hugging Face under licences we've read; a signed catalogue; we keep up with model releases; memory belongs to the
+system, not the model.
+
+**Qwen3.8-Flash-Next on the test PC.** 125B parameters, about 6B active per token, plus a 51B n-gram table; Unsloth's
+UD-Q2_K_XL GGUF (79 GB, mixed precision: routers at full precision, attention 5–6 bits, the bulk of the experts 2–3
+bits). Our llama.cpp pin (v0.5.0) can't load it, so v0.6.0 (out that day) was built for the 1080 Ti and run from user
+folders. Ian: "If it works we might be the first to see it lol." It worked. Same box, same model, only the drive
+changing:
+
+| Where the model was | Load | Writing, warm | Reading a long text | First answer, cold |
+|---|---|---|---|---|
+| USB hard disk | 4:09 | 1.9 tok/s | 4.6 tok/s | 6:39 |
+| ⅓ on the SATA SSD | 2:12 | 2.2–2.8 | 6.6 | 4:39 |
+| NVMe (budget Patriot P300) | 1:18 | **7.9** | **24.4** | **1:35** |
+
+It gets faster as it's used (RAM keeps the experts that are needed), and reading in bulk is the cheap direction. A
+quality check from the NVMe — 14 questions with checkable answers, temperature 0, full length — passed **14/14**: five
+Mint how-tos, four functions that passed their tests (Roman numerals, merging intervals, word counts with ties, a
+palindrome check), three facts, Spanish and Japanese. Ian: "Those are useable token speeds. Not lightning fast but
+enough to develop alongside of." An **expert census** (llama-imatrix over Cin-MinAI-shaped text in six languages)
+found that 57 % of the expert slots carry 95 % of our kind of work — about 24.5 GiB, almost exactly the RAM free for
+them, which is why it warms up; there's no small hot core, so pruning for our scope isn't worth the risk. The licence
+(Qwen Community 1.0) was read: use by anyone, businesses included; Qwen's separate licence only for selling hosted model
+access or a stand-alone coding/office assistant. The storage ladder went into `docs/hardware.md` for beginners —
+NVMe, SSD, hard disk, USB (where models park well) — with the numbers, and "keep a budget NVMe from filling up" (the
+copy onto an 85–94 % full drive crawled at single-digit MB/s).
+
+**Also.** The two M0 Hyper-V VMs and 42 GB of old Hugging Face models were removed from the dev PC (C: 54 → 127 GB
+free). The M4 choice architecture (D67) moved forward as research beside the project, private for now (Ian: use it if
+it works, not if it doesn't). Next: that research, then M4.
