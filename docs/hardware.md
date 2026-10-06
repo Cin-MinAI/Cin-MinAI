@@ -89,8 +89,9 @@ from the menu.
 (Speeds are in tokens — pieces of words — per second. Smaller models that fit in memory barely care where they're
 stored, once loaded.)
 
-**Network storage** (a NAS, a shared folder on another computer) can also hold models, but it's slow to run from and
-takes setting up — not something to start with.
+**Network storage** (a NAS, a shared folder on another computer) can hold and even run models — how fast depends on
+the network and the drives behind it — but getting a good experience takes a lot more setup and a lot more hardware.
+Not where to start.
 
 ## Starting from the USB stick
 
