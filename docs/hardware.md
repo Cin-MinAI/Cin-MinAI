@@ -60,6 +60,38 @@ screen: **Update Manager → View → Linux kernels**, install the **long-term**
 and remove the one that causes trouble. If the desktop won't start at all, restart, open **Advanced options** in
 the boot menu, and pick the older kernel from there.
 
+## Where to keep your AI models (the faster the drive, the faster the answers)
+
+AI models are big files, and the bigger ones don't fit in your computer's memory all at once — so while the
+assistant works, it keeps reading pieces of the model from the drive. **The kind of drive it's on changes how fast
+it answers**, sometimes by a lot. From fastest to slowest:
+
+1. **NVMe drive** — a small stick-shaped drive plugged straight into the motherboard (or an adapter card). The best
+   place for models.
+2. **SSD** (SATA) — a solid-state drive connected with a cable. Good.
+3. **Hard disk** (HDD) — a spinning disk inside the PC. Fine for storing, slow for running a big model.
+4. **USB drive** — anything plugged into a USB port. Slowest to run from, but a great place to **park** models you
+   aren't using: when you want one back, the system copies it to your fast drive — much quicker than downloading it
+   again (on our test PC: about 10 minutes for 79 GB, where the download took about an hour).
+
+**Not sure which drives you have?** Ask the assistant ("what drives does my computer have?"), or open **Disks**
+from the menu.
+
+**Measured on our test PC** (2014 i7-4790K, 32 GB memory, GTX 1080 Ti) with Qwen3.8-Flash-Next, a very large model
+(125B) that only fits by keeping most of itself on the drive:
+
+| Where the model was | Start-up | Writing, once warmed up | Reading a long text |
+|---|---|---|---|
+| USB hard disk | 4 min 09 s | about 2 | about 4½ |
+| One third on a SATA SSD, the rest on the USB disk | 2 min 12 s | 2¼ – 2¾ | about 6½ |
+| NVMe | *measuring now* | | |
+
+(Speeds are in tokens — pieces of words — per second. Smaller models that fit in memory barely care where they're
+stored, once loaded.)
+
+**Network storage** (a NAS, a shared folder on another computer) can also hold models, but it's slow to run from and
+takes setting up — not something to start with.
+
 ## Starting from the USB stick
 
 To start from the stick, most PCs have a **boot menu key** you press right as the PC starts — often **F12**,
