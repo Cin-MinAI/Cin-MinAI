@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Settings: /etc/cinminai/daemon.toml (the packaged defaults), then the user's
 ~/.config/cinminai/config.toml on top (SPEC §9: every llama-server option reachable from there).
-Only the [inference] and [guide] tables are read; unknown keys are ignored.
+Only the [inference], [guide] and [actions] tables are read; unknown keys are ignored.
 """
 
 from __future__ import annotations
@@ -31,6 +31,9 @@ DEFAULTS = {
         "history_chars": 12000,       # on the graphics card
         "cpu_history_chars": 3000,    # on the processor: every token read costs time (D27)
         "preload": "auto",            # load the model when the daemon starts; auto = not on the live USB
+    },
+    "actions": {
+        "mode": "ask",                # PLAN D85: ask (default) | auto — auto runs reversible actions only
     },
 }
 

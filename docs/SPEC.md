@@ -874,7 +874,9 @@ Workspaces: a project the user opens with the assistant, or `~/.local/share/cinm
 
 The approval UI is drawn by the sidebar from the daemon's action record, never from model text
 alone. It shows the exact argv, working directory, lane, the model's stated reason, and a Deny
-button. Approval authorizes that one action once. No "always allow" in v1.
+button. Approval authorizes that one action once. Modes (PLAN D85): **Ask** (the default) asks for every
+action; **Auto** lets *reversible* actions run on their own — shown, recorded, undoable; irreversible and admin actions
+always ask, and no setting turns that off.
 
 ```text
 ┌──────────────────────────────────────────────┐

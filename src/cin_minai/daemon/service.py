@@ -17,6 +17,7 @@ import time
 
 from gi.repository import Gio, GLib
 
+from cin_minai.actions.core import ActionError, Actions
 from cin_minai.inference.backend import BackendError, Cancelled, InferenceBackend
 
 from .guide import Guide
@@ -111,6 +112,15 @@ XML = f"""
       <arg type="s" name="json" direction="out"/></method>
     <!-- write today's entry from the conversation: Action "journal" done (the entry) -->
     <method name="JournalWrite"><arg type="b" name="private" direction="in"/><arg type="u" name="id" direction="out"/></method>
+    <!-- M4 (PLAN D85, SPEC §8): actions the assistant proposes. The card is drawn from the record, never from model text.
+         ActionCard (JSON): id, event (waiting|done|failed|denied|undone), kind, lane, reversible, summary, reason -->
+    <method name="ActionAnswer"><arg type="s" name="id" direction="in"/><arg type="b" name="allow" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <method name="ActionUndo"><arg type="s" name="id" direction="in"/><arg type="b" name="ok" direction="out"/></method>
+    <method name="ActionList"><arg type="s" name="json" direction="out"/></method>
+    <signal name="ActionCard"><arg type="s" name="json"/></signal>
+    <!-- ask | auto (auto: reversible actions run on their own; irreversible and admin actions always ask) -->
+    <property name="ActionMode" type="s" access="readwrite"/>
     <signal name="Token"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
     <!-- a tool the guide used: state running | done; result is the tool's output (JSON or help text) -->
     <signal name="Action"><arg type="u" name="id"/><arg type="s" name="tool"/><arg type="s" name="args"/>
@@ -138,6 +148,28 @@ WEB_VIDEO = "firefox:current-video"  # a setup offer made for the video open in 
 
 def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+def _mode_file() -> str:
+    return os.path.join(os.path.dirname(config.user_config()), "actions-mode")
+
+
+def actions_mode() -> str:
+    """The person's choice (PLAN D85), kept beside their settings; the packaged default is ask."""
+    try:
+        with open(_mode_file(), encoding="utf-8") as f:
+            mode = f.read().strip()
+        if mode in ("ask", "auto"):
+            return mode
+    except OSError:
+        pass
+    return config.load()["actions"]["mode"]
+
+
+def save_actions_mode(mode: str) -> None:
+    os.makedirs(os.path.dirname(_mode_file()), exist_ok=True)
+    with open(_mode_file(), "w", encoding="utf-8") as f:
+        f.write(mode + "\n")
 
 
 class Service:
@@ -175,6 +207,8 @@ class Service:
             except (OSError, ValueError):
                 pass
         GLib.timeout_add_seconds(UPDATE_CHECK_S, self.check_update)
+        # M4: one path for every action (PLAN D67, D85)
+        self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
 
     def check_update(self) -> bool:
         """D59: restart into an installed update once it's complete, loads, and the daemon has been idle a while.
@@ -236,6 +270,7 @@ class Service:
                 "journal": GLib.Variant("b", self.journal is not None)}),
             "Awareness": lambda: GLib.Variant("a{sb}", self.awareness),
             "LastStats": lambda: GLib.Variant("s", self.last_stats),
+            "ActionMode": lambda: GLib.Variant("s", self.actions.mode),
         }[prop]()
 
     def changed(self, *props: str) -> None:
@@ -252,11 +287,31 @@ class Service:
         return self.variant(prop)
 
     def set(self, conn, sender, path, iface, prop, value) -> bool:
+        if prop == "ActionMode":
+            mode = value.unpack()
+            if mode not in ("ask", "auto"):
+                return False
+            if mode != self.actions.mode:      # a boundary change: the person's, and recorded
+                self.actions.record.add("mode", mode=mode, by="person")
+                self.actions.mode = mode
+                save_actions_mode(mode)
+                self.changed("ActionMode")
+            return True
         if prop == "Awareness":
             self.awareness.update(value.unpack())
             self.changed("Awareness")
             return True
         return False
+
+    @staticmethod
+    def card(p, event: str) -> dict:
+        """What the sidebar shows: from the daemon's own record of the action, never from model text alone."""
+        return {"id": p.id, "event": event, "kind": p.kind.name, "lane": p.kind.lane,
+                "reversible": p.kind.reversible, "destructive": p.kind.destructive,
+                "summary": p.kind.summary(p.args), "reason": p.reason, "undo": bool(p.undo)}
+
+    def action_notify(self, event: str, p) -> None:
+        GLib.idle_add(self.emit, "ActionCard", "(s)", json.dumps(self.card(p, event), ensure_ascii=False))
 
     def set_state(self, state: str) -> bool:
         if state != self.state:
@@ -277,6 +332,33 @@ class Service:
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
             self.ask(self.next_id, text)
+        elif method == "ActionAnswer":
+            action_id, allow = params.unpack()
+
+            def answer():
+                try:
+                    p = self.actions.answer(action_id, allow)
+                    out, err = json.dumps({"id": p.id, "state": p.state}), None
+                except ActionError as e:
+                    out, err = None, str(e)
+                GLib.idle_add(lambda: (inv.return_dbus_error(f"{IFACE}.Error.Action", err) if err
+                                       else inv.return_value(GLib.Variant("(s)", (out,)))) and False)
+
+            threading.Thread(target=answer, daemon=True).start()
+        elif method == "ActionUndo":
+            (action_id,) = params.unpack()
+            try:
+                ok = self.actions.undo(action_id)
+            except ActionError as e:
+                inv.return_dbus_error(f"{IFACE}.Error.Action", str(e))
+                return
+            self.emit("ActionCard", "(s)", json.dumps({"id": action_id, "event": "undone" if ok else "undo-failed"}))
+            inv.return_value(GLib.Variant("(b)", (ok,)))
+        elif method == "ActionList":
+            waiting = [self.card(p, "waiting") for p in list(self.actions.open.values())]
+            inv.return_value(GLib.Variant("(s)", (json.dumps({"waiting": waiting,
+                                                               "recent": self.actions.record.recent(50)},
+                                                              ensure_ascii=False),)))
         elif method == "Cancel":
             self.cancel.set()
             interrupt = getattr(self.backend, "interrupt", None)
