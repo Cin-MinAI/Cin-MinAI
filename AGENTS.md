@@ -54,12 +54,13 @@ Architecture in one breath:
   USB through install. Bigger models are optional downloads. **6 GB GPU floor, NVIDIA and AMD** (D24).
   **v1 languages** (D25): English, Spanish, Portuguese, French, German, Japanese.
 
-## Status (2026-09-25)
+## Status (2026-10-07)
 
-M0 spikes, all **GO**: terminal emulation, ISO remaster, terminal relay, desktop surface, streaming,
-sandbox, admin mechanism, LibreOffice, Firefox. **Remaining: the model bakeoff** (two tracks: guide
-and big), then M1 (distro skeleton). The guide eval is written (`training/eval/guide/`, copy on the
-Mint box in `~/cin-minai/eval-guide`; reference Qwen3-14B 86 %). Spike code lives in `spikes/` and is throwaway.
+Cin-MinAI 0.0.1 is public (ISO on Hugging Face `CinMin/Cin-MinAI-OS`, signed apt repo, website
+`cin-minai.github.io`); four signed updates since. M0–M3 done; **M4** (one action path, D67/D85) has slices 1–3:
+the action record and walls, the daemon's actions on it, and `cinminai-admin` (your package, merged and live-tested
+2026-10-06) wired in. D84 coverage of what Mint offers is under way (`docs/d84-coverage.md`); prompt v2.3 adopted.
+Read `docs/RESUME.md` first — it is always the current state — then the latest `docs/dev-journal.md` entry.
 
 ## Credits
 
@@ -101,43 +102,13 @@ When you report work, say what you did so it can be credited.
 - Signed Firefox xpis live only in `spikes/firefox/dist/` (git-ignored); `amo_fetch.py VERSION`
   re-downloads them from AMO.
 
-## Your current task: bakeoff prep on the Mint box
+## Your current task: a repetition guard for the guide's replies
 
-Goal: everything ready so the lead can run the bakeoff (PLAN §3, "Guide model track" and "Bakeoff
-matrix"). **Prep only**: don't score models or pick winners; the lead writes the guide eval tasks and
-does the RTX 4070 side on the dev PC with your harness. Everything goes under `~/cin-minai/bench/`.
+The task note is `~/cin-minai/notes/2026-10-07-task-for-codex-repetition-guard.md` (read
+`2026-10-06-update-for-codex.md` first). In short: the guide's free-text replies have no repetition guard and a
+Japanese reply looped once; add llama.cpp's DRY sampler to them, make `run_eval.py` able to use the same sampling,
+A/B it on the 1080 Ti with the shipped 4B and prompt v2.3 across every task set, read the replies that changed, and
+report to `~/cin-minai/notes/<date>-codex-repetition-report.md`. GPU etiquette (hard rule 2) as always: Ian's
+`qwen14b.service` may have its model loaded — wait or ask him, never stop it.
 
-1. **Candidate inventory** → `bench/candidates.toml`: for every model in PLAN §3 (guide: Qwen3.5-2B,
-   Qwen3.5-4B, Gemma 4 E2B, Gemma 4 E4B, Granite 4.2 3B, Qwen2.5-1.5B baseline; big: Qwen3-14B Q4_K_M,
-   Qwen3.5-9B Q4_K_M/Q5_K_M/Q6_K, Qwen3.5-4B Q8_0, Qwen2.5-Coder-7B Q5_K_M, Qwen3.6-35B-A3B Q4_K_M)
-   record the Hugging Face repo (prefer the vendor's official GGUF), exact file per quant, size,
-   SHA-256, license, and the minimum llama.cpp version for its architecture. **If a model or quant
-   doesn't exist or the license isn't Apache-2.0/MIT-compatible, write that down — never
-   substitute or guess.**
-2. **llama.cpp, one pinned release tag** (newest that loads every candidate), in
-   `~/cin-minai/llama.cpp` — leave the `local-ai-testbed` build alone. Three builds, exact cmake flags
-   recorded in `bench/README.md`:
-   - **CUDA**: `nvidia-cuda-toolkit` 12.0 + gcc/g++-12 + `CMAKE_CUDA_ARCHITECTURES=61` (the testbed
-     recipe, PLAN §2), `GGML_NATIVE=OFF`.
-   - **Vulkan** (the AMD path; the 1080 Ti runs Vulkan too). If a Vulkan dev package is missing, don't
-     install it: list what's needed and Ian decides (no sudo without him).
-   - **CPU-only** (the live-USB case; this i7-4790K is a fair "older PC").
-3. **Downloads** into `~/cin-minai/models`, **at most 60 GB** total: all guide candidates, then the big
-   ones that fit, largest last. You may reuse the testbed's Qwen3-14B file read-only (path in
-   `candidates.toml`, don't copy it). Everything under `~/cin-minai` is removed when M0 closes.
-4. **Harness** `bench/run.py` (stdlib Python 3.12, no pip): starts `llama-server` on its own port
-   (**not 8080**) with model, quant, context, `-ngl`, q8_0 KV cache, flash attention, and a build
-   choice (cuda/vulkan/cpu); measures prompt and generation tok/s, time to first token on a ~4K-token
-   prompt, peak VRAM (poll `nvidia-smi`: process and card total), peak RAM, **free VRAM left** (for the
-   SPEC §4.2 reserve), and the valid-JSON rate over 50 schema-constrained tool calls (schemas in the
-   repo's `spikes/libreoffice/assist.py`; a copy is in `~/cin-minai/spikes/libreoffice/assist.py`).
-   **Guide budget mode** (`--budget-gb 6`): the llama-server process must peak ≤ 4.7 GiB at 8K
-   context (6 GB card − ~0.5 GB desktop − 0.8 GB reserve); report pass/fail per run. One JSON line per
-   run to `~/cin-minai/bench-results/<machine>/<date>.jsonl`; always stop the server afterwards. Keep
-   it portable: the lead runs the same script on the dev PC (RTX 4070, WSL).
-5. **GPU etiquette** (hard rule 2): before any GPU run, check `nvidia-smi`; if `qwen14b.service` has
-   the model loaded or Ian is using the card, wait or ask him. Never stop it yourself.
-6. **Smoke test only:** one small guide candidate through `run.py` on CUDA, Vulkan and CPU, then stop
-   and write your report to `~/cin-minai/notes/<date>-bench-prep-report.md`: tag and flags, what is
-   built and downloaded (disk used), missing candidates or licences, smoke numbers, and anything that
-   surprised you.
+Earlier tasks (bakeoff prep, 2026-09-25; admin/security/SBOM, 2026-10-06) are done and credited.
