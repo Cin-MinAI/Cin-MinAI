@@ -60,6 +60,69 @@ class Report(unittest.TestCase):
         self.assertIn("NHK (10月7日)", newsscan.report("台風", [item("NHK", "台風10号", 7)], "ja"))
 
 
+REDDIT_FEED = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">
+<entry><author><name>/u/kaktus3915</name></author><category term="linux4noobs" label="r/linux4noobs"/>
+<link href="https://www.reddit.com/r/linux4noobs/comments/1wzzrus/x/"/><updated>2026-10-07T09:12:00+00:00</updated>
+<title>only ever used debian/ubuntu based distros before</title></entry>
+<entry><category term="linuxmint" label="Linux Mint"/><link href="https://www.reddit.com/r/linuxmint/"/>
+<updated>2010-04-13T00:00:00+00:00</updated><title>Linux Mint</title></entry>
+</feed>"""
+MASTODON_POSTS = """[
+{"created_at": "2026-10-07T08:00:00.000Z", "language": "en", "sensitive": false, "spoiler_text": "",
+ "url": "https://chaos.social/@root42/1", "account": {"acct": "root42@chaos.social"},
+ "content": "<p><span class=\\"h-card\\"><a href=\\"y\\">@<span>bob</span></a></span> Upgraded to <a href=\\"x\\">#<span>LinuxMint</span></a> 22.3 &amp; it just works</p>"},
+{"created_at": "2026-10-07T07:00:00.000Z", "language": "de", "sensitive": false, "spoiler_text": "",
+ "url": "https://mastodon.social/@lukas97/2", "account": {"acct": "lukas97"}, "content": "<p>Mint ist toll</p>"},
+{"created_at": "2026-10-07T06:00:00.000Z", "language": "en", "sensitive": true, "spoiler_text": "cw",
+ "url": "https://mastodon.social/@z/3", "account": {"acct": "z"}, "content": "<p>hidden</p>"}
+]"""
+
+
+class Social(unittest.TestCase):
+    def test_reddit_posts_with_poster_and_community_not_communities(self):
+        with mock.patch.object(newsscan.websearch, "_get", return_value=(REDDIT_FEED, "")) as get:
+            (it,) = newsscan.reddit("Linux Mint")
+        self.assertIn("type=link", get.call_args.args[0])
+        self.assertEqual((it["who"], it["title"], it["date"].day),
+                         ("u/kaktus3915 on r/linux4noobs", "only ever used debian/ubuntu based distros before", 7))
+
+    def test_mastodon_hashtag_plain_text_own_language_no_hidden_posts(self):
+        with mock.patch.object(newsscan.websearch, "_get", return_value=(MASTODON_POSTS, "")) as get:
+            items = newsscan.mastodon("Linux Mint", "en")
+        self.assertIn("/api/v1/timelines/tag/linuxmint?", get.call_args.args[0])
+        self.assertEqual([(i["who"], i["title"]) for i in items],
+                         [("@root42@chaos.social on Mastodon", "@bob Upgraded to #LinuxMint 22.3 & it just works")])
+
+    def test_long_posts_are_clipped_visibly(self):
+        self.assertTrue(newsscan._clip("word " * 100).endswith(" …"))
+        self.assertLessEqual(len(newsscan._clip("word " * 100)), newsscan.POST_CHARS + 2)
+
+    def test_a_network_that_fails_is_named_the_other_still_answers(self):
+        with mock.patch.object(newsscan, "reddit", side_effect=newsscan.websearch.SearchError("couldn't reach")), \
+             mock.patch.object(newsscan, "mastodon", return_value=[]):
+            items, failed = newsscan.social("x")
+        self.assertEqual((items, failed), ([], ["Reddit (couldn't reach)"]))
+        self.assertEqual(newsscan.social(""), ([], []))  # top stories: press only
+
+    def test_one_network_cannot_fill_the_section(self):
+        many = [dict(item(f"m{d}", f"post {d}", d), who=f"m{d}") for d in range(1, 9)]
+        few = [dict(item("r/a", "reddit post", 1), who="r/a")]
+        with mock.patch.object(newsscan, "reddit", return_value=few), mock.patch.object(newsscan, "mastodon", return_value=many):
+            items, _ = newsscan.social("x")
+        self.assertEqual(len(items), 5)
+        self.assertIn("reddit post", [i["title"] for i in items])
+
+    def test_report_social_section_says_claims_and_what_is_not_covered(self):
+        post = dict(item("r/linux4noobs", "only debian", 7), who="u/k on r/linux4noobs")
+        text = newsscan.report("x", [], "en", None, "", [post], ["Mastodon (timeout)"])
+        self.assertIn("Social media (what people post; claims, not checked):\n- u/k on r/linux4noobs (Oct 7): "
+                      "“only debian”\n(Couldn't reach: Mastodon (timeout).)\nNot covered: X and Bluesky", text)
+        self.assertIn("No posts found.", newsscan.report("x", [], "en", None, "", []))
+        self.assertNotIn("Social", newsscan.report("x", [], "en"))
+        for lang in newsscan.HEAD:
+            self.assertEqual(len(newsscan.SOCIAL[lang]), 4, lang)
+
+
 class Official(unittest.TestCase):
     RESULTS = [
         {"title": "Grand Theft Auto VI - Rockstar Games", "url": "https://www.rockstargames.com/VI", "snippet": ""},

@@ -138,12 +138,17 @@ class NewsChain(unittest.TestCase):
         offer = {"recipe": "news", "topic": "Linux Mint", "query": "Linux Mint", "question": "news about Linux Mint"}
         official = [{"kind": "official", "source": "linuxmint.com", "title": "Linux Mint 22.3 released",
                      "url": "https://linuxmint.com/rel", "what": "own site"}]
-        with mock.patch("cin_minai.daemon.newsscan.press", return_value=items) as press,              mock.patch("cin_minai.daemon.newsscan.official", return_value=official):
+        posts = [{"kind": "social", "who": "u/k on r/linuxmint", "outlet": "r/linuxmint", "title": "22.3 is great",
+                  "url": "https://www.reddit.com/r/linuxmint/comments/1", "date": dt.datetime(2026, 10, 7)}]
+        with mock.patch("cin_minai.daemon.newsscan.press", return_value=items) as press,              mock.patch("cin_minai.daemon.newsscan.official", return_value=official),              mock.patch("cin_minai.daemon.newsscan.social", return_value=(posts, [])):
             out = service.Service.run_news_chain(s, offer, "Linux Mint", text.append,
                                                  lambda tool, args, state, result: events.append((tool, state, result)))
         press.assert_called_once_with("Linux Mint", "en")
         self.assertIn("- linuxmint.com (own site): “Linux Mint 22.3 released”", text[0])
         self.assertEqual(out["official"], 1)
+        self.assertIn("- u/k on r/linuxmint (Oct 7): “22.3 is great”", text[0])
+        self.assertLess(text[0].index("Social media"), text[0].index("Official"))
+        self.assertEqual(out["social"], 1)
         self.assertIn("- XDA (Sep 30): “Linux Mint replaced Ubuntu”", text[0])
         self.assertEqual(json.loads(events[1][2])["sources"][0]["url"], "https://news.google.com/rss/articles/B")
         self.assertEqual(out["outlets"], 1)
@@ -155,10 +160,11 @@ class NewsChain(unittest.TestCase):
             tools=types.SimpleNamespace(lang="en"), history=[]))
         text = []
         offer = {"recipe": "news", "topic": "x", "query": "x", "question": "news about x"}
-        with mock.patch("cin_minai.daemon.newsscan.press", return_value=[]),              mock.patch("cin_minai.daemon.newsscan.official", side_effect=websearch.SearchError("wants a pause")):
+        with mock.patch("cin_minai.daemon.newsscan.press", return_value=[]),              mock.patch("cin_minai.daemon.newsscan.official", side_effect=websearch.SearchError("wants a pause")),              mock.patch("cin_minai.daemon.newsscan.social", return_value=([], ["Reddit (offline)"])):
             out = service.Service.run_news_chain(s, offer, "x", text.append, lambda *a: None)
         self.assertIn("Couldn't search official pages right now: wants a pause", text[0])
         self.assertTrue(out["official_trouble"])
+        self.assertIn("(Couldn't reach: Reddit (offline).)", text[0])
 
 
 if __name__ == "__main__":

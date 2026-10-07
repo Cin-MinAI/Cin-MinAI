@@ -804,15 +804,16 @@ class Service:
             {"id": sid, "query": query or "top stories", "online": online,
              "provider": newsscan.PROVIDERS_WITH_OFFICIAL if query else newsscan.PROVIDERS},
             ensure_ascii=False))
-        what = f"what the press says about {news['topic']}" if news["topic"] else "today's top stories"
-        on_text(f"I'll look up {what} and show you each outlet's own headline with its date. I don't say what "
+        what = (f"what the press, social media and official pages say about {news['topic']}" if news["topic"]
+                else "today's top stories")
+        on_text(f"I'll look up {what} and show you each source's own words with its date. I don't say what "
                 "happened, only who says what. "
                 + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."
                    if online else "This computer isn't online right now: connect, then click Search below."))
         return {"tool": "news", "proposal": sid}
 
     def run_news_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
-        """D92, press: each outlet's headline, word for word, with outlet and date — no model in between."""
+        """D92: press headlines, social posts, official pages — word for word, attributed and dated; no model."""
         from . import newsscan, websearch
         topic = ("" if query == "top stories" else (query or offer["topic"])).strip()[:200]
         lang = self.guide.tools.lang
@@ -822,6 +823,10 @@ class Service:
                                 "a news search (the topic left the computer)", reversible=False)
         except websearch.SearchError as e:
             raise BackendError(f"The news search didn't work: {e}.")
+        posts, failed = None, []
+        if topic and not self.cancel.is_set():  # social: what people post, each line credited to its poster
+            posts, failed = hook.run("web_search", lambda: newsscan.social(topic, lang),
+                                     "a social media search (the topic left the computer)", reversible=False)[0]
         found, trouble = None, ""
         if topic and not self.cancel.is_set():  # official: the subject's own pages (no topic: top stories only)
             try:
@@ -829,15 +834,18 @@ class Service:
                                     "a search for official pages (the topic left the computer)", reversible=False)
             except websearch.SearchError as e:
                 found, trouble = [], f"(Couldn't search official pages right now: {e}.)"
-        links = [(f"{it['outlet']}: {it['title']}", it["url"]) for it in items] +                 [(f"{it['source']}: {it['title']}", it["url"]) for it in (found or [])]
+        links = ([(f"{it['outlet']}: {it['title']}", it["url"]) for it in items]
+                 + [(f"{it['who']}: {it['title']}", it["url"]) for it in (posts or [])]
+                 + [(f"{it['source']}: {it['title']}", it["url"]) for it in (found or [])])
         on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
             {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
             ensure_ascii=False))
-        reply = newsscan.report(topic, items, lang, found, trouble)
+        reply = newsscan.report(topic, items, lang, found, trouble, posts, failed)
         on_text(reply)
         self.guide.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
         return {"tool": "news", "press": len(items), "outlets": len({it["outlet"] for it in items}),
-                "official": len(found or []), "official_trouble": bool(trouble)}
+                "official": len(found or []), "official_trouble": bool(trouble),
+                "social": len(posts or []), "social_failed": len(failed)}
 
     def run_video_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
         """Search YouTube, list the videos, open the first in Firefox, wait for it, summarize it if asked."""
