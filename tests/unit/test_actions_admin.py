@@ -97,6 +97,12 @@ class MechanismErrors(unittest.TestCase):
         self.assertIsInstance(admin._error("org.freedesktop.DBus.Error.ServiceUnknown", "x"), admin.Unavailable)
         self.assertEqual(str(admin._error(admin.ERR + "Failed", "apt-get exited 100")), "apt-get exited 100")
 
+    def test_the_dbus_prefix_is_taken_off_the_reason(self):
+        # as seen live on the test SSD: "the system refused it: GDBus.Error:org.cinminai.Admin1.Error.Rejected: ..."
+        remote = admin.ERR + "Rejected"
+        self.assertEqual(admin._reason(f"GDBus.Error:{remote}: sudo is protected", remote), "sudo is protected")
+        self.assertEqual(admin._reason("Timeout was reached", ""), "Timeout was reached")
+
 
 class Cards(unittest.TestCase):
     def test_declined_and_failed_cards_say_why(self):

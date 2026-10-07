@@ -36,9 +36,14 @@ def _bus_call(method: str, signature: str, values: tuple, reply: str | None) -> 
                             Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION, NO_TIMEOUT, None)
     except GLib.Error as e:
         remote = Gio.DBusError.get_remote_error(e) or ""
-        message = Gio.DBusError.strip_remote_error(e) or e.message
-        raise _error(remote, message) from None
+        # e.message is "GDBus.Error:<remote>: <reason>" (strip_remote_error edits a copy in PyGObject, not e)
+        raise _error(remote, _reason(e.message, remote)) from None
     return out.unpack()[0] if reply else None
+
+
+def _reason(message: str, remote: str) -> str:
+    prefix = f"GDBus.Error:{remote}: "
+    return message[len(prefix):] if remote and message.startswith(prefix) else message
 
 
 def _error(remote: str, message: str) -> ActionError:
