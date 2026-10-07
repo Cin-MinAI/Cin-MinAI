@@ -351,6 +351,21 @@ class Tools:
             return {"opened": None, "error": f"couldn't open {self.label(app)}: {e}"}
         return {"opened": self.label(app)}
 
+    def compose_email(self, args: dict) -> dict:
+        """Open the person's mail program with a draft the guide wrote (D88). No address: they add it and click Send;
+        the assistant never sends mail. xdg-email: the desktop's default mail program, whichever it is."""
+        subject, body = str(args.get("subject", "")).strip(), str(args.get("body", "")).strip()
+        if not body:
+            return {"opened": None, "error": "nothing to put in the email"}
+        try:
+            subprocess.Popen(["xdg-email", "--utf8", "--subject", subject, "--body", body],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError as e:
+            return {"opened": None, "error": f"couldn't open the mail program: {e}"}
+        return {"opened": self.label("email"), "draft": True, "subject": subject,
+                "next": "add the address in To and click Send; nothing has been sent"}
+
     def make_spreadsheet(self, args: dict) -> dict:
         """A new spreadsheet in Documents, opened in Calc (SPEC §7.9, D53). Our code writes every formula;
         it never overwrites a file. Filling it in needs the user to share it (D20): the result says how."""

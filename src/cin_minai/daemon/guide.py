@@ -192,6 +192,8 @@ class Guide:
             from .sheets import wants_by_month
             args = {**args, "total": wants_by_month(request, str(args.get("total", "none")))}
             return json.dumps(self.tools.make_spreadsheet(args), ensure_ascii=False)
+        if tool == "compose_email":
+            return json.dumps(self.tools.compose_email(args), ensure_ascii=False)
         if tool == "request_install":
             return json.dumps(self.tools.request_install(str(args.get("package", ""))), ensure_ascii=False)
         return json.dumps({"error": f"unknown tool {tool}"})

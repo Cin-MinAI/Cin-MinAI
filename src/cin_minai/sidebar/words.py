@@ -57,6 +57,14 @@ def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
         if made:
             return "x-office-spreadsheet-symbolic", f"Made a new spreadsheet: {made}"
         return "dialog-warning-symbolic", "Tried to make a spreadsheet, but couldn't"
+    if tool == "compose_email":
+        try:
+            opened = json.loads(result).get("opened") if result else None
+        except ValueError:
+            opened = None
+        if opened:
+            return "mail-message-new-symbolic", f"Wrote a draft email in {opened} (not sent: you add the address and send it)"
+        return "dialog-warning-symbolic", "Tried to open a draft email, but couldn't"
     return "dialog-information-symbolic", f"Used {tool}"
 
 

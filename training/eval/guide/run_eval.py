@@ -124,11 +124,23 @@ CREATE_TOOLS = {
 OPTIONAL[(None, "make_spreadsheet")] = {"rows"}
 
 
+# Prompt v2.4 (2026-10-07, D88): v2.3 plus one tool — the guide writes the email itself and opens it as a draft in the
+# person's mail program (hands-on round 2: asked to write a letter in Thunderbird, it gave steps with a made-up
+# address). No address field: the person adds it and clicks Send; nothing is sent by the assistant.
+EMAIL_TOOLS = {
+    "compose_email": ({"subject": S, "body": S},
+                      "when the user asks for an email (or a letter they want to send by email): write it and open it "
+                      "as a draft in their mail program: the subject and the whole text, ready to send (they add the "
+                      "address and click Send themselves). A letter to print or keep: write it with answer"),
+}
+
+
 def tools_for(doc: str | None) -> dict:
     # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
     extra = {}
-    if PROMPT in ("v2.1", "v2.2", "v2.3") and not doc:
-        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3") else {})}
+    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4") and not doc:
+        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4") else {}),
+                 **(EMAIL_TOOLS if PROMPT == "v2.4" else {})}
     return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
@@ -225,7 +237,7 @@ PROMPT = "v1"
 
 
 def style() -> str:
-    return STYLE_V23 if PROMPT == "v2.3" else STYLE_V2 if PROMPT.startswith("v2") else STYLE
+    return STYLE_V23 if PROMPT in ("v2.3", "v2.4") else STYLE_V2 if PROMPT.startswith("v2") else STYLE
 
 
 HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
@@ -250,7 +262,7 @@ def system_prompt(task: dict) -> str:
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    system = (SYSTEM_V23 if PROMPT == "v2.3" and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
+    system = (SYSTEM_V23 if PROMPT in ("v2.3", "v2.4") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
               else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM)
     return system.format(document=document, tools=tools)
 
@@ -282,7 +294,7 @@ def items() -> list[dict]:
             if "result" in t:
                 it["result"] = json.loads(resolve(json.dumps(t["result"], ensure_ascii=False), lang))
             it["must"] = [[resolve(a, lang) for a in group] for group in t.get("must", [])]
-            if PROMPT in ("v2.2", "v2.3") and "v22" in t:
+            if PROMPT in ("v2.2", "v2.3", "v2.4") and "v22" in t:
                 # D54/D55: no longer a decline; the action is checked, the decline's reply checks don't apply
                 it.update(expect=t["v22"]["expect"], must=[], must_not=[], b_skip=True)
             out.append(it)
@@ -482,7 +494,7 @@ def main() -> None:
     ap.add_argument("--loop-detector", action="store_true",
                     help="score the deterministic repaired reply the product shows when generation loops")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")

@@ -213,6 +213,33 @@ TASKS = [
      "result": {"date": "Wednesday 07 October 2026", "time": "16:05", "time_12h": "4:05 PM",
                 "timezone": "America/New_York", "utc_offset": "-0400", "open_with": "{date_time}"},
      "must": [["~4[:.]05|16[:.]05"]], "must_not": NO_CMD + ["(?i)not available|no (está|esta) disponible|nicht verfügbar"]},
+    # --- one-button actions (D88), from hands-on round 2: write the email, don't explain how to ------------------------
+    {"id": "D84-24", "cat": "create",
+     "q": {"en": "Can you pull up my email and write a letter to Anthropic thanking them for Claude and OpenAI for "
+                 "ChatGPT?",
+           "es": "¿Puedes abrir mi correo y escribir una carta a Anthropic agradeciéndoles por Claude y a OpenAI por "
+                 "ChatGPT?",
+           "de": "Kannst du mein E-Mail-Programm öffnen und einen Brief an Anthropic schreiben, der sich für Claude "
+                 "bedankt, und an OpenAI für ChatGPT?"},
+     "expect": [{"tool": "compose_email", "args": {"body": "~claude"}}],
+     "result": {"opened": "{email}", "draft": True, "subject": "Thank you",
+                "next": "add the address in To and click Send; nothing has been sent"},
+     "must": [["{email}"]], "must_not": NO_CMD + ["(?i)@example\\.com"]},
+    {"id": "D84-25", "cat": "create",
+     "q": {"en": "Write an email to my landlord telling him the kitchen sink is leaking and asking when he can fix it.",
+           "es": "Escribe un correo a mi casero diciéndole que el fregadero de la cocina gotea y preguntando cuándo "
+                 "puede arreglarlo.",
+           "de": "Schreib eine E-Mail an meinen Vermieter, dass die Spüle in der Küche tropft, und frag, wann er sie "
+                 "reparieren kann."},
+     "expect": [{"tool": "compose_email", "args": {"body": "~sink|fregadero|spüle"}}],
+     "result": {"opened": "{email}", "draft": True, "subject": "Leaking kitchen sink",
+                "next": "add the address in To and click Send; nothing has been sent"},
+     "must": [["{email}"]], "must_not": NO_CMD},
+    {"id": "D84-26", "cat": "transition",
+     "q": {"en": "How do I write an email with an attachment?"},
+     "expect": [{"tool": "lookup_help"}],
+     "card": CARD["email"] if "email" in CARD else CARD["outlook"],
+     "must": [["{email}"]], "must_not": NO_CMD},
     # "What is…?" (D84 part 1): Ian's everyday picture has to come through, not only the steps
     {"id": "D84-07", "cat": "transition",
      "q": {"en": "What is a VPN, and do I need one?"},
