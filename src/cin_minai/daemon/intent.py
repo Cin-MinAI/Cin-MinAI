@@ -92,7 +92,7 @@ ABOUT_NEWS = re.compile(r"\b(what (is|are)|qu[eé] (es|son|é)|qu'est-ce que|was
                         r"notificaci\w*|notifica\w*|benachrichtigung\w*|install\w*|instal\w*|apps?|program\w*|"
                         r"reader|lector|leitor|lecteur|feeds?|rss|widget|applet)\b|^\W*(how|c[oó]mo|comment|wie)\b|"
                         r"とは|アプリ", re.I)
-NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring|look|check)\s+up\b|\b(look|search)\s+for\b|\b(find|search|check|look\s+at)\b|\b(is|are)\s+there\b|\b(the\s+)?(web|internet)\b|\b(show|get|give|tell)\s+"
+NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring|look|check)\s+up\b|\b(look|search)\s+for\b|\b(find|search|check|look\s+at)\b|\b(is|are)\s+there\b|\b(the\s+)?(web|internet)\b|\bfrom\b|\b(show|get|give|tell)\s+"
                          r"me\b|\bwhat'?s\b|\bwhat is\b|\b(the|any|latest|last|recent|today'?s?|new|top|me|on|about|"
                          r"for|with|in|happening|going on|las|los|el|la|les|le|des|die|der|das|os|as|o|a|últimas?|"
                          r"últimos?|dernières?|neuesten?|aktuellen?|sobre|de|acerca de|sur|à propos de|über|zu|zum|zur|"

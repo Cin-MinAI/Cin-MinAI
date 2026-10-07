@@ -131,6 +131,9 @@ class NewsRequest(unittest.TestCase):
         self.assertEqual(news_request("Is there any news on 24 jump street?"), {"topic": "24 jump street"})
         self.assertEqual(news_request("search the web for news on 24 jump street"), {"topic": "24 jump street"})
         self.assertIsNone(news_request("Search the web for news on it"))
+        # round 5d: "news from local Qwen AI models on Reddit" was searched with "from" in it
+        self.assertEqual(news_request("Look up news from local Qwen AI models on Reddit"),
+                         {"topic": "local Qwen AI models", "only": "Reddit"})
         self.assertIsNone(news_request("What is the latest version of Firefox?"))
 
     def test_questions_about_news_are_not_requests(self):
