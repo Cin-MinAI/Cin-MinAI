@@ -435,6 +435,29 @@
    "fr": "Modifier l'arrière-plan du bureau",
    "de": "Hintergrund des Schreibtisches ändern",
    "ja": "背景を変更"
+  },
+  "passwords_keys": {
+   "en": "Passwords and Keys",
+   "es": "Contraseñas y claves",
+   "pt": "Senhas e chaves",
+   "fr": "Mots de passe et clés",
+   "de": "Passwörter und Verschlüsselung"
+  },
+  "usb_writer": {
+   "en": "USB Image Writer",
+   "es": "Grabador de imágenes USB",
+   "pt": "Gravador de Imagem USB",
+   "fr": "Créateur de clé USB",
+   "de": "USB-Abbilderstellung",
+   "ja": "USB イメージライター"
+  },
+  "usb_formatter": {
+   "en": "USB Stick Formatter",
+   "es": "Formateador de memorias USB",
+   "pt": "Formatador de dispositivos USB",
+   "fr": "Formateur de clé USB",
+   "de": "USB-Stick-Formatierer",
+   "ja": "USB メモリフォーマッター"
   }
  }
 }

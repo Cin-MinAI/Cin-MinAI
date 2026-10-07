@@ -45,6 +45,7 @@ LABELS = {  # our key -> .desktop file
     "archive_manager": "org.gnome.FileRoller", "warpinator": "org.x.Warpinator",
     "character_map": "gucharmap", "document_scanner": "simple-scan", "calculator": "org.gnome.Calculator",
     "music_player": "org.gnome.Rhythmbox3",
+    "passwords_keys": "org.gnome.seahorse.Application", "usb_writer": "mintstick", "usb_formatter": "mintstick-format",
 }
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",

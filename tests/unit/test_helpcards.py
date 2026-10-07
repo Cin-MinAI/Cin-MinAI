@@ -71,6 +71,31 @@ class HelpCards(unittest.TestCase):
             self.assertEqual(self.index.lookup(q, lang)[0], "office", q)
         self.assertEqual(self.index.lookup("count the words in my document", "en")[0], "word_count")
 
+    def test_d84_batch_1_found_in_six_languages(self):
+        # D84 (2026-10-06): the first coverage cards, asked the way people ask, one question per language
+        asked = {
+            "vpn": ["how do I set up a VPN", "cómo configurar una VPN", "como configurar uma VPN",
+                    "comment configurer un VPN", "wie richte ich ein VPN ein", "VPNを設定する方法"],
+            "keyring": ["it keeps asking for my keyring password", "me pide la contraseña del llavero",
+                        "pede a senha do chaveiro", "il demande le mot de passe du trousseau",
+                        "Schlüsselbund Passwort wird abgefragt", "キーリングのパスワードを聞かれる"],
+            "hidden_files": ["how do I show hidden files", "cómo ver archivos ocultos", "como ver arquivos ocultos",
+                             "afficher les fichiers cachés", "versteckte Dateien anzeigen", "隠しファイルを表示する"],
+            "user_accounts": ["add an account for my daughter", "crear una cuenta de usuario para mi hijo",
+                              "criar uma conta de usuário para minha filha", "créer un compte pour mon fils",
+                              "neues Benutzerkonto für meine Tochter", "子供用のユーザーアカウントを作る"],
+            "bootable_usb": ["make a bootable USB from an ISO like Rufus", "crear un USB booteable con una ISO",
+                             "criar pendrive bootável com ISO", "créer une clé USB bootable avec un ISO",
+                             "bootfähigen USB-Stick aus ISO erstellen", "ISOから起動用USBを作る"],
+            "aicui": ["is there something like VS Code for coding with AI", "un editor de código para programar con IA",
+                      "ambiente de desenvolvimento para programar com IA",
+                      "un éditeur de code pour programmer avec l'IA", "Entwicklungsumgebung zum Programmieren mit KI",
+                      "AIでプログラミングする開発環境"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

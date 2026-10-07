@@ -302,4 +302,65 @@ TOPICS = [
              "send one back as Word, use File > Save As and pick Word (.docx); click 'Use Word 2007-365!' if "
              "asked.",
      "must": ["writer"], "steps": False},
+
+    # --- D84 batch 1 (2026-10-06): the everyday pictures are Ian's; steps checked on the test SSD's own files ---------
+    {"id": "vpn", "windows": "a VPN app or Windows' VPN settings",
+     "card": "VPN: think of a PO box. A VPN service is like a post office full of PO boxes: many people's "
+             "connections leave from the same address, so websites see the service, not you. But the service knows "
+             "which box is yours and can be required to hand that over to the authorities. A private VPN, one you "
+             "set up yourself, is like a mailbox you put in the middle of nowhere: people can reach the box, but no "
+             "one has a line from it to you. Either way, what you send stays confidential on the way. Worth it on "
+             "public Wi-Fi, to reach a home or work network, or to appear in another country; it doesn't make you "
+             "anonymous, and it can slow the connection a little. To add one: open {system_settings}, then "
+             "{network}, click + at the bottom left, choose Import from file and pick the .ovpn file your VPN "
+             "service gave you (or choose OpenVPN and type in its details), then switch it on in the list. If the "
+             "service has its own Linux app, that works too.",
+     "must": ["network"], "steps": True},
+    {"id": "keyring", "windows": "Windows Credential Manager, or a window asking for a 'keyring' password",
+     "card": "Keyring: the keyring is a locked box for your saved passwords and keys (Wi-Fi, email, websites). "
+             "Its password is not like a normal password: it unlocks the keys themselves, so whoever unlocks it gets "
+             "past the first layer of protection (other systems call it a key vault). It normally opens by itself "
+             "when you log in, because it uses your login password. It asks on its own when you log in "
+             "automatically (no password was typed), or after your login password changed and the keyring's "
+             "didn't: then type the password it was made with. To make them match again, open {passwords_keys}, "
+             "right-click Login, choose Change Password, and enter the old password, then the new one. Don't delete "
+             "the Login keyring to stop the question: the passwords saved in it would be lost.",
+     "must": ["passwords_keys"], "steps": True, "langs": ["en", "es", "pt", "fr", "de"]},
+    {"id": "hidden_files", "windows": "'Show hidden files' in File Explorer",
+     "card": "Hidden files: some files are hidden for your convenience. Their names start with a dot (like "
+             ".config), and they hold what your programs need to work the way you expect. Deleting one usually "
+             "won't break the computer itself (though it can), but it can break a program or wipe its settings. To "
+             "see them in {files}: press Ctrl+H (careful: don't delete or change them unless you know what a file "
+             "is for, or a guide you trust says to), or choose View > Show Hidden Files; press Ctrl+H again to "
+             "hide them.",
+     "must": ["files"], "steps": True},
+    {"id": "user_accounts", "windows": "adding a family member or another user account",
+     "card": "User accounts: accounts are free, and every person can have their own experience: their own files, "
+             "settings, browser and saved passwords, behind a password of their own. Make one for each person "
+             "instead of sharing. Standard is right for most people, children included; an Administrator can "
+             "install programs and change the system. To add one: open {users} and type your password, click Add, "
+             "choose the Account Type (Standard or Administrator), fill in Full Name and Username, and click Add. "
+             "Then click the new account, click No password set next to Password, and give it a password.",
+     "must": ["users"], "steps": True},
+    {"id": "bootable_usb", "windows": "Rufus or the Media Creation Tool, to make a bootable USB stick from an ISO",
+     "card": "Bootable USB stick: two words first. A disk image is a map of how to set every bit on a disk; a "
+             "disk volume is how those bits are read back as files and folders. An .iso file is a system image: "
+             "written onto a USB stick, it makes the stick a disk that can start a computer and build the system's "
+             "volume on its drive. That's why you write it instead of copying it: a copy would just be one file on "
+             "the stick. To make one: writing erases everything on the stick, so first save any files you want "
+             "from it to your computer; plug in the stick, open {usb_writer}, click Select Image and choose the "
+             ".iso file, "
+             "choose the stick under USB stick, click Write (this erases the stick) and type your password. To use "
+             "the stick for files again later, open {usb_formatter}, choose "
+             "the stick, give it a name and click Format. A Windows .iso usually needs Windows' own tool; the "
+             "writer warns you when it sees one.",
+     "must": ["usb_writer"], "steps": True},
+    {"id": "aicui", "windows": "Visual Studio Code or another IDE for programming",
+     "card": "AICUI: a coding workspace made for working with an AI. The AI can run the developer tools itself, "
+             "so it needs little more than a terminal; AICUI is there so you can see your project while it works: "
+             "the files and what changed, the goals for the session, the AI's own terminal, and a changelog where "
+             "every change can be undone. It asks before it changes anything unless you choose otherwise. To start: "
+             "open the Menu, then Programming, then AICUI (or click Open AICUI in the assistant's sidebar), choose "
+             "your project folder, type what you want in the box at the bottom and click Send to the AI.",
+     "must": [], "steps": True, "langs": ["en"]},
 ]

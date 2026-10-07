@@ -191,6 +191,30 @@ KEYWORDS = {
                    "aktualisieren wichtig なぜ更新 アップデートの重要性 bother worth skip need updates should i update",
     "word_files": "word files docx doc open word document save as word archivo word abrir docx arquivo word "
                   "fichier word ouvrir docx word-datei öffnen docx ワードファイル docx 開く",
+    "vpn": "vpn virtual private network openvpn ovpn wireguard proxy hide ip address public wifi privacy "
+           "red privada virtual ocultar ip rede privada virtual esconder ip réseau privé virtuel masquer "
+           "adresse ip virtuelles privates netzwerk ip verbergen vpnを使う 仮想プライベートネットワーク IPアドレス",
+    "keyring": "keyring key ring keyring password unlock login keyring credential manager saved passwords "
+               "key vault seahorse llavero contraseña del llavero desbloquear chaveiro senha do chaveiro "
+               "desbloquear trousseau mot de passe du trousseau déverrouiller schlüsselbund schlüsselbund "
+               "passwort entsperren キーリング キーリングのパスワード ロック解除",
+    "hidden_files": "hidden dotfiles dot .config ctrl+h invisible ocultos archivos ocultos arquivos ocultos "
+                    "cachés fichiers cachés versteckte dateien 隠し 隠しファイル",
+    "user_accounts": "user account new user add user family member child account another person "
+                     "standard administrator cuenta de usuario nuevo usuario añadir usuario conta de usuário novo "
+                     "usuário adicionar usuário compte nouveau compte ajouter un compte "
+                     "benutzerkonto neuer benutzer benutzer hinzufügen ユーザーアカウント ユーザーを追加 新しいユーザー "
+                     "son daughter kid kids hijo hija niño filho filha criança fils fille enfant sohn tochter kind "
+                     "子供 息子 娘 家族",
+    "bootable_usb": "bootable usb boot usb live usb iso write iso burn iso rufus media creation tool etcher "
+                    "disk image installer stick format usb usb booteable grabar iso imagen de disco formatear usb "
+                    "pendrive bootável gravar iso imagem de disco formatar pendrive clé usb bootable graver iso "
+                    "image disque formater clé bootfähiger usb-stick iso schreiben abbild usb-stick formatieren "
+                    "起動用USB ブータブルUSB ISOを書き込む ディスクイメージ USBをフォーマット",
+    "aicui": "aicui coding ide code editor programming vs code visual studio code ai coding agent develop "
+             "programar entorno de desarrollo editor de código programação ambiente de desenvolvimento "
+             "programmer environnement de développement éditeur de code programmieren entwicklungsumgebung "
+             "code-editor プログラミング 開発環境 コードエディター",
     # --- lessons.py ------------------------------------------------------------------------------
     "copy_paste": "copy paste ctrl+c ctrl+v copiar pegar copiar colar copier coller kopieren einfügen "
                   "コピー 貼り付け",

@@ -105,6 +105,32 @@ screen reader. Partly: phones (photos only), cloud (Microsoft account only), Win
 | torrents, SSH / remote access, virtual machines | low |
 | open source and licences | low |
 
+## Batch 1 (2026-10-06): six cards, measured on the base guide
+
+Cards `vpn`, `keyring`, `hidden_files`, `user_accounts`, `bootable_usb`, `aicui` (`training/kb/transition.py`),
+everyday pictures by Ian, every button and menu name checked against the test SSD's own program files. New labels:
+Passwords and Keys (no Japanese name on the ISO), USB Image Writer, USB Stick Formatter. Search words in six
+languages; 36 natural questions, one per language, all find their card (`test_helpcards`), and the lookup accuracy
+floors hold (sessions 90.2 %, held-out 78.7 %).
+
+The base guide (Qwen3.5-4B guide-HO Q4_K_M, llama.cpp v0.5.0, prompt v2.2, `tasks_d84.py`, 9 tasks / 33 items):
+- **The right first step:** 32/33 (it looks the card up; open-app where that fits).
+- **The steps:** correct and in order in every language read (the facts come from the card).
+- **Not yet:** for "how do I…" questions the 4B answers with the steps only and **drops what isn't an action**:
+  the hidden-files caution (0/6, even attached to the step), the "why" of the USB erase in French and Japanese
+  (the safe action, "save the stick's files first", is there in all six). A first wording, "copy … off the
+  stick", came back in French as "copy … onto the stick": rewritten without the ambiguous word.
+- **"What is a VPN?"** went to web search instead of the card (prompt v2.2 sends knowledge to the web, D55), and
+  "why can't I copy the ISO" lost the image/map picture.
+- **Button names in five languages are the model's own translations** and three of them were wrong in German
+  ("Bild auswählen" for Abbild auswählen, "Versteckte Dateien anzeigen" for Verborgene Dateien anzeigen, "Kein
+  Passwort festgelegt" for Kein Passwort eingestellt). The real ones are in the ISO's catalogues (nemo, mintstick,
+  cinnamon, cinnamon-control-center, seahorse).
+
+So these six are **not covered yet** by D84's bar. What would close it (to decide): in-app labels from the
+catalogues into `labels.json`, used by cards like app names; a prompt change (concept questions to the help first;
+keep a card's caution and picture), A/B-measured on the full eval; or teaching it in guide cycle 1 (D31).
+
 ## How the gaps get filled (D84)
 
 1. **The everyday picture first, from Ian** for each concept (credited), then the card: what it is, when you'd want
