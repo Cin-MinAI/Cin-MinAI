@@ -112,4 +112,4 @@ screen reader. Partly: phones (photos only), cloud (Microsoft account only), Win
 2. **Every fact checked on a real Mint 22.3 install** (the test SSD), with Mint's own labels in all six languages
    (`labels.json`).
 3. **Eval questions in all six languages**; a card counts once the base 4B guide passes it.
-4. **Re-run this measurement for every release** (the two scripts above): the "must" row grows with every feature.
+4. **Re-run this measurement for every release** (`docs/release-checklist.md`): the "must" row grows with every feature.
