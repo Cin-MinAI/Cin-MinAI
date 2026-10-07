@@ -28,6 +28,8 @@ cycle, PLAN D31). An ISO release does the update list too. Tick in order, and wr
       `python3 -P -c "import cin_minai.daemon.service, …"` with that `PYTHONPATH`).
 - [ ] **Install with `~/cinminai-debs/install-debs.sh *STAMP*.deb`.** Short glob lines (long ones break when
       copied). If a dependency rule changed, install **all** packages. apt must list no removals.
+- [ ] **Ian's hands-on round** (D88): he asks real questions on the test SSD and feels it out; the lead reads every step
+      behind each reply (a watcher on the assistant's D-Bus signals) and turns findings into fixes, cards and eval tasks.
 - [ ] **Look at the real screen** after a real run of each changed feature (cut-off lists, over-flagging and wrong
       words only showed up there), with the real guide model.
 - [ ] Put Ian's commands in `~/Desktop/prompts.txt` on the SSD.
