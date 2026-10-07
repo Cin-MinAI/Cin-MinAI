@@ -83,6 +83,35 @@ def video_review(text: str) -> dict | None:
     return {"topic": topic, "summarize": bool(SUMMARIZE.search(text))}
 
 
+# --- chains (D91): "pull up the news about X" ------------------------------------------------------------------------
+NEWS = re.compile(r"\b(news|headlines?|noticias|notícias|actualit[ée]s|nouvelles|infos|nachrichten|schlagzeilen)\b|"
+                  r"ニュース", re.I)
+# questions about news itself, not a request for it: "what is fake news?", "how do I turn off news notifications?"
+ABOUT_NEWS = re.compile(r"\b(what (is|are)|qu[eé] (es|son|é)|qu'est-ce que|was (ist|sind)|fake|notification\w*|"
+                        r"notificaci\w*|notifica\w*|benachrichtigung\w*|install\w*|instal\w*|apps?|program\w*|"
+                        r"reader|lector|leitor|lecteur|feeds?|rss|widget|applet)\b|^\W*(how|c[oó]mo|comment|wie)\b|"
+                        r"とは|アプリ", re.I)
+NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring)\s+up\b|\b(show|get|give|tell)\s+"
+                         r"me\b|\bwhat'?s\b|\bwhat is\b|\b(the|any|latest|last|recent|today'?s?|new|top|me|on|about|"
+                         r"for|with|in|happening|going on|las|los|el|la|les|le|des|die|der|das|os|as|o|a|últimas?|"
+                         r"últimos?|dernières?|neuesten?|aktuellen?|sobre|de|acerca de|sur|à propos de|über|zu|zum|zur|"
+                         r"muestra\w*|mostra\w*|montre\w*|zeig\w*|busca\w*|pesquis\w*|cherch\w*|such\w*|quais|s[aã]o|"
+                         r"moi|mir|mich|dime)\b|-moi\b|"
+                         r"の最新|について|を|見せて|教えて|最新", re.I)
+
+
+def news_request(text: str) -> dict | None:
+    """{"topic"} when the person asks for the news (about something, or in general: topic "")."""
+    if not NEWS.search(text) or ABOUT_NEWS.search(text):
+        return None
+    topic = NEWS.sub(" ", text)
+    for _ in range(3):
+        topic = NEWS_FILLER.sub(" ", topic)
+    topic = re.sub(r"\s+", " ", re.sub(r"[?!.¿¡,:;。、？！]", " ", topic)).strip()
+    topic = re.sub(r"(\s+(and|y|e|et|und))+$|^(and|y|e|et|und)\s+|[のをでと]+$", "", topic).strip()
+    return {"topic": topic}
+
+
 def narrow(schema: dict, text: str) -> dict:
     """The schema with only the tools this request may use. Unchanged when it has no email tool (other prompts)."""
     options = schema.get("anyOf", [])

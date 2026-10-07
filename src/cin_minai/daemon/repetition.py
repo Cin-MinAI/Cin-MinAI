@@ -83,6 +83,28 @@ class LoopDetected(Exception):
         self.reply, self.repeat = reply, repeat
 
 
+class PointCap:
+    """Stops a numbered list after `limit` points (the news briefing, D91: asked for three to five, the 4B wrote twenty).
+    The stream is cut as the next point begins; what was shown is replaced by the points kept."""
+
+    START = re.compile(r"(?:^|\n)\s*(?:\*\*)?(\d{1,2})[.)．]")
+
+    def __init__(self, emit: Callable[[str], None], limit: int = 5,
+                 replace: Callable[[str], None] | None = None) -> None:
+        self.emit, self.limit, self.text, self.replace = emit, limit, "", replace
+
+    def feed(self, piece: str) -> None:
+        self.text += piece
+        over = next((m for m in self.START.finditer(self.text) if int(m.group(1)) > self.limit), None)
+        if over is None:
+            self.emit(piece)
+            return
+        kept = self.text[:over.start()].rstrip()
+        if self.replace is not None:
+            self.replace(kept)
+        raise LoopDetected(kept, Repeat(f"point {over.group(1)}", (over.start(),)))
+
+
 class ReplyGuard:
     """A streaming callback which aborts generation once a loop is established."""
 

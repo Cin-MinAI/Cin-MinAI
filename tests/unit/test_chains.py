@@ -106,5 +106,75 @@ class VideoChain(unittest.TestCase):
         self.assertEqual(len(s.chain_offers), 1)
 
 
+class NewsSources(unittest.TestCase):
+    def test_articles_about_the_topic_before_front_pages(self):
+        from cin_minai.daemon.websearch import articles_first, news_query
+        results = [{"title": "9to5Linux - Linux news", "url": "https://9to5linux.com/", "snippet": "Ubuntu and Debian"},
+                   {"title": "Linuxiac news", "url": "https://linuxiac.com/category/news/", "snippet": "distros"},
+                   {"title": "Linux Mint 22.3 released with Cinnamon 6.6", "snippet": "the Linux Mint team",
+                    "url": "https://9to5linux.com/linux-mint-22-3-released-with-cinnamon-6-6"},
+                   {"title": "Distro news", "url": "https://distro.watch/news/2026/10/mint-xfce", "snippet": "Linux Mint"}]
+        order = [r["url"] for r in articles_first(results, "Linux Mint")]
+        self.assertEqual(order[0], "https://9to5linux.com/linux-mint-22-3-released-with-cinnamon-6-6")
+        self.assertEqual(order[1], "https://distro.watch/news/2026/10/mint-xfce")
+        self.assertEqual(set(order[2:]), {"https://9to5linux.com/", "https://linuxiac.com/category/news/"})
+        self.assertEqual(news_query("Linux Mint", "en"), '"Linux Mint" news')
+
+
+class NewsRequest(unittest.TestCase):
+    def test_requests_and_topics(self):
+        from cin_minai.daemon.intent import news_request
+        cases = {"Pull up the news about Linux Mint": "Linux Mint",
+                 "What's the latest news on the Artemis mission?": "Artemis mission",
+                 "Show me today's headlines": "", "Can you pull up the news?": "",
+                 "Muestra las últimas noticias sobre la economía": "economía",
+                 "Quais são as notícias sobre o Brasil?": "Brasil",
+                 "Montre-moi les actualités sur la France": "France",
+                 "Zeig mir die Nachrichten über Berlin": "Berlin", "台風についてのニュースを教えて": "台風"}
+        for text, topic in cases.items():
+            self.assertEqual(news_request(text), {"topic": topic}, text)
+
+    def test_questions_about_news_are_not_requests(self):
+        from cin_minai.daemon.intent import news_request
+        for text in ("What is fake news?", "How do I turn off news notifications?", "Install a news reader",
+                     "Is there a news app for Linux?", "Add a news feed to my panel"):
+            self.assertIsNone(news_request(text), text)
+
+
+@unittest.skipIf(service is None, "needs PyGObject")
+class NewsChain(unittest.TestCase):
+    def test_brief_from_the_articles_only_after_the_click(self):
+        import sys
+        sys.path.insert(0, "tests/unit")
+        import test_guide
+        g, backend = test_guide.guide(["1. Linux Mint 22.3 is out [1]."])
+        found = {"query": "Linux Mint news", "sources": [{"n": 1, "title": "Mint 22.3 released", "url": "https://lwn.net/a",
+                                                          "text": "Linux Mint 22.3 was released on Thursday."}]}
+        events, text = [], []
+        with mock.patch("cin_minai.daemon.websearch.gather", return_value=found) as gather:
+            out = g.brief("Linux Mint", "Pull up the news about Linux Mint", "Linux Mint news", text.append,
+                          lambda tool, args, state, result: events.append((tool, state)), threading.Event())
+        gather.assert_called_once_with("Linux Mint news", "en", pages=4, recent="w", topic="Linux Mint")
+        prompt = backend.sent[0]["messages"][0]["content"]
+        self.assertIn("Linux Mint 22.3 was released on Thursday.", prompt)
+        self.assertIn("only from them", prompt)
+        self.assertEqual(events, [("web_search", "running"), ("web_search", "done")])
+        self.assertEqual("".join(text), "1. Linux Mint 22.3 is out [1].")
+        self.assertEqual(out["sources"], 1)
+
+    def test_nothing_this_week_falls_back_to_the_latest(self):
+        import sys
+        sys.path.insert(0, "tests/unit")
+        import test_guide
+        from cin_minai.daemon import websearch
+        g, _ = test_guide.guide(["ok"])
+        found = {"query": "q", "sources": [{"n": 1, "title": "t", "url": "https://x.org/", "text": "x"}]}
+        with mock.patch("cin_minai.daemon.websearch.gather",
+                        side_effect=[websearch.SearchError("the search found nothing"), found]) as gather:
+            g.brief("rare topic", "news about rare topic", "rare topic news", lambda t: None, lambda *a: None,
+                    threading.Event())
+        self.assertEqual(gather.call_args_list[1].kwargs, {"pages": 4, "topic": "rare topic"})
+
+
 if __name__ == "__main__":
     unittest.main()

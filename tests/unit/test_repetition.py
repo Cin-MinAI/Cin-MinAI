@@ -59,5 +59,27 @@ class RepetitionTest(unittest.TestCase):
         self.assertEqual(caught.exception.reply, sentence)
 
 
+class PointCapTest(unittest.TestCase):
+    def test_stops_at_the_sixth_point_and_replaces(self):
+        from cin_minai.daemon.repetition import LoopDetected, PointCap
+        shown, replaced = [], []
+        cap = PointCap(shown.append, 5, replaced.append)
+        text = "".join(f"{i}. Point {i} [1].\n" for i in range(1, 9))
+        with self.assertRaises(LoopDetected) as caught:
+            for i in range(0, len(text), 4):
+                cap.feed(text[i:i + 4])
+        self.assertTrue(caught.exception.reply.endswith("5. Point 5 [1]."))
+        self.assertNotIn("6.", caught.exception.reply)
+        self.assertEqual(replaced, [caught.exception.reply])
+
+    def test_five_points_pass_untouched(self):
+        from cin_minai.daemon.repetition import PointCap
+        shown = []
+        cap = PointCap(shown.append, 5)
+        text = "".join(f"{i}. P{i}\n" for i in range(1, 6))
+        cap.feed(text)
+        self.assertEqual("".join(shown), text)
+
+
 if __name__ == "__main__":
     unittest.main()

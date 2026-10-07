@@ -480,7 +480,8 @@ class Service:
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
             if sid in self.chain_offers:  # D91: the Search click a chain was waiting for
                 offer = self.chain_offers.pop(sid)
-                self.job(self.next_id, lambda on_text, on_action: self.run_video_chain(offer, query, on_text, on_action))
+                run = self.run_news_chain if offer.get("recipe") == "news" else self.run_video_chain
+                self.job(self.next_id, lambda on_text, on_action: run(offer, query, on_text, on_action))
                 return
 
             def search(on_text, on_action, sid=sid, query=query):
@@ -674,6 +675,10 @@ class Service:
         if found:  # D91: "pull up a video about X (and summarize it)" — a chain, not a web answer
             self.job(rid, lambda on_text, on_action: self.offer_video_chain(text, found, on_text, on_action))
             return
+        news = intent.news_request(text)
+        if news is not None:  # D91: "pull up the news about X" — recent articles, a short briefing, the sources
+            self.job(rid, lambda on_text, on_action: self.offer_news_chain(text, news, on_text, on_action))
+            return
         if webvideo.asks_about_video(text):  # the YouTube video open in Firefox (D78), never a summarizer site
             self.job(rid, lambda on_text, on_action: self.web_video(text, False, on_text, on_action))
             return
@@ -786,6 +791,29 @@ class Service:
                 + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."
                    if online else "This computer isn't online right now: connect, then click Search below."))
         return {"tool": "video_review", "proposal": sid}
+
+    def offer_news_chain(self, text: str, news: dict, on_text, on_action) -> dict:
+        """Step 0 of the news chain: say what will happen and show the search; nothing sent before the click (D86)."""
+        import uuid
+        from . import websearch
+        sid, query = uuid.uuid4().hex[:12], websearch.news_query(news["topic"], self.guide.tools.lang)
+        self.chain_offers = {sid: {"recipe": "news", **news, "query": query, "question": text}}
+        online = self.guide.tools.online()
+        on_action("web_search", {"query": query}, "proposal", json.dumps(
+            {"id": sid, "query": query, "online": online, "provider": "DuckDuckGo"}, ensure_ascii=False))
+        what = f"recent news about {news['topic']}" if news["topic"] else "today's main news"
+        on_text(f"I'll look for {what}, read the top articles and give you a short briefing, with the sources. "
+                + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."
+                   if online else "This computer isn't online right now: connect, then click Search below."))
+        return {"tool": "news", "proposal": sid}
+
+    def run_news_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
+        query = (query or offer["query"]).strip()[:200]
+        out, _ = hook.run("web_search", lambda: self.guide.brief(offer["topic"], offer["question"], query, on_text,
+                                                                 on_action, self.cancel),
+                          "a web search (the question left the computer)", reversible=False)
+        return {"tool": "news", "sources": out["sources"], "reply_chars": len(out["reply"]),
+                "loop_stopped": out.get("loop_stopped", False)}
 
     def run_video_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
         """Search YouTube, list the videos, open the first in Firefox, wait for it, summarize it if asked."""
