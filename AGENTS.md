@@ -102,13 +102,8 @@ When you report work, say what you did so it can be credited.
 - Signed Firefox xpis live only in `spikes/firefox/dist/` (git-ignored); `amo_fetch.py VERSION`
   re-downloads them from AMO.
 
-## Your current task: a repetition guard for the guide's replies
+## Your current task: catch a looping reply as it streams
 
-The task note is `~/cin-minai/notes/2026-10-07-task-for-codex-repetition-guard.md` (read
-`2026-10-06-update-for-codex.md` first). In short: the guide's free-text replies have no repetition guard and a
-Japanese reply looped once; add llama.cpp's DRY sampler to them, make `run_eval.py` able to use the same sampling,
-A/B it on the 1080 Ti with the shipped 4B and prompt v2.3 across every task set, read the replies that changed, and
-report to `~/cin-minai/notes/<date>-codex-repetition-report.md`. GPU etiquette (hard rule 2) as always: Ian's
-`qwen14b.service` may have its model loaded — wait or ask him, never stop it.
-
-Earlier tasks (bakeoff prep, 2026-09-25; admin/security/SBOM, 2026-10-06) are done and credited.
+The task note is `~/cin-minai/notes/2026-10-07-task-for-codex-loop-detector.md` (your own design from the
+repetition report). Earlier tasks — bakeoff prep (2026-09-25), admin/security/SBOM (2026-10-06), the repetition-guard
+study (2026-10-07) — are done and credited. GPU etiquette (hard rule 2) as always.
