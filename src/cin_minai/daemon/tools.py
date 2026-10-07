@@ -271,7 +271,8 @@ class Tools:
                                          if os.path.exists("/etc/localtime") else "")
         return {"date": now.strftime("%A %d %B %Y"), "time": now.strftime("%H:%M"),
                 "time_12h": now.strftime("%I:%M %p").lstrip("0"), "timezone": zone or now.strftime("%Z"),
-                "utc_offset": now.strftime("%z"), "open_with": self.label("date_time")}
+                "utc_offset": now.strftime("%z"), "iso": now.isoformat(timespec="minutes"),
+                "open_with": self.label("date_time")}
 
     def _memory(self) -> dict:
         """Memory in use right now, next to what's installed ("you're using 32 GB" was the installed amount)."""

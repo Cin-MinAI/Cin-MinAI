@@ -211,8 +211,21 @@ TASKS = [
      "q": {"en": "What time is it?", "es": "¿Qué hora es?", "de": "Wie spät ist es?"},
      "expect": [{"tool": "inspect_system", "args": {"topic": ["time"]}}],
      "result": {"date": "Wednesday 07 October 2026", "time": "16:05", "time_12h": "4:05 PM",
-                "timezone": "America/New_York", "utc_offset": "-0400", "open_with": "{date_time}"},
-     "must": [["~4[:.]05|16[:.]05"]], "must_not": NO_CMD + ["(?i)not available|no (está|esta) disponible|nicht verfügbar"]},
+                "timezone": "America/New_York", "utc_offset": "-0400", "iso": "2026-10-07T16:05-04:00",
+                "open_with": "{date_time}"},
+     # a plain fact: no steps (round 3: "1. Click Restart to restart your computer." after the time)
+     "must": [["~4[:.]05|16[:.]05"]],
+     "must_not": NO_CMD + ["(?i)not available|no (está|esta) disponible|nicht verfügbar", "(?m)^\s*(\*\*)?1[.)]"]},
+    {"id": "D84-27", "cat": "system",
+     "q": {"en": "Are there any updates?", "es": "¿Hay actualizaciones?", "de": "Gibt es Updates?"},
+     "expect": [{"tool": "inspect_system", "args": {"topic": ["updates"]}}],
+     "result": {"updates_available": 14, "security_updates": 11, "last_checked": "today",
+                "open_with": "{update_manager}", "install_button": "{ui_install_updates}", "restart_needed": False,
+                "restart_for": []},
+     # round 3: "click Apply Updates" (the button is Install Updates) and "restart to complete the updates" (none needed)
+     "must": [["14"], ["{ui_install_updates}"]],
+     # (an unconditional "restart to complete the updates"; "restart if prompted" is right: installing can need one)
+     "must_not": NO_CMD + ["(?i)apply updates", "(?i)restart[^.\\n]{0,30}to (complete|finish)"]},
     # --- one-button actions (D88), from hands-on round 2: write the email, don't explain how to ------------------------
     {"id": "D84-24", "cat": "create",
      "q": {"en": "Can you pull up my email and write a letter to Anthropic thanking them for Claude and OpenAI for "

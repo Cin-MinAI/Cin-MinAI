@@ -33,7 +33,8 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 import importlib.util  # noqa: E402
 from cin_minai.daemon.repetition import find_repeat, repair  # noqa: E402
-from cin_minai.daemon.intent import narrow  # noqa: E402  (the tools a request may use: as the daemon does)
+from cin_minai.daemon.intent import narrow  # noqa: E402
+from cin_minai.daemon.facts import direct_reply  # noqa: E402  (replies the daemon writes itself)  (the tools a request may use: as the daemon does)
 
 TASKS_FILE = os.path.join(HERE, "tasks.py")
 if "--tasks" in sys.argv:  # e.g. the hidden eval (training/eval/guide-hidden/tasks.py)
@@ -139,9 +140,9 @@ EMAIL_TOOLS = {
 def tools_for(doc: str | None) -> dict:
     # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
     extra = {}
-    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4") and not doc:
-        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4") else {}),
-                 **(EMAIL_TOOLS if PROMPT == "v2.4" else {})}
+    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4", "v2.5") and not doc:
+        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5") else {}),
+                 **(EMAIL_TOOLS if PROMPT in ("v2.4", "v2.5") else {})}
     return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
@@ -206,6 +207,9 @@ STYLE_V2 = ("Now write your reply to the user as plain text (not JSON), in the l
 STYLE_V23 = ("Now write your reply to the user as plain text (not JSON), in the language of their message: "
              "one short sentence, then numbered steps if there are two or more, using the names exactly as "
              "they appear above. Keep the help's everyday comparison and every caution it gives.")
+# v2.5 (2026-10-07, round 3): after "what time is it?" the 4B added "1. Click Restart … 2. Wait …" from the earlier
+# topic; v2.4's instruction asks for steps whenever there are two. One clause more.
+STYLE_V25 = STYLE_V23 + " Steps only for what the person does next; a plain fact needs none."
 # Prompt v2.2 (2026-10-01, D54 + D55): v2.1 with rule 2 rewritten — knowledge questions go to web_search (the
 # user sees the query and clicks Search before anything is sent), writing is in scope, advice that decides for
 # the person stays declined. Only rule 2 changes (asserted); one tool more.
@@ -238,7 +242,7 @@ PROMPT = "v1"
 
 
 def style() -> str:
-    return STYLE_V23 if PROMPT in ("v2.3", "v2.4") else STYLE_V2 if PROMPT.startswith("v2") else STYLE
+    return (STYLE_V25 if PROMPT == "v2.5" else STYLE_V23 if PROMPT in ("v2.3", "v2.4") else STYLE_V2) if PROMPT.startswith("v2") else STYLE
 
 
 HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
@@ -263,7 +267,7 @@ def system_prompt(task: dict) -> str:
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    system = (SYSTEM_V23 if PROMPT in ("v2.3", "v2.4") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
+    system = (SYSTEM_V23 if PROMPT in ("v2.3", "v2.4", "v2.5") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
               else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM)
     return system.format(document=document, tools=tools)
 
@@ -295,7 +299,7 @@ def items() -> list[dict]:
             if "result" in t:
                 it["result"] = json.loads(resolve(json.dumps(t["result"], ensure_ascii=False), lang))
             it["must"] = [[resolve(a, lang) for a in group] for group in t.get("must", [])]
-            if PROMPT in ("v2.2", "v2.3", "v2.4") and "v22" in t:
+            if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5") and "v22" in t:
                 # D54/D55: no longer a decline; the action is checked, the decline's reply checks don't apply
                 it.update(expect=t["v22"]["expect"], must=[], must_not=[], b_skip=True)
             out.append(it)
@@ -450,6 +454,8 @@ def run_item(srv: Server, it: dict, loop_detector: bool = False) -> dict:
     else:
         result = None
     if reply is None and result is not None:
+        reply = direct_reply(tool, args, result, it["lang"])  # a plain fact the daemon says itself (the time)
+    if reply is None and result is not None:
         messages += [{"role": "assistant", "content": raw},
                      {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{style()}"}]
         reply, tb = srv.chat(messages, None, 600)
@@ -496,7 +502,7 @@ def main() -> None:
     ap.add_argument("--loop-detector", action="store_true",
                     help="score the deterministic repaired reply the product shows when generation loops")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")

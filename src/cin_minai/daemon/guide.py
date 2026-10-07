@@ -22,7 +22,7 @@ from cin_minai.inference.backend import BackendError, InferenceBackend
 
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
-from . import intent
+from . import facts, intent
 from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
@@ -283,6 +283,12 @@ class Guide:
         on_action(tool, args, "done", result)
         followup = {"role": "user", "content": self.data["result_format"].format(
             tool=tool, result=result, style=self.data["style"])}
+        direct = facts.direct_reply(tool, args, result, self.tools.lang)
+        if direct:  # a plain fact (the time): said by the daemon, the same way every time
+            on_text(direct)
+            self.history += [user, {"role": "assistant", "content": raw}, followup, {"role": "assistant", "content": direct}]
+            return {"reply": direct, "tool": tool, "args": args, "result": result, "timings": timings,
+                    "loop_stopped": False}
         guard = self.reply_guard(on_text)
         try:
             reply, t2 = self.backend.chat(messages + [{"role": "assistant", "content": raw}, followup],
