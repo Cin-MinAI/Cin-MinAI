@@ -445,4 +445,27 @@ TOPICS = [
              "another USB stick. It's slower than after installing. When you're ready to keep it: back up your "
              "files first, then double-click {install_cinminai} on the desktop and follow the steps.",
      "must": ["install_cinminai"], "steps": True},
+
+    # --- from the hands-on round on the test SSD (2026-10-07): questions the guide answered with invented steps. The
+    # system checks behind them are inspect_system "account", "memory", "temperature"; pictures drafted by Claude for
+    # Ian to review ---------------------------------------------------------------------------------------------------
+    {"id": "admin_account", "windows": "whether my account is an administrator account",
+     "card": "Administrator or standard account: an administrator account is like holding the building's master key: "
+             "it can install programs and change the system, after typing its own password each time. The account "
+             "made when the computer was installed is an administrator; others can be Standard. The assistant can "
+             "check yours for you. To see any account's type: open {users} and type your password, then click the "
+             "account: {ui_account_type} shows {ui_standard} or {ui_administrator}.",
+     "must": ["users"], "steps": False},
+    {"id": "memory_use", "windows": "Task Manager's Performance tab: how busy the computer is right now",
+     "card": "Memory in use: it's the computer's desk space for what's open right now, not the cupboard where "
+             "files are stored. What's installed and what's in use are two different numbers; the assistant can "
+             "check both. To watch it yourself: open {system_monitor} and click {ui_resources}. If "
+             "it's nearly full all the time, close programs and browser tabs you aren't using.",
+     "must": ["system_monitor"], "steps": True},
+    {"id": "temperatures", "windows": "checking CPU and GPU temperatures",
+     "card": "Temperatures: the processor and graphics card measure their own heat, like a thermometer built into "
+             "an engine. Up to about 80 °C is normal when they're busy; above 90 °C, check that the fans turn and "
+             "the vents aren't full of dust. The assistant can read the sensors for you. Linux Mint has no "
+             "temperature program built in: to watch them yourself, install Psensor from {software_manager}.",
+     "must": ["software_manager"], "steps": False},
 ]

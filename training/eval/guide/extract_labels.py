@@ -75,6 +75,7 @@ UI = {  # names inside programs (menus, buttons) the cards use as {ui_…}: (get
     "ui_overall_assessment": ("gnome-disk-utility", "Overall Assessment"),
     "ui_system_information": ("mintreport", "System Information"), "ui_copy": ("mintreport", "Copy"),
     "ui_lid_closed": ("cinnamon", "When the lid is closed"),
+    "ui_resources": ("gnome-system-monitor", "Resources"),
 }
 LOCALE_DIRS = ("usr/share/locale", "usr/share/locale-langpack", "usr/share/linuxmint/locale")
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key

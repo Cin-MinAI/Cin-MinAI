@@ -244,6 +244,56 @@ class Tools:
                     "open_with": self.label("power")}
         return {"battery": None, "note": "no battery: this computer runs on mains power", "open_with": self.label("power")}
 
+    def _account(self) -> dict:
+        """Who is logged in and whether the account can do administrator tasks (it's in the sudo group, as the
+        account made at installation is): asked on the test SSD, the guide could only guess (2026-10-07)."""
+        import grp
+        import pwd
+        user = pwd.getpwuid(os.getuid())
+        groups = {grp.getgrgid(g).gr_name for g in os.getgroups()}
+        admin = bool(groups & {"sudo", "admin"})
+        return {"user": user.pw_name, "full_name": user.pw_gecos.split(",")[0],
+                "account_type": "Administrator" if admin else "Standard",
+                "meaning": ("can install programs and change system settings after typing their own password"
+                            if admin else "can use the computer and change their own settings; an administrator's "
+                                          "password is needed for system changes"),
+                "open_with": self.label("users")}
+
+    def _memory(self) -> dict:
+        """Memory in use right now, next to what's installed ("you're using 32 GB" was the installed amount)."""
+        info = {k: int(v.split()[0]) for k, v in (l.split(":", 1) for l in read("/proc/meminfo").splitlines()
+                                                    if ":" in l) if v.split() and v.split()[0].isdigit()}
+        total, avail = info.get("MemTotal", 0), info.get("MemAvailable", 0)
+        swap_used = info.get("SwapTotal", 0) - info.get("SwapFree", 0)
+        return {"installed_gb": math.ceil(total / 1024 / 1024), "in_use_gb": round((total - avail) / 1024 / 1024, 1),
+                "free_gb": round(avail / 1024 / 1024, 1), "in_use_pct": round(100 * (total - avail) / total) if total else 0,
+                "swap_in_use_gb": round(swap_used / 1024 / 1024, 1), "open_with": self.label("system_monitor")}
+
+    # what each sensor driver measures, in words; anything else is listed under its own name
+    SENSORS = {"coretemp": "processor", "k10temp": "processor", "zenpower": "processor", "nvme": "NVMe drive",
+               "drivetemp": "drive", "amdgpu": "graphics card", "radeon": "graphics card", "nouveau": "graphics card",
+               "acpitz": "motherboard", "pch_skylake": "chipset", "iwlwifi_1": "Wi-Fi card"}
+
+    def _temperature(self) -> dict:
+        """Temperatures from the hardware's own sensors (/sys/class/hwmon) and NVIDIA's tool. There is no temperature
+        program in Mint by default: the guide said "look in System Information" and there's none there."""
+        found = {}
+        for mon in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+            name = read(f"{mon}/name")
+            values = [int(read(p)) / 1000 for p in glob.glob(f"{mon}/temp*_input") if read(p).lstrip("-").isdigit()]
+            values = [v for v in values if -40 < v < 150]
+            if values:
+                part = self.SENSORS.get(name, name)
+                found[part] = max(found.get(part, -99), round(max(values)))
+        for line in run(["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"]).splitlines():
+            if line.strip().isdigit():
+                found["graphics card"] = max(found.get("graphics card", -99), int(line.strip()))
+        return {"celsius": found or None,
+                "note": ("processors and graphics cards run up to about 80 °C when busy; above 90 °C, check the fans "
+                         "and the dust") if found else "this computer's sensors can't be read",
+                "no_program": "Linux Mint has no temperature program built in; Psensor can be installed from "
+                              + self.label("software_manager")}
+
     def _drivers(self) -> dict:
         names = self._gpu_names()
         in_use, basic = [], False

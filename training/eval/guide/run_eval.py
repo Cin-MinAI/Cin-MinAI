@@ -48,7 +48,8 @@ LANGS = ["en", "es", "pt", "fr", "de", "ja"]
 # --- tools ---------------------------------------------------------------------------------------
 
 S, I = {"type": "string"}, {"type": "integer", "minimum": 0}
-TOPICS = ["overview", "storage", "network", "updates", "printers", "sound", "display", "battery", "drivers"]
+TOPICS = ["overview", "storage", "network", "updates", "printers", "sound", "display", "battery", "drivers", "account",
+          "memory", "temperature"]
 GUIDE_TOOLS = {
     "lookup_help": ({"query": S}, "search the built-in help about this computer: Windows -> Linux Mint, how-to "
                                   "lessons, its programs and settings. Use it before explaining how to do something."),

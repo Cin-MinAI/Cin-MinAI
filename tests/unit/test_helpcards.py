@@ -128,6 +128,24 @@ class HelpCards(unittest.TestCase):
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
                 self.assertEqual(self.index.lookup(q, lang)[0], card, q)
 
+    def test_hands_on_round_1_found_in_six_languages(self):
+        # the test-SSD round (2026-10-07): "scan for malware" found the Document Scanner card, and three questions had
+        # no card at all. ("how much RAM am I using" and "… do I have" are the same words to the search; both are the
+        # memory system check's to answer.)
+        asked = {
+            "admin_account": ["is this an admin account", "¿es esta una cuenta de administrador?", "sou administrador?",
+                              "suis-je administrateur ?", "bin ich Administrator?", "管理者アカウントですか"],
+            "memory_use": ["RAM usage right now", "cuánta memoria RAM estoy usando", "quanta memória estou usando",
+                           "utilisation de la mémoire", "Arbeitsspeicher Auslastung", "メモリ使用量を確認したい"],
+            "temperatures": ["how hot is my CPU", "temperatura de la CPU", "temperatura do processador",
+                             "température du processeur", "CPU Temperatur anzeigen", "CPUの温度を知りたい"],
+            "antivirus": ["how do I scan for malware", "escanear malware", "escanear vírus", "analyser les malwares",
+                          "nach Malware scannen", "マルウェアをスキャンしたい"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

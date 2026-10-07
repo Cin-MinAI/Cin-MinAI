@@ -11,8 +11,12 @@ import re
 TOPICS = {
     "overview": "what kind of computer this is", "storage": "the disk space", "network": "the network",
     "updates": "the updates", "printers": "the printers", "sound": "the sound", "display": "the screens",
-    "battery": "the battery", "drivers": "the drivers",
+    "battery": "the battery", "drivers": "the drivers", "account": "your account", "memory": "the memory in use",
+    "temperature": "the temperatures",
 }
+
+UPDATE_READY = "An update is installed. The assistant restarts into it on a short break, or now:"
+UPDATE_NOW = "Restart now"
 
 STATES = {  # State property -> (dot colour class, words)
     "idle": ("ok", "Ready"),

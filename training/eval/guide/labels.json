@@ -793,6 +793,13 @@
    "fr": "Si le couvercle est fermé",
    "de": "Wenn der Deckel geschlossen ist",
    "ja": "ふたを閉じたとき"
+  },
+  "ui_resources": {
+   "en": "Resources",
+   "es": "Recursos",
+   "pt": "Recursos",
+   "fr": "Ressources",
+   "de": "Ressourcen"
   }
  }
 }

@@ -43,6 +43,8 @@ XML = f"""
     <method name="Ask"><arg type="s" name="text" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <method name="Cancel"/>
     <method name="Reset"/>
+    <!-- D59: an installed update is waiting (Status update_ready): restart into it now, unless it's answering -->
+    <method name="UpdateNow"/>
     <method name="Load"/>
     <method name="Unload"/>
     <!-- a proposed document edit (Action state "proposal", its result has the id): apply it, or discard it -->
@@ -200,6 +202,7 @@ class Service:
         # D59: after an update, restart into the new version when idle; reopen the project that was open
         self.watcher = selfupdate.Watcher()
         self.active_at = time.monotonic()
+        self.update_ready = False  # shown in the sidebar with "Restart now" while it waits for a pause
         reopen = selfupdate.take_reopen()
         if reopen:
             try:
@@ -217,13 +220,24 @@ class Service:
         """D59: restart into an installed update once it's complete, loads, and the daemon has been idle a while.
         Never while answering or loading, never with the journal open (its conversation lives only in memory)."""
         state = self.watcher.check()
-        if state != "ready" or self.busy or self.loading or self.journal is not None:
+        waiting = state == "ready" and self.watcher.refused != self.watcher.seen
+        if waiting != self.update_ready:
+            self.update_ready = waiting
+            self.changed("Status")
+        if not waiting or self.busy or self.loading or self.journal is not None:
             return True
-        if time.monotonic() - self.active_at < IDLE_BEFORE_RESTART_S or self.watcher.refused == self.watcher.seen:
+        if time.monotonic() - self.active_at < IDLE_BEFORE_RESTART_S:
             return True
+        return self.restart_for_update()
+
+    def restart_for_update(self) -> bool:
+        """Test-load the installed code, then restart into it (the daemon exits; systemd starts the new version). If it
+        doesn't load, the running version stays and says why, once per version."""
         ok, why = selfupdate.loads()
         if not ok:
             self.watcher.refused = self.watcher.seen
+            self.update_ready = False
+            self.changed("Status")
             log(f"an update is installed but it doesn't load, so the running version stays: {why}")
             return True
         log("an update is installed: restarting into the new version")
@@ -270,7 +284,8 @@ class Service:
                 "detail": GLib.Variant("s", st.detail), "backend_state": GLib.Variant("s", st.state),
                 "document": GLib.Variant("s", self.document),
                 "project": GLib.Variant("s", self.project.title if self.project else ""),
-                "journal": GLib.Variant("b", self.journal is not None)}),
+                "journal": GLib.Variant("b", self.journal is not None),
+                "update_ready": GLib.Variant("b", self.update_ready)}),
             "Awareness": lambda: GLib.Variant("a{sb}", self.awareness),
             "LastStats": lambda: GLib.Variant("s", self.last_stats),
             "ActionMode": lambda: GLib.Variant("s", self.actions.mode),
@@ -350,6 +365,16 @@ class Service:
                                        else inv.return_value(GLib.Variant("(s)", (out,)))) and False)
 
             threading.Thread(target=answer, daemon=True).start()
+        elif method == "UpdateNow":
+            if not self.update_ready:
+                inv.return_dbus_error(f"{IFACE}.Error.NoUpdate", "no update is waiting")
+            elif self.busy or self.loading:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; it restarts when it's done")
+            elif self.journal is not None:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "close the journal first (its conversation isn't saved)")
+            else:
+                inv.return_value(None)
+                GLib.timeout_add(300, self.restart_for_update)  # answer the sidebar first, then go
         elif method == "ActionUndo":
             (action_id,) = params.unpack()
             try:

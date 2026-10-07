@@ -90,7 +90,8 @@ KEYWORDS = {
                       "アップデート 更新 Windows Update check for updates install updates look for updates buscar actualizaciones procurar atualizações rechercher des mises à jour nach updates suchen",
     "antivirus": "antivirus windows defender virus protection malware security antivirus protección "
                  "seguridad proteção segurança protection sécurité virenschutz virenscanner sicherheit "
-                 "ウイルス対策 アンチウイルス ウイルス セキュリティ",
+                 "ウイルス対策 アンチウイルス ウイルス セキュリティ malware malware scan clamav escanear malware "
+                 "analyser malware malware scannen マルウェア マルウェアスキャン マルウェア対策",
     "firewall": "firewall defender firewall cortafuegos protección de red pare-feu pare feu brandmauer "
                 "ファイアウォール",
     "system_restore": "system restore restore point snapshot go back undo update restaurar sistema punto de "
@@ -247,6 +248,16 @@ KEYWORDS = {
     "live_usb": "live usb try without installing test drive live session before installing probar sin instalar "
                 "sesión en vivo testar sem instalar sessão live essayer sans installer session live ohne "
                 "installation testen live-sitzung ライブセッション お試し",
+    "admin_account": "administrator account admin account am i an administrator admin rights standard account "
+                     "account type cuenta de administrador cuenta de administrador soy administrador tipo de cuenta conta de "
+                     "administrador sou "
+                     "administrador compte administrateur suis-je administrateur administratorkonto bin ich "
+                     "administrator 管理者アカウント 管理者権限",
+    "memory_use": "usage usage used in use full uso uso uso en uso em uso usando utilizando utilisation utilisation "
+                  "auslastung auslastung speicherauslastung 使用量 使用率 使用中",
+    "temperatures": "temperature temperatures cpu temperature gpu temperature overheating too hot fans thermal "
+                    "temperatura sobrecalentamiento temperatura superaquecimento température surchauffe temperatur "
+                    "überhitzung 温度 オーバーヒート",
     # --- lessons.py ------------------------------------------------------------------------------
     "copy_paste": "copy paste ctrl+c ctrl+v copiar pegar copiar colar copier coller kopieren einfügen "
                   "コピー 貼り付け",

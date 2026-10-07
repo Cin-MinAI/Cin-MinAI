@@ -175,6 +175,38 @@ TASKS = [
      "expect": [{"tool": "lookup_help"}],
      "card": CARD["live_usb"],
      "must": [["{install_cinminai}"]], "must_not": NO_CMD},
+    # --- from the hands-on round on the test SSD (2026-10-07): the guide invented menus for these -------------------
+    {"id": "D84-20", "cat": "system",
+     "q": {"en": "Is my account an administrator account?",
+           "es": "¿Mi cuenta es de administrador?",
+           "de": "Ist mein Konto ein Administratorkonto?"},
+     "expect": [{"tool": "inspect_system", "args": {"topic": ["account"]}}],
+     "result": {"user": "sam", "full_name": "Sam", "account_type": "Administrator",
+                "meaning": "can install programs and change system settings after typing their own password",
+                "open_with": "{users}"},
+     "must": [["~(?i)administra|systemverwalter|管理者"]],
+     "must_not": NO_CMD + ["(?i)try (to )?install", "(?i)instal(e|ar|liere)[^.]{0,30}(para|um zu) (ver|sehen|prüfen)"]},
+    {"id": "D84-21", "cat": "system",
+     "q": {"en": "How much RAM am I using right now?"},
+     "expect": [{"tool": "inspect_system", "args": {"topic": ["memory"]}}],
+     "result": {"installed_gb": 16, "in_use_gb": 5.2, "free_gb": 10.4, "in_use_pct": 33, "swap_in_use_gb": 0.0,
+                "open_with": "{system_monitor}"},
+     "must": [["~5[.,]2"]],
+     "must_not": NO_CMD + ["(?i)(using|usando|benutze[^.]{0,20}) 16"]},
+    {"id": "D84-22", "cat": "system",
+     "q": {"en": "How hot is my processor?",
+           "es": "¿Qué temperatura tiene mi procesador?",
+           "de": "Wie heiß ist mein Prozessor?"},
+     "expect": [{"tool": "inspect_system", "args": {"topic": ["temperature"]}}],
+     "result": {"celsius": {"processor": 54, "graphics card": 47},
+                "note": "processors and graphics cards run up to about 80 °C when busy; above 90 °C, check the fans "
+                        "and the dust",
+                "no_program": "Linux Mint has no temperature program built in; Psensor can be installed from "
+                              "{software_manager}"},
+     "must": [["54"]],
+     # the invented step of the first round: "look for the temperature section in System Information"
+     "must_not": NO_CMD + ["(?i)(system information|información del sistema|systeminformationen)[^.]{0,60}"
+                           "(temperat)"]},
     # "What is…?" (D84 part 1): Ian's everyday picture has to come through, not only the steps
     {"id": "D84-07", "cat": "transition",
      "q": {"en": "What is a VPN, and do I need one?"},

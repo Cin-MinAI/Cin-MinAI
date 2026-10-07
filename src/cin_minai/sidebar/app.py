@@ -165,6 +165,16 @@ class Sidebar(Gtk.Application):
         for w in (close_journal, entries, write_entry):
             self.journal_box.pack_end(w, False, False, 0)
 
+        # an installed update (D59): the assistant restarts into it on a 2-minute pause, or now if the person says so
+        # (2026-10-07: Ian kept asking right after installing and got the old version, with nothing saying why)
+        update_label = Gtk.Label(label=words.UPDATE_READY, xalign=0, wrap=True, max_width_chars=24)
+        update_label.get_style_context().add_class("note")
+        update_now = Gtk.Button(label=words.UPDATE_NOW)
+        update_now.connect("clicked", lambda b: self.update_now(b))
+        self.update_box = Gtk.Box(spacing=4, name="update")
+        self.update_box.pack_start(update_label, True, True, 0)
+        self.update_box.pack_end(update_now, False, False, 0)
+
         # the conversation
         self.chat = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, name="chat")
         self.scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
@@ -187,7 +197,7 @@ class Sidebar(Gtk.Application):
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         for w, expand in ((header, False), (privacy, False), (self.project_box, False), (self.journal_box, False),
-                          (Gtk.Separator(), False),
+                          (self.update_box, False), (Gtk.Separator(), False),
                           (self.scroll, True), (Gtk.Separator(), False), (inputs, False)):
             box.pack_start(w, expand, expand, 0)
         win.add(box)
@@ -198,6 +208,7 @@ class Sidebar(Gtk.Application):
         self.stop.hide()
         self.project_box.hide()
         self.journal_box.hide()
+        self.update_box.hide()
         self.set_header("offline", {})
         self.connect_daemon()
 
@@ -359,6 +370,7 @@ class Sidebar(Gtk.Application):
         self.project_box.set_visible(bool(project))
         journal = bool(status.get("journal"))
         self.journal_box.set_visible(journal)
+        self.update_box.set_visible(bool(status.get("update_ready")))
         self.entry.set_placeholder_text("Tell me about your story…" if project else
                                         "Tell me about your day…" if journal else "Ask…")
         busy = self.rid is not None
@@ -366,6 +378,18 @@ class Sidebar(Gtk.Application):
         self.go.set_visible(not busy)
         if self.reply is not None and not self.reply_started:
             self.reply.set_text(words.waiting(state, status.get("build", "")))
+
+    def update_now(self, button) -> None:
+        button.set_sensitive(False)
+
+        def done(proxy, res) -> None:
+            button.set_sensitive(True)
+            try:
+                proxy.call_finish(res)
+            except GLib.Error as e:
+                self.bubble("note", words.action_error(e.message))
+
+        self.proxy.call("UpdateNow", None, Gio.DBusCallFlags.NONE, -1, None, done)
 
     # --- pictures (D64, D78) ------------------------------------------------------------------------------
     def on_pick_image(self, button) -> None:
