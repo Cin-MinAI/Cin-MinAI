@@ -18,10 +18,15 @@ model's story: `docs/guide-model-journal.md`.
   change nothing, SSH sessions refused without a prompt, chain intact. Test kit: `tests/security/`; on the SSD
   `~/cinminai-admintest/admin-test.sh [approve]` — run it from a terminal on that screen, never over SSH.
 - **ISO package list** `docs/iso-0.0.1-packages.tsv` (2,018 packages, from the release ISO's own manifest).
-- **Not yet:** the daemon doesn't call it. **Next:** wire it into the action path (admin actions always ask, D85;
-  the D-Bus call needs no timeout for apt), then the D84 coverage audit (use the package list), then M4 slice 4.
-  Later: translate the polkit messages (D25); archive the audit log in sealed sections before 1.0.
-- The test SSD has the pre-review admin package installed; rebuild before the next test there.
+- **Wired in (slice 3b):** `actions/admin.py` — the eight verbs as action kinds (always ask, Auto included; Allow →
+  polkit password; cancelled password = `denied` at=password; refusals carry their plain reason). Live check on the
+  test SSD passed (done / denied / failed). Sidebar: no 25 s timeout on ActionAnswer, admin done/declined shown.
+  No model-facing tool proposes admin actions yet — callers come with the features that need them.
+- **Found and fixed:** `cin_minai/actions` was in no package since M4 slice 1 (a daemon built from main wouldn't
+  start; never shipped). `tests/unit/test_packaging.py` now fails on any imported-but-unpackaged module.
+- Test SSD runs daemon/sidebar/admin `…005657` (M4 action cards are live there for the first time).
+- **Next:** the D84 coverage audit (use `docs/iso-0.0.1-packages.tsv`), then M4 slice 4. Later: translate the
+  polkit messages (D25); archive the audit log in sealed sections before 1.0.
 
 ## Where we stopped (2026-10-06, later) — M4 slices 1–2 done; Codex on slice 3
 
