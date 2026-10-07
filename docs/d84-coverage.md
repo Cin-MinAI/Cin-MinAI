@@ -127,9 +127,28 @@ The base guide (Qwen3.5-4B guide-HO Q4_K_M, llama.cpp v0.5.0, prompt v2.2, `task
   Passwort festgelegt" for Kein Passwort eingestellt). The real ones are in the ISO's catalogues (nemo, mintstick,
   cinnamon, cinnamon-control-center, seahorse).
 
-So these six are **not covered yet** by D84's bar. What would close it (to decide): in-app labels from the
-catalogues into `labels.json`, used by cards like app names; a prompt change (concept questions to the help first;
-keep a card's caution and picture), A/B-measured on the full eval; or teaching it in guide cycle 1 (D31).
+What was done about it (Ian: go ahead, 2026-10-06):
+- **Names inside programs** now come from Mint's own catalogues: `labels.json` has a `ui` section (16 menu and
+  button names, by `extract_labels.py`), cards write `{ui_show_hidden_files}` and the like, filled per language
+  like program names (English where the program has no translation, as it then shows English). German now reads
+  "Abbild auswählen", "Verborgene Dateien anzeigen", "Kein Passwort eingestellt".
+- **Prompt v2.3, adopted** (D33: measured, then adopted): "what is…" about this computer or an idea behind it goes
+  to the help; the reply instruction keeps the help's comparison and cautions. A/B on the RTX 4070, same model and
+  llama.cpp pin:
+
+  | Set | v2.2 | v2.3 |
+  |---|---|---|
+  | public eval | 141/157 | **144/157** (5 better, 2 worse; one of them flips between runs anyway) |
+  | D84 batch 1 | 23/33 | **30/33** |
+  | diagnostics | 16/18 | 17/18 |
+  | terminal, create, web | 21/22, 4/7, 5/5 | the same |
+
+  Two longer wordings of the reply instruction were tried first; they made the 4B write prose without numbered
+  steps (public 138). v2.3 is v2.2's sentence plus one clause.
+
+**Still open in batch 1:** the Japanese VPN reply (no steps), and the image/map comparison for "why can't I just
+copy the ISO" (the explanation comes through, the comparison doesn't). One check was too narrow and was widened
+after reading the reply (German "Achten Sie darauf, … nicht zu löschen"). Next for these: guide cycle 1 (D31).
 
 ## How the gaps get filled (D84)
 

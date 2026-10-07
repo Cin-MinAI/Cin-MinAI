@@ -105,8 +105,8 @@ OPTIONAL[(None, "make_spreadsheet")] = {"rows"}
 def tools_for(doc: str | None) -> dict:
     # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
     extra = {}
-    if PROMPT in ("v2.1", "v2.2") and not doc:
-        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT == "v2.2" else {})}
+    if PROMPT in ("v2.1", "v2.2", "v2.3") and not doc:
+        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3") else {})}
     return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
@@ -168,6 +168,9 @@ Tools:
 STYLE_V2 = ("Now write your reply to the user as plain text (not JSON), in the language of their message: "
             "one short sentence, then numbered steps if there are two or more, using the names exactly as "
             "they appear above.")
+STYLE_V23 = ("Now write your reply to the user as plain text (not JSON), in the language of their message: "
+             "one short sentence, then numbered steps if there are two or more, using the names exactly as "
+             "they appear above. Keep the help's everyday comparison and every caution it gives.")
 # Prompt v2.2 (2026-10-01, D54 + D55): v2.1 with rule 2 rewritten — knowledge questions go to web_search (the
 # user sees the query and clicks Search before anything is sent), writing is in scope, advice that decides for
 # the person stays declined. Only rule 2 changes (asserted); one tool more.
@@ -182,11 +185,27 @@ _RULE2_V22 = ("2. Questions about the world — history, politics, school subjec
               "say what you can help with.")
 assert SYSTEM_V2.count(_RULE2_V2) == 1
 SYSTEM_V22 = SYSTEM_V2.replace(_RULE2_V2, _RULE2_V22)
+# Prompt v2.3 (2026-10-06, D84): v2.2 with two changes, measured on D84 batch 1 — "what is…" about this computer or
+# an idea behind it (a VPN, the keyring) goes to the help, not the web; and the reply keeps the help's explanation,
+# its everyday comparison and its cautions (v2.2's "one short sentence, then steps" dropped them). Three wordings of
+# the reply instruction were measured; longer ones made the 4B write prose without numbered steps (public 138), so
+# it is v2.2's sentence plus one clause (public 144/157 vs 141, D84 30/33 vs 23).
+_RULE1_V22 = 'If it\'s a how-to or a "where is…" question, call lookup_help first'
+_RULE1_V23 = ('If it\'s a how-to, a "where is…", or a "what is…" question about something on this computer or an '
+              'idea behind it (a VPN, a firewall, the keyring, drivers, backups…), call lookup_help first')
+assert SYSTEM_V22.count(_RULE1_V22) == 1
+SYSTEM_V23 = SYSTEM_V22.replace(_RULE1_V22, _RULE1_V23)
 WEB_TOOLS = {
     "web_search": ({"query": S}, "search the web for a question about the world: a short search query in the user's "
                                  "language (the user sees it and agrees before anything is sent)"),
 }
 PROMPT = "v1"
+
+
+def style() -> str:
+    return STYLE_V23 if PROMPT == "v2.3" else STYLE_V2 if PROMPT.startswith("v2") else STYLE
+
+
 HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
 
 
@@ -209,7 +228,8 @@ def system_prompt(task: dict) -> str:
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    system = SYSTEM_V22 if PROMPT == "v2.2" and not doc else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM
+    system = (SYSTEM_V23 if PROMPT == "v2.3" and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
+              else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM)
     return system.format(document=document, tools=tools)
 
 
@@ -240,7 +260,7 @@ def items() -> list[dict]:
             if "result" in t:
                 it["result"] = json.loads(resolve(json.dumps(t["result"], ensure_ascii=False), lang))
             it["must"] = [[resolve(a, lang) for a in group] for group in t.get("must", [])]
-            if PROMPT == "v2.2" and "v22" in t:
+            if PROMPT in ("v2.2", "v2.3") and "v22" in t:
                 # D54/D55: no longer a decline; the action is checked, the decline's reply checks don't apply
                 it.update(expect=t["v22"]["expect"], must=[], must_not=[], b_skip=True)
             out.append(it)
@@ -378,7 +398,7 @@ def run_item(srv: Server, it: dict) -> dict:
         result = None
     if reply is None and result is not None:
         messages += [{"role": "assistant", "content": raw},
-                     {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{STYLE_V2 if PROMPT.startswith('v2') else STYLE}"}]
+                     {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{style()}"}]
         reply, tb = srv.chat(messages, None, 600)
         rec["t_b"] = round(tb, 2)
     if reply is not None and not it.get("b_skip") and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret", "terminal")):
@@ -414,7 +434,7 @@ def main() -> None:
     ap.add_argument("--url"), ap.add_argument("--model", default=""), ap.add_argument("--api-key-env")
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")

@@ -46,12 +46,15 @@ def build(repo: str) -> dict:
     # choices, the new tool never called by mistake. With a document shared the prompt is v2's, unchanged.
     # v2.2 = v2.1 with rule 2 rewritten (world questions -> web_search, writing -> help, advice -> decline) and the
     # web_search tool (D54, D55), adopted 2026-10-01 after the A/B: 138/157 vs 140/157, the unchanged items better
-    # (123 vs 120 of 137). CINMINAI_GUIDE_PROMPT: a test daemon tries another prompt without changing what ships.
-    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.2")
+    # (123 vs 120 of 137). v2.3 = v2.2 with "what is…" about this computer sent to the help and the reply keeping the
+    # help's comparison and cautions (D84), adopted 2026-10-06 after the A/B on the 4070: public 144/157 vs 141/157,
+    # D84 30/33 vs 23/33, diagnostics 17 vs 16, terminal/create/web equal (docs/d84-coverage.md).
+    # CINMINAI_GUIDE_PROMPT: a test daemon tries another prompt without changing what ships.
+    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.3")
     guide = {
         "prompt": R.PROMPT,
         "system": R.system_prompt({}),
-        "style": R.STYLE_V2,
+        "style": R.style(),
         "result_format": "Result of {tool}:\n{result}\n\n{style}",
         "schema": R.schema(None),
         "tools": {name: desc for name, (_, desc) in R.GUIDE_TOOLS.items()},

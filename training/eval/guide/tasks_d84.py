@@ -23,7 +23,8 @@ CARD = {t["id"]: t["card"] for t in _kb.TOPICS}
 WARN_ERASE = ("~(?i)eras|wipe|delet|everything on|borra|todo lo|apag|tudo|effac|tout ce|lösch|alles|消去|消え|削除|"
               "すべて|全て")
 WARN_HIDDEN = ("~(?i)(don.t|do not|never) (delete|change)|careful|no (borre|elimine|cambie|los borre)|cuidado|"
-               "não (apague|exclua|altere)|ne (les )?(supprimez|modifiez)|attention|nicht (löschen|ändern)|vorsicht|"
+               "não (apague|exclua|altere)|ne (les )?(supprimez|modifiez)|attention|nicht (zu )?(löschen|ändern)|"
+               "vorsicht|achten sie|"
                "削除しない|変更しない|注意")
 
 TASKS = [

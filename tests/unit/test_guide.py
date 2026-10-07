@@ -98,9 +98,10 @@ class GuideTest(unittest.TestCase):
         spec.loader.exec_module(r)
         sys.argv = saved
         system = DATA["guide.json"]["system"]
-        self.assertEqual(DATA["guide.json"]["prompt"], "v2.2")
+        # v2.3 (2026-10-06, D84): rule 1 also sends "what is…" about this computer to the help
+        self.assertEqual(DATA["guide.json"]["prompt"], "v2.3")
         self.assertEqual(trained.count(r._RULE2_V2), 1)
-        expected = trained.replace(r._RULE2_V2, r._RULE2_V22)
+        expected = trained.replace(r._RULE2_V2, r._RULE2_V22).replace(r._RULE1_V22, r._RULE1_V23)
         self.assertTrue(system.startswith(expected + "\n- make_spreadsheet: "), system[len(expected) - 40:len(expected) + 60])
         self.assertIn("\n- web_search: ", system)
         self.assertEqual(system.count("\n"), trained.count("\n") + 2)
@@ -145,7 +146,11 @@ class GuideTest(unittest.TestCase):
             session = json.loads(f.readline())
         corpus_follow = next(m["content"] for m in session["messages"] if m["content"].startswith("Result of "))
         self.assertEqual(corpus_follow.split("\n", 1)[0], "Result of inspect_system:")
-        self.assertTrue(corpus_follow.endswith(DATA["guide.json"]["style"]))
+        # v2.3: the trained instruction with one clause after it (keep the comparison and the cautions), nothing else
+        trained_style = DATA["guide.json"]["style"].rsplit(" Keep the help's", 1)[0]
+        self.assertTrue(corpus_follow.endswith(trained_style), corpus_follow[-200:])
+        self.assertEqual(DATA["guide.json"]["style"], trained_style + " Keep the help's everyday comparison and every "
+                                                                     "caution it gives.")
 
     def test_lookup_uses_the_desktop_language_names(self):
         h = DATA["help.json"]
