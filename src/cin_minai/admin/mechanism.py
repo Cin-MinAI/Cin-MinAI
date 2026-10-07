@@ -39,7 +39,7 @@ XML = f"""<node><interface name="{IFACE}">
 </interface></node>"""
 
 
-def run(argv: list[str], timeout: int = 900) -> str:
+def run(argv: list[str], timeout: int | None = 900) -> str:
     env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8", "DEBIAN_FRONTEND": "noninteractive"}
     result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env, shell=False)
     output = (result.stdout + result.stderr)[-8000:]
@@ -95,11 +95,17 @@ def execute_run_argv(argv):
     return run(check_run_argv(argv))
 
 
+def run_apt(argv: list[str]) -> str:
+    # No time limit: a big install on a slow connection can take longer than any
+    # limit, and killing apt part-way can leave a half-installed package.
+    return run(argv, timeout=None)
+
+
 VERBS = {
     "RestartService": ("org.cinminai.admin.restart-service", lambda a: ({"unit": check_unit(a[0])}, ["/usr/bin/systemctl", "restart", "--", a[0]]), lambda a: _none(run(a)), None),
     "SetServiceEnabled": ("org.cinminai.admin.set-service-enabled", lambda a: ({"unit": check_unit(a[0]), "enabled": "yes" if a[1] else "no"}, ["/usr/bin/systemctl", "enable" if a[1] else "disable", "--", a[0]]), lambda a: _none(run(a)), None),
-    "InstallPackage": ("org.cinminai.admin.install-package", lambda a: ({"package": check_package(a[0])}, ["/usr/bin/apt-get", "install", "-y", "--no-install-recommends", "-o", "Dpkg::Options::=--force-confold", "--", a[0]]), run, "(s)"),
-    "RemovePackage": ("org.cinminai.admin.remove-package", lambda a: ({"package": check_package(a[0], True)}, ["/usr/bin/apt-get", "remove", "-y", "--no-auto-remove", "--", a[0]]), run, "(s)"),
+    "InstallPackage": ("org.cinminai.admin.install-package", lambda a: ({"package": check_package(a[0])}, ["/usr/bin/apt-get", "install", "-y", "-o", "Dpkg::Options::=--force-confold", "--", a[0]]), run_apt, "(s)"),
+    "RemovePackage": ("org.cinminai.admin.remove-package", lambda a: ({"package": check_package(a[0], True)}, ["/usr/bin/apt-get", "remove", "-y", "--no-auto-remove", "--", a[0]]), run_apt, "(s)"),
     "WriteFile": ("org.cinminai.admin.write-file", lambda a: ({"path": check_write(a[0], bytes(a[1]), a[2]), "size": str(len(a[1])), "mode": oct(a[2])}, [a[0], bytes(a[1]), a[2]]), lambda a: write_file(*a), "(s)"),
     "LoadModule": ("org.cinminai.admin.load-module", lambda a: prepare_module(a), lambda a: _none(run(a)), None),
     "UnloadModule": ("org.cinminai.admin.unload-module", lambda a: prepare_module(a, True), lambda a: _none(run(a)), None),
