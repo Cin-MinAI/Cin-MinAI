@@ -84,6 +84,7 @@ def balance(items: list[dict], per_outlet: int = PER_OUTLET, limit: int = PRESS_
 
 
 PROVIDERS = "Google News and Bing News"
+PROVIDERS_WITH_OFFICIAL = "Google News, Bing News and DuckDuckGo"
 
 
 def press(topic: str, lang: str = "en") -> list[dict]:
@@ -97,6 +98,54 @@ def press(topic: str, lang: str = "en") -> list[dict]:
     if not items and errors:
         raise websearch.SearchError(errors[0])
     return balance(items)
+
+
+# --- official: what the subject says on its own pages (D92) ------------------------------------------------------------
+GOVERNMENT = re.compile(r"(^|\.)(gov|mil|int|europa\.eu|gov\.[a-z]{2}|gob\.[a-z]{2}|gouv\.[a-z]{2}|go\.[a-z]{2}|"
+                        r"gc\.ca|bund\.de|admin\.ch|govt\.nz)$")
+NEWS_OR_SOCIAL = re.compile(r"(^|\.)(wikipedia\.org|youtube\.com|x\.com|twitter\.com|reddit\.com|facebook\.com|"
+                            r"instagram\.com|tiktok\.com|linkedin\.com|medium\.com|msn\.com|yahoo\.com|aol\.com|"
+                            r"cnn\.com|foxnews\.com|bbc\.co\.uk|nytimes\.com)$")
+PATENT = re.compile(r"\b(patents?|patentes?|brevets?|patente)\b|特許", re.I)
+STOP_WORDS = {"the", "and", "news", "official", "about", "with", "from", "for", "inc", "corp", "company"}
+
+
+def _host(url: str) -> str:
+    return (urllib.parse.urlsplit(url).hostname or "").lower().removeprefix("www.")
+
+
+def own_site(host: str, topic: str) -> bool:
+    """The subject's own domain: a name in the topic is in the site's main name ("Rockstar" -> rockstargames.com,
+    newsroom.pfizer.com) — never a news outlet or a social network, which are other kinds of source."""
+    if NEWS_OR_SOCIAL.search(host):
+        return False
+    main = ".".join(host.split(".")[-2:]).split(".")[0]
+    words = [w for w in re.findall(r"[a-z0-9]+", topic.lower()) if len(w) >= 4 and w not in STOP_WORDS]
+    return any(w in main for w in words)
+
+
+def official(topic: str, lang: str = "en") -> list[dict]:
+    """Official pages about the topic: government sites, the subject's own site, patent records. One search; each
+    page's own title, word for word."""
+    if not topic:
+        return []
+    patents = bool(PATENT.search(topic))
+    subject = PATENT.sub(" ", topic).strip()
+    # plain words: DuckDuckGo's HTML search gave nothing for OR with parentheses (2026-10-07)
+    query = f"{subject} site:patents.google.com" if patents else f"{topic} official announcement"
+    out = []
+    for r in websearch.search(query, lang):
+        host = _host(r["url"])
+        if patents and host == "patents.google.com":
+            kind = "patent records"
+        elif GOVERNMENT.search(host):
+            kind = "government"
+        elif own_site(host, subject):
+            kind = "own site"
+        else:
+            continue
+        out.append({"kind": "official", "source": host, "title": r["title"], "url": r["url"], "what": kind})
+    return out
 
 
 def say_date(d, lang: str) -> str:
@@ -122,12 +171,38 @@ HEAD = {"en": ("What's on hand about {topic}. I don't say what happened: this is
                "報道", "報道記事は見つかりませんでした。", "")}
 
 
-def report(topic: str, items: list[dict], lang: str = "en") -> str:
-    """The press section, every line attributed and quoted; the frame is code, never the model's."""
+OFFICIAL = {  # heading, nothing found, what kind of page
+    "en": ("Official (their own pages)", "No official statement found.",
+           {"government": "government site", "own site": "own site", "patent records": "patent records"}),
+    "es": ("Oficial (sus propias páginas)", "No se encontró ninguna declaración oficial.",
+           {"government": "sitio del gobierno", "own site": "sitio propio", "patent records": "registro de patentes"}),
+    "pt": ("Oficial (as próprias páginas)", "Nenhuma declaração oficial encontrada.",
+           {"government": "site do governo", "own site": "site próprio", "patent records": "registro de patentes"}),
+    "fr": ("Officiel (leurs propres pages)", "Aucune déclaration officielle trouvée.",
+           {"government": "site gouvernemental", "own site": "site officiel", "patent records": "registre de brevets"}),
+    "de": ("Offiziell (eigene Seiten)", "Keine offizielle Stellungnahme gefunden.",
+           {"government": "Regierungsseite", "own site": "eigene Website", "patent records": "Patentregister"}),
+    "ja": ("公式（本人・当局のページ）", "公式発表は見つかりませんでした。",
+           {"government": "政府サイト", "own site": "公式サイト", "patent records": "特許記録"}),
+}
+
+
+def report(topic: str, items: list[dict], lang: str = "en", official_items: list[dict] | None = None,
+           official_trouble: str = "") -> str:
+    """Every line attributed and quoted, by kind of source; the frame is code, never the model's."""
     head, press_word, none, says = HEAD.get(lang, HEAD["en"])
     lines = [head.format(topic=f"“{topic}”" if topic else "today's news"), "", f"{press_word}:"]
     if not items:
         lines.append(none)
     for it in items:
         lines.append(f"- {it['outlet']} ({say_date(it['date'], lang)}): “{it['title']}”")
+    if official_items is not None:
+        heading, nothing, kinds = OFFICIAL.get(lang, OFFICIAL["en"])
+        lines += ["", f"{heading}:"]
+        if official_trouble:
+            lines.append(official_trouble)
+        elif not official_items:
+            lines.append(nothing)
+        for it in official_items:
+            lines.append(f"- {it['source']} ({kinds.get(it['what'], it['what'])}): “{it['title']}”")
     return "\n".join(lines)

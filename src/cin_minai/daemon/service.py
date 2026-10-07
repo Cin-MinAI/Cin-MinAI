@@ -801,7 +801,8 @@ class Service:
         self.chain_offers = {sid: {"recipe": "news", **news, "query": query, "question": text}}
         online = self.guide.tools.online()
         on_action("web_search", {"query": query or "top stories"}, "proposal", json.dumps(
-            {"id": sid, "query": query or "top stories", "online": online, "provider": newsscan.PROVIDERS},
+            {"id": sid, "query": query or "top stories", "online": online,
+             "provider": newsscan.PROVIDERS_WITH_OFFICIAL if query else newsscan.PROVIDERS},
             ensure_ascii=False))
         what = f"what the press says about {news['topic']}" if news["topic"] else "today's top stories"
         on_text(f"I'll look up {what} and show you each outlet's own headline with its date. I don't say what "
@@ -821,13 +822,22 @@ class Service:
                                 "a news search (the topic left the computer)", reversible=False)
         except websearch.SearchError as e:
             raise BackendError(f"The news search didn't work: {e}.")
+        found, trouble = None, ""
+        if topic and not self.cancel.is_set():  # official: the subject's own pages (no topic: top stories only)
+            try:
+                found, _ = hook.run("web_search", lambda: newsscan.official(topic, lang),
+                                    "a search for official pages (the topic left the computer)", reversible=False)
+            except websearch.SearchError as e:
+                found, trouble = [], f"(Couldn't search official pages right now: {e}.)"
+        links = [(f"{it['outlet']}: {it['title']}", it["url"]) for it in items] +                 [(f"{it['source']}: {it['title']}", it["url"]) for it in (found or [])]
         on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
-            {"query": topic, "sources": [{"n": i + 1, "title": f"{it['outlet']}: {it['title']}", "url": it["url"]}
-                                         for i, it in enumerate(items)]}, ensure_ascii=False))
-        reply = newsscan.report(topic, items, lang)
+            {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
+            ensure_ascii=False))
+        reply = newsscan.report(topic, items, lang, found, trouble)
         on_text(reply)
         self.guide.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
-        return {"tool": "news", "press": len(items), "outlets": len({it["outlet"] for it in items})}
+        return {"tool": "news", "press": len(items), "outlets": len({it["outlet"] for it in items}),
+                "official": len(found or []), "official_trouble": bool(trouble)}
 
     def run_video_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
         """Search YouTube, list the videos, open the first in Firefox, wait for it, summarize it if asked."""

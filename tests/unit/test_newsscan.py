@@ -60,5 +60,39 @@ class Report(unittest.TestCase):
         self.assertIn("NHK (10月7日)", newsscan.report("台風", [item("NHK", "台風10号", 7)], "ja"))
 
 
+class Official(unittest.TestCase):
+    RESULTS = [
+        {"title": "Grand Theft Auto VI - Rockstar Games", "url": "https://www.rockstargames.com/VI", "snippet": ""},
+        {"title": "Rockstar Newswire", "url": "https://newswire.rockstargames.com/news/1", "snippet": ""},
+        {"title": "GTA 6 trailer breaks records", "url": "https://www.cnn.com/2026/gta", "snippet": ""},
+        {"title": "r/GTA6", "url": "https://www.reddit.com/r/GTA6/", "snippet": ""},
+        {"title": "Statement on video game ratings", "url": "https://www.ftc.gov/news/statement", "snippet": ""},
+        {"title": "Ministère de la culture", "url": "https://www.culture.gouv.fr/actu", "snippet": ""},
+        {"title": "Fan wiki", "url": "https://gta.fandom.com/wiki/GTA_VI", "snippet": ""},
+    ]
+
+    def test_government_and_own_site_only(self):
+        with mock.patch.object(newsscan.websearch, "search", return_value=self.RESULTS) as search:
+            items = newsscan.official("Rockstar Games GTA 6")
+        self.assertEqual(search.call_args.args[0], "Rockstar Games GTA 6 official announcement")
+        self.assertEqual([(i["source"], i["what"]) for i in items],
+                         [("rockstargames.com", "own site"), ("newswire.rockstargames.com", "own site"),
+                          ("ftc.gov", "government"), ("culture.gouv.fr", "government")])
+
+    def test_patents_go_to_the_patent_records(self):
+        rows = [{"title": "US11000000B2 - Compounds for treating…", "url": "https://patents.google.com/patent/US11000000B2/en",
+                 "snippet": ""}, {"title": "Pfizer news", "url": "https://www.pfizer.com/news", "snippet": ""}]
+        with mock.patch.object(newsscan.websearch, "search", return_value=rows) as search:
+            items = newsscan.official("Pfizer patents")
+        self.assertEqual(search.call_args.args[0], "Pfizer site:patents.google.com")
+        self.assertEqual([i["what"] for i in items], ["patent records", "own site"])
+
+    def test_report_says_when_nothing_official_was_found(self):
+        text = newsscan.report("x", [], "en", [])
+        self.assertIn("Official (their own pages):\nNo official statement found.", text)
+        text = newsscan.report("x", [], "en", [{"source": "ftc.gov", "what": "government", "title": "A statement"}])
+        self.assertIn("- ftc.gov (government site): “A statement”", text)
+
+
 if __name__ == "__main__":
     unittest.main()
