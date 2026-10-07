@@ -125,6 +125,8 @@ XML = f"""
     <!-- ask | auto (auto: reversible actions run on their own; irreversible and admin actions always ask) -->
     <property name="ActionMode" type="s" access="readwrite"/>
     <signal name="Token"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
+    <!-- replaces a reply already streamed when the generation loop detector trims it -->
+    <signal name="Replace"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
     <!-- a tool the guide used: state running | done; result is the tool's output (JSON or help text) -->
     <signal name="Action"><arg type="u" name="id"/><arg type="s" name="tool"/><arg type="s" name="args"/>
       <arg type="s" name="state"/><arg type="s" name="result"/></signal>
@@ -470,7 +472,8 @@ class Service:
             def search(on_text, on_action, sid=sid, query=query):
                 out, _ = hook.run("web_search", lambda: self.guide.search(sid, query, on_text, on_action, self.cancel),
                                   "a web search (the question left the computer)", reversible=False)
-                return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"])}
+                return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"]),
+                        "loop_stopped": out.get("loop_stopped", False)}
             self.job(self.next_id, search)
         elif method == "TerminalSend":
             (text,) = params.unpack()
@@ -670,7 +673,8 @@ class Service:
                     oid = uuid.uuid4().hex[:12]
                     self.bigger_offers = {oid: out["unusual"]}  # only the newest offer stands
                     on_action("bigger_model", {}, "proposal", json.dumps({"id": oid, "model": plan["model"]}))
-            return {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]), "timings": out["timings"]}
+            return {"tool": out["tool"], "args": out["args"], "reply_chars": len(out["reply"]),
+                    "timings": out["timings"], "loop_stopped": out.get("loop_stopped", False)}
         self.job(rid, answer)
 
     # --- reading pictures (D64, D78) ---------------------------------------------------------------------
@@ -1139,6 +1143,10 @@ class Service:
             GLib.idle_add(self.emit, "Token", "(us)", rid, piece)
             if self.state != "thinking":
                 GLib.idle_add(self.set_state, "thinking")
+
+        # ReplyGuard uses this only after Token pieces have exposed a loop.  Queueing
+        # Replace after them makes the sidebar show exactly the repaired final reply.
+        on_text.replace = lambda text: GLib.idle_add(self.emit, "Replace", "(us)", rid, text)
 
         def on_action(tool: str, args: dict, state: str, result: str) -> None:
             GLib.idle_add(self.emit, "Action", "(ussss)", rid, tool,

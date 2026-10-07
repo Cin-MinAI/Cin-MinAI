@@ -76,6 +76,22 @@ class RepeatedTextTest(unittest.TestCase):
                 "3. Create the virtual environment again with `python3 -m venv .venv`.")
         self.assertEqual(run_eval.repeated(venv), "")
 
+    def test_detector_option_scores_the_repaired_user_visible_reply(self):
+        sentence = "Open the app, choose the drive, and click Eject."
+
+        class FakeServer:
+            def chat(self, messages, schema_, max_tokens):
+                if schema_ is not None:
+                    return json.dumps({"tool": "lookup_help", "args": {"query": "eject"}}), 0
+                return " ".join([sentence] * 3), 0
+
+        it = {"id": "X", "cat": "help", "lang": "en", "q": "x", "card": "card", "must": [],
+              "expect": [{"tool": "lookup_help"}]}
+        rec = run_eval.run_item(FakeServer(), it, loop_detector=True)
+        self.assertEqual(rec["reply"], sentence)
+        self.assertTrue(rec["loop_stopped"])
+        self.assertFalse(any(f.startswith("repeats") for f in rec["b_fails"]))
+
 
 if __name__ == "__main__":
     unittest.main()

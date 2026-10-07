@@ -44,10 +44,15 @@ python3 run_eval.py --url http://127.0.0.1:8081 --model NAME     # any llama-ser
 python3 run_eval.py --config ~/.config/cinminai/config.toml       # [inference] url/api_key/model
 python3 run_eval.py ... --only T01,L07 --lang ja -v               # subsets, show replies
 python3 run_eval.py ... --sampling '{"temperature":0,"dry_multiplier":0.8,"dry_base":1.75,"dry_allowed_length":3,"dry_penalty_last_n":512}'
+python3 run_eval.py ... --loop-detector                           # score the repaired user-visible reply
 ```
 
 `--sampling` applies only to the unconstrained Stage B reply. Stage A keeps the fixed, measured
 schema-constrained settings so repeated JSON keys are not penalized.
+
+`--loop-detector` applies the same deterministic 24-character/three-repeat detector and sentence
+trim used by the daemon. It records `loop_stopped` (and `loop_piece` when stopped) and scores the
+reply after repair. Without the flag, historical scores and result files keep their old behavior.
 
 Results: one JSON line per item in `bench-results/guide/` (git-ignored), summary by category and
 language. Temperature 0, thinking off (`enable_thinking: false`). Stdlib only, Python ≥ 3.11.

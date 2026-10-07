@@ -22,6 +22,7 @@ from cin_minai.inference.backend import BackendError, InferenceBackend
 
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
+from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
 TEXT_START = re.compile(r'^\s*\{\s*"tool"\s*:\s*"(answer|decline)"\s*,\s*"args"\s*:\s*\{\s*"text"\s*:\s*"')
@@ -35,7 +36,7 @@ class TextStream:
     """Feeds on the tool call as it is generated; hands out the answer/decline text as soon as it comes."""
 
     def __init__(self, emit: Callable[[str], None]) -> None:
-        self.emit, self.buf, self.pos, self.done = emit, "", None, False
+        self.emit, self.buf, self.pos, self.done, self.tool = emit, "", None, False, None
 
     def feed(self, piece: str) -> None:
         self.buf += piece
@@ -45,6 +46,7 @@ class TextStream:
             m = TEXT_START.match(self.buf)
             if not m:
                 return
+            self.tool = m.group(1)
             self.pos = m.end()
         out, i = [], self.pos
         while i < len(self.buf):
@@ -99,6 +101,10 @@ class Guide:
         self.terminal_hint = ""  # the failed command and its error, added to this turn's help lookups
         self.last_card: str | None = ""  # the last lookup's card id; None = nothing in the built-in help fit
 
+    def reply_guard(self, on_text: Callable[[str], None]) -> ReplyGuard:
+        names = (row.get(self.tools.lang) or row.get("en", "") for row in self.help.names.values())
+        return ReplyGuard(on_text, names)
+
     def search(self, sid: str, query: str, on_text: Callable[[str], None], on_action, cancel: threading.Event) -> dict:
         """The user clicked Search (SPEC §7.5): fetch, then answer from the pages only, with their numbers."""
         from . import websearch
@@ -116,12 +122,18 @@ class Guide:
                   json.dumps({"query": query, "sources": [{k: s[k] for k in ("n", "title", "url")} for s in found["sources"]]},
                              ensure_ascii=False))
         prompt = websearch.answer_prompt(offer["question"], found)
-        reply, timings = self.backend.chat([{"role": "user", "content": prompt}], max_tokens=500, on_text=on_text,
-                                           cancel=cancel)
+        guard = self.reply_guard(on_text)
+        try:
+            reply, timings = self.backend.chat([{"role": "user", "content": prompt}], max_tokens=500,
+                                               on_text=guard.feed, cancel=cancel)
+            guard.finish()
+            loop_stopped = False
+        except LoopDetected as e:
+            reply, timings, loop_stopped = e.reply, {}, True
         # the conversation goes on from here as if the guide had answered (follow-up questions work)
         self.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
         return {"reply": reply, "tool": "web_search", "args": {"query": query}, "sources": len(found["sources"]),
-                "timings": [timings]}
+                "timings": [timings], "loop_stopped": loop_stopped}
 
     def document(self) -> tuple[dict | None, str, dict]:
         """(the shared document or None, the system prompt, the schema): with a document shared, the prompt
@@ -207,8 +219,19 @@ class Guide:
         edits = set(self.data["documents"][doc["type"]]["edit"]) if doc else set()
         timings = []
         for attempt in range(2):  # a call LibreOffice refuses goes back to the model once (spike, eval)
-            stream = TextStream(on_text)
-            raw, t1 = self.backend.chat(messages, schema=schema, max_tokens=700, on_text=stream.feed, cancel=cancel)
+            guard = self.reply_guard(on_text)
+            stream = TextStream(guard.feed)
+            try:
+                raw, t1 = self.backend.chat(messages, schema=schema, max_tokens=700,
+                                            on_text=stream.feed, cancel=cancel)
+                guard.finish()
+            except LoopDetected as e:
+                tool = stream.tool or "answer"
+                args = {"text": e.reply}
+                raw = json.dumps({"tool": tool, "args": args}, ensure_ascii=False)
+                self.history += [user, {"role": "assistant", "content": raw}]
+                return {"reply": e.reply, "tool": tool, "args": args, "timings": timings,
+                        "loop_stopped": True}
             timings.append(t1)
             try:
                 call = json.loads(raw)
@@ -255,11 +278,18 @@ class Guide:
         on_action(tool, args, "done", result)
         followup = {"role": "user", "content": self.data["result_format"].format(
             tool=tool, result=result, style=self.data["style"])}
-        reply, t2 = self.backend.chat(messages + [{"role": "assistant", "content": raw}, followup],
-                                      max_tokens=600, on_text=on_text, cancel=cancel)
-        timings.append(t2)
+        guard = self.reply_guard(on_text)
+        try:
+            reply, t2 = self.backend.chat(messages + [{"role": "assistant", "content": raw}, followup],
+                                          max_tokens=600, on_text=guard.feed, cancel=cancel)
+            guard.finish()
+            timings.append(t2)
+            loop_stopped = False
+        except LoopDetected as e:
+            reply, loop_stopped = e.reply, True
         self.history += [user, {"role": "assistant", "content": raw}, followup, {"role": "assistant", "content": reply}]
-        out = {"reply": reply, "tool": tool, "args": args, "result": result, "timings": timings}
+        out = {"reply": reply, "tool": tool, "args": args, "result": result, "timings": timings,
+               "loop_stopped": loop_stopped}
         if self.terminal_question and tool == "lookup_help" and self.last_card is None:
             out["unusual"] = self.terminal_question  # a terminal error no card covers: the bigger model may be offered
         return out

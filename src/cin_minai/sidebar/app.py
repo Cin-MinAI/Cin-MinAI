@@ -532,6 +532,10 @@ class Sidebar(Gtk.Application):
                 self.reply.set_text("")
                 self.reply.get_style_context().remove_class("waiting")
             self.reply.set_text(self.reply.get_text() + args[1])
+        elif signal == "Replace" and self.reply is not None:
+            self.reply_started = True
+            self.reply.get_style_context().remove_class("waiting")
+            self.reply.set_text(args[1])
         elif signal == "Action" and args[1] == "outline" and args[3] == "proposal":
             self.outline_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "review" and args[3] == "proposal":

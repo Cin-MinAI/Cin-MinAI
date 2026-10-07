@@ -29,7 +29,10 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "src"))
 import importlib.util  # noqa: E402
+from cin_minai.daemon.repetition import find_repeat, repair  # noqa: E402
 
 TASKS_FILE = os.path.join(HERE, "tasks.py")
 if "--tasks" in sys.argv:  # e.g. the hidden eval (training/eval/guide-hidden/tasks.py)
@@ -386,8 +389,7 @@ def stage_b(it: dict, text: str) -> list[str]:
     size = len(text) if it["lang"] == "ja" else len(text.split())
     if size > (500 if it["lang"] == "ja" else 200):
         fails.append(f"too long ({size})")
-    names = {row.get(it["lang"]) or row.get("en", "") for row in list(LABELS.values()) + list(UI.values())}
-    loop = repeated(text, names=names)
+    loop = repeated(text, names=names_for(it["lang"]))
     if loop:
         fails.append(f"repeats {loop!r}")
     return fails
@@ -397,17 +399,15 @@ def repeated(text: str, length: int = 24, times: int = 3, names=()) -> str:
     """A stretch of `length` characters that occurs `times` times or more, not overlapping: a reply stuck in a loop.
     Codex (2026-10-07) found looping replies that passed because they stayed under the length limit. Mint's own names
     are taken out first: "o Gerenciador de Aplicativos" three times is a normal Portuguese answer."""
-    flat = re.sub(r"\s+", " ", text)
-    for name in sorted((n for n in names if n and len(n) >= 4), key=len, reverse=True):
-        flat = flat.replace(name, "§")
-    for i in range(0, max(0, len(flat) - length * times + 1)):
-        piece = flat[i:i + length]
-        if piece.strip() and flat.count(piece) >= times:
-            return piece
-    return ""
+    match = find_repeat(text, length=length, times=times, names=names)
+    return match.piece if match else ""
 
 
-def run_item(srv: Server, it: dict) -> dict:
+def names_for(lang: str) -> set[str]:
+    return {row.get(lang) or row.get("en", "") for row in list(LABELS.values()) + list(UI.values())}
+
+
+def run_item(srv: Server, it: dict, loop_detector: bool = False) -> dict:
     messages = [{"role": "system", "content": system_prompt(it)}, {"role": "user", "content": it["q"]}]
     raw, ta = srv.chat(messages, schema(it.get("doc")), 700)
     try:
@@ -440,6 +440,11 @@ def run_item(srv: Server, it: dict) -> dict:
                      {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{style()}"}]
         reply, tb = srv.chat(messages, None, 600)
         rec["t_b"] = round(tb, 2)
+    if reply is not None and loop_detector:
+        reply, match = repair(reply, names_for(it["lang"]))
+        rec["loop_stopped"] = match is not None
+        if match is not None:
+            rec["loop_piece"] = match.piece
     if reply is not None and not it.get("b_skip") and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret", "terminal")):
         rec["reply"] = reply
         rec["b_fails"] = stage_b(it, reply)
@@ -474,6 +479,8 @@ def main() -> None:
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
     ap.add_argument("--sampling", type=parse_sampling, default={},
                     help="JSON llama.cpp sampling overrides for free-text Stage B only")
+    ap.add_argument("--loop-detector", action="store_true",
+                    help="score the deterministic repaired reply the product shows when generation loops")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
     ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
@@ -514,7 +521,7 @@ def main() -> None:
     recs = []
     with open(out, "w", encoding="utf-8") as f:
         for it in its:
-            rec = run_item(srv, it)
+            rec = run_item(srv, it, o.loop_detector)
             recs.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             f.flush()

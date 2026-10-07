@@ -62,6 +62,23 @@ def turn(g, text):
     return res, "".join(out), actions
 
 
+class ReplacingOutput:
+    def __init__(self):
+        self.text = ""
+
+    def __call__(self, piece):
+        self.text += piece
+
+    def replace(self, text):
+        self.text = text
+
+
+def replacing_turn(g, text):
+    out, actions = ReplacingOutput(), []
+    res = g.turn(text, out, lambda *a: actions.append(a), threading.Event())
+    return res, out.text, actions
+
+
 class TextStreamTest(unittest.TestCase):
     def feed(self, raw, step):
         got = []
@@ -155,6 +172,26 @@ class GuideTest(unittest.TestCase):
         self.assertTrue(corpus_follow.endswith(trained_style), corpus_follow[-200:])
         self.assertEqual(DATA["guide.json"]["style"], trained_style + " Keep the help's everyday comparison and every "
                                                                      "caution it gives.")
+
+    def test_post_tool_loop_is_stopped_replaced_and_saved_repaired(self):
+        call = '{"tool": "inspect_system", "args": {"topic": "battery"}}'
+        sentence = "The battery is charging normally."
+        g, _ = guide([call, " ".join([sentence] * 3)])
+        res, out, _ = replacing_turn(g, "How is my battery?")
+        self.assertEqual(out, sentence)
+        self.assertEqual(res["reply"], sentence)
+        self.assertTrue(res["loop_stopped"])
+        self.assertEqual(g.history[-1]["content"], sentence)
+
+    def test_direct_answer_loop_is_stopped_and_saved_as_valid_call(self):
+        sentence = "I can help with this computer."
+        raw = json.dumps({"tool": "answer", "args": {"text": " ".join([sentence] * 3)}})
+        g, _ = guide([raw])
+        res, out, _ = replacing_turn(g, "What can you do?")
+        self.assertEqual(out, sentence)
+        self.assertEqual(res["reply"], sentence)
+        self.assertTrue(res["loop_stopped"])
+        self.assertEqual(json.loads(g.history[-1]["content"])["args"]["text"], sentence)
 
     def test_lookup_uses_the_desktop_language_names(self):
         h = DATA["help.json"]
