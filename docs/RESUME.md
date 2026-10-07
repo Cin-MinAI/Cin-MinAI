@@ -8,6 +8,12 @@ model's story: `docs/guide-model-journal.md`.
 
 ## Where we stopped (2026-10-07) — chains, the news scan, standing watches; Bing as the backup
 
+- **Update 5 is out (2026-10-07 evening):** `…182846`, 16 packages (`cinminai-admin` published for the first time),
+  signed by Ian with the key stick, verified live (apt-check: good signature, 16 verified, 0 bad); release note
+  `docs/release-notes/update-5.md`; README, website and the help's privacy/offline cards say what's sent where. The
+  test SSD runs exactly this build. Found in the final round, for update 6: privacy questions answered from the
+  model's memory once (route them to the card by rule); Reddit-only requests leaking words / "reddit …" first;
+  Reddit announced it is ending RSS and public API access (our Reddit source may go; the report says so if it does).
 - **Decisions D88–D92** in PLAN (standing tasks; Mint's automatic updates with a 2-day hold + trusted sources;
   feeling noticed, honestly; successive actions as recipes in code; the news scan — who says what).
 - **Hands-on rounds 1–5** (Ian at the test SSD, no runner; the lead reads the D-Bus signals: the watcher on the SSD

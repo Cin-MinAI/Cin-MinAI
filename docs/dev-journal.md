@@ -1426,3 +1426,12 @@ entry in the panel icon's right-click menu. The last round ran clean.
 **Still open.** D89's update verb (the hold and the trusted-source check) is decided but not built. The patent
 office's key waits. Dual boot and Secure Boot cards wait for an install check; the ISO's installer still says
 "Install Linux Mint alongside Windows". The Japanese VPN steps and a few D84 items are for guide cycle 1.
+
+**Update 5, the same evening.** The release work the checklist asks for: the new features' words in all six
+languages (the search card too, so the offer and the button match), help cards for the news, standing tasks and
+keys — and two old cards corrected, because they described a WEB sign and an offline switch that were never built;
+the README and website now name every place a word can go. A first full release note for an update
+(`docs/release-notes/update-5.md`) lists what's new, what changed without asking, and what it still gets wrong. Ian's
+final round on the exact build passed; he signed it with the key stick, and the live repository checked out: good
+signature, 16 packages verified. One thing his own news search turned up: Reddit says it is ending its RSS feeds and
+public access — the feed our Reddit section reads. If it goes, the report will say so.
