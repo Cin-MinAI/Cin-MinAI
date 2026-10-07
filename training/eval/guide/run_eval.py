@@ -386,7 +386,25 @@ def stage_b(it: dict, text: str) -> list[str]:
     size = len(text) if it["lang"] == "ja" else len(text.split())
     if size > (500 if it["lang"] == "ja" else 200):
         fails.append(f"too long ({size})")
+    names = {row.get(it["lang"]) or row.get("en", "") for row in list(LABELS.values()) + list(UI.values())}
+    loop = repeated(text, names=names)
+    if loop:
+        fails.append(f"repeats {loop!r}")
     return fails
+
+
+def repeated(text: str, length: int = 24, times: int = 3, names=()) -> str:
+    """A stretch of `length` characters that occurs `times` times or more, not overlapping: a reply stuck in a loop.
+    Codex (2026-10-07) found looping replies that passed because they stayed under the length limit. Mint's own names
+    are taken out first: "o Gerenciador de Aplicativos" three times is a normal Portuguese answer."""
+    flat = re.sub(r"\s+", " ", text)
+    for name in sorted((n for n in names if n and len(n) >= 4), key=len, reverse=True):
+        flat = flat.replace(name, "§")
+    for i in range(0, max(0, len(flat) - length * times + 1)):
+        piece = flat[i:i + length]
+        if piece.strip() and flat.count(piece) >= times:
+            return piece
+    return ""
 
 
 def run_item(srv: Server, it: dict) -> dict:

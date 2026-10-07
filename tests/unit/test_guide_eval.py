@@ -54,5 +54,28 @@ class SamplingTest(unittest.TestCase):
         self.assertNotIn("response_format", bodies[1])
 
 
+class RepeatedTextTest(unittest.TestCase):
+    def test_a_loop_under_the_length_limit_fails(self):
+        # Codex's L03-ja (2026-10-07): finite, under the 500-character limit, and stuck in a loop
+        loop = ("USBメモリーを安全に取り外すには、以下の手順を踏んでください。\n1. ファイルの左側にUSBメモリーが表示されているので、"
+                "その名前をクリックします。\n3. USBメモリーが「eject」ボタンをクリックした後に「eject」ボタンが「eject」ボタンを"
+                "クリックした後に「eject」ボタンが「eject」ボタンが「eject」ボタンが「eject」ボタンが「eject」ボタンをクリックした後に"
+                "「eject」ボタンが「eject」ボタンをクリックした後に「eject」というメッセージが表示されます。")
+        self.assertTrue(run_eval.repeated(loop))
+        it = {"lang": "ja", "must": [], "q": "x"}
+        self.assertTrue(any(f.startswith("repeats") for f in run_eval.stage_b(it, loop)))
+
+    def test_normal_steps_pass(self):
+        steps = ("Formatting a USB stick erases all files on it, so save any files you want first.\n"
+                 "1. Open USB Stick Formatter from the Menu.\n2. Choose the USB stick you want to format.\n"
+                 "3. Type a name for the new file system.\n4. Pick the Filesystem type.\n"
+                 "5. Click Format to erase the stick.\n6. Type your password when prompted.")
+        self.assertEqual(run_eval.repeated(steps), "")
+        venv = ("1. Run `sudo apt install python3.12-venv` to install the missing package.\n"
+                "2. Remove the incomplete folder with `rm -rf .venv`.\n"
+                "3. Create the virtual environment again with `python3 -m venv .venv`.")
+        self.assertEqual(run_eval.repeated(venv), "")
+
+
 if __name__ == "__main__":
     unittest.main()
