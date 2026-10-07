@@ -22,6 +22,7 @@ from cin_minai.inference.backend import BackendError, InferenceBackend
 
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
+from . import intent
 from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
@@ -217,6 +218,8 @@ class Guide:
             on_action("terminal", {}, "done", json.dumps({"commands": [c.get("cmd") for c in commands[-terminal.MAX_COMMANDS:]
                                                                          if c.get("cmd")]}, ensure_ascii=False))
         doc, system, schema = self.document()
+        if doc is None:
+            schema = intent.narrow(schema, text)  # the email tool only when an email is asked for (D88)
         messages = [{"role": "system", "content": system}] + self.history + [user]
         edits = set(self.data["documents"][doc["type"]]["edit"]) if doc else set()
         timings = []

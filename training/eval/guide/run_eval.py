@@ -33,6 +33,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 import importlib.util  # noqa: E402
 from cin_minai.daemon.repetition import find_repeat, repair  # noqa: E402
+from cin_minai.daemon.intent import narrow  # noqa: E402  (the tools a request may use: as the daemon does)
 
 TASKS_FILE = os.path.join(HERE, "tasks.py")
 if "--tasks" in sys.argv:  # e.g. the hidden eval (training/eval/guide-hidden/tasks.py)
@@ -421,7 +422,8 @@ def names_for(lang: str) -> set[str]:
 
 def run_item(srv: Server, it: dict, loop_detector: bool = False) -> dict:
     messages = [{"role": "system", "content": system_prompt(it)}, {"role": "user", "content": it["q"]}]
-    raw, ta = srv.chat(messages, schema(it.get("doc")), 700)
+    sch = schema(it.get("doc"))
+    raw, ta = srv.chat(messages, sch if it.get("doc") else narrow(sch, it["q"]), 700)
     try:
         call = json.loads(raw)
     except json.JSONDecodeError:

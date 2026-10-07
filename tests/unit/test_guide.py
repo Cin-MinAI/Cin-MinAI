@@ -115,8 +115,9 @@ class GuideTest(unittest.TestCase):
         spec.loader.exec_module(r)
         sys.argv = saved
         system = DATA["guide.json"]["system"]
-        # v2.3 (2026-10-06, D84): rule 1 also sends "what is…" about this computer to the help
-        self.assertEqual(DATA["guide.json"]["prompt"], "v2.3")
+        # v2.3 (2026-10-06, D84): rule 1 also sends "what is…" about this computer to the help;
+        # v2.4 (2026-10-07, D88): one more tool line at the end, compose_email
+        self.assertEqual(DATA["guide.json"]["prompt"], "v2.4")
         self.assertEqual(trained.count(r._RULE2_V2), 1)
         expected = trained.replace(r._RULE2_V2, r._RULE2_V22).replace(r._RULE1_V22, r._RULE1_V23)
         # 2026-10-07: three more system checks, so the inspect_system line lists three more topics
@@ -125,7 +126,8 @@ class GuideTest(unittest.TestCase):
                                     "account, memory, temperature, time\n")
         self.assertTrue(system.startswith(expected + "\n- make_spreadsheet: "), system[len(expected) - 40:len(expected) + 60])
         self.assertIn("\n- web_search: ", system)
-        self.assertEqual(system.count("\n"), trained.count("\n") + 2)
+        self.assertIn("\n- compose_email: ", system)
+        self.assertEqual(system.count("\n"), trained.count("\n") + 3)
 
     def test_schema_asks_for_the_tool_first(self):
         # llama.cpp writes properties in schema order; "args" before "tool" made the model fill in

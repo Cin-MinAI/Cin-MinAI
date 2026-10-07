@@ -49,8 +49,11 @@ def build(repo: str) -> dict:
     # (123 vs 120 of 137). v2.3 = v2.2 with "what is…" about this computer sent to the help and the reply keeping the
     # help's comparison and cautions (D84), adopted 2026-10-06 after the A/B on the 4070: public 144/157 vs 141/157,
     # D84 30/33 vs 23/33, diagnostics 17 vs 16, terminal/create/web equal (docs/d84-coverage.md).
+    # v2.4 = v2.3 plus compose_email (D88: the guide writes the email and opens it as a draft), offered only when an
+    # email is asked for (daemon/intent.py), adopted 2026-10-07 after the paired A/B on the 4070: public 142 = 142,
+    # D84 88 vs 82, terminal 22 vs 21, web/diagnostics/create equal.
     # CINMINAI_GUIDE_PROMPT: a test daemon tries another prompt without changing what ships.
-    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.3")
+    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.4")
     guide = {
         "prompt": R.PROMPT,
         "system": R.system_prompt({}),
