@@ -6,6 +6,23 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
+## Where we stopped (2026-10-06, evening) — M4 slice 3: the admin service, live-tested
+
+- **`cinminai-admin`** (Codex's package, reviewed and merged): root D-Bus service `org.cinminai.Admin1`, eight typed
+  actions, a fresh polkit password for every request, hash-chained audit log `/var/log/cinminai/admin.log`.
+  Review fixes: `install pkg-` no longer removes (apt suffix trick); disks in use are protected like the system
+  disk; `write_file` is an allowlist (own `cinminai-*.conf` in `/etc/modprobe.d` and `/etc/sysctl.d`, every line
+  checked; SPEC §8.4); writes and disk actions re-checked after approval; apt has no time limit and installs
+  recommends (like the Software Manager); `ProtectKernelTunables` dropped (silently broke `udevadm trigger`).
+- **Live test on the test SSD passed** (Ian at the screen): refusals without a prompt, password every time, cancels
+  change nothing, SSH sessions refused without a prompt, chain intact. Test kit: `tests/security/`; on the SSD
+  `~/cinminai-admintest/admin-test.sh [approve]` — run it from a terminal on that screen, never over SSH.
+- **ISO package list** `docs/iso-0.0.1-packages.tsv` (2,018 packages, from the release ISO's own manifest).
+- **Not yet:** the daemon doesn't call it. **Next:** wire it into the action path (admin actions always ask, D85;
+  the D-Bus call needs no timeout for apt), then the D84 coverage audit (use the package list), then M4 slice 4.
+  Later: translate the polkit messages (D25); archive the audit log in sealed sections before 1.0.
+- The test SSD has the pre-review admin package installed; rebuild before the next test there.
+
 ## Where we stopped (2026-10-06, later) — M4 slices 1–2 done; Codex on slice 3
 
 - **Decisions since the morning:** D83 (host assistant), D84 (everything Mint offers, the assistant can teach — on the
