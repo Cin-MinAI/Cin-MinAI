@@ -6,6 +6,23 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
+## Where we stopped (2026-10-06, night) — D84 batch 1, prompt v2.3, release checklist
+
+- **`docs/release-checklist.md`**: what every update and every ISO release repeats (tests, cards, six languages,
+  test SSD round, signing and publishing, D84 coverage re-run, package inventory, boot checks).
+- **D84 coverage** (`docs/d84-coverage.md`, scripts `training/kb/coverage_*.py`): 0.0.1 ISO = 45 menu apps (28
+  covered), 53 System Settings entries (28), 44 concepts (17 + 3 partly); gaps ranked.
+- **Batch 1:** cards vpn, keyring, hidden_files, user_accounts, bootable_usb, aicui with **Ian's everyday pictures**
+  (credit him); eval `training/eval/guide/tasks_d84.py`. In-app names from Mint's catalogues: `labels.json` "ui",
+  `{ui_…}` in cards. **Prompt v2.3 adopted** (public 144/157 vs 141, D84 30/33 vs 23); the daemon ships it from the
+  next build. Left for guide cycle 1: Japanese VPN steps, the ISO image-as-map comparison.
+- **Eval on the dev PC's 4070:** the v0.5.0 build in `~/cinminai-build/m1/llama/7fe450e…` with the CUDA runtime
+  linked from `~/cinminai-build/buildroot-noble/usr/lib/x86_64-linux-gnu` (libcudart/libcublas/libcublasLt.so.12) via
+  LD_LIBRARY_PATH; ~1.5 s per item.
+- **Next:** batch 2 of the cards (ask Ian for the pictures first: USB stick formatter, Software Sources, Panel,
+  Online Accounts, Notifications, Login Window, Disks, specs, battery, live USB / dual boot / Secure Boot), then
+  M4 slice 4.
+
 ## Where we stopped (2026-10-06, evening) — M4 slice 3: the admin service, live-tested
 
 - **`cinminai-admin`** (Codex's package, reviewed and merged): root D-Bus service `org.cinminai.Admin1`, eight typed
