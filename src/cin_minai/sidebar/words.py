@@ -775,7 +775,12 @@ def action_undone(ok: bool) -> str:
 
 
 def action_failed(card: dict) -> str:
-    return f"That didn't work, so nothing was changed ({card.get('summary', '')})."
+    why = f" — {card['error']}" if card.get("error") else ""
+    return f"That didn't work, so nothing was changed ({card.get('summary', '')}){why}."
+
+
+def action_declined(card: dict) -> str:
+    return f"Not done: the password wasn't given, so nothing was changed ({card.get('summary', '')})."
 
 
 def action_error(message: str) -> str:

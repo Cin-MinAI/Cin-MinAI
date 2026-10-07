@@ -17,7 +17,7 @@ import time
 
 from gi.repository import Gio, GLib
 
-from cin_minai.actions import hook
+from cin_minai.actions import admin, hook
 from cin_minai.actions.core import ActionError, Actions
 from cin_minai.inference.backend import BackendError, Cancelled, InferenceBackend
 
@@ -210,6 +210,7 @@ class Service:
         GLib.timeout_add_seconds(UPDATE_CHECK_S, self.check_update)
         # M4: one path for every action (PLAN D67, D85)
         self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
+        admin.register(self.actions)     # the root mechanism's verbs; each asks, then polkit asks for the password
         hook.install(self.actions)
 
     def check_update(self) -> bool:
@@ -310,7 +311,9 @@ class Service:
         """What the sidebar shows: from the daemon's own record of the action, never from model text alone."""
         return {"id": p.id, "event": event, "kind": p.kind.name, "lane": p.kind.lane,
                 "reversible": p.kind.reversible, "destructive": p.kind.destructive,
-                "summary": p.kind.summary(p.args), "reason": p.reason, "undo": bool(p.undo)}
+                "summary": p.kind.summary(p.args), "reason": p.reason, "undo": bool(p.undo),
+                "error": str(p.error)[:300] if p.error and event in ("failed", "denied") else "",
+                "at": "password" if event == "denied" and p.error else ""}
 
     def action_notify(self, event: str, p) -> None:
         GLib.idle_add(self.emit, "ActionCard", "(s)", json.dumps(self.card(p, event), ensure_ascii=False))

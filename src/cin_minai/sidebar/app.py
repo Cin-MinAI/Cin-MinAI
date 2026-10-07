@@ -948,8 +948,9 @@ class Sidebar(Gtk.Application):
                         self.bubble("note", words.action_error(e.message))
                     box.destroy()
 
+                # no time limit: after Allow an admin action waits for the password, then apt (-1 would be 25 s)
                 self.proxy.call("ActionAnswer", GLib.Variant("(sb)", (card["id"], yes)), Gio.DBusCallFlags.NONE,
-                                -1, None, done)
+                                0x7fffffff, None, done)
 
             allow.connect("clicked", answer, True)
             no.connect("clicked", answer, False)
@@ -984,6 +985,10 @@ class Sidebar(Gtk.Application):
             row.pack_start(undo, False, False, 0)
             self.chat.pack_start(row, False, False, 0)
             row.show_all()
+        elif event == "done" and card.get("lane") == "admin":   # others say so in their own way
+            self.bubble("note", words.action_done(card))
+        elif event == "denied" and card.get("at") == "password":
+            self.bubble("note", words.action_declined(card))
         elif event == "failed":
             self.bubble("note", words.action_failed(card))
 

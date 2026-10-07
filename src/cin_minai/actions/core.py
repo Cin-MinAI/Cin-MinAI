@@ -48,6 +48,10 @@ class ActionError(RuntimeError):
     pass
 
 
+class Declined(ActionError):
+    """The person said no at a later step (the administrator password dialog): a denial, not a failure."""
+
+
 class Changed(ActionError):
     """Undo refused: a file was changed after the action, and undoing would lose that later work."""
 
@@ -190,6 +194,14 @@ class Actions:
         try:
             p.result = p.kind.realize(p.args)
             ok = bool(p.kind.check(p.args, p.result))
+        except Declined as e:
+            p.state = "denied"
+            p.error = e
+            self.record.add("denied", id=p.id, kind=p.kind.name, at="password")
+            if p.undo:
+                self.undo(p.id, reason="the password wasn't given")
+            self.notify("denied", p)
+            return
         except Exception as e:                                # noqa: BLE001 — every failure is recorded, not raised on
             p.state = "failed"
             p.error = e
