@@ -33,7 +33,7 @@ def build(cfg: dict, lang: str | None = None) -> tuple[LlamaCppBackend, Guide]:
     with open(os.path.join(data_dir, "help.json"), encoding="utf-8") as f:
         help_data = json.load(f)
     backend = LlamaCppBackend(cfg["inference"], log)
-    tools = Tools(help_data["labels"], help_data["desktop"], lang)
+    tools = Tools(help_data["labels"], help_data["desktop"], lang, help_data.get("ui"))
     try:
         office = Office(dbus_call())  # LibreOffice documents the user shared (D20)
     except ImportError:  # no PyGObject: --ask on a bare system

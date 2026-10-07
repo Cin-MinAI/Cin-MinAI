@@ -131,7 +131,7 @@ TOPICS = [
     # --- updates, safety, backups -----------------------------------------------------------------
     {"id": "windows_update", "windows": "Windows Update",
      "card": "Updates: {update_manager} does what Windows Update does. When updates are ready, its shield "
-             "icon in the panel (bottom-right) shows a dot. Click it, then click Install Updates and type your "
+             "icon in the panel (bottom-right) shows a dot. Click it, then click {ui_install_updates} and type your "
              "password. It never restarts the computer by itself; it tells you if a restart is needed.",
      "must": ["update_manager"], "steps": True},
     {"id": "antivirus", "windows": "Windows Defender / needing an antivirus",

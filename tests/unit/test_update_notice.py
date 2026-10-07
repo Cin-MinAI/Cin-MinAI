@@ -63,5 +63,19 @@ class UpdateNotice(unittest.TestCase):
         self.assertEqual(s.restarts, 0)
 
 
+class UpdatedNote(unittest.TestCase):
+    def test_the_new_version_knows_it_came_from_an_update_once(self):
+        import os
+        import tempfile
+        from unittest import mock
+        from cin_minai.daemon import selfupdate
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": d}):
+            self.assertFalse(selfupdate.take_updated())
+            os.makedirs(os.path.dirname(selfupdate.updated_file()), exist_ok=True)
+            open(selfupdate.updated_file(), "w").close()     # what restart() leaves behind
+            self.assertTrue(selfupdate.take_updated())
+            self.assertFalse(selfupdate.take_updated())       # said once
+
+
 if __name__ == "__main__":
     unittest.main()

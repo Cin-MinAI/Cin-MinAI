@@ -253,7 +253,7 @@ class Guide:
                 # nothing is sent here: the sidebar shows the query; the user clicks Search (D55, §7.5)
                 import uuid
                 sid = uuid.uuid4().hex[:12]
-                query = str(args.get("query", "")).strip()[:200] or text[:200]
+                query = intent.search_query(str(args.get("query", "")), text)
                 self.searches = {sid: {"query": query, "question": text}}  # only the newest offer stands
                 online = self.tools.online()
                 on_action(tool, {"query": query}, "proposal", json.dumps({"id": sid, "query": query, "online": online,

@@ -65,13 +65,13 @@ def desktop_lang() -> str:
 
 
 class Tools:
-    def __init__(self, labels: dict, desktop: dict, lang: str | None = None) -> None:
-        self.labels, self.desktop = labels, desktop
+    def __init__(self, labels: dict, desktop: dict, lang: str | None = None, ui: dict | None = None) -> None:
+        self.labels, self.desktop, self.ui = labels, desktop, ui or {}
         self.lang = lang or desktop_lang()
         self._diag: tuple[float, dict] | None = None
 
     def label(self, key: str) -> str:
-        row = self.labels.get(key, {})
+        row = self.labels.get(key) or self.ui.get(key, {})
         return row.get(self.lang) or row.get("en", key)
 
     # --- inspect_system ---------------------------------------------------------------------------
@@ -168,8 +168,13 @@ class Tools:
         if stamps:
             days = (dt.date.today() - dt.date.fromtimestamp(max(os.path.getmtime(p) for p in stamps))).days
             checked = "today" if days <= 0 else "yesterday" if days == 1 else f"{days} days ago"
+        # the real names and facts, not the model's guesses (round 3, 2026-10-07: it said "Apply Updates" and "restart
+        # to complete the updates" when no restart was needed)
+        restart = os.path.exists("/var/run/reboot-required")
         return {"updates_available": len(inst), "security_updates": len(security), "last_checked": checked,
-                "open_with": self.label("update_manager")}
+                "open_with": self.label("update_manager"), "install_button": self.label("ui_install_updates"),
+                "restart_needed": restart,
+                "restart_for": sorted(set(read("/var/run/reboot-required.pkgs").split()))[:5] if restart else []}
 
     def _network(self) -> dict:
         radio = run(["nmcli", "-t", "-f", "WIFI", "general"]).strip()

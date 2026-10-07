@@ -79,6 +79,20 @@ def state_file() -> str:
     return os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "cinminai", "reopen-project")
 
 
+def updated_file() -> str:
+    return os.path.join(os.path.dirname(state_file()), "updated")
+
+
+def take_updated() -> bool:
+    """Did this start come from an update restart? (read once, then gone): the sidebar says so (round 3, 2026-10-07:
+    the update restarted quietly while Ian was in the terminal, and nothing told him it had)."""
+    try:
+        os.remove(updated_file())
+        return True
+    except OSError:
+        return False
+
+
 def take_reopen() -> str:
     """The project that was open before an update restart (read once, then gone)."""
     path = state_file()
@@ -95,8 +109,10 @@ def restart(project_folder: str | None = None) -> None:
     """Leave for the new version: note the open project, exit with RESTART_CODE, and systemd starts the new code.
     Not exec in place: the unit is Type=dbus, and dropping the bus name during an exec made systemd mark the
     service dead and leave it stopped (first real update, 2026-10-02)."""
+    os.makedirs(os.path.dirname(state_file()), exist_ok=True)
+    with open(updated_file(), "w", encoding="utf-8") as f:
+        f.write("1")
     if project_folder:
-        os.makedirs(os.path.dirname(state_file()), exist_ok=True)
         with open(state_file(), "w", encoding="utf-8") as f:
             f.write(project_folder)
     sys.stdout.flush()

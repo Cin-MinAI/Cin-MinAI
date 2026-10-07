@@ -17,6 +17,7 @@ TOPICS = {
 
 UPDATE_READY = "An update is installed. The assistant restarts into it on a short break, or now:"
 UPDATE_NOW = "Restart now"
+UPDATED = "The assistant was updated to the new version."
 
 STATES = {  # State property -> (dot colour class, words)
     "idle": ("ok", "Ready"),

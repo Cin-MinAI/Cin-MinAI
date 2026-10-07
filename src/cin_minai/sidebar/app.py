@@ -209,6 +209,7 @@ class Sidebar(Gtk.Application):
         self.project_box.hide()
         self.journal_box.hide()
         self.update_box.hide()
+        self.said_updated = False
         self.set_header("offline", {})
         self.connect_daemon()
 
@@ -371,6 +372,9 @@ class Sidebar(Gtk.Application):
         journal = bool(status.get("journal"))
         self.journal_box.set_visible(journal)
         self.update_box.set_visible(bool(status.get("update_ready")))
+        if status.get("just_updated") and not self.said_updated:
+            self.said_updated = True
+            self.bubble("note", words.UPDATED)
         self.entry.set_placeholder_text("Tell me about your story…" if project else
                                         "Tell me about your day…" if journal else "Ask…")
         busy = self.rid is not None

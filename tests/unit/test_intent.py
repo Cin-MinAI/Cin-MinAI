@@ -50,5 +50,18 @@ class EmailIntent(unittest.TestCase):
         self.assertIs(narrow(plain, ASKS_FOR_AN_EMAIL[0]), plain)  # prompts without the email tool: untouched
 
 
+class SearchQuery(unittest.TestCase):
+    def test_a_query_from_the_earlier_topic_is_replaced(self):
+        from cin_minai.daemon.intent import search_query
+        asked = "Can you search YouTube for a video on how to make donuts?"
+        self.assertEqual(search_query("how to install openvpn on linux mint", asked), asked)
+
+    def test_a_fitting_query_and_a_follow_up_are_kept(self):
+        from cin_minai.daemon.intent import search_query
+        self.assertEqual(search_query("donut recipe video", "find me a video on making donuts"), "donut recipe video")
+        self.assertEqual(search_query("history of the printing press", "search for that"), "history of the printing press")
+        self.assertEqual(search_query("", "what is self hosting"), "what is self hosting")
+
+
 if __name__ == "__main__":
     unittest.main()

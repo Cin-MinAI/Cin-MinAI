@@ -29,6 +29,23 @@ def wants_email(text: str) -> bool:
     return bool(EMAIL.search(text) and (WRITE.search(text) or SEND_TO.search(text)))
 
 
+# the asking itself, not the topic (helpcards.tokens stems: the first five letters; Japanese character pairs)
+REQUEST_WORDS = {"searc", "find", "look", "googl", "web", "inter", "onlin", "busca", "busqu", "pesqu", "procu", "cherc",
+                 "reche", "suche", "such", "googe", "検索", "探し", "調べ"}
+
+
+def search_query(proposed: str, message: str) -> str:
+    """The query the search card shows. Round 3 (2026-10-07): asked about finding a YouTube video, the guide proposed
+    "how to install openvpn on linux mint" — the earlier topic. A query that shares no word with the message is
+    replaced by the message itself; a message with no words of its own ("search for that") keeps the model's query."""
+    from .helpcards import tokens
+    proposed, message = proposed.strip()[:200], message.strip()
+    asked = set(tokens(message)) - REQUEST_WORDS
+    if not proposed or (asked and not asked & set(tokens(proposed))):
+        return message[:200]
+    return proposed
+
+
 def narrow(schema: dict, text: str) -> dict:
     """The schema with only the tools this request may use. Unchanged when it has no email tool (other prompts)."""
     options = schema.get("anyOf", [])

@@ -205,6 +205,9 @@ class Service:
         self.watcher = selfupdate.Watcher()
         self.active_at = time.monotonic()
         self.update_ready = False  # shown in the sidebar with "Restart now" while it waits for a pause
+        self.just_updated = selfupdate.take_updated()  # this start is the new version: the sidebar says so once
+        if self.just_updated:
+            GLib.timeout_add_seconds(600, self.forget_updated)
         reopen = selfupdate.take_reopen()
         if reopen:
             try:
@@ -231,6 +234,11 @@ class Service:
         if time.monotonic() - self.active_at < IDLE_BEFORE_RESTART_S:
             return True
         return self.restart_for_update()
+
+    def forget_updated(self) -> bool:
+        self.just_updated = False
+        self.changed("Status")
+        return False
 
     def restart_for_update(self) -> bool:
         """Test-load the installed code, then restart into it (the daemon exits; systemd starts the new version). If it
@@ -287,7 +295,8 @@ class Service:
                 "document": GLib.Variant("s", self.document),
                 "project": GLib.Variant("s", self.project.title if self.project else ""),
                 "journal": GLib.Variant("b", self.journal is not None),
-                "update_ready": GLib.Variant("b", self.update_ready)}),
+                "update_ready": GLib.Variant("b", self.update_ready),
+                "just_updated": GLib.Variant("b", self.just_updated)}),
             "Awareness": lambda: GLib.Variant("a{sb}", self.awareness),
             "LastStats": lambda: GLib.Variant("s", self.last_stats),
             "ActionMode": lambda: GLib.Variant("s", self.actions.mode),
