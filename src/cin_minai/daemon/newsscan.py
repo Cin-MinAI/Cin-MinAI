@@ -231,6 +231,30 @@ def official(topic: str, lang: str = "en") -> list[dict]:
     return out
 
 
+# Official sources that need a key (keys.SOURCES): source id -> (does it apply to this topic?, fetch(topic, lang, key)).
+# Empty until a source is wired (the patent office waits for Ian's go, 2026-10-07).
+KEYED: dict[str, tuple] = {}
+
+
+def keyed(topic: str, lang: str = "en") -> tuple[list[dict], list[str]]:
+    """(official items from keyed sources, sources skipped for a missing key). The key is read here, for the request,
+    and goes nowhere else."""
+    from . import keys
+    items, needed = [], []
+    for source, (applies, fetch) in KEYED.items():
+        if not topic or not applies(topic):
+            continue
+        key = keys.get(source)
+        if not key:
+            needed.append(source)
+            continue
+        try:
+            items += fetch(topic, lang, key)
+        except (websearch.SearchError, ET.ParseError, ValueError):
+            pass  # said like any other source that didn't answer: by its absence and the "nothing found" line
+    return items, needed
+
+
 def say_date(d, lang: str) -> str:
     if d is None:
         return "no date"
@@ -286,9 +310,17 @@ SOCIAL = {  # heading, nothing found, couldn't reach, not covered
 }
 
 
+NEEDS_KEY = {"en": "(Not searched: {names} — it needs a free key; the card below shows how to get one.)",
+             "es": "(Sin consultar: {names} — necesita una clave gratuita; la tarjeta de abajo explica cómo obtenerla.)",
+             "pt": "(Não consultado: {names} — precisa de uma chave gratuita; o cartão abaixo mostra como obtê-la.)",
+             "fr": "(Non consulté : {names} — il faut une clé gratuite ; la carte ci-dessous explique comment l'obtenir.)",
+             "de": "(Nicht abgefragt: {names} — braucht einen kostenlosen Schlüssel; die Karte unten zeigt, wie.)",
+             "ja": "（未検索：{names} — 無料のキーが必要です。下のカードに取得方法があります。）"}
+
+
 def report(topic: str, items: list[dict], lang: str = "en", official_items: list[dict] | None = None,
            official_trouble: str = "", social_items: list[dict] | None = None,
-           social_failed: list[str] | None = None) -> str:
+           social_failed: list[str] | None = None, needs_key: list[str] | None = None) -> str:
     """Every line attributed and quoted, by kind of source; the frame is code, never the model's."""
     head, press_word, none, says = HEAD.get(lang, HEAD["en"])
     lines = [head.format(topic=f"“{topic}”" if topic else "today's news"), "", f"{press_word}:"]
@@ -315,4 +347,8 @@ def report(topic: str, items: list[dict], lang: str = "en", official_items: list
             lines.append(nothing)
         for it in official_items:
             lines.append(f"- {it['source']} ({kinds.get(it['what'], it['what'])}): “{it['title']}”")
+        if needs_key:
+            from . import keys
+            names = ", ".join(keys.SOURCES[k].name for k in needs_key if k in keys.SOURCES)
+            lines.append(NEEDS_KEY.get(lang, NEEDS_KEY["en"]).format(names=names))
     return "\n".join(lines)

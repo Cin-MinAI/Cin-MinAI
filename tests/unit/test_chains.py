@@ -126,6 +126,12 @@ class NewsRequest(unittest.TestCase):
             self.assertIsNone(news_request(text), text)
 
 
+def bind_scan(s):
+    """The daemon's shared news scan on a stand-in daemon."""
+    for name in ("news_scan", "scan_links", "scan_report", "key_cards"):
+        setattr(s, name, service.Service.__dict__[name].__get__(s))  # static ones stay static
+
+
 @unittest.skipIf(service is None, "needs PyGObject")
 class NewsChain(unittest.TestCase):
     def test_press_headlines_attributed_no_model(self):
@@ -134,6 +140,7 @@ class NewsChain(unittest.TestCase):
                   "url": "https://news.google.com/rss/articles/B", "date": dt.datetime(2026, 9, 30)}]
         s = types.SimpleNamespace(cancel=threading.Event(), guide=types.SimpleNamespace(
             tools=types.SimpleNamespace(lang="en"), history=[]))
+        bind_scan(s)
         events, text = [], []
         offer = {"recipe": "news", "topic": "Linux Mint", "query": "Linux Mint", "question": "news about Linux Mint"}
         official = [{"kind": "official", "source": "linuxmint.com", "title": "Linux Mint 22.3 released",
@@ -158,6 +165,7 @@ class NewsChain(unittest.TestCase):
         from cin_minai.daemon import websearch
         s = types.SimpleNamespace(cancel=threading.Event(), guide=types.SimpleNamespace(
             tools=types.SimpleNamespace(lang="en"), history=[]))
+        bind_scan(s)
         text = []
         offer = {"recipe": "news", "topic": "x", "query": "x", "question": "news about x"}
         with mock.patch("cin_minai.daemon.newsscan.press", return_value=[]),              mock.patch("cin_minai.daemon.newsscan.official", side_effect=websearch.SearchError("wants a pause")),              mock.patch("cin_minai.daemon.newsscan.social", return_value=([], ["Reddit (offline)"])):

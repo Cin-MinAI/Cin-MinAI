@@ -528,6 +528,9 @@ class Sidebar(Gtk.Application):
         if signal == "ActionCard":           # M4: drawn from the daemon's record, whatever question it came from
             self.action_card(json.loads(args[0]))
             return
+        if signal == "Standing":             # D88: a standing task's run found something new
+            self.standing_report(json.loads(args[0]))
+            return
         if self.rid is None or (self.rid != -1 and args[0] != self.rid):
             return  # another client's question (e.g. Firefox, a test)
         if signal == "Token" and self.reply is not None:
@@ -584,6 +587,10 @@ class Sidebar(Gtk.Application):
         elif signal == "Action" and args[1] == "draft":
             p = json.loads(args[4] or "{}")
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
+        elif signal == "Action" and args[1] == "watch" and args[3] == "proposal":
+            self.watch_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "key_needed" and args[3] == "proposal":
+            self.key_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[3] == "proposal":
             self.proposal_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[3] == "done":
@@ -621,6 +628,9 @@ class Sidebar(Gtk.Application):
         menu.append(item)
         item = Gtk.MenuItem(label="Coding (AICUI)…")
         item.connect("activate", lambda i: self.open_aicui())
+        menu.append(item)
+        item = Gtk.MenuItem(label="Standing tasks")
+        item.connect("activate", lambda i: self.standing_list())
         menu.append(item)
         sharing = self.daemon_json("TerminalSharing", "state") or {}
         if sharing.get("available"):  # D77: the switch, for after the one-time offer
@@ -1023,6 +1033,149 @@ class Sidebar(Gtk.Application):
             self.bubble("note", words.action_declined(card))
         elif event == "failed":
             self.bubble("note", words.action_failed(card))
+
+    # --- standing tasks (D88) and keys (D92) ----------------------------------------------------------------
+    def watch_card(self, offer: dict) -> None:
+        """What would be watched, how often, and where the words go; nothing is set up or sent before Set up."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=f"Every day at {offer.get('at', '08:00')}, look for news about:", xalign=0, wrap=True,
+                         max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        topic = Gtk.Entry(text=offer.get("topic", ""), placeholder_text="(empty: the top stories)")
+        box.pack_start(topic, False, False, 0)
+        note = Gtk.Label(label=words.watch_note(offer), xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        go = Gtk.Button(label="Set up")
+        go.get_style_context().add_class("suggested-action")
+        no = Gtk.Button(label="No thanks")
+
+        def setup(button) -> None:
+            for w in (go, no, topic):
+                w.set_sensitive(False)
+            self.start_job("StandingAdd", (offer.get("id", ""), topic.get_text().strip()), "Setting it up…", "(ss)")
+
+        go.connect("clicked", setup)
+        no.connect("clicked", lambda b: box.destroy())  # nothing was set up or sent
+        buttons.pack_start(go, False, False, 0)
+        buttons.pack_start(no, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def standing_report(self, r: dict) -> None:
+        if r.get("report"):
+            self.bubble("assistant", words.standing_head(r) + "\n\n" + r["report"])
+            if r.get("sources"):
+                self.sources_card({"sources": r["sources"]})
+        for card in r.get("key_cards", []):
+            self.key_card(card)
+
+    def standing_list(self) -> None:
+        """Every standing task: what, when, the last run; pause, resume or delete each (D88)."""
+        tasks = self.daemon_json("StandingList")
+        if tasks is None:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label="Standing tasks", xalign=0)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        if not tasks:
+            box.pack_start(Gtk.Label(label=words.STANDING_NONE, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+        for t in tasks:
+            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            row.pack_start(Gtk.Label(label=words.standing_line(t), xalign=0, wrap=True, max_width_chars=30),
+                           False, False, 0)
+            buttons = Gtk.Box(spacing=6)
+            pause = Gtk.Button(label="Resume" if t.get("paused") else "Pause")
+            delete = Gtk.Button(label="Delete")
+            last = Gtk.Button(label="Last report")
+            last.set_sensitive(bool(t.get("last_report")))
+
+            def change(button, tid=t["id"], what="", row=row) -> None:
+                what = what or ("resume" if button.get_label() == "Resume" else "pause")
+                if self.daemon_json("StandingChange", tid, what) is None:
+                    return
+                if what == "delete":
+                    row.destroy()
+                else:
+                    button.set_label("Resume" if what == "pause" else "Pause")
+
+            pause.connect("clicked", change)
+            delete.connect("clicked", lambda b, tid=t["id"], row=row: change(b, tid, "delete", row))
+            last.connect("clicked", lambda b, t=t: self.bubble("assistant", t.get("last_report", "")))
+            for b in (pause, delete, last):
+                buttons.pack_start(b, False, False, 0)
+            row.pack_start(buttons, False, False, 0)
+            box.pack_start(row, False, False, 0)
+        close = Gtk.Button(label="Close")
+        close.set_halign(Gtk.Align.START)
+        close.connect("clicked", lambda b: box.destroy())
+        box.pack_start(close, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def key_card(self, card: dict) -> None:
+        """A source needs a key: how to get one (the person registers themselves), and a masked box that sends it
+        straight to the daemon, which keeps it in the login keyring. It never goes into the conversation."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.key_head(card), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        steps = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(card.get("steps", [])))
+        box.pack_start(Gtk.Label(label=steps, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+        url = card.get("signup_url", "")
+        if url.startswith("https://"):
+            link = Gtk.LinkButton(uri=url, label="Open the sign-up page")
+            link.set_halign(Gtk.Align.START)
+            box.pack_start(link, False, False, 0)
+        entry = Gtk.Entry(visibility=False, placeholder_text="Paste the key here")
+        entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+        box.pack_start(entry, False, False, 0)
+        note = Gtk.Label(label=words.KEY_NOTE, xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        save = Gtk.Button(label="Save the key")
+        save.get_style_context().add_class("suggested-action")
+        later = Gtk.Button(label="Later")
+
+        def keep(button) -> None:
+            key = entry.get_text()
+            entry.set_text("")  # out of the widget at once, whatever happens next
+            if not key.strip() or not self.proxy:
+                return
+            save.set_sensitive(False)
+
+            def done(proxy, res) -> None:
+                save.set_sensitive(True)
+                try:
+                    out = json.loads(proxy.call_finish(res).unpack()[0])
+                except GLib.Error as e:
+                    Gio.DBusError.strip_remote_error(e)
+                    out = {"ok": False, "error": e.message}
+                if out.get("ok"):
+                    box.destroy()
+                    self.progress_line(words.key_saved(out.get("name", card.get("name", ""))))
+                else:
+                    note.set_text(f"Not saved: {out.get('error', '')}")
+
+            self.proxy.call("KeySet", GLib.Variant("(ss)", (card.get("source", ""), key)), Gio.DBusCallFlags.NONE,
+                            30000, None, done)
+
+        save.connect("clicked", keep)
+        entry.connect("activate", keep)
+        later.connect("clicked", lambda b: box.destroy())
+        buttons.pack_start(save, False, False, 0)
+        buttons.pack_start(later, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
 
     def search_card(self, offer: dict) -> None:
         """The query that would be sent, editable; nothing is sent until Search (SPEC §7.5)."""

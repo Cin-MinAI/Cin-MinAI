@@ -444,6 +444,49 @@ def search_note(offer: dict) -> str:
             "read to answer you. Nothing about you or this computer is sent.")
 
 
+# --- standing tasks (D88) and keys (D92) ---------------------------------------------------------------------
+
+STANDING_NONE = ("Nothing yet. Ask for one in your own words, for example: “keep me up to date on Linux Mint” or "
+                 "“the news about the weather every morning”.")
+KEY_NOTE = ("The key goes straight into your login keyring, locked by your login password. The assistant never sees "
+            "it, and it isn't kept in the conversation. Only that source's own requests use it.")
+
+
+def watch_note(offer: dict) -> str:
+    if not offer.get("online", True):
+        return "This computer is offline. Connect to the internet first; nothing is set up until you click Set up."
+    return (f"Every day these words are sent to {offer.get('provider', 'the news sources')}, without asking again. "
+            "Only what's new is shown, each source in its own words. Nothing about you or this computer is sent. "
+            "Pause or delete it any time under Standing tasks in the menu.")
+
+
+def standing_head(r: dict) -> str:
+    what = f"“{r['topic']}”" if r.get("topic") else "the top stories"
+    return f"Your news watch on {what}: {r.get('new', 0)} new since last time."
+
+
+def standing_line(t: dict) -> str:
+    what = f"News about “{t['topic']}”" if t.get("topic") else "The top stories"
+    when = f"every day at {t.get('at', '08:00')}" + (" — paused" if t.get("paused") else "")
+    last = t.get("runs", [])[-1:] or [None]
+    if last[0] is None:
+        said = "not run yet"
+    elif last[0].get("trouble"):
+        said = f"last run {last[0]['at'].replace('T', ' ')}: {last[0]['trouble']}"
+    else:
+        said = f"last run {last[0]['at'].replace('T', ' ')}: {last[0].get('new', 0)} new"
+    return f"{what}, {when}.\n{said}"
+
+
+def key_head(card: dict) -> str:
+    use = f" for {card['use']}" if card.get("use") else ""
+    return f"{card.get('name', 'This source')} needs a free key{use}. You register yourself; it takes a few minutes:"
+
+
+def key_saved(name: str) -> str:
+    return f"Key saved for {name}, in your login keyring. It's used from the next search on."
+
+
 def source_line(s: dict) -> str:
     import urllib.parse
     host = urllib.parse.urlsplit(s.get("url", "")).hostname or ""

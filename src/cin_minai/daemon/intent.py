@@ -120,3 +120,55 @@ def narrow(schema: dict, text: str) -> dict:
         return schema
     keep = {"compose_email", "decline"} if wants_email(text) else set(names) - {"compose_email"}
     return {**schema, "anyOf": [o for o in options if o["properties"]["tool"]["const"] in keep]}
+
+
+# --- standing watches (D88, D92): "keep me up to date on X", "news about X every morning" -----------------------------
+# Strong phrases ask for a watch by themselves; weak ones ("let me know", "notify me") only with news or a schedule, so
+# "let me know how to install X" stays a question.
+WATCH_STRONG = re.compile(r"\bkeep\s+me\s+(up[- ]to[- ]date|updated|posted|informed|in\s+the\s+loop)\b|"
+                          r"\bmant[eé]n(me|ga-?me)\s+(al\s+d[ií]a|informad[oa]|actualizad[oa]|al\s+tanto)\b|"
+                          r"\bme\s+mant(enha|eña)\s+(atualizad[oa]|informad[oa])\b|\bmantenha-me\s+\w+\b|"
+                          r"\btiens-moi\s+(au\s+courant|inform[ée]e?)\b|\bhalte?\s+mich\s+(auf\s+dem\s+laufenden|"
+                          r"informiert|auf\s+dem\s+neuesten\s+stand)\b|最新情報を(知らせて|教えて|追って)", re.I)
+WATCH_WEAK = re.compile(r"\b(let\s+me\s+know|notify\s+me|alert\s+me|update\s+me|tell\s+me|av[ií]sa(me|-me)|me\s+avis[ae]|"
+                        r"pr[ée]viens-moi|sag\s+mir\s+bescheid|benachrichtige\s+mich)\b|知らせて|教えて", re.I)
+EVERY = re.compile(r"\bevery\s+(day|morning|evening|night)\b|\bdaily\b|\beach\s+(day|morning|evening)\b|"
+                   r"\btodos\s+los\s+d[ií]as\b|\btodas\s+las\s+(mañanas|noches)\b|\bcada\s+(d[ií]a|mañana|noche)\b|"
+                   r"\btodo\s+dia\b|\btodos\s+os\s+dias\b|\btodas\s+as\s+(manh[ãa]s|noites)\b|\bchaque\s+(jour|matin|soir)\b|"
+                   r"\btous\s+les\s+(jours|matins|soirs)\b|\bjeden\s+(tag|morgen|abend)\b|\bt[äa]glich\b|毎日|毎朝|毎晩", re.I)
+EVENING = re.compile(r"\b(evening|night|noches?|noites?|soirs?|abend)\b|毎晩", re.I)
+AT_TIME = re.compile(r"\b(?:at|a\s+las|às|as|à|um)\s+(\d{1,2})(?:[:h.](\d{2}))?\s*(am|pm|uhr|h)?\b|(\d{1,2})時", re.I)
+WATCH_FILLER = re.compile(r"\b(on|about|with|regarding|of|what'?s\s+new|anything\s+new|any|new|whenever|when|there'?s|"
+                          r"there\s+is|sobre|de|do|da|des|du|sur|au\s+sujet\s+de|über|zu|zum|zur|von|the|el|la|los|las|"
+                          r"o|a|os|as|le|les|die|der|das|please|por\s+favor|s'il\s+te\s+plaît|bitte|also|too)\b|"
+                          r"について|の|を|で|に", re.I)
+
+
+def watch_request(text: str) -> dict | None:
+    """{"topic", "at": "HH:MM"} when the person asks to be kept up to date on something, every day (topic "": the top
+    stories)."""
+    strong = WATCH_STRONG.search(text)
+    if not strong and not (WATCH_WEAK.search(text) and (NEWS.search(text) or EVERY.search(text))) and \
+            not (NEWS.search(text) and EVERY.search(text)):
+        return None
+    if ABOUT_NEWS.search(text) and not strong:
+        return None
+    at = "18:00" if EVENING.search(text) else "08:00"
+    m = AT_TIME.search(text)
+    if m:
+        h, mins = int(m.group(1) or m.group(4)), int(m.group(2) or 0)
+        if (m.group(3) or "").lower() == "pm" and h < 12:
+            h += 12
+        elif (m.group(3) or "").lower() == "am" and h == 12:
+            h = 0
+        if h < 24 and mins < 60:
+            at = f"{h:02d}:{mins:02d}"
+    topic = AT_TIME.sub(" ", EVERY.sub(" ", WATCH_WEAK.sub(" ", WATCH_STRONG.sub(" ", text))))
+    topic = NEWS.sub(" ", topic)
+    for _ in range(3):
+        topic = WATCH_FILLER.sub(" ", NEWS_FILLER.sub(" ", topic))
+    topic = re.sub(r"\s+", " ", re.sub(r"[?!.¿¡,:;。、？！]", " ", topic)).strip()
+    topic = re.sub(r"(\s+(and|y|e|et|und))+$|^(and|y|e|et|und)\s+", "", topic).strip()
+    if not topic and not NEWS.search(text):
+        return None  # "keep me up to date" on nothing named: not a watch ("every day at 6:30, the news" is: top stories)
+    return {"topic": topic, "at": at}

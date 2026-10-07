@@ -9,6 +9,7 @@ The model runs on worker threads; the bus never waits on it (GLib.idle_add hands
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import sys
@@ -24,7 +25,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
-from . import config, manuscript, selfupdate
+from . import config, manuscript, selfupdate, standing
 from .models import Cancelled as DownloadStopped, ModelStore, backend_cfg, benchmark
 from cin_minai.inference import matcher
 from cin_minai.inference.llamacpp import LlamaCppBackend
@@ -35,6 +36,7 @@ NAME = "org.cinminai.Assistant1"
 PATH = "/org/cinminai/Assistant1"
 IFACE = "org.cinminai.Assistant1"
 UPDATE_CHECK_S = 30            # D59: how often the daemon looks for an installed update
+STANDING_CHECK_S = 60          # D88: how often standing tasks are checked for their time
 IDLE_BEFORE_RESTART_S = 120    # and how long it must have been idle before restarting into it
 
 XML = f"""
@@ -122,6 +124,19 @@ XML = f"""
     <method name="ActionUndo"><arg type="s" name="id" direction="in"/><arg type="b" name="ok" direction="out"/></method>
     <method name="ActionList"><arg type="s" name="json" direction="out"/></method>
     <signal name="ActionCard"><arg type="s" name="json"/></signal>
+    <!-- D88 standing tasks: set up from a "watch" proposal card (offer id, the topic as edited), listed, paused or
+         deleted. Standing (JSON): a scheduled run's report with only what's new (id, topic, report, sources) -->
+    <method name="StandingAdd"><arg type="s" name="offer" direction="in"/><arg type="s" name="topic" direction="in"/>
+      <arg type="u" name="id" direction="out"/></method>
+    <method name="StandingList"><arg type="s" name="json" direction="out"/></method>
+    <method name="StandingChange"><arg type="s" name="task" direction="in"/><arg type="s" name="what" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <signal name="Standing"><arg type="s" name="json"/></signal>
+    <!-- keys for sources that need one (keys.py): the key goes to the login keyring and nowhere else; the answer
+         never repeats it. json: ok and the source's name, or ok false and the error -->
+    <method name="KeySet"><arg type="s" name="source" direction="in"/><arg type="s" name="key" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <method name="KeyForget"><arg type="s" name="source" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- ask | auto (auto: reversible actions run on their own; irreversible and admin actions always ask) -->
     <property name="ActionMode" type="s" access="readwrite"/>
     <signal name="Token"><arg type="u" name="id"/><arg type="s" name="text"/></signal>
@@ -217,6 +232,11 @@ class Service:
             except (OSError, ValueError):
                 pass
         GLib.timeout_add_seconds(UPDATE_CHECK_S, self.check_update)
+        # D88: standing tasks, checked every minute; a run never overlaps a question or another run
+        self.standing = standing.Store()
+        self.watch_offers: dict[str, dict] = {}  # "keep me up to date on X" cards waiting for their click
+        self.standing_running = False
+        GLib.timeout_add_seconds(STANDING_CHECK_S, self.standing_tick)
         # M4: one path for every action (PLAN D67, D85)
         self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
         admin.register(self.actions)     # the root mechanism's verbs; each asks, then polkit asks for the password
@@ -230,7 +250,7 @@ class Service:
         if waiting != self.update_ready:
             self.update_ready = waiting
             self.changed("Status")
-        if not waiting or self.busy or self.loading or self.journal is not None:
+        if not waiting or self.busy or self.loading or self.journal is not None or self.standing_running:
             return True
         if time.monotonic() - self.active_at < IDLE_BEFORE_RESTART_S:
             return True
@@ -396,8 +416,50 @@ class Service:
                 return
             self.emit("ActionCard", "(s)", json.dumps({"id": action_id, "event": "undone" if ok else "undo-failed"}))
             inv.return_value(GLib.Variant("(b)", (ok,)))
+        elif method == "StandingAdd":
+            wid, topic = params.unpack()
+            offer = self.watch_offers.pop(wid, None)
+            if offer is None:
+                inv.return_dbus_error(f"{IFACE}.Error.NoOffer", "that card has expired; ask again")
+                return
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.job(self.next_id, lambda on_text, on_action: self.start_watch(offer, topic, on_text, on_action))
+        elif method == "StandingList":
+            inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
+        elif method == "StandingChange":
+            tid, what = params.unpack()
+            try:
+                task = self.standing.change(tid, what)
+            except ValueError:
+                inv.return_dbus_error(f"{IFACE}.Error.Invalid", "pause, resume or delete")
+                return
+            if task is None:
+                inv.return_dbus_error(f"{IFACE}.Error.NoTask", "there's no such standing task")
+                return
+            inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
+        elif method in ("KeySet", "KeyForget"):
+            args = params.unpack()  # never logged, never put in a reply or the record
+
+            def keep():
+                from . import keys
+                try:
+                    if method == "KeySet":
+                        out = {"ok": True, "name": keys.store(args[0], args[1])}
+                    else:
+                        keys.forget(args[0])
+                        out = {"ok": True}
+                except Exception as e:  # keys.KeyError_ says what's wrong without the key; the keyring's own errors too
+                    out = {"ok": False, "error": str(e) if isinstance(e, keys.KeyError_) else
+                           "the login keyring couldn't be reached"}
+                GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out),))) and False)
+
+            threading.Thread(target=keep, daemon=True).start()
         elif method == "ActionList":
-            waiting = [self.card(p, "waiting") for p in list(self.actions.open.values())]
+            waiting =[self.card(p, "waiting") for p in list(self.actions.open.values())]
             inv.return_value(GLib.Variant("(s)", (json.dumps({"waiting": waiting,
                                                                "recent": self.actions.record.recent(50)},
                                                               ensure_ascii=False),)))
@@ -653,6 +715,12 @@ class Service:
         return False
 
     def ask(self, rid: int, text: str) -> None:
+        from . import keys
+        if keys.looks_like_key(text):  # a key pasted into the chat: never to the model, never in the history
+            lang = self.guide.tools.lang
+            self.job(rid, lambda on_text, on_action: (on_text(keys.PASTED.get(lang, keys.PASTED["en"])),
+                                                      {"tool": "key_guard"})[1])
+            return
         if self.journal is not None:  # the journal is open: the interviewer asks about the person (D55)
             journal = self.journal
 
@@ -674,6 +742,10 @@ class Service:
         found = intent.video_review(text)
         if found:  # D91: "pull up a video about X (and summarize it)" — a chain, not a web answer
             self.job(rid, lambda on_text, on_action: self.offer_video_chain(text, found, on_text, on_action))
+            return
+        watch = intent.watch_request(text)
+        if watch is not None:  # D88: "keep me up to date on X" — a standing watch, set up on a card
+            self.job(rid, lambda on_text, on_action: self.offer_watch(text, watch, on_text, on_action))
             return
         news = intent.news_request(text)
         if news is not None:  # D91: "pull up the news about X" — recent articles, a short briefing, the sources
@@ -812,40 +884,171 @@ class Service:
                    if online else "This computer isn't online right now: connect, then click Search below."))
         return {"tool": "news", "proposal": sid}
 
+    def news_scan(self, topic: str, lang: str, cancel: threading.Event | None = None, person: bool = True) -> dict:
+        """D92's three kinds of sources for a topic (no topic: the top stories, press only). Each request is recorded
+        as information leaving the computer; a source that fails is said, the rest still shown."""
+        from . import newsscan, websearch
+        cancel = cancel or threading.Event()
+        why = "" if person else "a standing task the person set up (D88)"
+        out = {"items": [], "posts": None, "failed": [], "found": None, "trouble": "", "needed": []}
+        out["items"], _ = hook.run("web_search", lambda: newsscan.press(topic, lang),
+                                   "a news search (the topic left the computer)", reversible=False, reason=why)
+        if topic and not cancel.is_set():  # social: what people post, each line credited to its poster
+            (out["posts"], out["failed"]), _ = hook.run(
+                "web_search", lambda: newsscan.social(topic, lang),
+                "a social media search (the topic left the computer)", reversible=False, reason=why)
+        if topic and not cancel.is_set():  # official: the subject's own pages (no topic: top stories only)
+            try:
+                out["found"], _ = hook.run("web_search", lambda: newsscan.official(topic, lang),
+                                           "a search for official pages (the topic left the computer)",
+                                           reversible=False, reason=why)
+            except websearch.SearchError as e:
+                out["found"], out["trouble"] = [], f"(Couldn't search official pages right now: {e}.)"
+            more, out["needed"] = newsscan.keyed(topic, lang)  # sources with a key; a missing key is shown as a card
+            out["found"] += more
+        return out
+
+    @staticmethod
+    def scan_links(scan: dict) -> list[tuple[str, str]]:
+        return ([(f"{it['outlet']}: {it['title']}", it["url"]) for it in scan["items"]]
+                + [(f"{it['who']}: {it['title']}", it["url"]) for it in (scan["posts"] or [])]
+                + [(f"{it['source']}: {it['title']}", it["url"]) for it in (scan["found"] or [])])
+
+    @staticmethod
+    def scan_report(topic: str, scan: dict, lang: str) -> str:
+        from . import newsscan
+        return newsscan.report(topic, scan["items"], lang, scan["found"], scan["trouble"], scan["posts"],
+                               scan["failed"], scan["needed"])
+
+    @staticmethod
+    def sent_to(topic: str) -> str:
+        from . import newsscan
+        return newsscan.PROVIDERS_WITH_OFFICIAL if topic else newsscan.PROVIDERS
+
+    def key_cards(self, needed: list[str], on_action) -> None:
+        """The key card for each source the scan skipped: how to get the key, and the box to put it in."""
+        from . import keys
+        for source in needed:
+            on_action("key_needed", {"source": source}, "proposal", json.dumps(keys.card(source), ensure_ascii=False))
+
     def run_news_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
         """D92: press headlines, social posts, official pages — word for word, attributed and dated; no model."""
-        from . import newsscan, websearch
+        from . import websearch
         topic = ("" if query == "top stories" else (query or offer["topic"])).strip()[:200]
         lang = self.guide.tools.lang
         on_action("web_search", {"query": topic or "top stories"}, "running", "")
         try:
-            items, _ = hook.run("web_search", lambda: newsscan.press(topic, lang),
-                                "a news search (the topic left the computer)", reversible=False)
+            scan = self.news_scan(topic, lang, self.cancel)
         except websearch.SearchError as e:
             raise BackendError(f"The news search didn't work: {e}.")
-        posts, failed = None, []
-        if topic and not self.cancel.is_set():  # social: what people post, each line credited to its poster
-            posts, failed = hook.run("web_search", lambda: newsscan.social(topic, lang),
-                                     "a social media search (the topic left the computer)", reversible=False)[0]
-        found, trouble = None, ""
-        if topic and not self.cancel.is_set():  # official: the subject's own pages (no topic: top stories only)
-            try:
-                found, _ = hook.run("web_search", lambda: newsscan.official(topic, lang),
-                                    "a search for official pages (the topic left the computer)", reversible=False)
-            except websearch.SearchError as e:
-                found, trouble = [], f"(Couldn't search official pages right now: {e}.)"
-        links = ([(f"{it['outlet']}: {it['title']}", it["url"]) for it in items]
-                 + [(f"{it['who']}: {it['title']}", it["url"]) for it in (posts or [])]
-                 + [(f"{it['source']}: {it['title']}", it["url"]) for it in (found or [])])
+        links = self.scan_links(scan)
         on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
             {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
             ensure_ascii=False))
-        reply = newsscan.report(topic, items, lang, found, trouble, posts, failed)
+        reply = self.scan_report(topic, scan, lang)
         on_text(reply)
+        self.key_cards(scan["needed"], on_action)
         self.guide.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
-        return {"tool": "news", "press": len(items), "outlets": len({it["outlet"] for it in items}),
-                "official": len(found or []), "official_trouble": bool(trouble),
-                "social": len(posts or []), "social_failed": len(failed)}
+        return {"tool": "news", "press": len(scan["items"]), "outlets": len({it["outlet"] for it in scan["items"]}),
+                "official": len(scan["found"] or []), "official_trouble": bool(scan["trouble"]),
+                "social": len(scan["posts"] or []), "social_failed": len(scan["failed"]), "needs_key": scan["needed"]}
+
+    # --- standing watches (D88) ----------------------------------------------------------------------------------
+    def offer_watch(self, text: str, watch: dict, on_text, on_action) -> dict:
+        """The setup card: what is sent, to whom, how often. Nothing is set up or sent before the click."""
+        import uuid
+        wid = uuid.uuid4().hex[:12]
+        self.watch_offers = {wid: {**watch, "question": text}}  # only the newest offer stands
+        on_action("watch", {"topic": watch["topic"]}, "proposal", json.dumps(
+            {"id": wid, "topic": watch["topic"], "at": watch["at"], "provider": self.sent_to(watch["topic"]),
+             "online": self.guide.tools.online()}, ensure_ascii=False))
+        what = f"the news about {watch['topic']}" if watch["topic"] else "the top stories"
+        on_text(f"I can watch {what} for you: every day at {watch['at']} I'll look again and show you only what's "
+                "new, each source in its own words. The card below says exactly what would be sent and where; "
+                "nothing is set up until you click Set up. You can pause or delete it any time under Standing tasks.")
+        return {"tool": "watch", "proposal": wid}
+
+    def start_watch(self, offer: dict, topic: str, on_text, on_action) -> dict:
+        """Set up the watch and run it once now: everything found is the starting point; later runs show what's new."""
+        from . import websearch
+        topic = topic.strip()[:200]
+        lang = self.guide.tools.lang
+        task = self.standing.add(topic, offer["at"], lang, datetime.datetime.now())
+        on_action("web_search", {"query": topic or "top stories"}, "running", "")
+        try:
+            scan = self.news_scan(topic, lang, self.cancel)
+        except websearch.SearchError as e:
+            self.standing.ran(task["id"], datetime.datetime.now(), [], self.sent_to(topic), "", str(e))
+            raise BackendError(f"The watch is set up, but the first look didn't work: {e}. It tries again at "
+                               f"{task['at']}.")
+        shown = scan["items"] + (scan["posts"] or []) + (scan["found"] or [])
+        report = self.scan_report(topic, scan, lang)
+        self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic), report, scan["trouble"])
+        links = self.scan_links(scan)
+        on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
+            {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
+            ensure_ascii=False))
+        on_text(f"Set up: every day at {task['at']} I'll show you only what's new. This is where it starts:\n\n" + report)
+        self.key_cards(scan["needed"], on_action)
+        return {"tool": "watch", "task": task["id"], "shown": len(shown), "needs_key": scan["needed"]}
+
+    def standing_tick(self) -> bool:
+        """Every minute: run the first task whose time has come — never during a question, a load or another run,
+        never offline (it tries again next minute)."""
+        if self.busy or self.loading or self.standing_running:
+            return True
+        due = self.standing.due(datetime.datetime.now())
+        if not due or not self.guide.tools.online():
+            return True
+        task = due[0]
+        self.standing_running = True
+
+        def work():
+            try:
+                result = self.run_watch(task)
+            except Exception as e:  # recorded with the task; tried again tomorrow at its time
+                log(f"standing task {task['id']}: {type(e).__name__}: {e}")
+                self.standing.ran(task["id"], datetime.datetime.now(), [], self.sent_to(task["topic"]), "", str(e))
+                result = None
+            GLib.idle_add(self.standing_done, result)
+
+        threading.Thread(target=work, daemon=True).start()
+        return True
+
+    def run_watch(self, task: dict) -> dict | None:
+        """One scheduled run: the scan, then only what this watch hasn't shown before."""
+        from . import keys
+        topic, lang = task["topic"], task.get("lang", "en")
+        scan = self.news_scan(topic, lang, person=False)
+        fresh = {k: self.standing.fresh(task, scan[k] or []) for k in ("items", "posts", "found")}
+        shown = fresh["items"] + fresh["posts"] + fresh["found"]
+        scan = {**scan, "items": fresh["items"], "posts": fresh["posts"] if scan["posts"] is not None else None,
+                "found": fresh["found"] if scan["found"] is not None else None}
+        report = self.scan_report(topic, scan, lang) if shown else ""
+        self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic), report, scan["trouble"])
+        if not shown and not scan["needed"]:
+            return None
+        return {"id": task["id"], "topic": topic, "new": len(shown), "report": report,
+                "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(self.scan_links(scan))],
+                "key_cards": [keys.card(k) for k in scan["needed"]]}
+
+    def standing_done(self, result: dict | None) -> bool:
+        self.standing_running = False
+        if result:
+            self.emit("Standing", "(s)", json.dumps(result, ensure_ascii=False))
+            if result["new"]:
+                what = f"“{result['topic']}”" if result["topic"] else "the top stories"
+                self.notify("News watch", f"{result['new']} new about {what}. Open the assistant to read them.")
+        return False
+
+    def notify(self, title: str, body: str) -> None:
+        """A desktop notification (the freedesktop service Cinnamon provides); nothing if there's none."""
+        if not self.conn:
+            return
+        self.conn.call("org.freedesktop.Notifications", "/org/freedesktop/Notifications",
+                       "org.freedesktop.Notifications", "Notify",
+                       GLib.Variant("(susssasa{sv}i)", ("Cin-MinAI", 0, "cinminai", title, body, [], {}, -1)),
+                       None, Gio.DBusCallFlags.NONE, 5000, None, None, None)
 
     def run_video_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
         """Search YouTube, list the videos, open the first in Firefox, wait for it, summarize it if asked."""

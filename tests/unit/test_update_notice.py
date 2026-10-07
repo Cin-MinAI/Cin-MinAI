@@ -21,7 +21,7 @@ class FakeWatcher:
 
 
 def fake(state="ready", active_ago=0.0, busy=False):
-    s = types.SimpleNamespace(watcher=FakeWatcher(state), busy=busy, loading=False, journal=None,
+    s = types.SimpleNamespace(watcher=FakeWatcher(state), busy=busy, loading=False, journal=None, standing_running=False,
                               active_at=time.monotonic() - active_ago, update_ready=False, changes=[], restarts=0)
     s.changed = lambda *props: s.changes.append(props)
 
