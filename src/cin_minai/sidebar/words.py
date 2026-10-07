@@ -12,7 +12,7 @@ TOPICS = {
     "overview": "what kind of computer this is", "storage": "the disk space", "network": "the network",
     "updates": "the updates", "printers": "the printers", "sound": "the sound", "display": "the screens",
     "battery": "the battery", "drivers": "the drivers", "account": "your account", "memory": "the memory in use",
-    "temperature": "the temperatures",
+    "temperature": "the temperatures", "time": "the clock",
 }
 
 UPDATE_READY = "An update is installed. The assistant restarts into it on a short break, or now:"

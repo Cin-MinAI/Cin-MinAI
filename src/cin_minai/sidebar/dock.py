@@ -81,6 +81,9 @@ class Dock:
         screen.connect("monitors-changed", lambda *a: self.watch_monitors())
         screen.connect("size-changed", lambda *a: self.queue_place())
         win.connect("notify::scale-factor", lambda *a: self.queue_place())
+        self.placed_width = width
+        # the window grew (or shrank back): dock again so it stays on the screen
+        win.connect("size-allocate", lambda w, a: a.width != self.placed_width and self.queue_place())
         self.watch_monitors()
 
     def watch_monitors(self) -> None:
@@ -111,6 +114,10 @@ class Dock:
         mon = display.get_primary_monitor() or display.get_monitor(0)
         index = next(i for i in range(display.get_n_monitors()) if display.get_monitor(i) == mon)
         geo, wa, scale = mon.get_geometry(), mon.get_workarea(), mon.get_scale_factor()
+        # content that can't wrap makes GTK grow the window past the width asked for (test SSD, 2026-10-07: 406 of 380
+        # logical px, the right edge and the close button off the screen): dock by the real width
+        w = max(w, win.get_allocated_width() if win.get_realized() else 0)
+        self.placed_width = w
         x, y, h = geo.x + geo.width - w, wa.y, wa.height
         panel_top, panel_bottom = cinnamon_panels(index)
         if wa.y == geo.y:
@@ -118,7 +125,7 @@ class Dock:
         if wa.y + wa.height == geo.y + geo.height:
             h -= panel_bottom
         win.move(x, y)
-        win.resize(w, h)
+        win.resize(self.width, h)  # ask for the normal width; GTK grows it only while content needs more
         if not win.get_realized():
             return
         # struts are in device pixels, measured from the edge of the whole X screen

@@ -259,6 +259,15 @@ class Tools:
                                           "password is needed for system changes"),
                 "open_with": self.label("users")}
 
+    def _time(self) -> dict:
+        """The computer's clock: "what time is it?" was answered with "not available" (test SSD, 2026-10-07)."""
+        now = dt.datetime.now().astimezone()
+        zone = read("/etc/timezone") or (os.path.realpath("/etc/localtime").split("zoneinfo/")[-1]
+                                         if os.path.exists("/etc/localtime") else "")
+        return {"date": now.strftime("%A %d %B %Y"), "time": now.strftime("%H:%M"),
+                "time_12h": now.strftime("%I:%M %p").lstrip("0"), "timezone": zone or now.strftime("%Z"),
+                "utc_offset": now.strftime("%z"), "open_with": self.label("date_time")}
+
     def _memory(self) -> dict:
         """Memory in use right now, next to what's installed ("you're using 32 GB" was the installed amount)."""
         info = {k: int(v.split()[0]) for k, v in (l.split(":", 1) for l in read("/proc/meminfo").splitlines()

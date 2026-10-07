@@ -1144,6 +1144,7 @@ class Sidebar(Gtk.Application):
             link = Gtk.LinkButton(uri=s.get("url", ""), label=words.source_line(s))
             link.set_halign(Gtk.Align.START)
             link.get_child().set_line_wrap(True)
+            link.get_child().set_line_wrap_mode(2)  # Pango WORD_CHAR: a long address breaks instead of widening the dock
             link.get_child().set_max_width_chars(30)
             box.pack_start(link, False, False, 0)
         self.chat.pack_start(box, False, False, 0)

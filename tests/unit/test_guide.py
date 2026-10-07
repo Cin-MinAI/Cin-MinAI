@@ -122,7 +122,7 @@ class GuideTest(unittest.TestCase):
         # 2026-10-07: three more system checks, so the inspect_system line lists three more topics
         expected = expected.replace(": overview, storage, network, updates, printers, sound, display, battery, drivers\n",
                                     ": overview, storage, network, updates, printers, sound, display, battery, drivers, "
-                                    "account, memory, temperature\n")
+                                    "account, memory, temperature, time\n")
         self.assertTrue(system.startswith(expected + "\n- make_spreadsheet: "), system[len(expected) - 40:len(expected) + 60])
         self.assertIn("\n- web_search: ", system)
         self.assertEqual(system.count("\n"), trained.count("\n") + 2)

@@ -207,6 +207,12 @@ TASKS = [
      # the invented step of the first round: "look for the temperature section in System Information"
      "must_not": NO_CMD + ["(?i)(system information|información del sistema|systeminformationen)[^.]{0,60}"
                            "(temperat)"]},
+    {"id": "D84-23", "cat": "system",
+     "q": {"en": "What time is it?", "es": "¿Qué hora es?", "de": "Wie spät ist es?"},
+     "expect": [{"tool": "inspect_system", "args": {"topic": ["time"]}}],
+     "result": {"date": "Wednesday 07 October 2026", "time": "16:05", "time_12h": "4:05 PM",
+                "timezone": "America/New_York", "utc_offset": "-0400", "open_with": "{date_time}"},
+     "must": [["~4[:.]05|16[:.]05"]], "must_not": NO_CMD + ["(?i)not available|no (está|esta) disponible|nicht verfügbar"]},
     # "What is…?" (D84 part 1): Ian's everyday picture has to come through, not only the steps
     {"id": "D84-07", "cat": "transition",
      "q": {"en": "What is a VPN, and do I need one?"},
