@@ -150,6 +150,37 @@ What was done about it (Ian: go ahead, 2026-10-06):
 copy the ISO" (the explanation comes through, the comparison doesn't). One check was too narrow and was widened
 after reading the reply (German "Achten Sie darauf, … nicht zu löschen"). Next for these: guide cycle 1 (D31).
 
+## Batch 2 (2026-10-06): ten cards
+
+Cards `usb_format`, `software_sources` (pictures by Ian: the stick's buckets and their map; "be your own software
+source" over an unknown one), and `panel`, `online_accounts`, `notifications`, `auto_login`, `disk_health`,
+`specs`, `battery`, `live_usb` (pictures **drafted by Claude for Ian to review**). Ian's formatter picture first
+described writing an image; its buckets-and-map idea fits formatting (building a fresh file system), so it went
+there, and the image-writing card already has his image/map picture. New labels: Online Accounts, Login Window,
+Calendar, Install Cin-MinAI; 22 more names inside programs from the ISO's catalogues (mintstick, mintsources,
+cinnamon, lightdm-settings, gnome-disk-utility, mintreport). Every step checked against the program files (the
+Disks health check is in the ⋮ drive menu; Login Window's Users tab, Automatic login, Username; Software Sources
+asks for the password because it starts through pkexec).
+
+Search: 60 questions (one per card and language) find their card; the sessions set is 90.6 % (from 90.4 %); the
+held-out set is 76.6 %, where it was before D84 (it moved to 78.7 % with batch 1; not tuned on).
+
+The base guide, prompt v2.3, all 19 D84 tasks: **69/77** (en 17/19, es 12/12, pt 10/12, fr 11/11, de 10/12,
+ja 9/11). Found and fixed on the way: the first software-sources card had PPAs and the download server in one long
+sentence after {software_manager}, and the Portuguese reply sent people to the Software Manager's "PPAs tab"
+(there is none); the card now says the sources are in {software_sources}, not {software_manager}, and the task
+fails any reply that puts PPAs in the Software Manager. Checks widened after reading correct replies (said here, as
+with batch 1): "fiable", "criador", the developer words.
+
+**Open:**
+- A **Japanese reply looped** (one sentence repeated until the length limit) on "is a PPA safe?"; the next run
+  didn't. Check the chat's repetition guard in the daemon; guide cycle 1.
+- The guide sometimes **checks the system instead of looking up** ("will my files be saved?", automatic login in
+  Portuguese): guide cycle 1.
+- **Dual boot and Secure Boot cards wait** for a real install check: the installer's screen file says "Install
+  Linux Mint alongside Windows" (it may be renamed at run time; look at the VM install screenshots), and no Secure
+  Boot text was found in Driver Manager to write steps from.
+
 ## How the gaps get filled (D84)
 
 1. **The everyday picture first, from Ian** for each concept (credited), then the card: what it is, when you'd want

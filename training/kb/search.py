@@ -207,14 +207,46 @@ KEYWORDS = {
                      "son daughter kid kids hijo hija niño filho filha criança fils fille enfant sohn tochter kind "
                      "子供 息子 娘 家族",
     "bootable_usb": "bootable usb boot usb live usb iso write iso burn iso rufus media creation tool etcher "
-                    "disk image installer stick format usb usb booteable grabar iso imagen de disco formatear usb "
-                    "pendrive bootável gravar iso imagem de disco formatar pendrive clé usb bootable graver iso "
-                    "image disque formater clé bootfähiger usb-stick iso schreiben abbild usb-stick formatieren "
-                    "起動用USB ブータブルUSB ISOを書き込む ディスクイメージ USBをフォーマット",
+                    "disk image installer stick usb booteable grabar iso imagen de disco "
+                    "pendrive bootável gravar iso imagem de disco clé usb bootable graver iso "
+                    "image disque bootfähiger usb-stick iso schreiben abbild "
+                    "起動用USB ブータブルUSB ISOを書き込む ディスクイメージ",
     "aicui": "aicui coding ide code editor programming vs code visual studio code ai coding agent develop "
              "programar entorno de desarrollo editor de código programação ambiente de desenvolvimento "
              "programmer environnement de développement éditeur de code programmieren entwicklungsumgebung "
              "code-editor プログラミング 開発環境 コードエディター",
+    "usb_format": "format usb stick formatting wipe stick fat32 exfat ntfs file system reuse stick formatear "
+                  "memoria usb sistema de archivos formatar pendrive sistema de arquivos formater clé usb système "
+                  "de fichiers usb-stick formatieren dateisystem USBメモリをフォーマット フォーマット ファイルシステム",
+    "software_sources": "software sources repository repositories ppa mirror download server trusted source where "
+                        "to download safely fuentes de software repositorio servidor espejo fontes de programas "
+                        "repositório espelho sources de logiciels dépôt miroir miroirs changer de miroir paketquellen paketquellen "
+                        "quellen ändern spiegelserver "
+                        "softwarequellen ソフトウェアソース リポジトリ ミラー",
+    "panel": "taskbar panel pin program pin to taskbar move taskbar applets tray barra de tareas anclar "
+             "barra de tarefas fixar barre des tâches épingler taskleiste anheften leiste タスクバー パネル ピン留め",
+    "online_accounts": "online accounts google account calendar sync cuentas en línea "
+                       "cuenta de google contas online conta google comptes en ligne compte google internetkonten "
+                       "google-konto オンラインアカウント グーグルアカウント",
+    "notifications": "notifications focus assist do not disturb silence alerts notificaciones no molestar "
+                     "notificações não perturbe notifications ne pas déranger benachrichtigungen nicht stören "
+                     "通知 おやすみモード",
+    "auto_login": "automatic login auto login without password sign in automatically autologin inicio de sesión "
+                  "automático login automático connexion automatique automatische anmeldung ohne passwort sin contraseña "
+                  "sem senha sans mot de passe 自動ログイン パスワードなし "
+                  "パスワードなしでログイン",
+    "disk_health": "disk health hard drive health smart chkdsk failing drive ssd health salud del disco "
+                   "saúde do disco santé du disque festplatte zustand smart-werte ディスクの健康状態 SMART",
+    "specs": "specs specifications what processor how much ram memory graphics card hardware about my pc system "
+             "information especificaciones procesador memoria tarjeta gráfica especificações placa de vídeo "
+             "caractéristiques processeur mémoire carte graphique prozessor arbeitsspeicher grafikkarte grafikkarte "
+             "habe ich gpu "
+             "スペック プロセッサー メモリ メモリ容量 どのくらい グラフィックカード",
+    "battery": "battery battery life laptop battery saver lid close power percentage batería portátil bateria "
+               "notebook batterie portable akku laptop deckel バッテリー 電池",
+    "live_usb": "live usb try without installing test drive live session before installing probar sin instalar "
+                "sesión en vivo testar sem instalar sessão live essayer sans installer session live ohne "
+                "installation testen live-sitzung ライブセッション お試し",
     # --- lessons.py ------------------------------------------------------------------------------
     "copy_paste": "copy paste ctrl+c ctrl+v copiar pegar copiar colar copier coller kopieren einfügen "
                   "コピー 貼り付け",

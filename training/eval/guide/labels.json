@@ -458,6 +458,38 @@
    "fr": "Formateur de clé USB",
    "de": "USB-Stick-Formatierer",
    "ja": "USB メモリフォーマッター"
+  },
+  "online_accounts": {
+   "en": "Online Accounts",
+   "es": "Cuentas en línea",
+   "pt": "Contas Online",
+   "fr": "Comptes en ligne",
+   "de": "Internetkonten",
+   "ja": "オンラインアカウント"
+  },
+  "login_window": {
+   "en": "Login Window",
+   "es": "Ventana de inicio de sesión",
+   "pt": "Janela de Início de Sessão",
+   "fr": "Fenêtre de connexion",
+   "de": "Anmeldefenster",
+   "ja": "ログイン画面"
+  },
+  "calendar": {
+   "en": "Calendar",
+   "es": "Calendario",
+   "pt": "Calendário",
+   "fr": "Agenda",
+   "de": "Kalender",
+   "ja": "カレンダー"
+  },
+  "install_cinminai": {
+   "en": "Install Cin-MinAI",
+   "es": "Instalar Cin-MinAI",
+   "pt": "Instalar o Cin-MinAI",
+   "fr": "Installer Cin-MinAI",
+   "de": "Cin-MinAI installieren",
+   "ja": "Cin-MinAI のインストール"
   }
  },
  "ui": {
@@ -587,6 +619,180 @@
    "pt": "Alterar senha",
    "fr": "Modifier le mot de passe",
    "de": "Passwort ändern"
+  },
+  "ui_filesystem": {
+   "en": "Filesystem:",
+   "es": "Sistema de archivos:",
+   "pt": "Sistema de arquivos:",
+   "fr": "Système de fichiers :",
+   "de": "Dateisystem:",
+   "ja": "ファイルシステム:"
+  },
+  "ui_official_repositories": {
+   "en": "Official Repositories",
+   "es": "Repositorios oficiales",
+   "pt": "Repositórios Oficiais",
+   "fr": "Dépôts officiels",
+   "de": "Offizielle Paketquellen",
+   "ja": "公式リポジトリ"
+  },
+  "ui_mirror_main": {
+   "en": "Main",
+   "es": "Principal",
+   "pt": "Principal",
+   "fr": "Principal",
+   "de": "Haupt",
+   "ja": "メイン"
+  },
+  "ui_ppas": {
+   "en": "PPAs",
+   "es": "PPA",
+   "pt": "PPAs",
+   "fr": "PPA",
+   "de": "PPAs",
+   "ja": "PPA"
+  },
+  "ui_apply": {
+   "en": "Apply",
+   "es": "Aplicar",
+   "pt": "Aplicar",
+   "fr": "Appliquer",
+   "de": "Anwenden",
+   "ja": "適用"
+  },
+  "ui_sources_add": {
+   "en": "Add",
+   "es": "Añadir",
+   "pt": "Adicionar",
+   "fr": "Ajouter",
+   "de": "Hinzufügen",
+   "ja": "追加"
+  },
+  "ui_panel_move": {
+   "en": "Move",
+   "es": "Mover",
+   "pt": "Mover",
+   "fr": "Déplacer",
+   "de": "Verschieben",
+   "ja": "移動"
+  },
+  "ui_panel_settings": {
+   "en": "Panel settings",
+   "es": "Configuración del panel",
+   "pt": "Configurações do painel",
+   "fr": "Paramètres des panneaux",
+   "de": "Leisteneinstellungen",
+   "ja": "パネルの設定"
+  },
+  "ui_applets": {
+   "en": "Applets",
+   "es": "Miniaplicaciones",
+   "pt": "Applets",
+   "fr": "Applets",
+   "de": "Applets",
+   "ja": "アプレット"
+  },
+  "ui_add_to_panel": {
+   "en": "Add to panel",
+   "es": "Añadir al panel",
+   "pt": "Adicionar ao painel",
+   "fr": "Ajouter au panneau",
+   "de": "Zur Leiste hinzufügen",
+   "ja": "パネルに追加"
+  },
+  "ui_manage": {
+   "en": "Manage",
+   "es": "Gestionar",
+   "pt": "Gerenciamento",
+   "fr": "Gérer",
+   "de": "Verwalten",
+   "ja": "管理"
+  },
+  "ui_download": {
+   "en": "Download",
+   "es": "Descargar",
+   "pt": "Download",
+   "fr": "Télécharger",
+   "de": "Herunterladen",
+   "ja": "ダウンロード"
+  },
+  "ui_enable_notifications": {
+   "en": "Enable notifications",
+   "es": "Activar las notificaciones",
+   "pt": "Habilitar notificações",
+   "fr": "Activer les notifications",
+   "de": "Benachrichtigungen aktivieren",
+   "ja": "通知を有効化"
+  },
+  "ui_notification_duration": {
+   "en": "Notification duration",
+   "es": "Duración de la notificación",
+   "pt": "Duração da notificação",
+   "fr": "Durée de notification",
+   "de": "Benachrichtigungsdauer",
+   "ja": "通知の持続時間"
+  },
+  "ui_users_tab": {
+   "en": "Users",
+   "es": "Usuarios",
+   "pt": "Usuários",
+   "fr": "Utilisateurs",
+   "de": "Benutzer",
+   "ja": "ユーザー"
+  },
+  "ui_automatic_login": {
+   "en": "Automatic login",
+   "es": "Inicio de sesión automático",
+   "pt": "Início de sessão automático",
+   "fr": "Connexion automatique",
+   "de": "Automatische Anmeldung",
+   "ja": "自動ログイン"
+  },
+  "ui_lightdm_username": {
+   "en": "Username",
+   "es": "Nombre del usuario",
+   "pt": "Nome de usuário",
+   "fr": "Nom d’utilisateur",
+   "de": "Benutzername",
+   "ja": "ユーザー名"
+  },
+  "ui_smart": {
+   "en": "SMART Data & Self-Tests",
+   "es": "Datos y pruebas SMART",
+   "pt": "Dados do SMART & autotestes",
+   "fr": "Données SMART et auto-tests",
+   "de": "SMART-Werte und Selbsttests"
+  },
+  "ui_overall_assessment": {
+   "en": "Overall Assessment",
+   "es": "Estimación general",
+   "pt": "Avaliação geral",
+   "fr": "Estimation globale",
+   "de": "Allgemeine Einschätzung"
+  },
+  "ui_system_information": {
+   "en": "System Information",
+   "es": "Información del sistema",
+   "pt": "Informações do Sistema",
+   "fr": "Renseignements sur le système",
+   "de": "Systeminformationen",
+   "ja": "システム情報"
+  },
+  "ui_copy": {
+   "en": "Copy",
+   "es": "Copiar",
+   "pt": "Copiar",
+   "fr": "Copier",
+   "de": "Kopieren",
+   "ja": "コピー"
+  },
+  "ui_lid_closed": {
+   "en": "When the lid is closed",
+   "es": "Al cerrar la tapa",
+   "pt": "Quando a tampa estiver fechada",
+   "fr": "Si le couvercle est fermé",
+   "de": "Wenn der Deckel geschlossen ist",
+   "ja": "ふたを閉じたとき"
   }
  }
 }

@@ -96,6 +96,38 @@ class HelpCards(unittest.TestCase):
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
                 self.assertEqual(self.index.lookup(q, lang)[0], card, q)
 
+    def test_d84_batch_2_found_in_six_languages(self):
+        asked = {
+            "usb_format": ["how do I format a USB stick", "cómo formatear una memoria USB", "como formatar um pendrive",
+                           "comment formater une clé USB", "wie formatiere ich einen USB-Stick",
+                           "USBメモリをフォーマットする方法"],
+            "software_sources": ["is it safe to add a PPA", "qué es un repositorio de software", "o que é um repositório",
+                                 "comment changer de miroir de téléchargement", "Paketquellen ändern",
+                                 "ソフトウェアのリポジトリとは"],
+            "panel": ["how do I pin a program to the taskbar", "cómo anclar un programa a la barra de tareas",
+                      "como fixar um programa na barra de tarefas", "épingler un programme à la barre des tâches",
+                      "Programm an die Taskleiste anheften", "タスクバーにプログラムをピン留めする"],
+            "online_accounts": ["add my Google account to the calendar", "añadir mi cuenta de Google",
+                                "adicionar minha conta Google", "ajouter mon compte Google", "Google-Konto hinzufügen",
+                                "グーグルアカウントを追加する"],
+            "notifications": ["turn off notifications", "desactivar las notificaciones", "desativar as notificações",
+                              "désactiver les notifications", "Benachrichtigungen ausschalten", "通知をオフにする"],
+            "auto_login": ["log in automatically without a password", "inicio de sesión automático",
+                           "login automático sem senha", "connexion automatique sans mot de passe",
+                           "automatische Anmeldung einschalten", "自動ログインを設定する"],
+            "disk_health": ["is my hard drive dying", "salud del disco duro", "saúde do disco rígido",
+                            "santé du disque dur", "Festplatte Zustand prüfen", "ディスクの健康状態を確認する"],
+            "specs": ["how much RAM do I have", "qué procesador tengo", "quanta memória RAM eu tenho",
+                      "quelle carte graphique j'ai", "welche Grafikkarte habe ich", "メモリはどのくらいありますか"],
+            "battery": ["my laptop battery drains fast", "la batería del portátil", "a bateria do notebook",
+                        "la batterie de mon portable", "Akku vom Laptop", "ノートパソコンのバッテリー"],
+            "live_usb": ["can I try it without installing", "probar sin instalar", "testar sem instalar",
+                         "essayer sans installer", "ohne Installation testen", "インストールせずにお試しできますか"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

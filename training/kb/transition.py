@@ -364,4 +364,82 @@ TOPICS = [
              "open the Menu, then Programming, then AICUI (or click Open AICUI in the assistant's sidebar), choose "
              "your project folder, type what you want in the box at the bottom and click Send to the AI.",
      "must": [], "steps": True, "langs": ["en"]},
+
+    # --- D84 batch 2 (2026-10-06): pictures for usb_format and software_sources are Ian's; the others are drafted by
+    # Claude for Ian to review. Steps checked against the release ISO's and the test SSD's own program files ----------
+    {"id": "usb_format", "windows": "formatting a USB stick (right-click > Format in File Explorer)",
+     "card": "Formatting a USB stick: a stick keeps your files in buckets, and a map (the file system) indexes "
+             "which bucket holds what, so the computer can grab the one you want when you need it. Formatting "
+             "throws everything away and builds new, empty buckets and a fresh map. Do it to use a stick for "
+             "files again after it held a system image, or when it acts up. FAT32 works with nearly everything "
+             "(TVs, car stereos, Windows, Mac); exFAT also takes files bigger than 4 GB; NTFS is Windows' own; "
+             "EXT4 is for Linux only. To format: first save any files you want from the stick to your computer, "
+             "because formatting erases them; open {usb_formatter}, choose the stick, type a name for it, pick the "
+             "{ui_filesystem} type, click {ui_format} (this erases the stick) and type your password.",
+     "must": ["usb_formatter"], "steps": True},
+    {"id": "software_sources", "windows": "where to download programs safely, or adding a software source",
+     "card": "Software sources: a software source is anyone who provides software: a website, a torrent, a "
+             "manufacturer, a person. Known and trusted sources are always best. Linux Mint's own sources, the ones "
+             "{software_manager} and {update_manager} use, are checked and signed. Adding another source (a PPA or "
+             "a repository) means trusting whoever runs it with your whole computer, so add one only when the "
+             "program's own makers tell you to. When you can't find a trusted source, being your own source beats "
+             "an unknown one: build the small tool yourself (AICUI can help). Sources are kept in "
+             "{software_sources} (not in {software_manager}). To add a PPA the makers gave you: open "
+             "{software_sources} and type your password, open {ui_ppas}, click {ui_sources_add} and paste its "
+             "address. To pick a faster download server: in {software_sources}, on {ui_official_repositories}, "
+             "click the server next to {ui_mirror_main}, choose the fastest one and click {ui_apply}.",
+     "must": ["software_sources"], "steps": True},
+    {"id": "panel", "windows": "the taskbar: moving it, pinning programs, adding things to it",
+     "card": "Panel: the panel is the strip along the bottom of the screen, like the Windows taskbar: the Menu "
+             "button, your open windows, and small tools (applets) such as the clock, sound and network. To pin a "
+             "program: open the Menu, right-click the program and choose {ui_add_to_panel}. To move the panel to "
+             "another edge: right-click an empty spot on it and choose {ui_panel_move}. For its size and hiding: "
+             "right-click it and choose {ui_panel_settings}. To add a tool: right-click it, choose {ui_applets}, "
+             "pick one on {ui_manage} and click {ui_add}; more are under {ui_download}.",
+     "must": [], "steps": True},
+    {"id": "online_accounts", "windows": "signing in with a Microsoft or Google account in Windows settings",
+     "card": "Online accounts: think of a key you hand over once at the front desk: you sign in to your Google or "
+             "Microsoft account one time, and the programs that know about it, like {calendar}, use it without "
+             "asking again. It gives those programs access to that account; you can remove it there any time. To "
+             "add one: open {online_accounts}, choose your provider (for example Google or Microsoft) and sign in "
+             "in the window that opens. Your password goes to Google or Microsoft, not to the assistant. Then open "
+             "{calendar} to see your events.",
+     "must": ["online_accounts"], "steps": True},
+    {"id": "notifications", "windows": "Focus Assist or turning off notifications in Windows",
+     "card": "Notifications: the small messages in the corner of the screen are like a doorbell; you can turn the "
+             "bell down or off. Open {system_settings}, then {notifications}: switch off {ui_enable_notifications} "
+             "to silence them all, or make them go away sooner with {ui_notification_duration}.",
+     "must": ["notifications"], "steps": True},
+    {"id": "auto_login", "windows": "signing in automatically without a password",
+     "card": "Automatic login: it's like leaving the front door unlocked. Handy when you live alone and the "
+             "computer stays home, but anyone who turns it on is in, and the keyring will ask for its password "
+             "after each start (nothing typed at login unlocks it). Not for a laptop that leaves the house. To "
+             "switch it on or off: open {login_window} and type your password, open the {ui_users_tab} tab, and "
+             "under {ui_automatic_login} choose your name in {ui_lightdm_username}, or clear it to switch automatic "
+             "login off.",
+     "must": ["login_window"], "steps": True},
+    {"id": "disk_health", "windows": "a hard drive's health status, CHKDSK or the drive's SMART status",
+     "card": "Disk health: drives report their own health, like warning lights on a car's dashboard. To read them: "
+             "open {disks}, click the drive in the left column, click the ⋮ button at the top right and choose "
+             "{ui_smart}. {ui_overall_assessment} says whether the drive is OK. If it reports problems, back up "
+             "your files now. Careful: {disks} can also erase drives; for USB sticks use {usb_formatter} instead.",
+     "must": ["disks"], "steps": True},
+    {"id": "specs", "windows": "System Information or 'About your PC': what processor, memory and graphics card I have",
+     "card": "What's in your computer: like the sticker inside a car door that lists what it was built with, "
+             "{system_info} lists the parts. Open {system_info}; {ui_system_information} shows the processor, "
+             "memory and graphics card. Click {ui_copy} to paste the list into a forum post or a message. You can "
+             "also just ask the assistant, which can check this computer for you.",
+     "must": ["system_info"], "steps": True},
+    {"id": "battery", "windows": "battery settings and battery saver on a laptop",
+     "card": "Battery: the battery icon in the panel is your fuel gauge: point at it or click it to see how full it "
+             "is and how long it will last. To choose what happens when you close the lid, how soon the screen "
+             "dims and when the computer sleeps on battery: open {system_settings}, then {power}, and set "
+             "{ui_lid_closed} and the other times there.",
+     "must": ["power"], "steps": True},
+    {"id": "live_usb", "windows": "trying Linux from a USB stick before installing it",
+     "card": "Trying it from the USB stick: started from the stick, the system is like a test drive. Nothing on "
+             "the computer changes, and anything you make or download is gone when you shut down, so keep files on "
+             "another USB stick. It's slower than after installing. When you're ready to keep it: back up your "
+             "files first, then double-click {install_cinminai} on the desktop and follow the steps.",
+     "must": ["install_cinminai"], "steps": True},
 ]

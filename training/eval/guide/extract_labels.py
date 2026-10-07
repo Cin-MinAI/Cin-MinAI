@@ -47,6 +47,8 @@ LABELS = {  # our key -> .desktop file
     "character_map": "gucharmap", "document_scanner": "simple-scan", "calculator": "org.gnome.Calculator",
     "music_player": "org.gnome.Rhythmbox3",
     "passwords_keys": "org.gnome.seahorse.Application", "usb_writer": "mintstick", "usb_formatter": "mintstick-format",
+    "online_accounts": "gnome-online-accounts-gtk", "login_window": "lightdm-settings", "calendar": "org.gnome.Calendar",
+    "install_cinminai": "ubiquity",
 }
 UI = {  # names inside programs (menus, buttons) the cards use as {ui_…}: (gettext domain, msgid exactly as in source)
     "ui_view": ("nemo", "_View"), "ui_show_hidden_files": ("nemo", "Show _Hidden Files"),
@@ -58,6 +60,21 @@ UI = {  # names inside programs (menus, buttons) the cards use as {ui_…}: (get
     "ui_full_name": ("cinnamon", "Full Name"), "ui_username": ("cinnamon", "Username"),
     "ui_no_password_set": ("cinnamon", "No password set"), "ui_password": ("cinnamon", "Password"),
     "ui_change_password": ("seahorse", "Change _Password"),
+    # D84 batch 2
+    "ui_filesystem": ("mintstick", "Filesystem:"),
+    "ui_official_repositories": ("mintsources", "Official Repositories"), "ui_mirror_main": ("mintsources", "Main"),
+    "ui_ppas": ("mintsources", "PPAs"), "ui_apply": ("mintsources", "Apply"), "ui_sources_add": ("mintsources", "Add"),
+    "ui_panel_move": ("cinnamon", "Move"), "ui_panel_settings": ("cinnamon", "Panel settings"),
+    "ui_applets": ("cinnamon", "Applets"), "ui_add_to_panel": ("cinnamon", "Add to panel"),
+    "ui_manage": ("cinnamon", "Manage"), "ui_download": ("cinnamon", "Download"),
+    "ui_enable_notifications": ("cinnamon", "Enable notifications"),
+    "ui_notification_duration": ("cinnamon", "Notification duration"),
+    "ui_users_tab": ("lightdm-settings", "Users"), "ui_automatic_login": ("lightdm-settings", "Automatic login"),
+    "ui_lightdm_username": ("lightdm-settings", "Username"),
+    "ui_smart": ("gnome-disk-utility", "SMART Data & Self-Tests"),
+    "ui_overall_assessment": ("gnome-disk-utility", "Overall Assessment"),
+    "ui_system_information": ("mintreport", "System Information"), "ui_copy": ("mintreport", "Copy"),
+    "ui_lid_closed": ("cinnamon", "When the lid is closed"),
 }
 LOCALE_DIRS = ("usr/share/locale", "usr/share/locale-langpack", "usr/share/linuxmint/locale")
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
