@@ -19,9 +19,10 @@ model's story: `docs/guide-model-journal.md`.
 - **Eval on the dev PC's 4070:** the v0.5.0 build in `~/cinminai-build/m1/llama/7fe450e…` with the CUDA runtime
   linked from `~/cinminai-build/buildroot-noble/usr/lib/x86_64-linux-gnu` (libcudart/libcublas/libcublasLt.so.12) via
   LD_LIBRARY_PATH; ~1.5 s per item.
-- **Next:** batch 2 of the cards (ask Ian for the pictures first: USB stick formatter, Software Sources, Panel,
-  Online Accounts, Notifications, Login Window, Disks, specs, battery, live USB / dual boot / Secure Boot), then
-  M4 slice 4.
+- **Batch 2 done** (10 cards; Ian's pictures for the formatter, Software Sources and specs, the rest drafted by
+  Claude and reviewed by Ian): all 19 D84 tasks 69/77 on the base guide with v2.3. **Next:** dual boot and Secure
+  Boot cards after an install check (the installer's screen file says "Install Linux Mint alongside Windows": look
+  at the VM install screenshots); the chat's repetition guard (a Japanese reply looped once); then M4 slice 4.
 
 ## Where we stopped (2026-10-06, evening) — M4 slice 3: the admin service, live-tested
 

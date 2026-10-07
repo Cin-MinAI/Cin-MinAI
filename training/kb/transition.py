@@ -365,8 +365,9 @@ TOPICS = [
              "your project folder, type what you want in the box at the bottom and click Send to the AI.",
      "must": [], "steps": True, "langs": ["en"]},
 
-    # --- D84 batch 2 (2026-10-06): pictures for usb_format and software_sources are Ian's; the others are drafted by
-    # Claude for Ian to review. Steps checked against the release ISO's and the test SSD's own program files ----------
+    # --- D84 batch 2 (2026-10-06): pictures for usb_format, software_sources and specs ("what's under the hood", the
+    # window sticker) are Ian's; the others were drafted by Claude and reviewed by Ian. Steps checked against the
+    # release ISO's and the test SSD's own program files ----------------------------------------------------------------
     {"id": "usb_format", "windows": "formatting a USB stick (right-click > Format in File Explorer)",
      "card": "Formatting a USB stick: a stick keeps your files in buckets, and a map (the file system) indexes "
              "which bucket holds what, so the computer can grab the one you want when you need it. Formatting "
@@ -425,10 +426,12 @@ TOPICS = [
              "your files now. Careful: {disks} can also erase drives; for USB sticks use {usb_formatter} instead.",
      "must": ["disks"], "steps": True},
     {"id": "specs", "windows": "System Information or 'About your PC': what processor, memory and graphics card I have",
-     "card": "What's in your computer: like the sticker inside a car door that lists what it was built with, "
-             "{system_info} lists the parts. Open {system_info}; {ui_system_information} shows the processor, "
-             "memory and graphics card. Click {ui_copy} to paste the list into a forum post or a message. You can "
-             "also just ask the assistant, which can check this computer for you.",
+     "card": "What's under the hood: {system_info} is like the window sticker on a new car. A spec list only "
+             "names the hardware; this shows the parts and the system together: the operating system, the Linux "
+             "kernel and the desktop, then the processor, memory and graphics card. Open {system_info}; "
+             "{ui_system_information} shows it all. Click {ui_copy} to paste it into a forum post or a message "
+             "when someone asks what you're running. You can also just ask the assistant, which can check this "
+             "computer for you.",
      "must": ["system_info"], "steps": True},
     {"id": "battery", "windows": "battery settings and battery saver on a laptop",
      "card": "Battery: the battery icon in the panel is your fuel gauge: point at it or click it to see how full it "

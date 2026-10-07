@@ -154,7 +154,9 @@ after reading the reply (German "Achten Sie darauf, … nicht zu löschen"). Nex
 
 Cards `usb_format`, `software_sources` (pictures by Ian: the stick's buckets and their map; "be your own software
 source" over an unknown one), and `panel`, `online_accounts`, `notifications`, `auto_login`, `disk_health`,
-`specs`, `battery`, `live_usb` (pictures **drafted by Claude for Ian to review**). Ian's formatter picture first
+`specs`, `battery`, `live_usb` (pictures drafted by Claude and **reviewed by Ian**: he kept them, and rewrote
+`specs` as "what's under the hood": System Information is the window sticker, showing the operating system and the
+kernel with the parts, where a spec list only names the hardware). Ian's formatter picture first
 described writing an image; its buckets-and-map idea fits formatting (building a fresh file system), so it went
 there, and the image-writing card already has his image/map picture. New labels: Online Accounts, Login Window,
 Calendar, Install Cin-MinAI; 22 more names inside programs from the ISO's catalogues (mintstick, mintsources,
