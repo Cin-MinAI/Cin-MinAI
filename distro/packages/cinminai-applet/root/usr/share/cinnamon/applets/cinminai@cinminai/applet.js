@@ -48,7 +48,12 @@ class CinMinAIApplet extends Applet.IconApplet {
             if (this.proxy && this.proxy.g_name_owner) this.proxy.ResetRemote(() => {});
         });
         ctx.addMenuItem(reset, 3);
-        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 4);
+        // D88: the person's standing tasks, where they look for them (Ian, 2026-10-07: "If I can't find it they
+        // might not either")
+        const standing = new PopupMenu.PopupMenuItem("Standing tasks");
+        standing.connect("activate", () => Util.spawn([SIDEBAR, "--standing"]));
+        ctx.addMenuItem(standing, 4);
+        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 5);
 
         this.proxy = null;
         new AssistantProxy(Gio.DBus.session, BUS_NAME, OBJ_PATH, (proxy, error) => {

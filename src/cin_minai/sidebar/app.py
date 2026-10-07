@@ -228,10 +228,11 @@ class Sidebar(Gtk.Application):
         # A FlowBox, so the buttons wrap: in a plain row their total width became the chat's minimum width, and on
         # a 1024-pixel screen the whole conversation was cut off at the sidebar's edge (boot test, 2026-10-03).
         row = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False, column_spacing=6,
-                          row_spacing=6, min_children_per_line=1, max_children_per_line=3)
+                          row_spacing=6, min_children_per_line=1, max_children_per_line=2)
         for label, cb in (("Start a writing project", lambda b: self.new_project()),
                           ("Open the journal", lambda b: self.open_journal()),
-                          ("Open AICUI (coding)", lambda b: self.open_aicui())):
+                          ("Open AICUI (coding)", lambda b: self.open_aicui()),
+                          ("Standing tasks", lambda b: self.standing_list())):  # D88: found where people look
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
             row.add(b)
@@ -1581,7 +1582,7 @@ class Sidebar(Gtk.Application):
             self.ask(" ".join(args[1:]))
             return 0
         action = {"--toggle": self.toggle, "--flip": self.flip, "--show": self.show, "--hide": self.hide,
-                  "--quit": self.quit}.get(args[0])
+                  "--quit": self.quit, "--standing": lambda: (self.show(), self.standing_list())}.get(args[0])
         if action is None:
             cmdline.printerr(f"unknown option {args[0]}\n")
             return 2
