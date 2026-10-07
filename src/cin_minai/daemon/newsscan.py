@@ -89,6 +89,8 @@ def balance(items: list[dict], per_outlet: int = PER_OUTLET, limit: int = PRESS_
 
 PROVIDERS = "Google News and Bing News"
 PROVIDERS_WITH_OFFICIAL = "Google News, Bing News, Reddit, Mastodon and DuckDuckGo"
+ONLY_HEAD = {"en": "Only {only}, as you asked.", "es": "Solo {only}, como pediste.", "pt": "Só {only}, como você pediu.",
+             "fr": "Seulement {only}, comme demandé.", "de": "Nur {only}, wie gewünscht.", "ja": "ご指定どおり {only} のみです。"}
 
 
 def press(topic: str, lang: str = "en") -> list[dict]:
@@ -168,16 +170,39 @@ def mastodon(topic: str, lang: str = "en") -> list[dict]:
     return out
 
 
-def social(topic: str, lang: str = "en") -> tuple[list[dict], list[str]]:
-    """(posts, networks that couldn't be reached). Two per community or poster at most, half the places per network
-    so one network can't fill the section, then newest first."""
+TOPIC_STOP = {"the", "and", "news", "about", "with", "from", "for", "a", "an", "of", "on", "in", "to", "is",
+              "de", "la", "le", "el", "der", "die", "das"}
+
+
+def _stem(word: str) -> str:
+    return word if len(word) < 5 else word[:max(4, len(word) - 2)]  # models -> mode, patents -> pate
+
+
+def relevant(text: str, topic: str) -> bool:
+    """At least half of the topic's words are in the post: Reddit's "top of the week" search matches loosely (round 5,
+    "local AI models": a frog cake, a nightmare, a dinner date). Short words count as whole words ("AI" isn't "said");
+    longer ones by their stem anywhere ("Ice Cube" finds "#IceCube"); words in scripts without spaces as they are."""
+    words = [w for w in re.findall(r"\w+", topic.lower()) if w not in TOPIC_STOP]
+    if not words:
+        return True
+    low = text.lower()
+    found = sum(1 for w in words if (re.search(rf"(?<![^\W_]){re.escape(w)}(?![^\W_])", low) if len(w) < 4 and w.isascii()
+                                    else _stem(w) in low))
+    return found * 2 >= len(words)
+
+
+def social(topic: str, lang: str = "en", only: str = "") -> tuple[list[dict], list[str]]:
+    """(posts, networks that couldn't be reached). Only posts about the topic; two per community or poster at most,
+    half the places per network so one network can't fill the section, then newest first. only: "Reddit" or
+    "Mastodon" when the person asked for that one."""
     if not topic:
         return [], []
-    feeds = (("Reddit", reddit), ("Mastodon", mastodon))
+    feeds = tuple((n, f) for n, f in (("Reddit", reddit), ("Mastodon", mastodon)) if not only or n == only)
     items, failed = [], []
     for name, feed in feeds:
         try:
-            items += balance(feed(topic, lang), SOCIAL_PER_PLACE, SOCIAL_ITEMS // len(feeds))
+            posts = [p for p in feed(topic, lang) if relevant(p["title"] + " " + p["outlet"], topic)]
+            items += balance(posts, SOCIAL_PER_PLACE, SOCIAL_ITEMS // len(feeds))
         except (websearch.SearchError, ET.ParseError, ValueError) as e:
             failed.append(f"{name} ({e})")
     return balance(items, SOCIAL_PER_PLACE, SOCIAL_ITEMS), failed
@@ -320,12 +345,17 @@ NEEDS_KEY = {"en": "(Not searched: {names} — it needs a free key; the card bel
 
 def report(topic: str, items: list[dict], lang: str = "en", official_items: list[dict] | None = None,
            official_trouble: str = "", social_items: list[dict] | None = None,
-           social_failed: list[str] | None = None, needs_key: list[str] | None = None) -> str:
-    """Every line attributed and quoted, by kind of source; the frame is code, never the model's."""
+           social_failed: list[str] | None = None, needs_key: list[str] | None = None, only: str = "") -> str:
+    """Every line attributed and quoted, by kind of source; the frame is code, never the model's. only: one network
+    the person asked for — then no press or official sections, and no "not covered" line."""
     head, press_word, none, says = HEAD.get(lang, HEAD["en"])
-    lines = [head.format(topic=f"“{topic}”" if topic else "today's news"), "", f"{press_word}:"]
-    if not items:
-        lines.append(none)
+    lines = [head.format(topic=f"“{topic}”" if topic else "today's news")]
+    if only:
+        lines.append(ONLY_HEAD.get(lang, ONLY_HEAD["en"]).format(only=only))
+    else:
+        lines += ["", f"{press_word}:"]
+        if not items:
+            lines.append(none)
     for it in items:
         lines.append(f"- {it['outlet']} ({say_date(it['date'], lang)}): “{it['title']}”")
     if social_items is not None:
@@ -337,7 +367,8 @@ def report(topic: str, items: list[dict], lang: str = "en", official_items: list
             lines.append(f"- {it['who']} ({say_date(it['date'], lang)}): “{it['title']}”")
         if social_failed:
             lines.append(f"({unreachable}: {', '.join(social_failed)}.)")
-        lines.append(not_covered)
+        if not only:
+            lines.append(not_covered)
     if official_items is not None:
         heading, nothing, kinds = OFFICIAL.get(lang, OFFICIAL["en"])
         lines += ["", f"{heading}:"]

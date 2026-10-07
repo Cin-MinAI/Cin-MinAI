@@ -47,8 +47,9 @@ class Store:
             json.dump({"version": 1, "tasks": self.tasks}, f, ensure_ascii=False, indent=1)
         os.replace(tmp, self.file)
 
-    def add(self, topic: str, at: str, lang: str, now: dt.datetime) -> dict:
-        task = {"id": uuid.uuid4().hex[:10], "kind": "news", "topic": topic, "every": "day", "at": at, "lang": lang,
+    def add(self, topic: str, at: str, lang: str, now: dt.datetime, only: str = "") -> dict:
+        task = {"id": uuid.uuid4().hex[:10], "kind": "news", "topic": topic, "only": only, "every": "day", "at": at,
+                "lang": lang,
                 "created": now.isoformat(timespec="minutes"), "paused": False, "last_run": "", "last_new": 0,
                 "last_report": "", "seen": [], "runs": []}
         with self.lock:

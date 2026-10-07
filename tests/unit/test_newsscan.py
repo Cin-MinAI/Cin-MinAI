@@ -104,13 +104,32 @@ class Social(unittest.TestCase):
         self.assertEqual((items, failed), ([], ["Reddit (couldn't reach)"]))
         self.assertEqual(newsscan.social(""), ([], []))  # top stories: press only
 
+    def test_only_posts_about_the_topic(self):
+        # what Reddit's "top of the week" gave for "local AI models" on the test SSD (round 5)
+        self.assertTrue(newsscan.relevant("PewDiePie getting banned twice by OpenAI while making a local model r/LocalLLaMA",
+                                          "local AI models"))
+        for title in ("Dreamy frog cake r/ExpectationVsReality", "A visualization of a nightmare I had today. r/megalophobia",
+                      "She said she was ready for anything r/BoyDinnerDiaries", "What did the AI said r/x"):
+            self.assertFalse(newsscan.relevant(title, "local AI models"), title)
+        self.assertTrue(newsscan.relevant("Objectively the best IceCube r/physicsmemes", "Ice Cube"))
+        self.assertTrue(newsscan.relevant("トヨタの新型車", "トヨタ"))
+        self.assertTrue(newsscan.relevant("anything", ""))
+
+    def test_off_topic_posts_are_left_out_and_one_network_when_asked(self):
+        posts = [dict(item("r/LocalLLaMA", "a local model on a phone", 6), who="u/a on r/LocalLLaMA"),
+                 dict(item("r/Cooking", "Dreamy frog cake", 7), who="u/b on r/Cooking")]
+        with mock.patch.object(newsscan, "reddit", return_value=posts),              mock.patch.object(newsscan, "mastodon") as masto:
+            items, _ = newsscan.social("local AI models", only="Reddit")
+        masto.assert_not_called()
+        self.assertEqual([i["title"] for i in items], ["a local model on a phone"])
+
     def test_one_network_cannot_fill_the_section(self):
-        many = [dict(item(f"m{d}", f"post {d}", d), who=f"m{d}") for d in range(1, 9)]
-        few = [dict(item("r/a", "reddit post", 1), who="r/a")]
+        many = [dict(item(f"m{d}", f"x post {d}", d), who=f"m{d}") for d in range(1, 9)]
+        few = [dict(item("r/a", "x reddit post", 1), who="r/a")]
         with mock.patch.object(newsscan, "reddit", return_value=few), mock.patch.object(newsscan, "mastodon", return_value=many):
             items, _ = newsscan.social("x")
         self.assertEqual(len(items), 5)
-        self.assertIn("reddit post", [i["title"] for i in items])
+        self.assertIn("x reddit post", [i["title"] for i in items])
 
     def test_report_social_section_says_claims_and_what_is_not_covered(self):
         post = dict(item("r/linux4noobs", "only debian", 7), who="u/k on r/linux4noobs")

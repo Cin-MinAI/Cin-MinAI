@@ -156,6 +156,14 @@ class WatchRequest(unittest.TestCase):
         for text, (topic, at) in cases.items():
             self.assertEqual(intent.watch_request(text), {"topic": topic, "at": at}, text)
 
+    def test_from_reddit_is_the_source_not_the_topic(self):
+        # round 5 on the test SSD: "local AI from reddit" was searched as the topic, everywhere
+        self.assertEqual(intent.watch_request("Keep me up to date on local AI from reddit"),
+                         {"topic": "local AI", "at": "08:00", "only": "Reddit"})
+        self.assertEqual(intent.watch_request("Me mantenha informado sobre IA local no Reddit"),
+                         {"topic": "IA local", "at": "08:00", "only": "Reddit"})
+        self.assertIsNone(intent.watch_request("Keep me up to date on reddit"))
+
     def test_not_watches(self):
         for text in ("let me know how to install Steam", "Keep my computer updated", "What's the news about Linux Mint?",
                      "How do I keep my news feed updated?", "keep me up to date"):
@@ -182,7 +190,7 @@ class WatchRuns(unittest.TestCase):
         self.store.ran(t["id"], NOW, [{"url": "https://a/"}], "", "")
         self.s.news_scan = mock.Mock(return_value=self.scan("https://a/", "https://b/"))
         out = service.Service.run_watch(self.s, self.store.get(t["id"]))
-        self.s.news_scan.assert_called_once_with("Linux Mint", "en", person=False)
+        self.s.news_scan.assert_called_once_with("Linux Mint", "en", person=False, only="")
         self.assertEqual(out["new"], 1)
         self.assertIn("“T https://b/”", out["report"])
         self.assertNotIn("T https://a/", out["report"])
@@ -199,6 +207,17 @@ class WatchRuns(unittest.TestCase):
         self.assertTrue(text[0].startswith("Set up: every day at 08:00 I'll show you only what's new."))
         self.assertEqual(out["shown"], 1)
         self.assertEqual(self.store.tasks[0]["seen"], ["https://a/"])
+
+    def test_a_watch_on_one_network_asks_only_that_network(self):
+        self.s.news_scan = mock.Mock(return_value={**self.scan(), "posts": [], "only": "Reddit"})
+        self.s.key_cards = lambda needed, on_action: None
+        text = []
+        service.Service.start_watch(self.s, {"at": "08:00", "only": "Reddit"}, "local AI", text.append, lambda *a: None)
+        self.s.news_scan.assert_called_once_with("local AI", "en", self.s.cancel, only="Reddit")
+        task = self.store.tasks[0]
+        self.assertEqual((task["only"], task["runs"][-1]["sent_to"]), ("Reddit", "Reddit"))
+        self.assertIn("Only Reddit, as you asked.", text[0])
+        self.assertNotIn("Press:", text[0])
 
     def test_a_key_pasted_into_the_chat_never_reaches_the_model(self):
         replies = []

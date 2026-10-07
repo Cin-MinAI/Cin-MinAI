@@ -874,9 +874,10 @@ class Service:
         online = self.guide.tools.online()
         on_action("web_search", {"query": query or "top stories"}, "proposal", json.dumps(
             {"id": sid, "query": query or "top stories", "online": online,
-             "provider": newsscan.PROVIDERS_WITH_OFFICIAL if query else newsscan.PROVIDERS},
+             "provider": news.get("only") or (newsscan.PROVIDERS_WITH_OFFICIAL if query else newsscan.PROVIDERS)},
             ensure_ascii=False))
-        what = (f"what the press, social media and official pages say about {news['topic']}" if news["topic"]
+        what = (f"what people on {news['only']} say about {news['topic']}" if news.get("only") else
+                f"what the press, social media and official pages say about {news['topic']}" if news["topic"]
                 else "today's top stories")
         on_text(f"I'll look up {what} and show you each source's own words with its date. I don't say what "
                 "happened, only who says what. "
@@ -884,20 +885,23 @@ class Service:
                    if online else "This computer isn't online right now: connect, then click Search below."))
         return {"tool": "news", "proposal": sid}
 
-    def news_scan(self, topic: str, lang: str, cancel: threading.Event | None = None, person: bool = True) -> dict:
-        """D92's three kinds of sources for a topic (no topic: the top stories, press only). Each request is recorded
-        as information leaving the computer; a source that fails is said, the rest still shown."""
+    def news_scan(self, topic: str, lang: str, cancel: threading.Event | None = None, person: bool = True,
+                  only: str = "") -> dict:
+        """D92's three kinds of sources for a topic (no topic: the top stories, press only; only: just that network,
+        as the person asked). Each request is recorded as information leaving the computer; a source that fails is
+        said, the rest still shown."""
         from . import newsscan, websearch
         cancel = cancel or threading.Event()
         why = "" if person else "a standing task the person set up (D88)"
-        out = {"items": [], "posts": None, "failed": [], "found": None, "trouble": "", "needed": []}
-        out["items"], _ = hook.run("web_search", lambda: newsscan.press(topic, lang),
-                                   "a news search (the topic left the computer)", reversible=False, reason=why)
+        out = {"items": [], "posts": None, "failed": [], "found": None, "trouble": "", "needed": [], "only": only}
+        if not only:
+            out["items"], _ = hook.run("web_search", lambda: newsscan.press(topic, lang),
+                                       "a news search (the topic left the computer)", reversible=False, reason=why)
         if topic and not cancel.is_set():  # social: what people post, each line credited to its poster
             (out["posts"], out["failed"]), _ = hook.run(
-                "web_search", lambda: newsscan.social(topic, lang),
+                "web_search", lambda: newsscan.social(topic, lang, only),
                 "a social media search (the topic left the computer)", reversible=False, reason=why)
-        if topic and not cancel.is_set():  # official: the subject's own pages (no topic: top stories only)
+        if topic and not only and not cancel.is_set():  # official: the subject's own pages (no topic: top stories only)
             try:
                 out["found"], _ = hook.run("web_search", lambda: newsscan.official(topic, lang),
                                            "a search for official pages (the topic left the computer)",
@@ -918,12 +922,12 @@ class Service:
     def scan_report(topic: str, scan: dict, lang: str) -> str:
         from . import newsscan
         return newsscan.report(topic, scan["items"], lang, scan["found"], scan["trouble"], scan["posts"],
-                               scan["failed"], scan["needed"])
+                               scan["failed"], scan["needed"], scan.get("only", ""))
 
     @staticmethod
-    def sent_to(topic: str) -> str:
+    def sent_to(topic: str, only: str = "") -> str:
         from . import newsscan
-        return newsscan.PROVIDERS_WITH_OFFICIAL if topic else newsscan.PROVIDERS
+        return only or (newsscan.PROVIDERS_WITH_OFFICIAL if topic else newsscan.PROVIDERS)
 
     def key_cards(self, needed: list[str], on_action) -> None:
         """The key card for each source the scan skipped: how to get the key, and the box to put it in."""
@@ -938,7 +942,7 @@ class Service:
         lang = self.guide.tools.lang
         on_action("web_search", {"query": topic or "top stories"}, "running", "")
         try:
-            scan = self.news_scan(topic, lang, self.cancel)
+            scan = self.news_scan(topic, lang, self.cancel, only=offer.get("only", ""))
         except websearch.SearchError as e:
             raise BackendError(f"The news search didn't work: {e}.")
         links = self.scan_links(scan)
@@ -960,9 +964,12 @@ class Service:
         wid = uuid.uuid4().hex[:12]
         self.watch_offers = {wid: {**watch, "question": text}}  # only the newest offer stands
         on_action("watch", {"topic": watch["topic"]}, "proposal", json.dumps(
-            {"id": wid, "topic": watch["topic"], "at": watch["at"], "provider": self.sent_to(watch["topic"]),
+            {"id": wid, "topic": watch["topic"], "at": watch["at"], "only": watch.get("only", ""),
+             "provider": self.sent_to(watch["topic"], watch.get("only", "")),
              "online": self.guide.tools.online()}, ensure_ascii=False))
         what = f"the news about {watch['topic']}" if watch["topic"] else "the top stories"
+        if watch.get("only"):
+            what = f"what people on {watch['only']} say about {watch['topic']}"
         on_text(f"I can watch {what} for you: every day at {watch['at']} I'll look again and show you only what's "
                 "new, each source in its own words. The card below says exactly what would be sent and where; "
                 "nothing is set up until you click Set up. You can pause or delete it any time under Standing tasks.")
@@ -973,17 +980,19 @@ class Service:
         from . import websearch
         topic = topic.strip()[:200]
         lang = self.guide.tools.lang
-        task = self.standing.add(topic, offer["at"], lang, datetime.datetime.now())
+        only = offer.get("only", "")
+        task = self.standing.add(topic, offer["at"], lang, datetime.datetime.now(), only)
         on_action("web_search", {"query": topic or "top stories"}, "running", "")
         try:
-            scan = self.news_scan(topic, lang, self.cancel)
+            scan = self.news_scan(topic, lang, self.cancel, only=only)
         except websearch.SearchError as e:
-            self.standing.ran(task["id"], datetime.datetime.now(), [], self.sent_to(topic), "", str(e))
+            self.standing.ran(task["id"], datetime.datetime.now(), [], self.sent_to(topic, only), "", str(e))
             raise BackendError(f"The watch is set up, but the first look didn't work: {e}. It tries again at "
                                f"{task['at']}.")
         shown = scan["items"] + (scan["posts"] or []) + (scan["found"] or [])
         report = self.scan_report(topic, scan, lang)
-        self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic), report, scan["trouble"])
+        self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic, only), report,
+                          scan["trouble"])
         links = self.scan_links(scan)
         on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
             {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
@@ -1008,7 +1017,8 @@ class Service:
                 result = self.run_watch(task)
             except Exception as e:  # recorded with the task; tried again tomorrow at its time
                 log(f"standing task {task['id']}: {type(e).__name__}: {e}")
-                self.standing.ran(task["id"], datetime.datetime.now(), [], self.sent_to(task["topic"]), "", str(e))
+                self.standing.ran(task["id"], datetime.datetime.now(), [],
+                                  self.sent_to(task["topic"], task.get("only", "")), "", str(e))
                 result = None
             GLib.idle_add(self.standing_done, result)
 
@@ -1018,14 +1028,15 @@ class Service:
     def run_watch(self, task: dict) -> dict | None:
         """One scheduled run: the scan, then only what this watch hasn't shown before."""
         from . import keys
-        topic, lang = task["topic"], task.get("lang", "en")
-        scan = self.news_scan(topic, lang, person=False)
+        topic, lang, only = task["topic"], task.get("lang", "en"), task.get("only", "")
+        scan = self.news_scan(topic, lang, person=False, only=only)
         fresh = {k: self.standing.fresh(task, scan[k] or []) for k in ("items", "posts", "found")}
         shown = fresh["items"] + fresh["posts"] + fresh["found"]
         scan = {**scan, "items": fresh["items"], "posts": fresh["posts"] if scan["posts"] is not None else None,
                 "found": fresh["found"] if scan["found"] is not None else None}
         report = self.scan_report(topic, scan, lang) if shown else ""
-        self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic), report, scan["trouble"])
+        self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic, only), report,
+                          scan["trouble"])
         if not shown and not scan["needed"]:
             return None
         return {"id": task["id"], "topic": topic, "new": len(shown), "report": report,

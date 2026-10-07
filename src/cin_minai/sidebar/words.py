@@ -467,6 +467,8 @@ def standing_head(r: dict) -> str:
 
 def standing_line(t: dict) -> str:
     what = f"News about “{t['topic']}”" if t.get("topic") else "The top stories"
+    if t.get("only"):
+        what += f" on {t['only']}"
     when = f"every day at {t.get('at', '08:00')}" + (" — paused" if t.get("paused") else "")
     last = t.get("runs", [])[-1:] or [None]
     if last[0] is None:

@@ -119,6 +119,14 @@ class NewsRequest(unittest.TestCase):
         for text, topic in cases.items():
             self.assertEqual(news_request(text), {"topic": topic}, text)
 
+    def test_the_request_words_and_the_source_are_not_the_topic(self):
+        # round 5 on the test SSD: "look up local AI models" was searched with "look up" in it
+        from cin_minai.daemon.intent import news_request
+        self.assertEqual(news_request("Can you look up news about local AI models"), {"topic": "local AI models"})
+        self.assertEqual(news_request("Search for the latest news on Ice Cube"), {"topic": "Ice Cube"})
+        self.assertEqual(news_request("news about Linux Mint on Reddit"), {"topic": "Linux Mint", "only": "Reddit"})
+        self.assertEqual(news_request("Reddit news"), {"topic": "Reddit"})  # the news about Reddit
+
     def test_questions_about_news_are_not_requests(self):
         from cin_minai.daemon.intent import news_request
         for text in ("What is fake news?", "How do I turn off news notifications?", "Install a news reader",

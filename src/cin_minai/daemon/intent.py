@@ -91,7 +91,7 @@ ABOUT_NEWS = re.compile(r"\b(what (is|are)|qu[eé] (es|son|é)|qu'est-ce que|was
                         r"notificaci\w*|notifica\w*|benachrichtigung\w*|install\w*|instal\w*|apps?|program\w*|"
                         r"reader|lector|leitor|lecteur|feeds?|rss|widget|applet)\b|^\W*(how|c[oó]mo|comment|wie)\b|"
                         r"とは|アプリ", re.I)
-NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring)\s+up\b|\b(show|get|give|tell)\s+"
+NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring|look|check)\s+up\b|\b(look|search)\s+for\b|\b(find|search|check|look\s+at)\b|\b(show|get|give|tell)\s+"
                          r"me\b|\bwhat'?s\b|\bwhat is\b|\b(the|any|latest|last|recent|today'?s?|new|top|me|on|about|"
                          r"for|with|in|happening|going on|las|los|el|la|les|le|des|die|der|das|os|as|o|a|últimas?|"
                          r"últimos?|dernières?|neuesten?|aktuellen?|sobre|de|acerca de|sur|à propos de|über|zu|zum|zur|"
@@ -100,16 +100,35 @@ NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|b
                          r"の最新|について|を|見せて|教えて|最新", re.I)
 
 
+# "from Reddit", "on Mastodon": only that source (round 5: "local AI from reddit" searched everything for those words)
+ONLY = re.compile(r"\b(?:from|on|in|at|via|en|em|no|na|sur|auf|von|bei|de|do|da)\s+(?:the\s+)?(reddit|mastodon)\b|"
+                  r"\b(reddit|mastodon)\s*(?:で|から|の)|(?:で|から)?\b(reddit|mastodon)\b(?=\s*(?:news|posts?)?\s*$)",
+                  re.I)
+
+
+def only_source(text: str) -> tuple[str, str]:
+    """(the text without the source, "Reddit" | "Mastodon" | "")."""
+    m = ONLY.search(text)
+    if not m:
+        return text, ""
+    name = next(g for g in m.groups() if g)
+    return text[:m.start()] + " " + text[m.end():], name.capitalize()
+
+
 def news_request(text: str) -> dict | None:
-    """{"topic"} when the person asks for the news (about something, or in general: topic "")."""
+    """{"topic"} when the person asks for the news (about something, or in general: topic ""); with "only" when they
+    named one source ("on Reddit")."""
     if not NEWS.search(text) or ABOUT_NEWS.search(text):
         return None
+    text, only = only_source(text)
     topic = NEWS.sub(" ", text)
     for _ in range(3):
         topic = NEWS_FILLER.sub(" ", topic)
     topic = re.sub(r"\s+", " ", re.sub(r"[?!.¿¡,:;。、？！]", " ", topic)).strip()
     topic = re.sub(r"(\s+(and|y|e|et|und))+$|^(and|y|e|et|und)\s+|[のをでと]+$", "", topic).strip()
-    return {"topic": topic}
+    if only and not topic:
+        return {"topic": only}  # "Reddit news": the news about Reddit, like "Pfizer news"
+    return {"topic": topic, **({"only": only} if only else {})}
 
 
 def narrow(schema: dict, text: str) -> dict:
@@ -153,6 +172,7 @@ def watch_request(text: str) -> dict | None:
         return None
     if ABOUT_NEWS.search(text) and not strong:
         return None
+    text, only = only_source(text)
     at = "18:00" if EVENING.search(text) else "08:00"
     m = AT_TIME.search(text)
     if m:
@@ -171,4 +191,6 @@ def watch_request(text: str) -> dict | None:
     topic = re.sub(r"(\s+(and|y|e|et|und))+$|^(and|y|e|et|und)\s+", "", topic).strip()
     if not topic and not NEWS.search(text):
         return None  # "keep me up to date" on nothing named: not a watch ("every day at 6:30, the news" is: top stories)
-    return {"topic": topic, "at": at}
+    if not topic and only:
+        return None  # all of Reddit is not a watch
+    return {"topic": topic, "at": at, **({"only": only} if only else {})}

@@ -1039,8 +1039,9 @@ class Sidebar(Gtk.Application):
         """What would be watched, how often, and where the words go; nothing is set up or sent before Set up."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
-        head = Gtk.Label(label=f"Every day at {offer.get('at', '08:00')}, look for news about:", xalign=0, wrap=True,
-                         max_width_chars=30)
+        where = f" on {offer['only']}" if offer.get("only") else ""
+        head = Gtk.Label(label=f"Every day at {offer.get('at', '08:00')}, look{where} for news about:", xalign=0,
+                         wrap=True, max_width_chars=30)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
         topic = Gtk.Entry(text=offer.get("topic", ""), placeholder_text="(empty: the top stories)")
