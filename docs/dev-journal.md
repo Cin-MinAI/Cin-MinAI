@@ -1302,3 +1302,68 @@ copy onto an 85–94 % full drive crawled at single-digit MB/s).
 **Also.** The two M0 Hyper-V VMs and 42 GB of old Hugging Face models were removed from the dev PC (C: 54 → 127 GB
 free). The M4 choice architecture (D67) moved forward as research beside the project, private for now (Ian: use it if
 it works, not if it doesn't). Next: that research, then M4.
+
+## 2026-10-06 — one path for every action, an admin that asks every time, and a guide that teaches what Mint offers
+
+**Decisions in the morning.** D83 (the host assistant), **D84** (everything Mint offers, the assistant can teach — on
+the base 4B model, measured, with Ian's everyday pictures first), **D85** (permission modes: Ask by default, Auto
+only for what can be undone, irreversible and admin actions always ask, the assistant is never the admin), **D86**
+(automatic web search as its own setting, offered once; the public promise changes in the same update as the
+feature).
+
+**M4, slices 1 and 2.** One path for every action the assistant takes (`src/cin_minai/actions/`): the D85 walls
+outside any chooser, Ask/Auto, undo that proves itself (the hashes must match what was there) and refuses when a file
+was changed after the action, and an append-only, hash-chained record with no content in it. The daemon's real
+actions — documents, spreadsheets, chapters, journal entries, manuscripts — went onto it, and the sidebar draws
+Allow/No and Undo cards from the record, never from model text.
+
+**Slice 3: the admin service, by Codex.** While the lead worked on slice 2, Codex (on the Mint box) packaged
+`cinminai-admin` from the M0 spike: a root D-Bus service with eight typed actions, a fresh polkit password for every
+request, a fail-closed hash-chained audit log, and `RunArgv` narrowed to a few disk tools with their own option
+grammar — plus `tests/security/` and the first package inventory of the 0.0.1 ISO (2,018 packages, read from the
+release image's own manifest without downloading it). The review found two ways around the checks, fixed with
+tests: `install coreutils-` makes apt *remove* coreutils (apt 2.8, checked with `apt-get -s`), and disks in use (a
+mounted USB drive, a separate /home) weren't protected like the system disk. `write_file` became an allowlist —
+only the assistant's own `cinminai-*.conf` drop-ins in `/etc/modprobe.d` and `/etc/sysctl.d`, every line checked —
+because much of `/etc` is code run as root and nobody at a password dialog can tell which.
+
+**The live test, Ian at the test SSD's screen.** Every refusal came before any dialog; the same request twice asked
+twice; eleven cancelled prompts changed nothing; all eight actions ran after the password; the audit chain held over
+234 entries. Two lessons from it: the first run was in an SSH session and polkit refused everything without a
+prompt — remote sessions can't use the service even with the password, which wasn't in the plan and passed; and the
+wipe after the format was refused because Cinnamon had auto-mounted the freshly formatted test disk while the dialog
+was open — the check after the password caught it (the message now says "in use", not "boot-critical"). A systemd
+hardening flag made `/sys` read-only and would have made package scripts' `udevadm trigger || true` silently do
+nothing (installs "succeed", devices stay unset until a reboot): dropped.
+
+**Wired in.** The eight verbs are now action kinds (always asked, Auto included): Allow on the card, then the
+password; a cancelled password is a *denial*, not a failure. Wiring it found a real bug from slice 1: no package
+shipped `cin_minai/actions`, so a daemon built from main wouldn't have started. Nothing broken ever shipped; a new
+test (`test_packaging.py`) fails on any module the shipped code imports but no package carries.
+
+**D84, measured.** From the release ISO's own files: 45 menu apps (28 with a help card), 53 System Settings entries
+(28), 44 concepts behind them (17). A release checklist (`docs/release-checklist.md`) now holds everything we repeat
+per release, this measurement included.
+
+**Two batches of cards, and the pictures.** Ian's everyday pictures open the cards: a VPN service is a post office
+full of PO boxes (and can be made to say whose box is whose), a private VPN a mailbox in the middle of nowhere; the
+keyring password unlocks the keys themselves; hidden files are hidden for your convenience, and deleting them breaks
+programs; accounts are free; a disk image is a map of how to set every bit, the volume is how they're read back; a
+stick's files live in buckets with a map to find them, which formatting rebuilds; a software source is anyone who
+provides software — and being your own source beats an unknown one; System Information is the window sticker, what's
+under the hood. Sixteen cards in all, every button and menu name checked against the programs' own files.
+
+**What the 4B did with them.** It found every card (96 questions, six languages) and wrote correct steps — and then
+showed us three things no check had: for "how do I…" it dropped the comparisons and even the cautions; "what is a
+VPN?" went to web search; and in German it translated button names itself, wrongly ("Bild auswählen" for *Abbild
+auswählen*). One first wording, "copy … off the stick", came back in French as "copy … onto the stick"; another put
+PPAs in the Software Manager. Fixes: names inside programs now come from Mint's own translation catalogues
+(`labels.json` "ui", `{ui_…}` in cards), cards say what they mean without words that flip, and **prompt v2.3** —
+"what is…" about this computer goes to the help, and the reply keeps the help's comparison and cautions. Measured on
+the RTX 4070 against v2.2: public eval 144/157 vs 141, D84 30/33 vs 23 (all 19 tasks now 69/77). Two longer wordings
+made the 4B stop writing numbered steps and were dropped. Checks that were too narrow for correct replies were widened
+and said so.
+
+**Still open.** Dual boot and Secure Boot wait for a real install check (the installer's screen file says "Install
+Linux Mint alongside Windows"). One Japanese reply looped, the guide sometimes inspects the system instead of looking
+up, and the Japanese VPN reply has no steps: those are for guide cycle 1.
