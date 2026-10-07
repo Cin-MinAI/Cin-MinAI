@@ -83,6 +83,13 @@ class VideoChain(unittest.TestCase):
         self.assertEqual(text, ["SUMMARY"])
         self.assertEqual(out["videos"], 2)
 
+    def test_no_transcript_is_said_before_the_summary(self):
+        s, offer, events, text = self.fake()
+        self.run_chain(s, offer, events, text, {"id": "AbCdEfGhIjK", "storyboard": "spec"})
+        self.assertTrue(text[0].startswith("This video has no transcript"))
+        self.assertEqual(text[1], "SUMMARY")
+        self.assertTrue(json.loads(events[1][2])["videos"])  # the sidebar puts the list above the summary
+
     def test_just_open_when_no_summary_was_asked(self):
         s, offer, events, text = self.fake(summarize=False)
         self.run_chain(s, offer, events, text, {"id": "AbCdEfGhIjK", "transcript": [[0, "x"]]})

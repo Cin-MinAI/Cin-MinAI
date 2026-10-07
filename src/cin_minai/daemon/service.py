@@ -799,7 +799,8 @@ class Service:
             raise BackendError(f"The search didn't work: {e}.")
         videos = chains.youtube_videos(results)
         on_action("web_search", {"query": query}, "done", json.dumps(
-            {"query": query, "sources": [{"n": i + 1, "title": v["title"], "url": v["url"]} for i, v in enumerate(videos)]},
+            {"query": query, "videos": True,
+             "sources": [{"n": i + 1, "title": v["title"], "url": v["url"]} for i, v in enumerate(videos)]},
             ensure_ascii=False))
         if not videos:
             on_text("I couldn't find a YouTube video for that. Try other words, or open one in Firefox and ask me "
@@ -823,6 +824,11 @@ class Service:
             on_text(f"I opened “{video['title']}” in Firefox, but I couldn't read it yet. When it has loaded, say "
                     "\"summarize this video\".")
             return {"tool": "video_review", "videos": len(videos), "summarized": False}
+        if not info.get("transcript"):
+            # said before the minutes it takes; the person keeps the choice (Ian, 2026-10-07: let it play as it is)
+            on_text("This video has no transcript, so I'm summarizing it from its pictures: that takes a few minutes, "
+                    "and small details like quantities can be missed. To use another one, open it from the list and "
+                    "say “summarize this video”.\n\n")
         out = self.web_video("summarize this video", False, on_text, on_action)
         return {**out, "tool": "video_review", "videos": len(videos)}
 

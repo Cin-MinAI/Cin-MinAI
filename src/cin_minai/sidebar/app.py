@@ -1152,6 +1152,9 @@ class Sidebar(Gtk.Application):
             link.get_child().set_max_width_chars(30)
             box.pack_start(link, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
+        if found.get("videos") and self.reply is not None:
+            # a chain's list of videos (D91) is the menu to choose from: above the summary, not under it like citations
+            self.chat.reorder_child(box, self.chat.get_children().index(self.reply.get_parent().get_parent()))
         box.show_all()
 
     def start_job(self, method: str, arg, waiting: str, fmt: str = "(s)") -> None:
