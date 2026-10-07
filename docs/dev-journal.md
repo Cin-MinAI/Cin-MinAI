@@ -1367,3 +1367,62 @@ and said so.
 **Still open.** Dual boot and Secure Boot wait for a real install check (the installer's screen file says "Install
 Linux Mint alongside Windows"). One Japanese reply looped, the guide sometimes inspects the system instead of looking
 up, and the Japanese VPN reply has no steps: those are for guide cycle 1.
+
+## 2026-10-07 — it does things on its own now: a video found and summarized, the news as who-says-what, and watches
+
+**Decisions.** **D88**: one-button actions and standing tasks — the assistant is at the person's disposal, through
+the one action path; "we don't design to keep things off limits, we design to be safe". **D89**: Linux Mint's own
+automatic updates, switched on by request, with a two-day review hold, and security fixes confirmed by independent
+trusted sources before they skip the hold. **D90**: the assistant can be something to talk to, honestly — it talks
+things through, never pretends to be what it isn't, never decides for the person. **D91**: successive actions, the
+Jarvis direction toward voice — each kind of chain is a recipe in code, recognized by rules, with every step shown
+and Stop at every step. **D92**: the news scan — press, social media, official pages — that says who says what,
+never what happened, and never makes up a story.
+
+**Testing changed shape.** No runner today: Ian sat at the test SSD and asked real questions himself, single and
+multi-step, round after round, while the lead watched the D-Bus signals behind each reply and turned what they
+showed into fixes. (A detail worth keeping: `gdbus monitor` exits when the daemon restarts into an update, so the
+watcher now loops.) Five rounds, each a build, an install line in `prompts.txt` on the test SSD's desktop, and a
+read of the logs.
+
+**Rounds 1–3: the basics, made honest.** The sidebar overflowed narrow screens (it now docks by its real width).
+The guide didn't know the time — the daemon now says it itself, in six languages, instead of asking the model. It
+invented menus for system questions; those now go to real system checks. "Write an email to…" got its own tool
+(`compose_email`, a draft opened in the mail program) behind a deterministic rule, so the email tool is only
+offered when an email is asked for — **prompt v2.4 adopted** with no regressions; v2.5, a clause against numbered
+steps, cost diagnostics (17 → 14) and was not adopted. The update notice now says when an update is waiting and
+offers "Restart now", and after an update the assistant says it was updated. **Codex** built the loop detector:
+a reply that starts repeating itself is stopped as it streams and trimmed to its last good sentence, and the eval
+now fails any looping reply.
+
+**Round 4: the first chain.** Ian asked it to find a video on making donuts and summarize it — and it did: the
+search card shows exactly what will be sent, YouTube's results are listed, the first opens in Firefox, the chain
+waits until our extension reports that very video, then summarizes it. Ian: let the ads play — the player is left
+alone; we read what the page shows and never get around YouTube's checks.
+
+**The news scan, in four parts.** *Press*: Google News and Bing News feeds, every headline word for word with its
+outlet and date, no outlet more than twice. *Social*: Reddit's search and Mastodon's hashtags — the networks that can
+be searched without an account — each post credited to its poster and place, under a heading that says these are
+claims nobody checked; X and Bluesky need an account, so every report says they aren't covered (X returns with Grok,
+when Grok becomes a provider). *Official*: government sites, the subject's own pages, patent records. *Watches*:
+"keep me up to date on X" sets up a daily watch on a card that says exactly what goes where; after the first look,
+each run shows only what's new, with a desktop notification. The model writes none of it — the frame is code — so
+nothing can be turned into a claim a source didn't make.
+
+**Keys, Ian's way.** Some official sources need a free key. The assistant now sees that a source needs one, shows a
+card with the sign-up steps and a masked box, and puts the key straight into the login keyring — never into the
+model, the conversation, the action record or a log. A key pasted into the chat by mistake is caught before the
+model sees it. The person does the registration; no source uses this yet (the patent office waits for Ian's go).
+
+**Round 5: what the logs showed.** The words of a request leaked into searches ("look up local AI models", "local
+AI from reddit"); "from Reddit" now means Reddit only. Reddit's "top of the week" search matched loosely — a frog
+cake and a dinner date for "local AI models" — so a post must now carry the topic's words. A question about a movie
+reached the model and opened the Web Apps tool; "the latest on X" is now a news request. And DuckDuckGo had been
+asking this connection for a pause for hours, so ordinary searches failed: **Bing is now the backup**, named on every
+search card beforehand, and the news scan's official pages use Bing directly so watches add no load to DuckDuckGo.
+Standing tasks were built but hard to find — Ian couldn't — so they're now a button on the start screen and an
+entry in the panel icon's right-click menu. The last round ran clean.
+
+**Still open.** D89's update verb (the hold and the trusted-source check) is decided but not built. The patent
+office's key waits. Dual boot and Secure Boot cards wait for an install check; the ISO's installer still says
+"Install Linux Mint alongside Windows". The Japanese VPN steps and a few D84 items are for guide cycle 1.

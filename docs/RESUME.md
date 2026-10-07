@@ -1,10 +1,31 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-06 later** (latest: journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-07** (latest: journal "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-07) — chains, the news scan, standing watches; Bing as the backup
+
+- **Decisions D88–D92** in PLAN (standing tasks; Mint's automatic updates with a 2-day hold + trusted sources;
+  feeling noticed, honestly; successive actions as recipes in code; the news scan — who says what).
+- **Hands-on rounds 1–5** (Ian at the test SSD, no runner; the lead reads the D-Bus signals: the watcher on the SSD
+  is `~/cinminai-admintest/watch.sh`, restarted by a script file — never `pkill -f` a string that's in your own
+  command). Install lines go in `~/Desktop/prompts.txt` there; packages via `~/cinminai-debs/install-debs.sh`.
+  Test SSD runs **…175322** (everything up to 48416ec; 210487d's "from" fix not yet installed).
+- **Built:** the daemon says the time (`facts.py`); `compose_email` + prompt **v2.4 adopted** (v2.5 rejected);
+  Codex's loop detector; update notice with "Restart now"; **chains** (`chains.py`, `intent.py`): find a YouTube
+  video → open in Firefox → summarize; **news scan** (`newsscan.py`): press (Google/Bing News), social (Reddit,
+  Mastodon; X and Bluesky said as not covered), official (Bing: government, own site, patent records), "from Reddit"
+  = only Reddit, posts must carry the topic's words; **standing watches** (`standing.py`; ~/.local/share/cinminai/
+  standing.json; start-screen button + panel menu `cinminai-sidebar --standing`); **keys** (`keys.py`: card with
+  sign-up steps, masked box → login keyring; never model/history/record/log; no keyed source wired yet).
+- **Search:** DuckDuckGo first, **Bing's results feed when DuckDuckGo asks for a pause** (Ian, 2026-10-07); both
+  named on every card. DuckDuckGo throttled this connection for hours after a day of testing.
+- **Next:** D89's typed update verb (hold + trusted-source check); the patent office key when Ian says go; dual
+  boot / Secure Boot cards after an install check; the ISO's .disk/info branding; guide cycle 1 items (Japanese
+  VPN steps, PPA content in Japanese, inspect_system misroutes).
 
 ## Where we stopped (2026-10-06, night) — D84 batch 1, prompt v2.3, release checklist
 
