@@ -146,6 +146,22 @@ class HelpCards(unittest.TestCase):
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
                 self.assertEqual(self.index.lookup(q, lang)[0], card, q)
 
+    def test_update_5_found_in_six_languages(self):
+        # the news scan, standing tasks and keys (2026-10-07): questions about them, not requests for news
+        asked = {
+            "news_scan": ["how do I get the news", "¿cómo veo las noticias?", "como vejo as notícias",
+                          "comment voir les actualités", "wie bekomme ich Nachrichten", "ニュースを見るには"],
+            "standing_tasks": ["how do I stop a news watch", "cómo borrar una tarea permanente",
+                               "como pausar as tarefas permanentes", "supprimer une tâche permanente",
+                               "Daueraufgabe löschen", "定期タスクを止めたい"],
+            "source_keys": ["where is my API key stored", "¿dónde se guarda la clave de API?", "onde fica a chave de api",
+                            "où est stockée la clé api", "wo wird der API-Schlüssel gespeichert",
+                            "APIキーはどこに保存されますか"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

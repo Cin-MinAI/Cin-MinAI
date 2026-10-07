@@ -84,9 +84,15 @@ that changes your system asks first, and administrator actions ask for your pass
 
 **Nothing about you, anywhere.** Cin-MinAI has no ads, no telemetry and no account. Its only connections are the ones
 you'd expect: updates (from Linux Mint, Ubuntu and our signed repository), models you choose to download, web
-searches you click — and it shows you exactly what a search will send — and, when you ask it to summarize a YouTube
-video, that video's preview pictures from YouTube. (Programs like Firefox keep their own
-settings, as on any Mint system.)
+searches you click (DuckDuckGo, or Bing when DuckDuckGo asks for a pause), the news you ask for (its topic goes to
+Google News, Bing, Reddit and Mastodon), news watches you set up (their topic is sent once a day until you pause or
+delete them) — every one of these shows you exactly what it will send, and where, before anything goes — and, when
+you ask it to summarize a YouTube video, that video's preview pictures from YouTube. (Programs like Firefox keep
+their own settings, as on any Mint system.)
+
+**The news, as who says what.** Ask for the news about anything and it shows what's on hand: each outlet's headline
+word for word with its date, posts from Reddit and Mastodon credited to who posted them (claims nobody checked), and
+the subject's own pages. It never says what happened, only who says what — so you can decide for yourself.
 
 ## What you need
 

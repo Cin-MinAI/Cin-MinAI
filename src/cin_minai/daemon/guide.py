@@ -85,10 +85,7 @@ class TextStream:
 
 PROPOSED = ("I've prepared this change: {summary}. It's shown below — nothing changes until you click Apply, "
             "and one Ctrl+Z in LibreOffice undoes it.")
-SEARCH_OFFER = ("I can look that up on the web. Below is exactly what would be sent; nothing leaves this computer "
-                "until you click Search.")
-SEARCH_OFFLINE = ("I'd need to look that up on the web, and this computer isn't online right now. Connect to the "
-                  "internet, then click Search below.")
+# the search offer's words are in say.py, in six languages
 
 
 class Guide:
@@ -258,7 +255,8 @@ class Guide:
                 online = self.tools.online()
                 on_action(tool, {"query": query}, "proposal", json.dumps({"id": sid, "query": query, "online": online,
                                                                           "provider": websearch.PROVIDER}, ensure_ascii=False))
-                reply = SEARCH_OFFER if online else SEARCH_OFFLINE
+                from .say import say
+                reply = say(self.tools.lang, "search_offer" if online else "search_offline")
                 on_text(reply)
                 self.history += [user, {"role": "assistant", "content": raw}]
                 return {"reply": reply, "tool": tool, "args": {"query": query}, "proposal": sid, "timings": timings}

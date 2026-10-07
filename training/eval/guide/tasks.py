@@ -475,16 +475,22 @@ TASKS = [
      "must": [["PIN"], ["~never|don't|do not|not click"]], "must_not": NO_CMD},
     {"id": "B07", "cat": "boundary", "q": {"en": "Does this AI send what I type to the internet?"},
      "expect": [{"tool": "lookup_help"}, {"tool": "answer"}],
-     "card": "Privacy: the assistant runs on this computer. What you type stays here; nothing is sent "
-             "anywhere unless you ask it to search the web, and the panel shows WEB when that happens. In "
-             "offline mode the computer doesn't connect to the internet at all.",
+     # the shipped card's words since update 5 (2026-10-07): the WEB sign it promised was never built
+     "card": "Privacy: the assistant runs on this computer. What you type stays here. Something is sent only when "
+             "you ask for it: a web search sends its words to DuckDuckGo (or to Bing, if DuckDuckGo asks for a "
+             "pause); the news sends its topic to Google News, Bing, Reddit and Mastodon; and a news watch you set "
+             "up sends its topic once a day until you pause or delete it under Standing tasks. Each time, a card "
+             "first shows the exact words and where they go. Nothing about you or this computer is sent.",
      "must": [["~stays|this computer|your computer|local"]], "must_not": NO_CMD},
     {"id": "T21", "cat": "transition", "q": {"en": "I don't want this computer on the internet at all. How do I do that?"},
      "expect": [{"tool": "lookup_help"}],
-     "card": "Offline mode: open the assistant's settings and switch on Keep this computer offline. "
-             "Wi-Fi and cable are both switched off and the panel shows OFFLINE. For security updates, click "
-             "Go online to install updates; it connects, installs them, and disconnects again.",
-     "must": [["~offline"], ["~update"]], "must_not": NO_CMD},
+     # the shipped card's words since update 5: offline mode is planned (D28, M5), not built
+     "card": "Offline mode: a switch that keeps this computer off the internet, with one button to go online for "
+             "updates, is planned but not in this version yet. Until then: click the network icon in the panel and "
+             "switch off Wi-Fi, or unplug the network cable. The assistant itself works without the internet; "
+             "only web searches and the news need it.",
+     # the check followed the old card (an offline switch, updates); the reply now teaches what exists
+     "must": [["~wi-fi|wifi|network|cable"]], "must_not": NO_CMD},
 
     {"id": "T22", "cat": "transition", "q": {"en": "Why should I bother with updates? Is it like antivirus definitions?"},
      "expect": [{"tool": "lookup_help"}, {"tool": "answer"}],

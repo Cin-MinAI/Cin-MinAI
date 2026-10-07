@@ -26,6 +26,7 @@ from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
 from . import config, manuscript, selfupdate, standing, websearch
+from .say import quoted, say
 from .models import Cancelled as DownloadStopped, ModelStore, backend_cfg, benchmark
 from cin_minai.inference import matcher
 from cin_minai.inference.llamacpp import LlamaCppBackend
@@ -876,13 +877,10 @@ class Service:
             {"id": sid, "query": query or "top stories", "online": online,
              "provider": news.get("only") or (newsscan.PROVIDERS_WITH_OFFICIAL if query else newsscan.PROVIDERS)},
             ensure_ascii=False))
-        what = (f"what people on {news['only']} say about {news['topic']}" if news.get("only") else
-                f"what the press, social media and official pages say about {news['topic']}" if news["topic"]
-                else "today's top stories")
-        on_text(f"I'll look up {what} and show you each source's own words with its date. I don't say what "
-                "happened, only who says what. "
-                + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."
-                   if online else "This computer isn't online right now: connect, then click Search below."))
+        lang = self.guide.tools.lang
+        what = (say(lang, "news_only", only=news["only"], topic=news["topic"]) if news.get("only") else
+                say(lang, "news_all", topic=news["topic"]) if news["topic"] else say(lang, "news_top"))
+        on_text(say(lang, "news_offer", what=what) + say(lang, "send_online" if online else "send_offline"))
         return {"tool": "news", "proposal": sid}
 
     def news_scan(self, topic: str, lang: str, cancel: threading.Event | None = None, person: bool = True,
@@ -907,7 +905,7 @@ class Service:
                                            "a search for official pages (the topic left the computer)",
                                            reversible=False, reason=why)
             except websearch.SearchError as e:
-                out["found"], out["trouble"] = [], f"(Couldn't search official pages right now: {e}.)"
+                out["found"], out["trouble"] = [], say(lang, "official_trouble", e=e)
             more, out["needed"] = newsscan.keyed(topic, lang)  # sources with a key; a missing key is shown as a card
             out["found"] += more
         return out
@@ -944,7 +942,7 @@ class Service:
         try:
             scan = self.news_scan(topic, lang, self.cancel, only=offer.get("only", ""))
         except websearch.SearchError as e:
-            raise BackendError(f"The news search didn't work: {e}.")
+            raise BackendError(say(lang, "news_failed", e=e))
         links = self.scan_links(scan)
         on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
             {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
@@ -967,12 +965,11 @@ class Service:
             {"id": wid, "topic": watch["topic"], "at": watch["at"], "only": watch.get("only", ""),
              "provider": self.sent_to(watch["topic"], watch.get("only", "")),
              "online": self.guide.tools.online()}, ensure_ascii=False))
-        what = f"the news about {watch['topic']}" if watch["topic"] else "the top stories"
+        lang = self.guide.tools.lang
+        what = say(lang, "watch_news", topic=watch["topic"]) if watch["topic"] else say(lang, "watch_top")
         if watch.get("only"):
-            what = f"what people on {watch['only']} say about {watch['topic']}"
-        on_text(f"I can watch {what} for you: every day at {watch['at']} I'll look again and show you only what's "
-                "new, each source in its own words. The card below says exactly what would be sent and where; "
-                "nothing is set up until you click Set up. You can pause or delete it any time under Standing tasks.")
+            what = say(lang, "news_only", only=watch["only"], topic=watch["topic"])
+        on_text(say(lang, "watch_offer", what=what, at=watch["at"]))
         return {"tool": "watch", "proposal": wid}
 
     def start_watch(self, offer: dict, topic: str, on_text, on_action) -> dict:
@@ -987,8 +984,7 @@ class Service:
             scan = self.news_scan(topic, lang, self.cancel, only=only)
         except websearch.SearchError as e:
             self.standing.ran(task["id"], datetime.datetime.now(), [], self.sent_to(topic, only), "", str(e))
-            raise BackendError(f"The watch is set up, but the first look didn't work: {e}. It tries again at "
-                               f"{task['at']}.")
+            raise BackendError(say(lang, "watch_failed", e=e, at=task["at"]))
         shown = scan["items"] + (scan["posts"] or []) + (scan["found"] or [])
         report = self.scan_report(topic, scan, lang)
         self.standing.ran(task["id"], datetime.datetime.now(), shown, self.sent_to(topic, only), report,
@@ -997,7 +993,7 @@ class Service:
         on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
             {"query": topic, "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(links)]},
             ensure_ascii=False))
-        on_text(f"Set up: every day at {task['at']} I'll show you only what's new. This is where it starts:\n\n" + report)
+        on_text(say(lang, "watch_set", at=task["at"]) + "\n\n" + report)
         self.key_cards(scan["needed"], on_action)
         return {"tool": "watch", "task": task["id"], "shown": len(shown), "needs_key": scan["needed"]}
 
@@ -1039,7 +1035,7 @@ class Service:
                           scan["trouble"])
         if not shown and not scan["needed"]:
             return None
-        return {"id": task["id"], "topic": topic, "new": len(shown), "report": report,
+        return {"id": task["id"], "topic": topic, "lang": lang, "new": len(shown), "report": report,
                 "sources": [{"n": i + 1, "title": t, "url": u} for i, (t, u) in enumerate(self.scan_links(scan))],
                 "key_cards": [keys.card(k) for k in scan["needed"]]}
 
@@ -1048,8 +1044,9 @@ class Service:
         if result:
             self.emit("Standing", "(s)", json.dumps(result, ensure_ascii=False))
             if result["new"]:
-                what = f"“{result['topic']}”" if result["topic"] else "the top stories"
-                self.notify("News watch", f"{result['new']} new about {what}. Open the assistant to read them.")
+                lang = result.get("lang", "en")
+                what = quoted(result["topic"], lang) if result["topic"] else say(lang, "watch_top")
+                self.notify(say(lang, "notify_title"), say(lang, "notify_body", n=result["new"], what=what))
         return False
 
     def notify(self, title: str, body: str) -> None:

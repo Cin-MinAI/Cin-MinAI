@@ -437,56 +437,265 @@ def journal_written(e: dict) -> str:
 
 # --- web search (D55, SPEC §7.5) ---------------------------------------------------------------------------
 
-def search_note(offer: dict) -> str:
+# --- six languages for update 5's features (D25): the search card, the news watch, standing tasks, keys ---------
+# Written by Claude (not a native speaker of es/pt/fr/de/ja): wants a native speaker's review (D36). The rest of the
+# sidebar is still English (the Alpha's note above).
+T = {
+    "en": {"search_head": "Search the web for:", "search": "Search", "no_thanks": "No thanks", "looking": "Looking it up…",
+           "search_note": "Only these words are sent, to {provider}. The pages it finds are read to answer you. "
+                          "Nothing about you or this computer is sent.",
+           "search_offline": "This computer is offline. Connect to the internet first; nothing is sent until you "
+                             "click Search.",
+           "watch_head": "Every day at {at}, look for news about:", "watch_head_only": "Every day at {at}, look on "
+                                                                                   "{only} for news about:",
+           "watch_empty": "(empty: the top stories)", "set_up": "Set up", "setting_up": "Setting it up…",
+           "watch_note": "Every day these words are sent to {provider}, without asking again. Only what's new is "
+                         "shown, each source in its own words. Nothing about you or this computer is sent. Pause or "
+                         "delete it any time under Standing tasks.",
+           "watch_offline": "This computer is offline. Connect to the internet first; nothing is set up until you "
+                            "click Set up.",
+           "standing": "Standing tasks", "pause": "Pause", "resume": "Resume", "delete": "Delete",
+           "last_report": "Last report", "close": "Close",
+           "standing_none": "Nothing yet. Ask for one in your own words, for example: “keep me up to date on Linux "
+                            "Mint” or “the news about the weather every morning”.",
+           "standing_head": "Your news watch on {what}: {n} new since last time.",
+           "news_about": "News about “{topic}”", "top": "the top stories", "top_cap": "The top stories",
+           "on_only": " on {only}", "every_day": "every day at {at}", "paused": " — paused",
+           "not_run": "not run yet", "last_new": "last run {at}: {n} new", "last_trouble": "last run {at}: {trouble}",
+           "line": "{what}, {when}.\n{said}",
+           "key_head": "{name} needs a free key{use}. You register yourself; it takes a few minutes:",
+           "key_use": " for {use}", "open_signup": "Open the sign-up page", "paste_key": "Paste the key here",
+           "save_key": "Save the key", "later": "Later", "not_saved": "Not saved: {error}",
+           "key_note": "The key goes straight into your login keyring, locked by your login password. The "
+                       "assistant never sees it, and it isn't kept in the conversation. Only that source's own "
+                       "requests use it.",
+           "key_saved": "Key saved for {name}, in your login keyring. It's used from the next search on."},
+    "es": {"search_head": "Buscar en la web:", "search": "Buscar", "no_thanks": "No, gracias", "looking": "Buscando…",
+           "search_note": "Solo se envían estas palabras, a {provider}. Las páginas que encuentre se leen para "
+                          "responderte. No se envía nada sobre ti ni sobre este equipo.",
+           "search_offline": "Este equipo no tiene conexión. Conéctate a internet primero; no se envía nada hasta que "
+                             "hagas clic en Buscar.",
+           "watch_head": "Cada día a las {at}, buscar noticias sobre:",
+           "watch_head_only": "Cada día a las {at}, buscar en {only} noticias sobre:",
+           "watch_empty": "(vacío: las noticias principales)", "set_up": "Configurar", "setting_up": "Configurando…",
+           "watch_note": "Cada día estas palabras se envían a {provider}, sin volver a preguntar. Solo se muestra lo "
+                         "nuevo, cada fuente con sus propias palabras. No se envía nada sobre ti ni sobre este equipo. "
+                         "Puedes pausarlo o eliminarlo cuando quieras en Tareas permanentes.",
+           "watch_offline": "Este equipo no tiene conexión. Conéctate a internet primero; no se configura nada hasta "
+                            "que hagas clic en Configurar.",
+           "standing": "Tareas permanentes", "pause": "Pausar", "resume": "Reanudar", "delete": "Eliminar",
+           "last_report": "Último informe", "close": "Cerrar",
+           "standing_none": "Todavía no hay ninguna. Pídela con tus palabras, por ejemplo: «mantenme al día sobre "
+                            "Linux Mint» o «las noticias sobre el tiempo cada mañana».",
+           "standing_head": "Tu seguimiento de noticias sobre {what}: {n} novedades desde la última vez.",
+           "news_about": "Noticias sobre «{topic}»", "top": "las noticias principales",
+           "top_cap": "Las noticias principales", "on_only": " en {only}", "every_day": "cada día a las {at}",
+           "paused": " — en pausa", "not_run": "todavía no se ha ejecutado", "last_new": "última vez {at}: {n} novedades",
+           "last_trouble": "última vez {at}: {trouble}", "line": "{what}, {when}.\n{said}",
+           "key_head": "{name} necesita una clave gratuita{use}. Te registras tú; lleva unos minutos:",
+           "key_use": " para {use}", "open_signup": "Abrir la página de registro", "paste_key": "Pega la clave aquí",
+           "save_key": "Guardar la clave", "later": "Más tarde", "not_saved": "No se guardó: {error}",
+           "key_note": "La clave va directa a tu llavero de inicio de sesión, protegido con tu contraseña. El "
+                       "asistente nunca la ve y no se guarda en la conversación. Solo la usan las consultas de esa "
+                       "fuente.",
+           "key_saved": "Clave guardada para {name} en tu llavero de inicio de sesión. Se usará a partir de la "
+                        "próxima búsqueda."},
+    "pt": {"search_head": "Pesquisar na web:", "search": "Pesquisar", "no_thanks": "Não, obrigado",
+           "looking": "Pesquisando…",
+           "search_note": "Só estas palavras são enviadas, para {provider}. As páginas encontradas são lidas para "
+                          "responder você. Nada sobre você ou este computador é enviado.",
+           "search_offline": "Este computador está sem internet. Conecte-se primeiro; nada é enviado até você clicar "
+                             "em Pesquisar.",
+           "watch_head": "Todos os dias às {at}, procurar notícias sobre:",
+           "watch_head_only": "Todos os dias às {at}, procurar no {only} notícias sobre:",
+           "watch_empty": "(vazio: as principais notícias)", "set_up": "Configurar", "setting_up": "Configurando…",
+           "watch_note": "Todos os dias estas palavras são enviadas para {provider}, sem perguntar de novo. Só aparece "
+                         "o que é novo, cada fonte com as próprias palavras. Nada sobre você ou este computador é "
+                         "enviado. Pause ou exclua quando quiser em Tarefas permanentes.",
+           "watch_offline": "Este computador está sem internet. Conecte-se primeiro; nada é configurado até você "
+                            "clicar em Configurar.",
+           "standing": "Tarefas permanentes", "pause": "Pausar", "resume": "Retomar", "delete": "Excluir",
+           "last_report": "Último relatório", "close": "Fechar",
+           "standing_none": "Nenhuma ainda. Peça com suas palavras, por exemplo: “me mantenha atualizado sobre o "
+                            "Linux Mint” ou “as notícias sobre o tempo todas as manhãs”.",
+           "standing_head": "Seu acompanhamento de notícias sobre {what}: {n} novidades desde a última vez.",
+           "news_about": "Notícias sobre “{topic}”", "top": "as principais notícias",
+           "top_cap": "As principais notícias", "on_only": " no {only}", "every_day": "todos os dias às {at}",
+           "paused": " — pausada", "not_run": "ainda não rodou", "last_new": "última vez {at}: {n} novidades",
+           "last_trouble": "última vez {at}: {trouble}", "line": "{what}, {when}.\n{said}",
+           "key_head": "{name} precisa de uma chave gratuita{use}. Você mesmo se cadastra; leva alguns minutos:",
+           "key_use": " para {use}", "open_signup": "Abrir a página de cadastro", "paste_key": "Cole a chave aqui",
+           "save_key": "Salvar a chave", "later": "Mais tarde", "not_saved": "Não foi salva: {error}",
+           "key_note": "A chave vai direto para o seu chaveiro de sessão, protegido pela sua senha. O assistente "
+                       "nunca a vê e ela não fica na conversa. Só as consultas dessa fonte a usam.",
+           "key_saved": "Chave salva para {name} no seu chaveiro de sessão. Ela será usada a partir da próxima busca."},
+    "fr": {"search_head": "Rechercher sur le web :", "search": "Rechercher", "no_thanks": "Non merci",
+           "looking": "Recherche…",
+           "search_note": "Seuls ces mots sont envoyés, à {provider}. Les pages trouvées sont lues pour vous "
+                          "répondre. Rien sur vous ni sur cet ordinateur n'est envoyé.",
+           "search_offline": "Cet ordinateur est hors ligne. Connectez-vous d'abord ; rien n'est envoyé avant que vous "
+                             "cliquiez sur Rechercher.",
+           "watch_head": "Chaque jour à {at}, chercher les nouvelles sur :",
+           "watch_head_only": "Chaque jour à {at}, chercher sur {only} les nouvelles sur :",
+           "watch_empty": "(vide : les principaux titres)", "set_up": "Configurer", "setting_up": "Configuration…",
+           "watch_note": "Chaque jour, ces mots sont envoyés à {provider}, sans redemander. Seules les nouveautés sont "
+                         "montrées, chaque source avec ses propres mots. Rien sur vous ni sur cet ordinateur n'est "
+                         "envoyé. Suspendez-la ou supprimez-la quand vous voulez dans Tâches permanentes.",
+           "watch_offline": "Cet ordinateur est hors ligne. Connectez-vous d'abord à internet ; rien n'est configuré "
+                            "avant que vous cliquiez sur Configurer.",
+           "standing": "Tâches permanentes", "pause": "Suspendre", "resume": "Reprendre", "delete": "Supprimer",
+           "last_report": "Dernier rapport", "close": "Fermer",
+           "standing_none": "Aucune pour l'instant. Demandez-la avec vos mots, par exemple : « tiens-moi au courant "
+                            "de Linux Mint » ou « les nouvelles sur la météo chaque matin ».",
+           "standing_head": "Votre veille d'actualités sur {what} : {n} nouveautés depuis la dernière fois.",
+           "news_about": "Nouvelles sur « {topic} »", "top": "les principaux titres",
+           "top_cap": "Les principaux titres", "on_only": " sur {only}", "every_day": "chaque jour à {at}",
+           "paused": " — suspendue", "not_run": "pas encore lancée", "last_new": "dernière fois {at} : {n} nouveautés",
+           "last_trouble": "dernière fois {at} : {trouble}", "line": "{what}, {when}.\n{said}",
+           "key_head": "{name} demande une clé gratuite{use}. Vous vous inscrivez vous-même ; cela prend quelques "
+                       "minutes :",
+           "key_use": " pour {use}", "open_signup": "Ouvrir la page d'inscription", "paste_key": "Collez la clé ici",
+           "save_key": "Enregistrer la clé", "later": "Plus tard", "not_saved": "Non enregistrée : {error}",
+           "key_note": "La clé va directement dans votre trousseau de session, verrouillé par votre mot de passe. "
+                       "L'assistant ne la voit jamais et elle n'est pas gardée dans la conversation. Seules les "
+                       "requêtes de cette source l'utilisent.",
+           "key_saved": "Clé enregistrée pour {name} dans votre trousseau de session. Elle servira dès la prochaine "
+                        "recherche."},
+    "de": {"search_head": "Im Web suchen nach:", "search": "Suchen", "no_thanks": "Nein, danke", "looking": "Suche läuft…",
+           "search_note": "Nur diese Wörter werden gesendet, an {provider}. Die gefundenen Seiten werden gelesen, um "
+                          "Ihnen zu antworten. Nichts über Sie oder diesen Computer wird gesendet.",
+           "search_offline": "Dieser Computer ist offline. Verbinden Sie sich zuerst; nichts wird gesendet, bevor Sie "
+                             "auf Suchen klicken.",
+           "watch_head": "Jeden Tag um {at} nach Neuigkeiten suchen zu:",
+           "watch_head_only": "Jeden Tag um {at} auf {only} nach Neuigkeiten suchen zu:",
+           "watch_empty": "(leer: die Top-Meldungen)", "set_up": "Einrichten", "setting_up": "Wird eingerichtet…",
+           "watch_note": "Jeden Tag werden diese Wörter an {provider} gesendet, ohne erneut zu fragen. Gezeigt wird "
+                         "nur Neues, jede Quelle mit ihren eigenen Worten. Nichts über Sie oder diesen Computer wird "
+                         "gesendet. Pausieren oder löschen können Sie es jederzeit unter Daueraufgaben.",
+           "watch_offline": "Dieser Computer ist offline. Verbinden Sie sich zuerst mit dem Internet; nichts wird "
+                            "eingerichtet, bevor Sie auf Einrichten klicken.",
+           "standing": "Daueraufgaben", "pause": "Pausieren", "resume": "Fortsetzen", "delete": "Löschen",
+           "last_report": "Letzter Bericht", "close": "Schließen",
+           "standing_none": "Noch keine. Bitten Sie mit Ihren Worten darum, zum Beispiel: „Halte mich auf dem "
+                            "Laufenden über Linux Mint“ oder „die Nachrichten zum Wetter jeden Morgen“.",
+           "standing_head": "Ihre Nachrichtenbeobachtung zu {what}: {n} neu seit dem letzten Mal.",
+           "news_about": "Nachrichten zu „{topic}“", "top": "die Top-Meldungen", "top_cap": "Die Top-Meldungen",
+           "on_only": " auf {only}", "every_day": "jeden Tag um {at}", "paused": " — pausiert",
+           "not_run": "noch nicht gelaufen", "last_new": "zuletzt {at}: {n} neu", "last_trouble": "zuletzt {at}: {trouble}",
+           "line": "{what}, {when}.\n{said}",
+           "key_head": "{name} braucht einen kostenlosen Schlüssel{use}. Sie registrieren sich selbst; das dauert ein "
+                       "paar Minuten:",
+           "key_use": " für {use}", "open_signup": "Anmeldeseite öffnen", "paste_key": "Schlüssel hier einfügen",
+           "save_key": "Schlüssel speichern", "later": "Später", "not_saved": "Nicht gespeichert: {error}",
+           "key_note": "Der Schlüssel kommt direkt in Ihren Anmelde-Schlüsselbund, gesperrt mit Ihrem "
+                       "Anmeldepasswort. Der Assistent sieht ihn nie, und er wird nicht im Gespräch gespeichert. Nur "
+                       "die Anfragen dieser Quelle verwenden ihn.",
+           "key_saved": "Schlüssel für {name} im Anmelde-Schlüsselbund gespeichert. Er wird ab der nächsten Suche "
+                        "verwendet."},
+    "ja": {"search_head": "ウェブで検索：", "search": "検索", "no_thanks": "結構です", "looking": "検索しています…",
+           "search_note": "送られるのはこの言葉だけで、送り先は{provider}です。見つかったページを読んで答えます。あなたや"
+                          "このコンピューターについての情報は送られません。",
+           "search_offline": "このコンピューターはオフラインです。先に接続してください。「検索」を押すまで何も送られません。",
+           "watch_head": "毎日{at}に、次の話題のニュースを探します：",
+           "watch_head_only": "毎日{at}に、{only}で次の話題のニュースを探します：",
+           "watch_empty": "（空欄：主なニュース）", "set_up": "設定する", "setting_up": "設定しています…",
+           "watch_note": "毎日、この言葉が{provider}に送られます（毎回は確認しません）。新しいものだけを、各情報源の言葉の"
+                         "まま表示します。あなたやこのコンピューターについての情報は送られません。定期タスクからいつでも"
+                         "一時停止・削除できます。",
+           "watch_offline": "このコンピューターはオフラインです。先にインターネットに接続してください。「設定する」を押すまで"
+                            "何も設定されません。",
+           "standing": "定期タスク", "pause": "一時停止", "resume": "再開", "delete": "削除",
+           "last_report": "前回のレポート", "close": "閉じる",
+           "standing_none": "まだありません。自分の言葉で頼んでください。例：「Linux Mintの最新情報を知らせて」"
+                            "「毎朝、天気のニュースを教えて」。",
+           "standing_head": "{what}のニュース見守り：前回から{n}件の新着です。",
+           "news_about": "「{topic}」のニュース", "top": "主なニュース", "top_cap": "主なニュース",
+           "on_only": "（{only}）", "every_day": "毎日{at}", "paused": "（一時停止中）", "not_run": "まだ実行されていません",
+           "last_new": "前回 {at}：新着{n}件", "last_trouble": "前回 {at}：{trouble}", "line": "{what}、{when}。\n{said}",
+           "key_head": "{name}には無料のキーが必要です{use}。登録はご自身で行います（数分で済みます）：",
+           "key_use": "（{use}用）", "open_signup": "登録ページを開く", "paste_key": "ここにキーを貼り付け",
+           "save_key": "キーを保存", "later": "あとで", "not_saved": "保存されませんでした：{error}",
+           "key_note": "キーはログインパスワードで守られたログインキーリングに直接保存されます。アシスタントがキーを見ることは"
+                       "なく、会話にも残りません。使うのはその情報源への問い合わせだけです。",
+           "key_saved": "{name}のキーをログインキーリングに保存しました。次の検索から使われます。"},
+}
+
+# the search providers, as the daemon names them (websearch.PROVIDER, newsscan.PROVIDERS*), in each language
+PROVIDERS = {
+    "es": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo (o Bing, si DuckDuckGo pide una pausa)",
+           "Google News and Bing News": "Google News y Bing News",
+           "Google News, Bing (news and web), Reddit and Mastodon": "Google News, Bing (noticias y web), Reddit y Mastodon"},
+    "pt": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo (ou Bing, se o DuckDuckGo pedir uma pausa)",
+           "Google News and Bing News": "Google News e Bing News",
+           "Google News, Bing (news and web), Reddit and Mastodon": "Google News, Bing (notícias e web), Reddit e Mastodon"},
+    "fr": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo (ou Bing, si DuckDuckGo demande une pause)",
+           "Google News and Bing News": "Google News et Bing News",
+           "Google News, Bing (news and web), Reddit and Mastodon":
+               "Google News, Bing (actualités et web), Reddit et Mastodon"},
+    "de": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)":
+               "DuckDuckGo (oder Bing, wenn DuckDuckGo um eine Pause bittet)",
+           "Google News and Bing News": "Google News und Bing News",
+           "Google News, Bing (news and web), Reddit and Mastodon":
+               "Google News, Bing (Nachrichten und Web), Reddit und Mastodon"},
+    "ja": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo（DuckDuckGoが休止を求めた場合はBing）",
+           "Google News and Bing News": "Google NewsとBing News",
+           "Google News, Bing (news and web), Reddit and Mastodon": "Google News、Bing（ニュースとウェブ）、Reddit、Mastodon"},
+}
+
+
+def t(key: str, lang: str | None = None, **kw) -> str:
+    table = T.get(lang or ui_lang(), T["en"])
+    return table.get(key, T["en"][key]).format(**kw)
+
+
+def provider(name: str, lang: str | None = None) -> str:
+    return PROVIDERS.get(lang or ui_lang(), {}).get(name, name)
+
+
+def search_note(offer: dict, lang: str | None = None) -> str:
     if not offer.get("online", True):
-        return "This computer is offline. Connect to the internet first; nothing is sent until you click Search."
-    return (f"Only these words are sent, to {offer.get('provider', 'the search engine')}. The pages it finds are "
-            "read to answer you. Nothing about you or this computer is sent.")
+        return t("search_offline", lang)
+    return t("search_note", lang, provider=provider(offer.get("provider", "DuckDuckGo"), lang))
 
 
-# --- standing tasks (D88) and keys (D92) ---------------------------------------------------------------------
-
-STANDING_NONE = ("Nothing yet. Ask for one in your own words, for example: “keep me up to date on Linux Mint” or "
-                 "“the news about the weather every morning”.")
-KEY_NOTE = ("The key goes straight into your login keyring, locked by your login password. The assistant never sees "
-            "it, and it isn't kept in the conversation. Only that source's own requests use it.")
-
-
-def watch_note(offer: dict) -> str:
+def watch_note(offer: dict, lang: str | None = None) -> str:
     if not offer.get("online", True):
-        return "This computer is offline. Connect to the internet first; nothing is set up until you click Set up."
-    return (f"Every day these words are sent to {offer.get('provider', 'the news sources')}, without asking again. "
-            "Only what's new is shown, each source in its own words. Nothing about you or this computer is sent. "
-            "Pause or delete it any time under Standing tasks in the menu.")
+        return t("watch_offline", lang)
+    return t("watch_note", lang, provider=provider(offer.get("provider", "the news sources"), lang))
 
 
-def standing_head(r: dict) -> str:
-    what = f"“{r['topic']}”" if r.get("topic") else "the top stories"
-    return f"Your news watch on {what}: {r.get('new', 0)} new since last time."
+def watch_head(offer: dict, lang: str | None = None) -> str:
+    at = offer.get("at", "08:00")
+    return t("watch_head_only", lang, at=at, only=offer["only"]) if offer.get("only") else t("watch_head", lang, at=at)
 
 
-def standing_line(t: dict) -> str:
-    what = f"News about “{t['topic']}”" if t.get("topic") else "The top stories"
-    if t.get("only"):
-        what += f" on {t['only']}"
-    when = f"every day at {t.get('at', '08:00')}" + (" — paused" if t.get("paused") else "")
-    last = t.get("runs", [])[-1:] or [None]
+def standing_head(r: dict, lang: str | None = None) -> str:
+    what = (f"“{r['topic']}”" if r.get("topic") else t("top", lang))
+    return t("standing_head", lang, what=what, n=r.get("new", 0))
+
+
+def standing_line(task: dict, lang: str | None = None) -> str:
+    what = t("news_about", lang, topic=task["topic"]) if task.get("topic") else t("top_cap", lang)
+    if task.get("only"):
+        what += t("on_only", lang, only=task["only"])
+    when = t("every_day", lang, at=task.get("at", "08:00")) + (t("paused", lang) if task.get("paused") else "")
+    last = task.get("runs", [])[-1:] or [None]
     if last[0] is None:
-        said = "not run yet"
+        said = t("not_run", lang)
     elif last[0].get("trouble"):
-        said = f"last run {last[0]['at'].replace('T', ' ')}: {last[0]['trouble']}"
+        said = t("last_trouble", lang, at=last[0]["at"].replace("T", " "), trouble=last[0]["trouble"])
     else:
-        said = f"last run {last[0]['at'].replace('T', ' ')}: {last[0].get('new', 0)} new"
-    return f"{what}, {when}.\n{said}"
+        said = t("last_new", lang, at=last[0]["at"].replace("T", " "), n=last[0].get("new", 0))
+    return t("line", lang, what=what, when=when, said=said)
 
 
-def key_head(card: dict) -> str:
-    use = f" for {card['use']}" if card.get("use") else ""
-    return f"{card.get('name', 'This source')} needs a free key{use}. You register yourself; it takes a few minutes:"
+def key_head(card: dict, lang: str | None = None) -> str:
+    use = t("key_use", lang, use=card["use"]) if card.get("use") else ""
+    return t("key_head", lang, name=card.get("name", "This source"), use=use)
 
 
-def key_saved(name: str) -> str:
-    return f"Key saved for {name}, in your login keyring. It's used from the next search on."
+def key_saved(name: str, lang: str | None = None) -> str:
+    return t("key_saved", lang, name=name)
 
 
 def source_line(s: dict) -> str:

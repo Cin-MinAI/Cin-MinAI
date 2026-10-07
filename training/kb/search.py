@@ -195,6 +195,19 @@ KEYWORDS = {
     "vpn": "vpn virtual private network openvpn ovpn wireguard proxy hide ip address public wifi privacy "
            "red privada virtual ocultar ip rede privada virtual esconder ip réseau privé virtuel masquer "
            "adresse ip virtuelles privates netzwerk ip verbergen vpnを使う 仮想プライベートネットワーク IPアドレス",
+    "news_scan": "news headlines latest news news about what's the latest news feed news app current events "
+                 "noticias titulares últimas noticias notícias manchetes últimas notícias actualités nouvelles "
+                 "voir les actualités lire les actualités actualités du jour "
+                 "infos titres nachrichten schlagzeilen neuigkeiten ニュース 見出し 最新ニュース",
+    # no "alerts"/"notify" words: they belong to the notifications card (it lost "Benachrichtigungen ausschalten")
+    "standing_tasks": "standing tasks keep me up to date news watch every morning daily news stop a watch "
+                      "tareas permanentes mantenme al día cada mañana tarefas permanentes me mantenha atualizado "
+                      "todas as manhãs tâches permanentes tiens-moi au courant chaque matin daueraufgaben "
+                      "daueraufgabe löschen daueraufgabe pausieren halte mich auf dem laufenden jeden morgen "
+                      "定期タスク 最新情報を知らせて 毎朝",
+    "source_keys": "api key key for a source register for a key sign up key paste key where is my key stored "
+                   "clave de api clave registrarse chave de api chave cadastrar clé api clé s'inscrire "
+                   "api-schlüssel schlüssel registrieren APIキー キー 登録",
     "keyring": "keyring key ring keyring password unlock login keyring credential manager saved passwords "
                "key vault seahorse llavero contraseña del llavero desbloquear chaveiro senha do chaveiro "
                "desbloquear trousseau mot de passe du trousseau déverrouiller schlüsselbund schlüsselbund "

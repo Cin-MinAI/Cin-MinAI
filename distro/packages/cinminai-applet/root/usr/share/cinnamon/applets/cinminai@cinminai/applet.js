@@ -21,6 +21,11 @@ const IFACE_XML = `
 </node>`;
 const AssistantProxy = Gio.DBusProxy.makeProxyWrapper(IFACE_XML);
 const SIDEBAR = "/usr/bin/cinminai-sidebar";
+const GLib = imports.gi.GLib;
+// update 5's menu entry in the six v1 languages (D25); the older entries are still English
+const STANDING = { en: "Standing tasks", es: "Tareas permanentes", pt: "Tarefas permanentes",
+                   fr: "Tâches permanentes", de: "Daueraufgaben", ja: "定期タスク" };
+const LANG = (GLib.get_language_names()[0] || "en").slice(0, 2);
 
 // State property -> [symbolic icon, words]. Placeholder icons from the theme until Ian's artwork.
 const STATES = {
@@ -50,7 +55,7 @@ class CinMinAIApplet extends Applet.IconApplet {
         ctx.addMenuItem(reset, 3);
         // D88: the person's standing tasks, where they look for them (Ian, 2026-10-07: "If I can't find it they
         // might not either")
-        const standing = new PopupMenu.PopupMenuItem("Standing tasks");
+        const standing = new PopupMenu.PopupMenuItem(STANDING[LANG] || STANDING.en);
         standing.connect("activate", () => Util.spawn([SIDEBAR, "--standing"]));
         ctx.addMenuItem(standing, 4);
         ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 5);

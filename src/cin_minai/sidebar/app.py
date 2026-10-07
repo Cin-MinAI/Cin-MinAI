@@ -232,7 +232,7 @@ class Sidebar(Gtk.Application):
         for label, cb in (("Start a writing project", lambda b: self.new_project()),
                           ("Open the journal", lambda b: self.open_journal()),
                           ("Open AICUI (coding)", lambda b: self.open_aicui()),
-                          ("Standing tasks", lambda b: self.standing_list())):  # D88: found where people look
+                          (words.t("standing"), lambda b: self.standing_list())):  # D88: found where people look
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
             row.add(b)
@@ -1040,25 +1040,24 @@ class Sidebar(Gtk.Application):
         """What would be watched, how often, and where the words go; nothing is set up or sent before Set up."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
-        where = f" on {offer['only']}" if offer.get("only") else ""
-        head = Gtk.Label(label=f"Every day at {offer.get('at', '08:00')}, look{where} for news about:", xalign=0,
-                         wrap=True, max_width_chars=30)
+        head = Gtk.Label(label=words.watch_head(offer), xalign=0, wrap=True, max_width_chars=30)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
-        topic = Gtk.Entry(text=offer.get("topic", ""), placeholder_text="(empty: the top stories)")
+        topic = Gtk.Entry(text=offer.get("topic", ""), placeholder_text=words.t("watch_empty"))
         box.pack_start(topic, False, False, 0)
         note = Gtk.Label(label=words.watch_note(offer), xalign=0, wrap=True, max_width_chars=30)
         note.get_style_context().add_class("note")
         box.pack_start(note, False, False, 0)
         buttons = Gtk.Box(spacing=6)
-        go = Gtk.Button(label="Set up")
+        go = Gtk.Button(label=words.t("set_up"))
         go.get_style_context().add_class("suggested-action")
-        no = Gtk.Button(label="No thanks")
+        no = Gtk.Button(label=words.t("no_thanks"))
 
         def setup(button) -> None:
             for w in (go, no, topic):
                 w.set_sensitive(False)
-            self.start_job("StandingAdd", (offer.get("id", ""), topic.get_text().strip()), "Setting it up…", "(ss)")
+            self.start_job("StandingAdd", (offer.get("id", ""), topic.get_text().strip()), words.t("setting_up"),
+                           "(ss)")
 
         go.connect("clicked", setup)
         no.connect("clicked", lambda b: box.destroy())  # nothing was set up or sent
@@ -1083,29 +1082,30 @@ class Sidebar(Gtk.Application):
             return
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.get_style_context().add_class("proposal")
-        head = Gtk.Label(label="Standing tasks", xalign=0)
+        head = Gtk.Label(label=words.t("standing"), xalign=0)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
         if not tasks:
-            box.pack_start(Gtk.Label(label=words.STANDING_NONE, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+            box.pack_start(Gtk.Label(label=words.t("standing_none"), xalign=0, wrap=True, max_width_chars=30),
+                           False, False, 0)
         for t in tasks:
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             row.pack_start(Gtk.Label(label=words.standing_line(t), xalign=0, wrap=True, max_width_chars=30),
                            False, False, 0)
             buttons = Gtk.Box(spacing=6)
-            pause = Gtk.Button(label="Resume" if t.get("paused") else "Pause")
-            delete = Gtk.Button(label="Delete")
-            last = Gtk.Button(label="Last report")
+            pause = Gtk.Button(label=words.t("resume") if t.get("paused") else words.t("pause"))
+            delete = Gtk.Button(label=words.t("delete"))
+            last = Gtk.Button(label=words.t("last_report"))
             last.set_sensitive(bool(t.get("last_report")))
 
             def change(button, tid=t["id"], what="", row=row) -> None:
-                what = what or ("resume" if button.get_label() == "Resume" else "pause")
+                what = what or ("resume" if button.get_label() == words.t("resume") else "pause")
                 if self.daemon_json("StandingChange", tid, what) is None:
                     return
                 if what == "delete":
                     row.destroy()
                 else:
-                    button.set_label("Resume" if what == "pause" else "Pause")
+                    button.set_label(words.t("resume") if what == "pause" else words.t("pause"))
 
             pause.connect("clicked", change)
             delete.connect("clicked", lambda b, tid=t["id"], row=row: change(b, tid, "delete", row))
@@ -1114,7 +1114,7 @@ class Sidebar(Gtk.Application):
                 buttons.pack_start(b, False, False, 0)
             row.pack_start(buttons, False, False, 0)
             box.pack_start(row, False, False, 0)
-        close = Gtk.Button(label="Close")
+        close = Gtk.Button(label=words.t("close"))
         close.set_halign(Gtk.Align.START)
         close.connect("clicked", lambda b: box.destroy())
         box.pack_start(close, False, False, 0)
@@ -1133,19 +1133,19 @@ class Sidebar(Gtk.Application):
         box.pack_start(Gtk.Label(label=steps, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
         url = card.get("signup_url", "")
         if url.startswith("https://"):
-            link = Gtk.LinkButton(uri=url, label="Open the sign-up page")
+            link = Gtk.LinkButton(uri=url, label=words.t("open_signup"))
             link.set_halign(Gtk.Align.START)
             box.pack_start(link, False, False, 0)
-        entry = Gtk.Entry(visibility=False, placeholder_text="Paste the key here")
+        entry = Gtk.Entry(visibility=False, placeholder_text=words.t("paste_key"))
         entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
         box.pack_start(entry, False, False, 0)
-        note = Gtk.Label(label=words.KEY_NOTE, xalign=0, wrap=True, max_width_chars=30)
+        note = Gtk.Label(label=words.t("key_note"), xalign=0, wrap=True, max_width_chars=30)
         note.get_style_context().add_class("note")
         box.pack_start(note, False, False, 0)
         buttons = Gtk.Box(spacing=6)
-        save = Gtk.Button(label="Save the key")
+        save = Gtk.Button(label=words.t("save_key"))
         save.get_style_context().add_class("suggested-action")
-        later = Gtk.Button(label="Later")
+        later = Gtk.Button(label=words.t("later"))
 
         def keep(button) -> None:
             key = entry.get_text()
@@ -1165,7 +1165,7 @@ class Sidebar(Gtk.Application):
                     box.destroy()
                     self.progress_line(words.key_saved(out.get("name", card.get("name", ""))))
                 else:
-                    note.set_text(f"Not saved: {out.get('error', '')}")
+                    note.set_text(words.t("not_saved", error=out.get("error", "")))
 
             self.proxy.call("KeySet", GLib.Variant("(ss)", (card.get("source", ""), key)), Gio.DBusCallFlags.NONE,
                             30000, None, done)
@@ -1183,7 +1183,7 @@ class Sidebar(Gtk.Application):
         """The query that would be sent, editable; nothing is sent until Search (SPEC §7.5)."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
-        head = Gtk.Label(label="Search the web for:", xalign=0)
+        head = Gtk.Label(label=words.t("search_head"), xalign=0)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
         query = Gtk.Entry(text=offer.get("query", ""))
@@ -1192,15 +1192,15 @@ class Sidebar(Gtk.Application):
         note.get_style_context().add_class("note")
         box.pack_start(note, False, False, 0)
         buttons = Gtk.Box(spacing=6)
-        go = Gtk.Button(label="Search")
+        go = Gtk.Button(label=words.t("search"))
         go.get_style_context().add_class("suggested-action")
-        no = Gtk.Button(label="No thanks")
+        no = Gtk.Button(label=words.t("no_thanks"))
 
         def search(button) -> None:
             go.set_sensitive(False)
             no.set_sensitive(False)
             query.set_sensitive(False)
-            self.start_job("Search", (offer.get("id", ""), query.get_text().strip()), "Looking it up…", "(ss)")
+            self.start_job("Search", (offer.get("id", ""), query.get_text().strip()), words.t("looking"), "(ss)")
 
         def dismiss(button) -> None:
             box.destroy()  # nothing was sent

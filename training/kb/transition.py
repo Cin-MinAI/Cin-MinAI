@@ -283,15 +283,48 @@ TOPICS = [
              "to call a number.",
      "must": [], "steps": False},
     {"id": "privacy_assistant", "windows": "whether the AI assistant sends what they type to the internet",
-     "card": "Privacy: the assistant runs on this computer. What you type stays here; nothing is sent anywhere "
-             "unless you ask it to search the web, and the panel shows WEB when that happens. In offline mode "
-             "the computer doesn't connect to the internet at all.",
+     # update 5 (2026-10-07): says what is really sent, and when (D86: the promise matches the features). The old card
+     # promised a WEB sign in the panel that was never built.
+     "card": "Privacy: the assistant runs on this computer. What you type stays here. Something is sent only when "
+             "you ask for it: a web search sends its words to DuckDuckGo (or to Bing, if DuckDuckGo asks for a "
+             "pause); the news sends its topic to Google News, Bing, Reddit and Mastodon; and a news watch you set "
+             "up sends its topic once a day until you pause or delete it under Standing tasks. Each time, a card "
+             "first shows the exact words and where they go. Nothing about you or this computer is sent.",
      "must": [], "steps": False},
     {"id": "offline_mode", "windows": "keeping the computer completely off the internet",
-     "card": "Offline mode: click the gear button at the top of the assistant's sidebar and switch on Keep this computer offline. Wi-Fi and "
-             "cable are both switched off and the panel shows OFFLINE. For security updates, click Go online to "
-             "install updates; it connects, installs them, and disconnects again.",
+     # update 5 (2026-10-07): offline mode is planned (PLAN D28, M5) and not built yet; the old card described its
+     # switch as if it were there
+     "card": "Offline mode: a switch that keeps this computer off the internet, with one button to go online for "
+             "updates, is planned but not in this version yet. Until then: click the network icon in the panel and "
+             "switch off Wi-Fi, or unplug the network cable. The assistant itself works without the internet; "
+             "only web searches and the news need it.",
      "must": [], "steps": True},
+
+    # --- update 5 (2026-10-07): the news scan (D92), standing tasks (D88) and keys for sources ------------------------
+    {"id": "news_scan", "windows": "news apps or a news feed (MSN News, Google News)",
+     "card": "News: ask the assistant for the news about something, for example \"pull up the news about Linux "
+             "Mint\" or \"what's the latest on the Artemis mission?\". It shows what's on hand, in three parts: news "
+             "outlets' headlines word for word with the outlet and date; posts from Reddit and Mastodon with who "
+             "posted them (claims nobody checked); and the subject's own or official pages. It never says what "
+             "happened, only who says what, so you can decide for yourself. Before anything is sent, a card shows "
+             "the topic and where it goes; click Search. Add \"on Reddit\" to ask Reddit only. X and Bluesky aren't "
+             "included: searching them needs an account.",
+     "must": [], "steps": False},
+    {"id": "standing_tasks", "windows": "getting news alerts or scheduled updates about a topic",
+     "card": "Standing tasks: things the assistant keeps doing for you, like watching the news about a topic. "
+             "Ask \"keep me up to date on …\" or \"the news about … every morning\"; a card shows the topic, the "
+             "time and where the topic is sent every day; click Set up. After that it looks once a day and shows "
+             "only what's new, with a notification. To see them, pause them or delete them: click Standing tasks "
+             "on the assistant's start screen, or right-click the assistant's icon in the panel and choose "
+             "Standing tasks.",
+     "must": [], "steps": True},
+    {"id": "source_keys", "windows": "an API key, or a website asking you to register for a key",
+     "card": "Keys for sources: some sources of information only answer people with a free key, like a library "
+             "card. When one is needed, the assistant shows a card with the steps to get it, a button to their "
+             "sign-up page and a box to paste the key in; you register on their site yourself. The key is kept in "
+             "your login keyring, locked by your login password; it never goes into the conversation, and the "
+             "assistant itself never reads it. If you paste a key into the chat by mistake, it isn't kept.",
+     "must": [], "steps": False},
     {"id": "updates_why", "windows": "whether updates matter, and whether they are like antivirus definitions",
      "card": "Updates: security updates fix weaknesses in the programs themselves, the holes criminals look for. "
              "That's different from an antivirus's list of known threats. {update_manager} checks that every "
