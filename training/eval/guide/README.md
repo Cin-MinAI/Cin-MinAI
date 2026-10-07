@@ -43,7 +43,11 @@ python3 run_eval.py --dry-run                                   # validates task
 python3 run_eval.py --url http://127.0.0.1:8081 --model NAME     # any llama-server
 python3 run_eval.py --config ~/.config/cinminai/config.toml       # [inference] url/api_key/model
 python3 run_eval.py ... --only T01,L07 --lang ja -v               # subsets, show replies
+python3 run_eval.py ... --sampling '{"temperature":0,"dry_multiplier":0.8,"dry_base":1.75,"dry_allowed_length":3,"dry_penalty_last_n":512}'
 ```
+
+`--sampling` applies only to the unconstrained Stage B reply. Stage A keeps the fixed, measured
+schema-constrained settings so repeated JSON keys are not penalized.
 
 Results: one JSON line per item in `bench-results/guide/` (git-ignored), summary by category and
 language. Temperature 0, thinking off (`enable_thinking: false`). Stdlib only, Python ≥ 3.11.
@@ -74,4 +78,3 @@ to compare them with, and the misses above are the first fine-tune targets.
   words added for every language, and a tie between languages no longer picks the first one: a reply
   passes if its language is among the tied leaders. Found while filtering the transition corpus. All
   model comparisons from here on (stock vs. tuned, public and held-out) are re-run with this scorer.
-

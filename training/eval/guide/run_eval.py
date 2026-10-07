@@ -6,7 +6,7 @@
     python3 run_eval.py --dry-run                         # check tasks + labels, count items
     python3 run_eval.py --url http://127.0.0.1:8081 [--model NAME] [--api-key-env VAR]
     python3 run_eval.py --config ~/.config/cinminai/config.toml     # url/api_key/model from [inference]
-      options: --only T01,D02  --lang ja  --out FILE  -v
+      options: --only T01,D02  --lang ja  --out FILE  --sampling '{"dry_multiplier":0.8,...}'  -v
 
 Stage A: one schema-constrained call — which tool, with which arguments (scored against `expect`).
 Stage B: the fixed help card / system result goes back, the model writes the reply in plain text,
@@ -44,6 +44,24 @@ with open(os.path.join(HERE, "labels.json"), encoding="utf-8") as _f:
 LABELS = _L["labels"]       # programs and settings pages (open_app can open these)
 UI = _L.get("ui", {})      # names inside programs: menus, buttons ({ui_…} in cards)
 LANGS = ["en", "es", "pt", "fr", "de", "ja"]
+SAMPLING_KEYS = {"temperature", "top_p", "top_k", "min_p", "repeat_penalty", "dry_multiplier", "dry_base",
+                 "dry_allowed_length", "dry_penalty_last_n"}
+
+
+def parse_sampling(value: str) -> dict:
+    """Parse a llama.cpp sampling override. It is sent only for unconstrained Stage B replies."""
+    try:
+        sampling = json.loads(value)
+    except json.JSONDecodeError as e:
+        raise argparse.ArgumentTypeError(f"invalid JSON: {e.msg}") from e
+    if not isinstance(sampling, dict):
+        raise argparse.ArgumentTypeError("must be a JSON object")
+    unknown = set(sampling) - SAMPLING_KEYS
+    if unknown:
+        raise argparse.ArgumentTypeError("unknown sampling key(s): " + ", ".join(sorted(unknown)))
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in sampling.values()):
+        raise argparse.ArgumentTypeError("sampling values must be numbers")
+    return sampling
 
 # --- tools ---------------------------------------------------------------------------------------
 
@@ -271,14 +289,16 @@ def items() -> list[dict]:
 # --- model calls ---------------------------------------------------------------------------------
 
 class Server:
-    def __init__(self, url: str, key: str, model: str):
-        self.url, self.key, self.model = url.rstrip("/"), key, model
+    def __init__(self, url: str, key: str, model: str, sampling: dict | None = None):
+        self.url, self.key, self.model, self.sampling = url.rstrip("/"), key, model, sampling or {}
 
     def chat(self, messages: list, schema_: dict | None, max_tokens: int) -> tuple[str, float]:
         body = {"model": self.model, "temperature": 0, "max_tokens": max_tokens, "messages": messages,
                 "chat_template_kwargs": {"enable_thinking": False}}
-        if schema_:
+        if schema_ is not None:
             body["response_format"] = {"type": "json_schema", "json_schema": {"name": "call", "schema": schema_}}
+        else:
+            body.update(self.sampling)
         req = urllib.request.Request(self.url + "/v1/chat/completions", data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json",
                                               "Authorization": f"Bearer {self.key}"})
@@ -434,6 +454,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url"), ap.add_argument("--model", default=""), ap.add_argument("--api-key-env")
     ap.add_argument("--config"), ap.add_argument("--only"), ap.add_argument("--lang"), ap.add_argument("--out")
+    ap.add_argument("--sampling", type=parse_sampling, default={},
+                    help="JSON llama.cpp sampling overrides for free-text Stage B only")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
     ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
@@ -467,7 +489,7 @@ def main() -> None:
         url, key, model = url or cfg["url"], key or cfg.get("api_key", ""), model or cfg.get("model", "")
     if not url:
         ap.error("--url or --config needed")
-    srv = Server(url, key, model)
+    srv = Server(url, key, model, o.sampling)
     out = o.out or os.path.join("bench-results", "guide",
                                 f"{re.sub(r'[^\w.-]+', '_', model or 'model')}-{PROMPT}-{dt.datetime.now():%Y%m%d-%H%M}.jsonl")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
