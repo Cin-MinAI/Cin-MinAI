@@ -196,6 +196,7 @@ class Service:
         self.writing_backend: tuple[str, LlamaCppBackend] | None = None
         self.vision_offers: dict[str, tuple[str, str]] = {}  # "set up reading pictures?": id -> (path, request)
         self.bigger_offers: dict[str, str] = {}  # offered "ask the bigger model", by id: the question with its terminal
+        self.chain_offers: dict[str, dict] = {}  # D91: a chain waiting for its Search click, by offer id
         self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
         self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
@@ -477,6 +478,10 @@ class Service:
                 return
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            if sid in self.chain_offers:  # D91: the Search click a chain was waiting for
+                offer = self.chain_offers.pop(sid)
+                self.job(self.next_id, lambda on_text, on_action: self.run_video_chain(offer, query, on_text, on_action))
+                return
 
             def search(on_text, on_action, sid=sid, query=query):
                 out, _ = hook.run("web_search", lambda: self.guide.search(sid, query, on_text, on_action, self.cancel),
@@ -664,7 +669,11 @@ class Service:
             self.job(rid, gather)
             return
 
-        from . import webvideo
+        from . import intent, webvideo
+        found = intent.video_review(text)
+        if found:  # D91: "pull up a video about X (and summarize it)" — a chain, not a web answer
+            self.job(rid, lambda on_text, on_action: self.offer_video_chain(text, found, on_text, on_action))
+            return
         if webvideo.asks_about_video(text):  # the YouTube video open in Firefox (D78), never a summarizer site
             self.job(rid, lambda on_text, on_action: self.web_video(text, False, on_text, on_action))
             return
@@ -761,6 +770,61 @@ class Service:
                                    on_action)
         finally:
             video.cleanup(work)
+
+    # --- chains (D91) ---------------------------------------------------------------------------------------------
+    def offer_video_chain(self, text: str, found: dict, on_text, on_action) -> dict:
+        """Step 0: say what will happen and show the search; nothing is sent before the Search click (D86)."""
+        import uuid
+        from . import chains
+        sid, query = uuid.uuid4().hex[:12], chains.video_query(found["topic"])
+        self.chain_offers = {sid: {**found, "query": query, "question": text}}  # only the newest offer stands
+        online = self.guide.tools.online()
+        on_action("web_search", {"query": query}, "proposal", json.dumps(
+            {"id": sid, "query": query, "online": online, "provider": "DuckDuckGo"}, ensure_ascii=False))
+        then = " and summarize it" if found["summarize"] else ""
+        on_text(f"I'll look on YouTube for a video about {found['topic']}, open the best match in Firefox{then}. "
+                + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."
+                   if online else "This computer isn't online right now: connect, then click Search below."))
+        return {"tool": "video_review", "proposal": sid}
+
+    def run_video_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
+        """Search YouTube, list the videos, open the first in Firefox, wait for it, summarize it if asked."""
+        from . import chains, webvideo, websearch
+        query = (query or offer["query"]).strip()[:200]
+        on_action("web_search", {"query": query}, "running", "")
+        try:
+            results, _ = hook.run("web_search", lambda: websearch.search(query, self.guide.tools.lang),
+                                  "a web search (the question left the computer)", reversible=False)
+        except websearch.SearchError as e:
+            raise BackendError(f"The search didn't work: {e}.")
+        videos = chains.youtube_videos(results)
+        on_action("web_search", {"query": query}, "done", json.dumps(
+            {"query": query, "sources": [{"n": i + 1, "title": v["title"], "url": v["url"]} for i, v in enumerate(videos)]},
+            ensure_ascii=False))
+        if not videos:
+            on_text("I couldn't find a YouTube video for that. Try other words, or open one in Firefox and ask me "
+                    "to summarize it.")
+            return {"tool": "video_review", "videos": 0}
+        if self.cancel.is_set():
+            raise Cancelled("cancelled")
+        video = videos[0]
+        on_action("open_video", {"title": video["title"]}, "running", "")
+        chains.open_in_firefox(video["url"])
+        info = chains.wait_for_video(video["id"], self.cancel, webvideo.from_firefox)
+        if self.cancel.is_set():
+            raise Cancelled("cancelled")
+        on_action("open_video", {"title": video["title"]}, "done",
+                  json.dumps({"opened": video["title"], "url": video["url"]}, ensure_ascii=False))
+        if not offer["summarize"]:
+            on_text(f"I opened “{video['title']}” in Firefox. Ask me to summarize it whenever you like; the other "
+                    "videos I found are listed above.")
+            return {"tool": "video_review", "videos": len(videos), "summarized": False}
+        if info is None:
+            on_text(f"I opened “{video['title']}” in Firefox, but I couldn't read it yet. When it has loaded, say "
+                    "\"summarize this video\".")
+            return {"tool": "video_review", "videos": len(videos), "summarized": False}
+        out = self.web_video("summarize this video", False, on_text, on_action)
+        return {**out, "tool": "video_review", "videos": len(videos)}
 
     def web_video(self, request: str, fetch_first: bool, on_text, on_action) -> dict:
         """The YouTube video open in Firefox (D78): its transcript and storyboard, through our extension."""

@@ -94,6 +94,10 @@ class _DDG(HTMLParser):
 def search(query: str, lang: str = "en") -> list[dict]:
     # POST: a plain GET came back as DuckDuckGo's home page (no results) from the dev PC, 2026-10-01
     page, _ = _get("https://html.duckduckgo.com/html/", form={"q": query, "kl": REGION.get(lang, "wt-wt")})
+    if "anomaly" in page.lower() and "result__a" not in page:
+        # DuckDuckGo's "are you a person?" page after many searches in a short time (seen 2026-10-07 while testing).
+        # Said plainly, never worked around; "no results" would have been wrong.
+        raise SearchError("the search engine wants a short pause after many searches; try again in a few minutes")
     p = _DDG()
     p.feed(page)
     out, seen = [], set()

@@ -58,6 +58,13 @@ def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
         if made:
             return "x-office-spreadsheet-symbolic", f"Made a new spreadsheet: {made}"
         return "dialog-warning-symbolic", "Tried to make a spreadsheet, but couldn't"
+    if tool == "open_video":
+        try:
+            opened = json.loads(result).get("opened") if result else None
+        except ValueError:
+            opened = None
+        title = opened or args.get("title") or "the video"
+        return "video-x-generic-symbolic", (f"Opened “{title}” in Firefox" if opened else f"Opening “{title}” in Firefox…")
     if tool == "compose_email":
         try:
             opened = json.loads(result).get("opened") if result else None

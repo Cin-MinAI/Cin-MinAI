@@ -63,5 +63,28 @@ class SearchQuery(unittest.TestCase):
         self.assertEqual(search_query("", "what is self hosting"), "what is self hosting")
 
 
+class VideoReview(unittest.TestCase):
+    def test_requests_and_their_topics(self):
+        from cin_minai.daemon.intent import video_review
+        cases = {
+            "Can you search YouTube for a video on how to make donuts and summarize it?": ("how to make donuts", True),
+            "Find me a video about fixing a leaky faucet": ("fixing leaky faucet", False),
+            "Find a video on how to change a tire": ("how to change tire", False),
+            "Pull up a video on sourdough bread and review it": ("sourdough bread", True),
+            "Busca un video sobre cómo hacer pan y resúmelo": ("cómo hacer pan", True),
+            "Procure um vídeo sobre jardinagem": ("jardinagem", False),
+            "Such ein Video über Fahrradreparatur und fass es zusammen": ("Fahrradreparatur", True),
+            "ドーナツの作り方の動画を探して要約して": ("ドーナツの作り方", True),
+        }
+        for text, (topic, summarize) in cases.items():
+            self.assertEqual(video_review(text), {"topic": topic, "summarize": summarize}, text)
+
+    def test_not_a_request_to_find_one(self):
+        from cin_minai.daemon.intent import video_review
+        for text in ("Summarize this video", "How do I find videos in Firefox?", "What is a video codec?",
+                     "Fasse dieses Video zusammen"):
+            self.assertIsNone(video_review(text), text)
+
+
 if __name__ == "__main__":
     unittest.main()

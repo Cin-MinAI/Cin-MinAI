@@ -46,6 +46,43 @@ def search_query(proposed: str, message: str) -> str:
     return proposed
 
 
+# --- chains (D91): "pull up a video about X (and summarize it)" -------------------------------------------------------
+VIDEO = re.compile(r"\b(videos?|vídeos?|vidéos?|youtube|clips?)\b|動画|ビデオ", re.I)
+THIS_VIDEO = re.compile(r"\b(this|that|este|esta|ese|esa|esse|essa|ce|cette|dieses|diesem|dieser)\s+(youtube\s+)?"
+                        r"(video|vídeo|vidéo|clip)\b|この動画|このビデオ", re.I)
+FIND = re.compile(r"\b(find|search|look\s+up|look\s+for|pull\s+up|bring\s+up|show\s+me|get\s+me|play|"
+                  r"busca\w*|encuentr\w*|pesquis\w*|procur\w*|ach[ae]\w*|cherch\w*|trouv\w*|such\w*|find\w*)\b|"
+                  r"探して|検索|見つけて", re.I)
+SUMMARIZE = re.compile(r"\b(summari[sz]e|summary|review|sum (it )?up|recap|watch (it|this) for me|r[eé]s[uú]m\w*|"
+                       r"résum\w*|zusammenfass\w*|fass\w*\s+\w+\s+zusammen)\b|要約|まとめ", re.I)
+# what's left of the request once the asking is taken out is the topic: "how to make donuts"
+FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(and|then|y|e|et|und)\s*$|"
+                    r"\b(a|an|the|me|for me|some|one|un|una|uno|um|uma|une|des|ein|eine|einen)\b|"
+                    r"\b(about|on|of|for|sobre|de|acerca de|sur|à propos de|über|zu|zum|zur)\b(?=\s)|"
+                    r"\b(and|y|e|et|und)\s+(summari[sz]e|review|resum\w*|résum\w*|fass\w*)\b.*$|"
+                    r"\bit\b|\bon youtube\b|\ben youtube\b|\bno youtube\b|\bsur youtube\b|\bauf youtube\b|"
+                    r"について|の動画|を|して|ください", re.I)
+
+
+def video_review(text: str) -> dict | None:
+    """{"topic", "summarize"} when the person asks to find a video (and maybe have it summarized) — not "this video",
+    which is the one already open in Firefox (webvideo.asks_about_video)."""
+    if THIS_VIDEO.search(text) or not VIDEO.search(text) or not FIND.search(text):
+        return None
+    # "how do I find videos in Firefox?" is a question; "find a video on how to change a tire" is a request
+    if re.search(r"\bhow (do|can|could|should) (i|you|we)\b|^\W*(c[oó]mo|comment|wie)\b", text, re.I) \
+            and not SUMMARIZE.search(text):
+        return None
+    topic = SUMMARIZE.sub(" ", FIND.sub(" ", VIDEO.sub(" ", text)))
+    for _ in range(3):
+        topic = FILLER.sub(" ", topic)
+    topic = re.sub(r"\s+", " ", re.sub(r"[?!.¿¡,:;。、？！]", " ", topic)).strip()
+    topic = re.sub(r"(\s+(and|y|e|et|und))+$|[のをでと]+$", "", topic).strip()
+    if len(topic) < 3:
+        return None
+    return {"topic": topic, "summarize": bool(SUMMARIZE.search(text))}
+
+
 def narrow(schema: dict, text: str) -> dict:
     """The schema with only the tools this request may use. Unchanged when it has no email tool (other prompts)."""
     options = schema.get("anyOf", [])
