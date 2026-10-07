@@ -87,10 +87,10 @@ def build(repo: str) -> dict:
     if unknown:
         raise SystemExit(f"search words for unknown cards: {sorted(unknown)}")
     desktop = {**{k: v + ".desktop" for k, v in X.LABELS.items()}, **{k: None for k in X.ACTIONS}}
-    help_ = {"labels": R.LABELS, "desktop": desktop, "cards": cards}
+    help_ = {"labels": R.LABELS, "ui": R.UI, "desktop": desktop, "cards": cards}
     for c in cards:
         for key in re.findall(r"\{(\w+)\}", c["card"]):
-            if key not in R.LABELS:
+            if key not in R.LABELS and key not in R.UI:
                 raise SystemExit(f"card {c['id']}: unknown label {{{key}}}")
     return {"guide.json": guide, "help.json": help_}
 

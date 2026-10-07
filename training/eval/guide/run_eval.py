@@ -39,7 +39,10 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 TASKS, BRANDS = _mod.TASKS, _mod.BRANDS
 
-LABELS = json.load(open(os.path.join(HERE, "labels.json"), encoding="utf-8"))["labels"]
+with open(os.path.join(HERE, "labels.json"), encoding="utf-8") as _f:
+    _L = json.load(_f)
+LABELS = _L["labels"]       # programs and settings pages (open_app can open these)
+UI = _L.get("ui", {})      # names inside programs: menus, buttons ({ui_…} in cards)
 LANGS = ["en", "es", "pt", "fr", "de", "ja"]
 
 # --- tools ---------------------------------------------------------------------------------------
@@ -213,6 +216,8 @@ def system_prompt(task: dict) -> str:
 # --- items: one per (task, language) --------------------------------------------------------------
 
 def label(key: str, lang: str) -> str:
+    if key in UI:  # no translation in the catalogue: the program shows the English, so that's the name
+        return UI[key].get(lang) or UI[key]["en"]
     row = LABELS[key]
     if lang in row:
         return row[lang]

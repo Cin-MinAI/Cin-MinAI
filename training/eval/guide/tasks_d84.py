@@ -18,7 +18,8 @@ _kb = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_kb)
 CARD = {t["id"]: t["card"] for t in _kb.TOPICS}
 
-# The warnings must reach the reply in every language (the first run's "how do I" replies dropped them)
+# The names inside programs ({ui_…}) are Mint's own, from its catalogues (labels.json "ui"): a made-up translation
+# fails. The warnings must reach the reply in every language (the first run's "how do I" replies dropped them)
 WARN_ERASE = ("~(?i)eras|wipe|delet|everything on|borra|todo lo|apag|tudo|effac|tout ce|lösch|alles|消去|消え|削除|"
               "すべて|全て")
 WARN_HIDDEN = ("~(?i)(don.t|do not|never) (delete|change)|careful|no (borre|elimine|cambie|los borre)|cuidado|"
@@ -65,7 +66,7 @@ TASKS = [
            "ja": "娘のために別のアカウントを作るにはどうすればいいですか？"},
      "expect": [{"tool": "lookup_help"}, {"tool": "open_app", "args": {"app": ["users"]}}],
      "card": CARD["user_accounts"],
-     "must": [["{users}"]], "must_not": NO_CMD, **STEPS},
+     "must": [["{users}"], ["{ui_no_password_set}"]], "must_not": NO_CMD, **STEPS},
     {"id": "D84-05", "cat": "transition",
      "q": {"en": "How do I make a bootable USB stick from an ISO? On Windows I used Rufus.",
            "es": "¿Cómo hago un USB de arranque con una ISO? En Windows usaba Rufus.",
@@ -75,7 +76,7 @@ TASKS = [
            "ja": "ISOから起動できるUSBメモリを作るには？WindowsではRufusを使っていました。"},
      "expect": [{"tool": "lookup_help"}, {"tool": "open_app", "args": {"app": ["usb_writer"]}}],
      "card": CARD["bootable_usb"],
-     "must": [["{usb_writer}"], [WARN_ERASE]], "must_not": NO_CMD, **STEPS},
+     "must": [["{usb_writer}"], ["{ui_select_image}"], [WARN_ERASE]], "must_not": NO_CMD, **STEPS},
     {"id": "D84-06", "cat": "transition",
      "q": {"en": "Is there something like VS Code here for coding with AI?"},
      "expect": [{"tool": "lookup_help"}],

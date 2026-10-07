@@ -312,7 +312,7 @@ TOPICS = [
              "one has a line from it to you. Either way, what you send stays confidential on the way. Worth it on "
              "public Wi-Fi, to reach a home or work network, or to appear in another country; it doesn't make you "
              "anonymous, and it can slow the connection a little. To add one: open {system_settings}, then "
-             "{network}, click + at the bottom left, choose Import from file and pick the .ovpn file your VPN "
+             "{network}, click + at the bottom left, choose {ui_import_from_file} and pick the .ovpn file your VPN "
              "service gave you (or choose OpenVPN and type in its details), then switch it on in the list. If the "
              "service has its own Linux app, that works too.",
      "must": ["network"], "steps": True},
@@ -323,7 +323,7 @@ TOPICS = [
              "when you log in, because it uses your login password. It asks on its own when you log in "
              "automatically (no password was typed), or after your login password changed and the keyring's "
              "didn't: then type the password it was made with. To make them match again, open {passwords_keys}, "
-             "right-click Login, choose Change Password, and enter the old password, then the new one. Don't delete "
+             "right-click Login, choose {ui_change_password}, and enter the old password, then the new one. Don't delete "
              "the Login keyring to stop the question: the passwords saved in it would be lost.",
      "must": ["passwords_keys"], "steps": True, "langs": ["en", "es", "pt", "fr", "de"]},
     {"id": "hidden_files", "windows": "'Show hidden files' in File Explorer",
@@ -331,16 +331,17 @@ TOPICS = [
              ".config), and they hold what your programs need to work the way you expect. Deleting one usually "
              "won't break the computer itself (though it can), but it can break a program or wipe its settings. To "
              "see them in {files}: press Ctrl+H (careful: don't delete or change them unless you know what a file "
-             "is for, or a guide you trust says to), or choose View > Show Hidden Files; press Ctrl+H again to "
+             "is for, or a guide you trust says to), or choose {ui_view} > {ui_show_hidden_files}; press Ctrl+H again to "
              "hide them.",
      "must": ["files"], "steps": True},
     {"id": "user_accounts", "windows": "adding a family member or another user account",
      "card": "User accounts: accounts are free, and every person can have their own experience: their own files, "
              "settings, browser and saved passwords, behind a password of their own. Make one for each person "
              "instead of sharing. Standard is right for most people, children included; an Administrator can "
-             "install programs and change the system. To add one: open {users} and type your password, click Add, "
-             "choose the Account Type (Standard or Administrator), fill in Full Name and Username, and click Add. "
-             "Then click the new account, click No password set next to Password, and give it a password.",
+             "install programs and change the system. To add one: open {users} and type your password, click {ui_add}, "
+             "choose the {ui_account_type} ({ui_standard} or {ui_administrator}), fill in {ui_full_name} and "
+             "{ui_username}, and click {ui_add}. Then click the new account, click {ui_no_password_set} next to "
+             "{ui_password}, and give it a password.",
      "must": ["users"], "steps": True},
     {"id": "bootable_usb", "windows": "Rufus or the Media Creation Tool, to make a bootable USB stick from an ISO",
      "card": "Bootable USB stick: two words first. A disk image is a map of how to set every bit on a disk; a "
@@ -348,11 +349,11 @@ TOPICS = [
              "written onto a USB stick, it makes the stick a disk that can start a computer and build the system's "
              "volume on its drive. That's why you write it instead of copying it: a copy would just be one file on "
              "the stick. To make one: writing erases everything on the stick, so first save any files you want "
-             "from it to your computer; plug in the stick, open {usb_writer}, click Select Image and choose the "
+             "from it to your computer; plug in the stick, open {usb_writer}, click {ui_select_image} and choose the "
              ".iso file, "
-             "choose the stick under USB stick, click Write (this erases the stick) and type your password. To use "
+             "choose the stick under {ui_usb_stick} click {ui_write} (this erases the stick) and type your password. To use "
              "the stick for files again later, open {usb_formatter}, choose "
-             "the stick, give it a name and click Format. A Windows .iso usually needs Windows' own tool; the "
+             "the stick, give it a name and click {ui_format}. A Windows .iso usually needs Windows' own tool; the "
              "writer warns you when it sees one.",
      "must": ["usb_writer"], "steps": True},
     {"id": "aicui", "windows": "Visual Studio Code or another IDE for programming",

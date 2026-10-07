@@ -4,6 +4,7 @@
 (PLAN D25). Run on a Mint 22.x system (read-only):
 
     python3 extract_labels.py > labels.json
+    python3 extract_labels.py ROOT > labels.json     (an ISO's extracted filesystem instead of this system)
 
 The guide must say "Logithèque" to a French user, not a translation it made up, so the eval checks
 replies against these names. Sources: Name[xx]= in the .desktop files, else the app's gettext
@@ -47,6 +48,18 @@ LABELS = {  # our key -> .desktop file
     "music_player": "org.gnome.Rhythmbox3",
     "passwords_keys": "org.gnome.seahorse.Application", "usb_writer": "mintstick", "usb_formatter": "mintstick-format",
 }
+UI = {  # names inside programs (menus, buttons) the cards use as {ui_…}: (gettext domain, msgid exactly as in source)
+    "ui_view": ("nemo", "_View"), "ui_show_hidden_files": ("nemo", "Show _Hidden Files"),
+    "ui_select_image": ("mintstick", "Select Image"), "ui_write": ("mintstick", "Write"),
+    "ui_usb_stick": ("mintstick", "USB stick:"), "ui_format": ("mintstick", "Format"),
+    "ui_import_from_file": ("cinnamon-control-center", "Import from file…"),
+    "ui_add": ("cinnamon", "Add"), "ui_account_type": ("cinnamon", "Account Type"),
+    "ui_standard": ("cinnamon", "Standard"), "ui_administrator": ("cinnamon", "Administrator"),
+    "ui_full_name": ("cinnamon", "Full Name"), "ui_username": ("cinnamon", "Username"),
+    "ui_no_password_set": ("cinnamon", "No password set"), "ui_password": ("cinnamon", "Password"),
+    "ui_change_password": ("seahorse", "Change _Password"),
+}
+LOCALE_DIRS = ("usr/share/locale", "usr/share/locale-langpack", "usr/share/linuxmint/locale")
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",
 }
@@ -64,10 +77,33 @@ def entry(path: str, section: str = "[Desktop Entry]") -> dict:
     return out
 
 
+ROOT = "/"
+
+
+def at(path: str) -> str:
+    return os.path.join(ROOT, path.lstrip("/"))
+
+
+def catalogue(domain: str, code: str):
+    for base in LOCALE_DIRS:
+        mo = at(os.path.join(base, code, "LC_MESSAGES", domain + ".mo"))
+        if os.path.exists(mo):
+            with open(mo, "rb") as f:
+                return gettext.GNUTranslations(f)
+    return None
+
+
+def ui_label(text: str) -> str:
+    """'Show _Hidden Files' -> 'Show Hidden Files'; Japanese '表示 (V)' -> '表示'."""
+    return re.sub(r"\s*\(_?\w\)$", "", text).replace("_", "")
+
+
 def main() -> None:
-    labels, missing = {}, []
+    global ROOT
+    ROOT = sys.argv[1] if len(sys.argv) > 1 else "/"
+    labels, ui, missing = {}, {}, []
     for key, name in LABELS.items():
-        path = os.path.join(APPS, name + ".desktop")
+        path = at(os.path.join(APPS, name + ".desktop"))
         if not os.path.exists(path):
             missing.append(name)
             continue
@@ -82,7 +118,7 @@ def main() -> None:
                 if domain:
                     for base in ("/usr/share/locale", "/usr/share/locale-langpack"):
                         try:
-                            t = gettext.translation(domain, base, languages=[code]).gettext(e["Name"])
+                            t = gettext.translation(domain, at(base), languages=[code]).gettext(e["Name"])
                         except OSError:
                             continue
                         row[lang] = t  # the catalogue exists, so this is its word (German "Terminal" = "Terminal")
@@ -91,6 +127,7 @@ def main() -> None:
                         break
         labels[key] = row
     for key, path in ACTIONS.items():
+        path = at(path)
         if not os.path.exists(path):
             missing.append(path)
             continue
@@ -103,10 +140,20 @@ def main() -> None:
                     row[lang] = clean(e[f"Name[{code}]"])
                     break
         labels[key] = row
+    for key, (domain, msgid) in UI.items():
+        row = {"en": ui_label(msgid)}
+        for lang, codes in LANGS.items():
+            for code in codes:
+                t = catalogue(domain, code)
+                if t is not None and msgid in t._catalog:
+                    row[lang] = ui_label(t._catalog[msgid])
+                    break
+        ui[key] = row
     if missing:
         print("missing .desktop files: " + ", ".join(missing), file=sys.stderr)
-    json.dump({"source": "Linux Mint " + open("/etc/linuxmint/info").read().split("RELEASE=")[1].split()[0]
-               if os.path.exists("/etc/linuxmint/info") else "unknown", "labels": labels},
+    info = at("/etc/linuxmint/info")
+    json.dump({"source": "Linux Mint " + open(info).read().split("RELEASE=")[1].split()[0]
+               if os.path.exists(info) else "unknown", "labels": labels, "ui": ui},
               sys.stdout, ensure_ascii=False, indent=1)
     print()
 

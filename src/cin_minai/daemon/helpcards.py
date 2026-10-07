@@ -72,7 +72,8 @@ class HelpIndex:
     K1, B = 1.2, 0.75
 
     def __init__(self, data: dict) -> None:
-        self.labels = data["labels"]
+        self.labels = data["labels"]                       # programs' names: also indexed for the search
+        self.names = {**self.labels, **data.get("ui", {})}  # + names inside programs ({ui_…}): only filled in
         self.cards = {c["id"]: c for c in data["cards"]}
         self.docs: dict[str, Counter] = {}
         for c in data["cards"]:
@@ -118,9 +119,9 @@ class HelpIndex:
         (terminal errors ask for more: an unknown error otherwise finds a wrong card by a stray word)."""
         if not tokens(query) and re.search(r"linux|mint|cin-?minai|ubuntu", query, re.I) and "what_is_linux" in self.cards:
             # nothing left but the system's name: "what is Linux (Mint)?"
-            return "what_is_linux", resolve(self.cards["what_is_linux"]["card"], self.labels, lang)
+            return "what_is_linux", resolve(self.cards["what_is_linux"]["card"], self.names, lang)
         ranked = self.rank(query)
         if not ranked or ranked[0][1] < min_score:
             return None, "Nothing in the built-in help matches this."
         cid = ranked[0][0]
-        return cid, resolve(self.cards[cid]["card"], self.labels, lang)
+        return cid, resolve(self.cards[cid]["card"], self.names, lang)

@@ -459,5 +459,134 @@
    "de": "USB-Stick-Formatierer",
    "ja": "USB メモリフォーマッター"
   }
+ },
+ "ui": {
+  "ui_view": {
+   "en": "View",
+   "es": "Ver",
+   "pt": "Exibir",
+   "fr": "Affichage",
+   "de": "Ansicht",
+   "ja": "表示"
+  },
+  "ui_show_hidden_files": {
+   "en": "Show Hidden Files",
+   "es": "Mostrar los archivos ocultos",
+   "pt": "Exibir arquivos ocultos",
+   "fr": "Afficher les fichiers cachés",
+   "de": "Verborgene Dateien anzeigen",
+   "ja": "隠しファイルを表示"
+  },
+  "ui_select_image": {
+   "en": "Select Image",
+   "es": "Seleccione la imagen",
+   "pt": "Selecionar Imagem",
+   "fr": "Choisissez une image",
+   "de": "Abbild auswählen",
+   "ja": "イメージを選択"
+  },
+  "ui_write": {
+   "en": "Write",
+   "es": "Grabar",
+   "pt": "Gravar",
+   "fr": "Écrire",
+   "de": "Schreiben",
+   "ja": "書き込み"
+  },
+  "ui_usb_stick": {
+   "en": "USB stick:",
+   "es": "Memoria USB:",
+   "pt": "Dispositivo USB:",
+   "fr": "Clé USB :",
+   "de": "USB-Stick:",
+   "ja": "USB メモリ:"
+  },
+  "ui_format": {
+   "en": "Format",
+   "es": "Formatear",
+   "pt": "Formatar",
+   "fr": "Formater",
+   "de": "Formatieren",
+   "ja": "フォーマット"
+  },
+  "ui_import_from_file": {
+   "en": "Import from file…",
+   "es": "Importar desde un archivo...",
+   "pt": "Importar de arquivo…",
+   "fr": "Importer d’un fichier…",
+   "de": "Aus einer Datei importieren …",
+   "ja": "ファイルからインポート…"
+  },
+  "ui_add": {
+   "en": "Add",
+   "es": "Añadir",
+   "pt": "Adicionar",
+   "fr": "Ajouter",
+   "de": "Hinzufügen",
+   "ja": "追加"
+  },
+  "ui_account_type": {
+   "en": "Account Type",
+   "es": "Tipo de cuenta",
+   "pt": "Tipo de Conta",
+   "fr": "Type de compte",
+   "de": "Kontotyp",
+   "ja": "アカウントの種類"
+  },
+  "ui_standard": {
+   "en": "Standard",
+   "es": "Estándar",
+   "pt": "Padrão",
+   "fr": "Normal",
+   "de": "Standard",
+   "ja": "一般ユーザー"
+  },
+  "ui_administrator": {
+   "en": "Administrator",
+   "es": "Administrador",
+   "pt": "Administrador",
+   "fr": "Administrateur",
+   "de": "Systemverwalter",
+   "ja": "管理者"
+  },
+  "ui_full_name": {
+   "en": "Full Name",
+   "es": "Nombre completo",
+   "pt": "Nome Completo",
+   "fr": "Nom complet",
+   "de": "Vollständiger Name",
+   "ja": "フルネーム"
+  },
+  "ui_username": {
+   "en": "Username",
+   "es": "Nombre de usuario",
+   "pt": "Nome do Usuário",
+   "fr": "Nom d’utilisateur",
+   "de": "Benutzername",
+   "ja": "ユーザー名"
+  },
+  "ui_no_password_set": {
+   "en": "No password set",
+   "es": "Sin contraseña",
+   "pt": "Nenhuma senha definida",
+   "fr": "Aucun mot de passe n’est défini",
+   "de": "Kein Passwort eingestellt",
+   "ja": "パスワードが設定されていません"
+  },
+  "ui_password": {
+   "en": "Password",
+   "es": "Contraseña",
+   "pt": "Senha",
+   "fr": "Mot de passe",
+   "de": "Passwort",
+   "ja": "パスワード"
+  },
+  "ui_change_password": {
+   "en": "Change Password",
+   "es": "Cambiar la contraseña",
+   "pt": "Alterar senha",
+   "fr": "Modifier le mot de passe",
+   "de": "Passwort ändern"
+  }
  }
 }
