@@ -23,7 +23,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
 from . import facts, intent
-from .repetition import LoopDetected, PointCap, ReplyGuard
+from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
 TEXT_START = re.compile(r'^\s*\{\s*"tool"\s*:\s*"(answer|decline)"\s*,\s*"args"\s*:\s*\{\s*"text"\s*:\s*"')
@@ -134,39 +134,6 @@ class Guide:
         # the conversation goes on from here as if the guide had answered (follow-up questions work)
         self.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
         return {"reply": reply, "tool": "web_search", "args": {"query": query}, "sources": len(found["sources"]),
-                "timings": [timings], "loop_stopped": loop_stopped}
-
-    def brief(self, topic: str, question: str, query: str, on_text: Callable[[str], None], on_action,
-              cancel: threading.Event) -> dict:
-        """The news chain (D91), after the Search click: recent articles read, then a short briefing from them only,
-        each point with its article number; the articles are listed after it, like any search's sources."""
-        from . import websearch
-        on_action("web_search", {"query": query}, "running", "")
-        try:
-            try:
-                found = websearch.gather(query, self.tools.lang, pages=4, recent="w", topic=topic)
-            except websearch.SearchError as e:
-                if "found nothing" not in str(e):
-                    raise
-                found = websearch.gather(query, self.tools.lang, pages=4, topic=topic)  # nothing this week: the latest
-        except websearch.SearchError as e:
-            raise BackendError(f"The search didn't work: {e}.")
-        on_action("web_search", {"query": query}, "done",
-                  json.dumps({"query": query, "sources": [{k: s[k] for k in ("n", "title", "url")} for s in found["sources"]]},
-                             ensure_ascii=False))
-        if cancel.is_set():
-            raise Cancelled("cancelled")
-        guard = self.reply_guard(on_text)
-        cap = PointCap(guard.feed, replace=getattr(on_text, "replace", None))  # five points at most (the 4B wrote twenty)
-        try:
-            reply, timings = self.backend.chat([{"role": "user", "content": websearch.briefing_prompt(topic, question, found)}],
-                                               max_tokens=600, on_text=cap.feed, cancel=cancel)
-            guard.finish()
-            loop_stopped = False
-        except LoopDetected as e:
-            reply, timings, loop_stopped = e.reply, {}, True
-        self.history += [{"role": "user", "content": question}, {"role": "assistant", "content": reply}]
-        return {"reply": reply, "tool": "news", "args": {"query": query}, "sources": len(found["sources"]),
                 "timings": [timings], "loop_stopped": loop_stopped}
 
     def document(self) -> tuple[dict | None, str, dict]:

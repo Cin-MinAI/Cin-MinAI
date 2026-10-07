@@ -796,24 +796,38 @@ class Service:
         """Step 0 of the news chain: say what will happen and show the search; nothing sent before the click (D86)."""
         import uuid
         from . import websearch
-        sid, query = uuid.uuid4().hex[:12], websearch.news_query(news["topic"], self.guide.tools.lang)
+        from . import newsscan
+        sid, query = uuid.uuid4().hex[:12], news["topic"]
         self.chain_offers = {sid: {"recipe": "news", **news, "query": query, "question": text}}
         online = self.guide.tools.online()
-        on_action("web_search", {"query": query}, "proposal", json.dumps(
-            {"id": sid, "query": query, "online": online, "provider": "DuckDuckGo"}, ensure_ascii=False))
-        what = f"recent news about {news['topic']}" if news["topic"] else "today's main news"
-        on_text(f"I'll look for {what}, read the top articles and give you a short briefing, with the sources. "
+        on_action("web_search", {"query": query or "top stories"}, "proposal", json.dumps(
+            {"id": sid, "query": query or "top stories", "online": online, "provider": newsscan.PROVIDERS},
+            ensure_ascii=False))
+        what = f"what the press says about {news['topic']}" if news["topic"] else "today's top stories"
+        on_text(f"I'll look up {what} and show you each outlet's own headline with its date. I don't say what "
+                "happened, only who says what. "
                 + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."
                    if online else "This computer isn't online right now: connect, then click Search below."))
         return {"tool": "news", "proposal": sid}
 
     def run_news_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
-        query = (query or offer["query"]).strip()[:200]
-        out, _ = hook.run("web_search", lambda: self.guide.brief(offer["topic"], offer["question"], query, on_text,
-                                                                 on_action, self.cancel),
-                          "a web search (the question left the computer)", reversible=False)
-        return {"tool": "news", "sources": out["sources"], "reply_chars": len(out["reply"]),
-                "loop_stopped": out.get("loop_stopped", False)}
+        """D92, press: each outlet's headline, word for word, with outlet and date — no model in between."""
+        from . import newsscan, websearch
+        topic = ("" if query == "top stories" else (query or offer["topic"])).strip()[:200]
+        lang = self.guide.tools.lang
+        on_action("web_search", {"query": topic or "top stories"}, "running", "")
+        try:
+            items, _ = hook.run("web_search", lambda: newsscan.press(topic, lang),
+                                "a news search (the topic left the computer)", reversible=False)
+        except websearch.SearchError as e:
+            raise BackendError(f"The news search didn't work: {e}.")
+        on_action("web_search", {"query": topic or "top stories"}, "done", json.dumps(
+            {"query": topic, "sources": [{"n": i + 1, "title": f"{it['outlet']}: {it['title']}", "url": it["url"]}
+                                         for i, it in enumerate(items)]}, ensure_ascii=False))
+        reply = newsscan.report(topic, items, lang)
+        on_text(reply)
+        self.guide.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
+        return {"tool": "news", "press": len(items), "outlets": len({it["outlet"] for it in items})}
 
     def run_video_chain(self, offer: dict, query: str, on_text, on_action) -> dict:
         """Search YouTube, list the videos, open the first in Firefox, wait for it, summarize it if asked."""
