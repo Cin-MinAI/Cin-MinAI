@@ -43,6 +43,19 @@ class AdminPolicyTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(policy.Reject):
                 policy.check_write(path, b"x", 0o600)
 
+    def test_write_is_checked_again_after_approval(self):
+        # Approved while the target was a plain file; it became a symlink while the
+        # password dialog was open.
+        from cin_minai.admin import mechanism
+        path = "/etc/sysctl.d/cinminai-test.conf"
+        with mock.patch.object(policy.os.path, "isdir", return_value=True), \
+             mock.patch.object(policy.os.path, "realpath", side_effect=lambda p: p), \
+             mock.patch.object(policy.os.path, "islink", return_value=True), \
+             mock.patch.object(mechanism, "write_file") as write_file:
+            with self.assertRaisesRegex(policy.Reject, "symlink"):
+                mechanism.execute_write([path, b"vm.swappiness = 60\n", 0o644])
+            write_file.assert_not_called()
+
     def test_write_content_is_checked_line_by_line(self):
         ok = {
             "/etc/modprobe.d/cinminai-nouveau.conf": b"# Cin-MinAI: G101\nblacklist nouveau\noptions nouveau modeset=0\n",

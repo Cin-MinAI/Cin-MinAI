@@ -75,6 +75,13 @@ def write_file(path: str, content: bytes, mode: int) -> str:
     return backup
 
 
+def execute_write(args) -> str:
+    # Like RunArgv: the password dialog can sit on screen while things change, so
+    # check the path and content again immediately before writing.
+    path, content, mode = args
+    return write_file(check_write(path, content, mode), content, mode)
+
+
 def _none(value: object) -> None:
     return None
 
@@ -106,7 +113,7 @@ VERBS = {
     "SetServiceEnabled": ("org.cinminai.admin.set-service-enabled", lambda a: ({"unit": check_unit(a[0]), "enabled": "yes" if a[1] else "no"}, ["/usr/bin/systemctl", "enable" if a[1] else "disable", "--", a[0]]), lambda a: _none(run(a)), None),
     "InstallPackage": ("org.cinminai.admin.install-package", lambda a: ({"package": check_package(a[0])}, ["/usr/bin/apt-get", "install", "-y", "-o", "Dpkg::Options::=--force-confold", "--", a[0]]), run_apt, "(s)"),
     "RemovePackage": ("org.cinminai.admin.remove-package", lambda a: ({"package": check_package(a[0], True)}, ["/usr/bin/apt-get", "remove", "-y", "--no-auto-remove", "--", a[0]]), run_apt, "(s)"),
-    "WriteFile": ("org.cinminai.admin.write-file", lambda a: ({"path": check_write(a[0], bytes(a[1]), a[2]), "size": str(len(a[1])), "mode": oct(a[2])}, [a[0], bytes(a[1]), a[2]]), lambda a: write_file(*a), "(s)"),
+    "WriteFile": ("org.cinminai.admin.write-file", lambda a: ({"path": check_write(a[0], bytes(a[1]), a[2]), "size": str(len(a[1])), "mode": oct(a[2])}, [a[0], bytes(a[1]), a[2]]), execute_write, "(s)"),
     "LoadModule": ("org.cinminai.admin.load-module", lambda a: prepare_module(a), lambda a: _none(run(a)), None),
     "UnloadModule": ("org.cinminai.admin.unload-module", lambda a: prepare_module(a, True), lambda a: _none(run(a)), None),
     "RunArgv": ("org.cinminai.admin.run-argv", prepare_run_argv, execute_run_argv, "(s)"),
