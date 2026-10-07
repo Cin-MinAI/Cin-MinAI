@@ -85,13 +85,14 @@ def video_review(text: str) -> dict | None:
 
 # --- chains (D91): "pull up the news about X" ------------------------------------------------------------------------
 NEWS = re.compile(r"\b(news|headlines?|noticias|notícias|actualit[ée]s|nouvelles|infos|nachrichten|schlagzeilen)\b|"
+                  r"\b(the\s+)?latest\s+(on|about)\b|"
                   r"ニュース", re.I)
 # questions about news itself, not a request for it: "what is fake news?", "how do I turn off news notifications?"
 ABOUT_NEWS = re.compile(r"\b(what (is|are)|qu[eé] (es|son|é)|qu'est-ce que|was (ist|sind)|fake|notification\w*|"
                         r"notificaci\w*|notifica\w*|benachrichtigung\w*|install\w*|instal\w*|apps?|program\w*|"
                         r"reader|lector|leitor|lecteur|feeds?|rss|widget|applet)\b|^\W*(how|c[oó]mo|comment|wie)\b|"
                         r"とは|アプリ", re.I)
-NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring|look|check)\s+up\b|\b(look|search)\s+for\b|\b(find|search|check|look\s+at)\b|\b(show|get|give|tell)\s+"
+NEWS_FILLER = re.compile(r"\b(can|could|would|will)\s+you\b|\bplease\b|\b(pull|bring|look|check)\s+up\b|\b(look|search)\s+for\b|\b(find|search|check|look\s+at)\b|\b(is|are)\s+there\b|\b(the\s+)?(web|internet)\b|\b(show|get|give|tell)\s+"
                          r"me\b|\bwhat'?s\b|\bwhat is\b|\b(the|any|latest|last|recent|today'?s?|new|top|me|on|about|"
                          r"for|with|in|happening|going on|las|los|el|la|les|le|des|die|der|das|os|as|o|a|últimas?|"
                          r"últimos?|dernières?|neuesten?|aktuellen?|sobre|de|acerca de|sur|à propos de|über|zu|zum|zur|"
@@ -115,6 +116,10 @@ def only_source(text: str) -> tuple[str, str]:
     return text[:m.start()] + " " + text[m.end():], name.capitalize()
 
 
+PRONOUN = re.compile(r"(it|that|this|him|her|them|those|these|eso|esto|ello|isso|isto|ça|cela|ceci|es|das|dies|"
+                     r"それ|これ|あれ)", re.I)
+
+
 def news_request(text: str) -> dict | None:
     """{"topic"} when the person asks for the news (about something, or in general: topic ""); with "only" when they
     named one source ("on Reddit")."""
@@ -128,6 +133,8 @@ def news_request(text: str) -> dict | None:
     topic = re.sub(r"(\s+(and|y|e|et|und))+$|^(and|y|e|et|und)\s+|[のをでと]+$", "", topic).strip()
     if only and not topic:
         return {"topic": only}  # "Reddit news": the news about Reddit, like "Pfizer news"
+    if PRONOUN.fullmatch(topic):
+        return None  # "news on it": the model knows from the conversation what "it" is (round 5 found it that way)
     return {"topic": topic, **({"only": only} if only else {})}
 
 

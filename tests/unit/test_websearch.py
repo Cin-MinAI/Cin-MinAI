@@ -28,6 +28,13 @@ DDG = """<html><body>
 <div class="result"><a class="result__a" href="https://duckduckgo.com/y.js?ad_provider=x">An ad</a></div>
 </body></html>"""
 
+BING = """<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel><title>Bing: 24 jump street</title>
+<item><title>‘24 Jump Street’ Officially Confirmed - IMDb</title><link>https://www.imdb.com/news/ni65880211/</link>
+<description>Sony &amp;amp; Jonah Hill's sequel is set for 2027.</description></item>
+<item><title>24 Jump Street set for 2027</title><link>http://screenrant.com/24-jump</link><description>x</description></item>
+<item><title>Bing's own page</title><link>https://www.bing.com/videos/x</link><description>x</description></item>
+</channel></rss>"""
+
 PAGE = """<html><head><script>var x = "ignore";</script><style>p{}</style></head><body>
 <nav><p>Home · About · Contact · Subscribe to our newsletter today</p></nav>
 <h1>Causes of World War II, explained for everyone</h1>
@@ -41,6 +48,25 @@ class Parse(unittest.TestCase):
             r = websearch.search("why did world war 2 start")
         self.assertEqual([x["url"] for x in r], ["https://www.britannica.com/event/World-War-II", "https://example.org/ww2"])
         self.assertEqual(r[0]["snippet"], "World War II began when Germany invaded Poland in 1939.")
+
+    def test_bing_when_duckduckgo_asks_for_a_pause(self):
+        # Ian, 2026-10-07: Bing is the backup; DuckDuckGo's "anomaly" page blocked this connection for hours
+        anomaly = "<html><body><form id='challenge-form'>anomaly</form></body></html>"
+        pages = iter([(anomaly, "text/html"), (BING, "text/xml")])
+        with mock.patch.object(websearch, "_get", side_effect=lambda *a, **k: next(pages)) as get:
+            r = websearch.search("24 jump street", "es", recent="w")
+        self.assertIn("setmkt=es-ES", get.call_args.args[0])
+        self.assertIn("filters=ex1", get.call_args.args[0])
+        self.assertEqual([(x["url"], x["via"]) for x in r], [("https://www.imdb.com/news/ni65880211/", "Bing"),
+                                                             ("https://screenrant.com/24-jump", "Bing")])
+        self.assertEqual(r[0]["snippet"], "Sony & Jonah Hill's sequel is set for 2027.")
+        self.assertIn("Bing", websearch.PROVIDER)
+
+    def test_bing_first_for_the_news_scan_and_duckduckgo_untouched(self):
+        with mock.patch.object(websearch, "_get", return_value=(BING, "text/xml")) as get:
+            websearch.search("Pfizer official announcement", first="bing")
+        self.assertEqual(get.call_count, 1)
+        self.assertIn("bing.com/search", get.call_args.args[0])
 
     def test_page_text_without_menus_scripts_footers(self):
         with mock.patch.object(websearch, "_get", return_value=(PAGE, "text/html; charset=utf-8")):

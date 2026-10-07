@@ -91,29 +91,68 @@ class _DDG(HTMLParser):
             self.results[-1][self.field] += data
 
 
-def search(query: str, lang: str = "en", recent: str = "") -> list[dict]:
-    """recent: "d", "w" or "m" — only results from the past day, week or month (the news chain, D91)."""
+# Bing is the backup (Ian, 2026-10-07): DuckDuckGo blocked this connection for hours after a day of testing, and
+# ordinary searches failed. Bing's published results feed (format=rss), the same kind of feed as Bing News; named on
+# every search card beforehand, so the person knows where the words may go.
+PROVIDER = "DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)"
+BING_MARKET = {"en": "en-US", "es": "es-ES", "pt": "pt-BR", "fr": "fr-FR", "de": "de-DE", "ja": "ja-JP"}
+BING_RECENT = {"d": 'ex1:"ez1"', "w": 'ex1:"ez2"', "m": 'ex1:"ez3"'}
+
+
+def _clean(results: list[dict], via: str, skip_host: str) -> list[dict]:
+    out, seen = [], set()
+    for r in results:
+        url = r["url"]
+        if url.startswith("http://"):
+            url = "https://" + url[len("http://"):]
+        host = urllib.parse.urlsplit(url).hostname or ""
+        if not url.startswith("https://") or skip_host in host or url in seen:
+            continue  # ads and the engine's own pages
+        seen.add(url)
+        out.append({"title": re.sub(r"\s+", " ", r["title"]).strip(), "url": url,
+                    "snippet": re.sub(r"\s+", " ", r["snippet"]).strip(), "via": via})
+    return out[:RESULTS]
+
+
+def bing(query: str, lang: str = "en", recent: str = "") -> list[dict]:
+    import xml.etree.ElementTree as ET
+    params = {"q": query, "format": "rss", "setmkt": BING_MARKET.get(lang, "en-US"),
+              **({"filters": BING_RECENT[recent]} if recent in BING_RECENT else {})}
+    xml, _ = _get("https://www.bing.com/search?" + urllib.parse.urlencode(params), accept="application/rss+xml")
+    try:
+        items = ET.fromstring(xml).iter("item")
+    except ET.ParseError as e:
+        raise SearchError("Bing's results couldn't be read") from e
+    return _clean([{"title": it.findtext("title") or "", "url": (it.findtext("link") or "").strip(),
+                    "snippet": html.unescape(it.findtext("description") or "")} for it in items], "Bing", "bing.com")
+
+
+def search(query: str, lang: str = "en", recent: str = "", first: str = "duckduckgo") -> list[dict]:
+    """recent: "d", "w" or "m" — only results from the past day, week or month (the news chain, D91). DuckDuckGo
+    first; Bing when DuckDuckGo asks for a pause (first="bing": Bing only — the news scan's official pages)."""
+    if first == "bing":
+        return bing(query, lang, recent)
+    try:
+        return duckduckgo(query, lang, recent)
+    except Throttled:
+        return bing(query, lang, recent)
+
+
+class Throttled(SearchError):
+    pass
+
+
+def duckduckgo(query: str, lang: str = "en", recent: str = "") -> list[dict]:
     # POST: a plain GET came back as DuckDuckGo's home page (no results) from the dev PC, 2026-10-01
     form = {"q": query, "kl": REGION.get(lang, "wt-wt"), **({"df": recent} if recent else {})}
     page, _ = _get("https://html.duckduckgo.com/html/", form=form)
     if "anomaly" in page.lower() and "result__a" not in page:
         # DuckDuckGo's "are you a person?" page after many searches in a short time (seen 2026-10-07 while testing).
         # Said plainly, never worked around; "no results" would have been wrong.
-        raise SearchError("the search engine wants a short pause after many searches; try again in a few minutes")
+        raise Throttled("the search engine wants a short pause after many searches; try again in a few minutes")
     p = _DDG()
     p.feed(page)
-    out, seen = [], set()
-    for r in p.results:
-        url = r["url"]
-        if url.startswith("http://"):
-            url = "https://" + url[len("http://"):]
-        host = urllib.parse.urlsplit(url).hostname or ""
-        if not url.startswith("https://") or "duckduckgo.com" in host or url in seen:
-            continue  # ads and DuckDuckGo's own pages
-        seen.add(url)
-        out.append({"title": re.sub(r"\s+", " ", r["title"]).strip(), "url": url,
-                    "snippet": re.sub(r"\s+", " ", r["snippet"]).strip()})
-    return out[:RESULTS]
+    return _clean(p.results, "DuckDuckGo", "duckduckgo.com")
 
 
 # --- reading a page ------------------------------------------------------------------------------------------

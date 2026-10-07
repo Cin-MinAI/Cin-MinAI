@@ -22,7 +22,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
-from . import facts, intent
+from . import facts, intent, websearch
 from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
@@ -257,7 +257,7 @@ class Guide:
                 self.searches = {sid: {"query": query, "question": text}}  # only the newest offer stands
                 online = self.tools.online()
                 on_action(tool, {"query": query}, "proposal", json.dumps({"id": sid, "query": query, "online": online,
-                                                                          "provider": "DuckDuckGo"}, ensure_ascii=False))
+                                                                          "provider": websearch.PROVIDER}, ensure_ascii=False))
                 reply = SEARCH_OFFER if online else SEARCH_OFFLINE
                 on_text(reply)
                 self.history += [user, {"role": "assistant", "content": raw}]

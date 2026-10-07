@@ -43,7 +43,7 @@ class Throttled(unittest.TestCase):
         from cin_minai.daemon import websearch
         page = "<html><body>If this error persists... anomaly detected ... captcha</body></html>"
         with mock.patch.object(websearch, "_get", return_value=(page, "")),              self.assertRaisesRegex(websearch.SearchError, "pause"):
-            websearch.search("donuts site:youtube.com")
+            websearch.duckduckgo("donuts site:youtube.com")  # search() then asks Bing (test_websearch)
 
 
 try:
@@ -126,6 +126,12 @@ class NewsRequest(unittest.TestCase):
         self.assertEqual(news_request("Search for the latest news on Ice Cube"), {"topic": "Ice Cube"})
         self.assertEqual(news_request("news about Linux Mint on Reddit"), {"topic": "Linux Mint", "only": "Reddit"})
         self.assertEqual(news_request("Reddit news"), {"topic": "Reddit"})  # the news about Reddit
+        # round 5: "the latest on" is a news request; "on it" is left to the model, which knows what "it" is
+        self.assertEqual(news_request("What's the latest on 24 Jump Street?"), {"topic": "24 Jump Street"})
+        self.assertEqual(news_request("Is there any news on 24 jump street?"), {"topic": "24 jump street"})
+        self.assertEqual(news_request("search the web for news on 24 jump street"), {"topic": "24 jump street"})
+        self.assertIsNone(news_request("Search the web for news on it"))
+        self.assertIsNone(news_request("What is the latest version of Firefox?"))
 
     def test_questions_about_news_are_not_requests(self):
         from cin_minai.daemon.intent import news_request

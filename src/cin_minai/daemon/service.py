@@ -25,7 +25,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
-from . import config, manuscript, selfupdate, standing
+from . import config, manuscript, selfupdate, standing, websearch
 from .models import Cancelled as DownloadStopped, ModelStore, backend_cfg, benchmark
 from cin_minai.inference import matcher
 from cin_minai.inference.llamacpp import LlamaCppBackend
@@ -857,7 +857,7 @@ class Service:
         self.chain_offers = {sid: {**found, "query": query, "question": text}}  # only the newest offer stands
         online = self.guide.tools.online()
         on_action("web_search", {"query": query}, "proposal", json.dumps(
-            {"id": sid, "query": query, "online": online, "provider": "DuckDuckGo"}, ensure_ascii=False))
+            {"id": sid, "query": query, "online": online, "provider": websearch.PROVIDER}, ensure_ascii=False))
         then = " and summarize it" if found["summarize"] else ""
         on_text(f"I'll look on YouTube for a video about {found['topic']}, open the best match in Firefox{then}. "
                 + ("Below is exactly what would be sent; nothing leaves this computer until you click Search."

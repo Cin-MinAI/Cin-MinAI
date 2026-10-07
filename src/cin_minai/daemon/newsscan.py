@@ -88,7 +88,7 @@ def balance(items: list[dict], per_outlet: int = PER_OUTLET, limit: int = PRESS_
 
 
 PROVIDERS = "Google News and Bing News"
-PROVIDERS_WITH_OFFICIAL = "Google News, Bing News, Reddit, Mastodon and DuckDuckGo"
+PROVIDERS_WITH_OFFICIAL = "Google News, Bing (news and web), Reddit and Mastodon"
 ONLY_HEAD = {"en": "Only {only}, as you asked.", "es": "Solo {only}, como pediste.", "pt": "Só {only}, como você pediu.",
              "fr": "Seulement {only}, comme demandé.", "de": "Nur {only}, wie gewünscht.", "ja": "ご指定どおり {only} のみです。"}
 
@@ -233,16 +233,16 @@ def own_site(host: str, topic: str) -> bool:
 
 
 def official(topic: str, lang: str = "en") -> list[dict]:
-    """Official pages about the topic: government sites, the subject's own site, patent records. One search; each
-    page's own title, word for word."""
+    """Official pages about the topic: government sites, the subject's own site, patent records. One Bing search;
+    each page's own title, word for word."""
     if not topic:
         return []
     patents = bool(PATENT.search(topic))
     subject = PATENT.sub(" ", topic).strip()
-    # plain words: DuckDuckGo's HTML search gave nothing for OR with parentheses (2026-10-07)
+    # plain words (DuckDuckGo gave nothing for OR with parentheses, 2026-10-07; kept the same on Bing)
     query = f"{subject} site:patents.google.com" if patents else f"{topic} official announcement"
     out = []
-    for r in websearch.search(query, lang):
+    for r in websearch.search(query, lang, first="bing"):  # Bing: no load on DuckDuckGo from every scan and watch
         host = _host(r["url"])
         if patents and host == "patents.google.com":
             kind = "patent records"
