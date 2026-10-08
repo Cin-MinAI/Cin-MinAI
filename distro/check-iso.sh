@@ -21,8 +21,9 @@ fail=0; ok() { echo "PASS  $*"; }; bad() { echo "FAIL  $*"; fail=1; }
 diff=$M1/out/$OUT_ISO.manifest-diff
 removed=$(grep -c '^<' "$diff" || true); added=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort | tr '\n' ' ')
 # ours, plus the dependencies the image lacks, from the dated Ubuntu snapshot (git for AICUI, 2026-10-03; passt and
-# python3-pyte for terminal sharing and its sandbox, M3) — named one by one, so anything else that appears still fails
-want="cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sandbox cinminai-shell cinminai-sidebar git git-man liberror-perl passt python3-pyte python3-wcwidth "
+# python3-pyte for terminal sharing and its sandbox, M3; python3-venv for AICUI's project environments, 2026-10-08 —
+# the exact set it pulls is confirmed by the next ISO build) — named one by one, so anything else that appears fails
+want="cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sandbox cinminai-shell cinminai-sidebar git git-man liberror-perl passt python3-pip-whl python3-pyte python3-setuptools-whl python3-venv python3-wcwidth python3.12-venv "
 [[ $removed == 0 && $added == "$want" ]] && ok "manifest: only our packages and their named dependencies added ($added)" \
     || bad "manifest: removed $removed, added: $added"
 

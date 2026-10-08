@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import sys
 import time
 
@@ -23,7 +24,8 @@ gi.require_version("Vte", "2.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 
 from .changelog import Changelog  # noqa: E402
-from .project import Goals, entry_point, project_root, tree, venv_python  # noqa: E402
+from .project import (Goals, build_env, can_be_project, declare_env, entry_point, env_header, env_state,  # noqa: E402
+                      known_projects, make_project, orphan_envs, project_root, token_of, tree, venv_python)
 
 TITLE = "AICUI"
 CSS = b"""
@@ -185,6 +187,8 @@ class Workspace(Gtk.ApplicationWindow):
         self.load_tree()
         self.load_goals()
         self.load_changes()
+        self.building = False
+        GLib.idle_add(self.offer_project)
 
     # --- the agent in the terminal -----------------------------------------------------------------------
     def agent_command(self) -> str:
@@ -244,9 +248,12 @@ class Workspace(Gtk.ApplicationWindow):
                 self.thought(e.get("text", ""), "Note")
             elif e["kind"] == "handover":  # every 60 steps: where the work stands; the AI goes on
                 self.bubble("ai", e.get("text", ""))
-            elif e["kind"] == "handoff":  # the organizer (the guide) giving the coder its next task (SPEC 22.5)
-                who = {"coder": "Organizer → coder", "fetch": "Organizer → fetch", "person": "Organizer → you"}
+            elif e["kind"] == "handoff":  # the organizer (the guide) and the coder passing work (SPEC 22.5)
+                who = {"coder": "Organizer → coder", "fetch": "Organizer → fetch", "person": "Organizer → you",
+                       "organizer": "Coder → organizer"}
                 self.thought(e.get("text", ""), who.get(e.get("to", ""), "Organizer"))
+            elif e["kind"] == "env_request":  # the AI declared a package the work needs: the person decides
+                self.offer_build()
             elif e["kind"] == "check":  # a problem found in a file the AI just changed
                 self.thought(f"{e.get('file', '')}: {e.get('problem', '')}", "Check")
             elif e["kind"] == "busy":
@@ -420,6 +427,78 @@ class Workspace(Gtk.ApplicationWindow):
             it = self.store.append(parent, [os.path.basename(rel) + ("/" if is_dir else ""), status, rel])
             if is_dir:
                 parents[rel] = it
+        state = env_state(self.root)  # the environment: one line, never its thousands of files
+        if state != "none":
+            h = env_header(self.root) or {}
+            what = {"built": f"Python {h.get('python', '')} · " + (", ".join(h.get("packages", [])) or "no packages"),
+                    "declared": "not built yet" + (f" — asked for: {', '.join(h['wanted'])}" if h.get("wanted")
+                                                   else ": waiting to know what the project needs"),
+                    "external": "made outside AICUI"}[state]
+            self.store.append(None, [f".venv — Python environment: {what}", "", ".venv"])
+
+    def offer_project(self) -> bool:
+        """A folder AICUI works in becomes a project only on the person's yes, and only below their home folder; a
+        project's environment is offered, and made only as a header until the work shows what it needs (PLAN §1b
+        closure 4: Ian's design)."""
+        if not token_of(self.root):
+            if not can_be_project(self.root):
+                self.bubble("ai", "This is your home folder or a folder outside it: AICUI can work here, but it won't "
+                                  "set up a project or a Python environment in it.")
+                return False
+            if not self.yes_no("Make this folder an AICUI project?",
+                               "AICUI keeps its goals and changelog here, and the project can get its own Python "
+                               "environment — nothing else changes."):
+                return False
+            make_project(self.root)
+        if env_state(self.root) == "none" and self.yes_no(
+                "Create a Python environment for this project?",
+                "Only its header is made now (.venv). Nothing is installed until the AI says what the project needs "
+                "and you agree; then AICUI builds it outside the project and links it here."):
+            declare_env(self.root)
+            self.load_tree()
+        gone = orphan_envs(known_projects())
+        if gone and self.yes_no(f"Remove the Python environments of {len(gone)} project(s) that are gone?",
+                                "Their folders aren't there any more; the environments only take space:\n"
+                                + "\n".join(gone[:8])):
+            import shutil
+            for path in gone:
+                shutil.rmtree(path, ignore_errors=True)
+        return False
+
+    def yes_no(self, question: str, detail: str) -> bool:
+        d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
+                              buttons=Gtk.ButtonsType.YES_NO, text=question)
+        d.format_secondary_text(detail)
+        answer = d.run() == Gtk.ResponseType.YES
+        d.destroy()
+        return answer
+
+    def offer_build(self) -> None:
+        """The AI asked for packages: say which and why, and build only on the person's yes (D86: from PyPI)."""
+        header = env_header(self.root) or {}
+        wanted = header.get("wanted", [])
+        if self.building or not wanted:
+            return
+        why = header.get("why", {})
+        lines = "\n".join(f"• {p}" + (f" — {why[p]}" if why.get(p) else "") for p in wanted)
+        if not self.yes_no(f"Install {', '.join(wanted)} for this project?",
+                           f"The AI asks for:\n{lines}\n\nThey're downloaded from PyPI (the Python package index) "
+                           "into this project's own environment, outside its folder — nothing else on the computer "
+                           "changes."):
+            self.bubble("ai", "Not installed. The AI can go on without " + ", ".join(wanted) + ", or ask again.")
+            return
+        self.building = True
+        self.bubble("ai", "Building the project's environment…")
+
+        def work() -> None:
+            try:
+                h = build_env(self.root, say=lambda m: GLib.idle_add(self.thought, m, "Environment"))
+                done = f"Environment ready: Python {h['python']} · " + (", ".join(h["packages"]) or "no packages")
+            except (OSError, RuntimeError, ValueError) as e:
+                done = f"The environment couldn't be built: {e}"
+            GLib.idle_add(lambda: (self.bubble("ai", done), self.load_tree(), setattr(self, "building", False))
+                          and False)
+        threading.Thread(target=work, daemon=True).start()
 
     def open_file(self, view, path, column) -> None:
         rel = self.store[path][2]

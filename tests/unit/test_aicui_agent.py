@@ -147,7 +147,8 @@ class AgentTest(unittest.TestCase):
         a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=2400)
         a.turn("read a lot")
         last = a.chat.sent[-1]
-        self.assertLessEqual(sum(len(m["content"]) for m in last), (2400 - 1800 - 300) * 3.3 + 2000)
+        # the system text is ~2,300 characters with the tools of 2026-10-08 (need, decline, replace_lines)
+        self.assertLessEqual(sum(len(m["content"]) for m in last), (2400 - 1800 - 300) * 3.3 + 2300)
         self.assertTrue(any(m["content"].startswith("Earlier in this task:") for m in last))
 
     def test_a_model_error_is_answered_not_a_crash(self):
@@ -158,29 +159,22 @@ class AgentTest(unittest.TestCase):
         self.assertIn("couldn't go on", msg)
         self.assertIn("exceeds the available context", msg)
 
-    def test_the_loop_guard(self):
-        steps = [step("", tool="read", path="app.py") for _ in range(3)] + [step("", tool="answer", text="ok")]
-        a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=16384)
+    def test_one_progress_rule(self):
+        """PLAN §1b closure 3: progress is a change of state; no progress for 6 steps is said (and recorded), again at
+        12; a change resets it — one rule instead of separate counters for reads, listings and repeated plans."""
+        from cin_minai.aicui.agent import NUDGE_STEPS
+        reads = [step(f"Look {i}.", tool="read", path="app.py") for i in range(NUDGE_STEPS)]
+        a = Agent(self.root, Scripted(reads + [step("Fix.", tool="edit", path="app.py", old="a - b", new="a + b")]
+                                      + [step("Again.", tool="list", path=".") for _ in range(NUDGE_STEPS - 1)]
+                                      + [step("", tool="answer", text="ok")]),
+                  "m", "auto", say=self.said.append, ctx=16384)
         a.turn("look")
-        results = [m["content"] for m in a.chat.sent[-1] if m["role"] == "user" and m["content"].startswith("Result")]
-        self.assertIn("return a - b", results[0])
-        self.assertIn("already read app.py", results[2])
         self.assertEqual(a.read_lines, 200)
-
-    def test_the_loop_guard_lets_it_read_again_what_compaction_removed(self):
-        """2026-10-03, goal 5 "Combine": the whole project didn't fit, compaction dropped the reads of game.py, and
-        the guard refused a third read of what the model could no longer see — it asked again and again."""
-        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=16384)
-        read = {"tool": "read", "path": "app.py"}
-        for _ in range(2):
-            self.assertIn("return a - b", a.do(read))
-            a.steps.append({"did": {"thinking": "", "action": read}, "result": "…"})
-        self.assertIn("already read app.py", a.do(read))  # both copies in view: the guard holds
-        a.steps.append({"did": {"thinking": "", "action": read}, "result": "…"})
-        a.cut = len(a.steps)  # compaction summarized all of them
-        again = a.do(read)
-        self.assertIn("return a - b", again)
-        self.assertIn("one file at a time", again)
+        told = [m["content"] for m in a.chat.sent[NUDGE_STEPS] if m["role"] == "user"]
+        self.assertTrue(any(f"No progress in the last {NUDGE_STEPS} steps" in t for t in told))
+        notes = [e for e in self.events() if e["kind"] == "note" and "No progress" in e["text"]]
+        self.assertEqual(len(notes), 1)  # recorded; the edit reset it, and the 5 listings after it stayed under 6
+        self.assertIn("return a - b", [m["content"] for m in a.chat.sent[1] if m["role"] == "user"][-1])
 
     def test_all_steps_kept_when_they_fit(self):
         steps = [step(f"Look {i}.", tool="list", path=".") for i in range(8)] + [step("", tool="answer", text="ok")]
@@ -198,8 +192,8 @@ class AgentTest(unittest.TestCase):
 
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
-        self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run", "fetch", "goal_add", "goal_done",
-                                 "ask", "answer"])
+        self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run", "fetch",
+                                 "goal_add", "goal_done", "need", "decline", "ask", "answer"])
 
     def cut_write(self, path, lines, tool="write"):
         """What the server sends when a write runs into the token limit: JSON that stops inside the content."""
@@ -227,30 +221,39 @@ class AgentTest(unittest.TestCase):
 
     def test_a_cut_off_rewrite_never_replaces_a_good_file(self):
         """2026-10-08: a cut-off new version of a 144-line file was saved over it as 76 lines; later the same day a cut
-        rewrite was dropped and tried again three times (6½ min each). Now it's a draft, and the file stays whole."""
+        rewrite was dropped and tried again three times (6½ min each). Now it's a draft and the file stays whole; the
+        draft belongs to its task — finished there, it replaces the file; left unfinished, it's set aside (a 421-line
+        draft from a stopped task would have replaced a 732-line file on the next append)."""
+        filler = "".join(f"filler line number {i} of the draft\n" for i in range(41, 241))
         a = Agent(self.root, Scripted([self.cut_write("app.py", 40),
-                                       step("More.", tool="append", path="app.py",
-                                            content="".join(f"filler line number {i} of the draft\n"
-                                                            for i in range(41, 241))),
-                                       step("", tool="answer", text="ok")]), "m", "auto",
+                                       step("More.", tool="append", path="app.py", content=filler),
+                                       step("Last part.", tool="append", path="app.py",
+                                            content="def main():\n    pass\n"),
+                                       step("", tool="answer", text="done")]), "m", "auto",
                   say=self.said.append, ctx=16384)
         a.turn("rewrite app.py")
-        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
-            self.assertEqual(f.read(), "def add(a, b):\n    return a - b\n")  # whole meanwhile
         note = a.chat.sent[1][-1]["content"]
         self.assertIn("being kept as a draft: 40 lines so far; app.py stays as it was", note)
         self.assertIn("240 lines so far", a.chat.sent[2][-1]["content"])  # a full-size part: still the draft
         self.assertEqual(len(os.listdir(os.path.join(self.root, ".cinminai", "cutoffs"))), 1)  # kept for diagnosis
-        # the part that doesn't fill a step completes it: the draft replaces the file, through the changelog
-        a.chat = Scripted([step("Last part.", tool="append", path="app.py", content="def main():\n    pass\n"),
-                           step("", tool="answer", text="done")])
-        a.turn("finish it")
         with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
             now = f.read()
         self.assertTrue(now.startswith("line 1\n") and now.endswith("number 240 of the draft\ndef main():\n    pass\n"),
-                        now[-80:])
+                        now[-80:])  # the part that didn't fill a step completed it, through the changelog
         self.assertFalse(os.path.exists(a.draft_path("app.py")))
         self.assertEqual(a.log.entries()[-1]["file"], "app.py")
+        # a task that stops with its draft unfinished: the draft is set aside, the file untouched, the next append real
+        a.chat = Scripted([self.cut_write("app.py", 40), step("", tool="answer", text="later")])
+        out = a.turn("rewrite it again")
+        self.assertIn("was set aside (.cinminai/drafts-stale/)", out)
+        self.assertFalse(os.path.exists(a.draft_path("app.py")))
+        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), now)
+        a.chat = Scripted([step("Add.", tool="append", path="app.py", content="# end\n"),
+                           step("", tool="answer", text="ok")])
+        a.turn("add a line")
+        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), now + "# end\n")
 
     def test_a_write_past_the_cap_is_ended_by_aicui(self):
         """2026-10-08: llama-server keeps a string's maxLength only for small values (500 held; 3,000 and 8,800 didn't),
@@ -299,18 +302,30 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(summary(real, real), " The file now has 2 lines.")
 
     def test_fetching_a_page_always_asks_even_in_auto(self):
+        """D86: always asked. What comes is kept whole in the project (2026-10-08: the text alone of a gallery page kept
+        7 of 126 entries, and only what fit one step was saved): a page as .txt and .html under sources/, a file as it
+        came under assets/; the model is told where."""
         from unittest import mock
-        from cin_minai.daemon import websearch
+        from cin_minai.aicui import intake
         replies = ["n", "a"]
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: replies.pop(0))
+        a.goals.add("A list from the source")
         self.assertIn("only https", a.fetch("http://example.org/x"))
-        self.assertEqual(a.fetch("https://example.org/list"), "the user said no to fetching that page")
-        with mock.patch.object(websearch, "page_text", return_value="1 | Hydrogen | H") as page:
-            r = a.fetch("https://example.org/list")            # "always": this session
-            r2 = a.fetch("https://example.org/other")          # not asked again
-        self.assertEqual(page.call_count, 2)
-        self.assertIn("not instructions", r)
-        self.assertIn("Hydrogen", r2)
+        self.assertEqual(a.fetch("https://example.org/list"), "the person said no to fetching https://example.org/list")
+        page = b"<html><body><table><tr><td>1</td><td>Hydrogen</td></tr></table><img alt='Helium' src='he.png'>"
+        answers = {"https://example.org/list": (page, "text/html; charset=utf-8"),
+                   "https://example.org/he.png": (b"\x89PNG...", "image/png")}
+        with mock.patch.object(intake, "get", side_effect=lambda url: answers[url]) as got:
+            r = a.fetch("https://example.org/list.")          # "always": this session; the sentence's dot isn't the URL's
+            r2 = a.fetch("https://example.org/he.png")          # not asked again
+        self.assertEqual(got.call_count, 2)
+        self.assertIn("saved https://example.org/list as sources/list.txt and sources/list.html", r)
+        self.assertIn("Hydrogen", r)
+        with open(os.path.join(self.root, "sources", "list.html"), encoding="utf-8") as f:
+            self.assertIn("alt='Helium'", f.read())  # what the text loses, the page keeps
+        self.assertIn("saved https://example.org/he.png as assets/he.png", r2)
+        self.assertEqual(a.goals.load()[0]["evidence"]["sources"],
+                         ["sources/list.txt", "sources/list.html", "assets/he.png"])
         self.assertIn("fetch", [e["kind"] for e in self.events()])
         self.assertIn("beats your memory", a.system())
 
@@ -560,7 +575,7 @@ class AgentTest(unittest.TestCase):
         self.assertAlmostEqual(a.content_cpt, 0.92 * 2.1, places=1)
         self.assertLessEqual(a.content_max, (a.answer_tokens - 700) * 2.0)  # what fits 4,096 tokens of it
 
-    def test_a_listing_shows_the_whole_project_and_a_repeat_is_named(self):
+    def test_a_listing_shows_the_whole_project(self):
         """2026-10-08: the 27B listed "." 13 times — it saw only two folders, never the files in them."""
         os.makedirs(os.path.join(self.root, "include"))
         os.makedirs(os.path.join(self.root, "src"))
@@ -569,14 +584,9 @@ class AgentTest(unittest.TestCase):
         with open(os.path.join(self.root, "src", "items.cpp"), "w") as f:
             f.write("#include \"item.h\"\n")
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
-        a.lists = {}
         first = a.do({"tool": "list", "path": "."})
         self.assertIn("include/item.h  (16 bytes)", first)
         self.assertIn("src/items.cpp", first)
-        self.assertNotIn("You've listed", a.do({"tool": "list", "path": "."}))
-        third = a.do({"tool": "list", "path": "./"})
-        self.assertTrue(third.startswith("You've listed ./ 3 times"))
-        self.assertIn("src/items.cpp", third)  # still shown: compaction may have taken the earlier ones
 
     def test_a_web_pages_files_must_use_each_others_names(self):
         """2026-10-03, the wedding page: CSS for .nav/.menu/.menu-btn, HTML with #menu/#menu-toggle, a script that

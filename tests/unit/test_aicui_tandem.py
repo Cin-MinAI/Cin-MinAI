@@ -113,20 +113,6 @@ class TandemTest(unittest.TestCase):
         self.assertIn(f"I've gone {STUCK_STEPS} steps", out)  # the second stop goes to the person, no second hint
         self.assertEqual(len(t.junior.sent), 2)
 
-    def test_reading_on_and_on_gets_told_to_act(self):
-        """2026-10-08: with the exact lines in its task and a hint to act, the coder read gui.py 29 times ("Now I have
-        a clear picture. Let me also check…")."""
-        from cin_minai.aicui.agent import READ_STREAK
-        reads = [step("Let me also check.", tool="read", path="gui.py", start=i % 5 + 1) for i in range(READ_STREAK + 1)]
-        a, t = self.pair(reads + [step("Right.", tool="replace_lines", path="gui.py", first=2, last=4, new=""),
-                                  step("", tool="answer", text="Removed it.")],
-                         [move("coder", task="Delete lines 2-4 of gui.py."), move("done", summary="Done.")])
-        self.assertEqual(t.turn("continue"), "Done.")
-        results = [m["content"] for m in a.chat.sent[READ_STREAK + 1] if m["role"] == "user"]  # after the 9th
-        self.assertTrue(any(f"You've read {READ_STREAK} times in a row without changing anything" in r
-                            for r in results[-1:]), results[-1][:200])
-        self.assertEqual(a.read_streak, 0)  # the change resets it
-
     @unittest.skipUnless(shutil.which("g++"), "needs g++")
     def test_cpp_that_doesnt_build_is_a_problem_the_organizer_sees(self):
         """2026-10-08: nothing compiled the C++; two namespaces and a missing header went unseen by both models."""
@@ -151,15 +137,6 @@ class TandemTest(unittest.TestCase):
             f.write("#include \"item.h\"\nint f() { return shop::Item{3}.price; }\n")
         self.assertNotIn("api.cpp", "\n".join(a.problems()))
 
-    def test_the_same_plan_three_times_is_told_to_act(self):
-        same = [step(f"Now I have a complete picture. Let me analyze the integration{x}.", tool="read", path="gui.py",
-                     start=i + 1) for i, x in enumerate(("", " issues", ": the battle call"))]  # the wording drifts
-        a, t = self.pair(same + [step("", tool="answer", text="ok")], [move("coder", task="Fix it."),
-                                                                     move("done", summary="ok")])
-        t.turn("continue")
-        last = [m["content"] for m in a.chat.sent[3] if m["role"] == "user"]
-        self.assertTrue(any("same plan three times" in m for m in last))
-
     def test_a_hint_goes_out_as_the_task(self):
         a, t = self.pair(self.stuck() + [step("", tool="answer", text="Done.")],
                          [move("coder", task="In gui.py, keep lines 641-654."), move("done", summary="ok")])
@@ -168,27 +145,78 @@ class TandemTest(unittest.TestCase):
         self.assertTrue(sent.split("\n", 1)[1].startswith("Hint from the organizer:"), sent[:200])
         self.assertIn("its line numbers may have moved since", sent)
 
-    def test_a_review_task_becomes_a_change(self):
-        """2026-10-08: told "never only review", the 4B still sent "Review the implementation of the Engine class…
-        ensure…" and the coder read every file."""
-        self.assertTrue(tandem.is_review("Review the implementation of the Engine class in src/engine.cpp"))
-        self.assertTrue(tandem.is_review("Check that gui.py works with the engine"))
-        self.assertFalse(tandem.is_review("In gui.py, delete lines 280-303"))
-        self.assertFalse(tandem.is_review("Write test_engine.py with a round of three turns"))
-        a, t = self.pair([step("", tool="answer", text="Wrote the tests.")],
-                         [move("coder", task="Review the code in src/engine.cpp."),
-                          move("coder", task="Verify every method follows the rules."),
+    def test_a_task_that_changes_nothing_comes_back(self):
+        """The move contract: a task changes something (a review, a no-op such as "call X at line 13" where line 13 is
+        X, changed nothing on 2026-10-08) — told to the organizer; twice in a row goes to the person."""
+        a, t = self.pair([step("", tool="answer", text="Looked at everything; it's fine."),
+                          step("", tool="answer", text="Line 13 already is that function.")],
+                         [move("coder", task="Review the code in gui.py.", acts_on="gui.py", proof="it's fine"),
+                          move("coder", task="In gui.py, call main at line 9.", acts_on="gui.py line 9", proof="runs")])
+        out = t.turn("continue")
+        self.assertIn("Two tasks in a row changed nothing", out)
+        second = t.junior.sent[1][1]["content"]
+        self.assertIn("changed nothing (no file, source, goal or environment): Looked at everything", second)
+
+    def test_the_coder_may_decline_and_the_organizer_revises(self):
+        a, t = self.pair([step("", tool="decline", reason="line 13 already is initDatabase"),
+                          step("Fix.", tool="replace_lines", path="gui.py", first=2, last=4, new=""),
+                          step("", tool="answer", text="Removed the old run().")],
+                         [move("coder", task="In db.py, call initDatabase at line 13.", acts_on="db.py", proof="build"),
+                          move("coder", task="In gui.py, delete lines 2-4 (the first run).", acts_on="gui.py 2-4",
+                               proof="gui.py compiles"),
                           move("done", summary="ok")])
-        a.goals.set_done(1, False)
-        t.turn("continue")
-        got = a.chat.sent[0][-1]["content"]
-        self.assertIn("Goal 1: A round runs", got)
-        self.assertIn("The project has no tests", got)
-        self.assertIn("Write test_a.py", got)
-        self.assertIn("Your last task only asked for a review", t.junior.sent[1][1]["content"])
-        with open(os.path.join(self.root, "test_round.py"), "w") as f:
-            f.write("def test_x():\n    assert True\n")
-        self.assertIn("Pick the next missing piece", tandem.goal_task(a.goals.load(), self.root))
+        self.assertEqual(t.turn("continue"), "ok")
+        self.assertIn("declined by the coder — I'm not doing this task: line 13 already is initDatabase",
+                      t.junior.sent[1][1]["content"])
+        handoffs = [(e["by"], e["to"]) for e in self.events() if e["kind"] == "handoff"]
+        self.assertIn(("coder", "organizer"), handoffs)
+
+    def test_what_the_person_gives_is_used_first(self):
+        """2026-10-08: asked for a source, the person gave a link; the 4B's next task was something else."""
+        link = "https://example.org/wiki/Set_(1E)"
+        a, t = self.pair([], [move("coder", task="In gui.py, add a menu.", acts_on="gui.py", proof="runs"),
+                              move("fetch", url=link), move("done", summary="ok")])
+        a.fetch = lambda url: f"saved {url} as sources/Set_(1E).txt"
+        self.assertEqual(t.turn(f"use this page: {link}."), "ok")
+        first = t.junior.sent[0][1]["content"]
+        self.assertIn(f"What they gave, not used yet:\n  - a link: {link}", first)
+        self.assertIn("not done: the person gave https://example.org/wiki/Set_(1E) — use it first",
+                      t.junior.sent[1][1]["content"])
+        self.assertNotIn("not used yet", t.junior.sent[2][1]["content"])  # used: no longer listed
+        a, t = self.pair([], [move("coder", task="Add a menu.", acts_on="gui.py", proof="runs"),
+                              move("coder", task="Add a menu.", acts_on="gui.py", proof="runs")])
+        self.assertIn("didn't use what you gave", t.turn(f"use {link}"))
+
+    def test_pasted_material_is_kept_as_a_source(self):
+        a, t = self.pair([], [move("done", summary="ok")])
+        rows = "".join(f"item {i}, {i * 10}\n" for i in range(12))
+        t.turn("here's the list:\n" + rows)
+        with open(os.path.join(self.root, "sources", "pasted-1.txt")) as f:
+            self.assertEqual(f.read(), rows)
+        self.assertIn("a file: sources/pasted-1.txt", t.junior.sent[0][1]["content"])
+
+    def test_goals_show_their_cycle_and_unchecked_data_isnt_ticked(self):
+        """Closure 2: where each goal stands (fetched, structured, checked); use needs checked data — 2026-10-08 a goal
+        was ticked on a test that checked the 7 entries parsed, not the list against its source."""
+        a, t = self.pair([], [])
+        g = a.goals.load()[0]
+        os.makedirs(os.path.join(self.root, "sources"))
+        for rel, text in (("sources/list.txt", "a\nb\n"), ("items.json", "[1, 2]"),
+                          ("test_ok.py", "assert True\n")):
+            with open(os.path.join(self.root, rel), "w") as f:
+                f.write(text)
+        a.goals.note(g["id"], "sources", "sources/list.txt")
+        a.goals.note(g["id"], "data", "items.json")
+        shown = t.situation("continue", [], [])
+        self.assertIn("fetched: sources/list.txt", shown)
+        self.assertIn("structured: items.json", shown)
+        self.assertIn("checked by a test: nothing yet", shown)
+        refused = a.do({"tool": "goal_done", "id": g["id"]})
+        self.assertIn("NOT ticked", refused)
+        self.assertIn("not checked by any test: items.json", refused)
+        with open(os.path.join(self.root, "test_ok.py"), "w") as f:
+            f.write("import json\nassert len(json.load(open('items.json'))) == 2\n")
+        self.assertIn("ticked", a.do({"tool": "goal_done", "id": g["id"]}))
 
     def test_an_honest_stop_goes_to_the_person(self):
         _, t = self.pair(self.stuck(), [move("coder", task="Fill in every card's attack."),
@@ -211,14 +239,13 @@ class TandemTest(unittest.TestCase):
         self.assertEqual(t.turn("continue"), "Worked on it alone.")
         self.assertIn("continue", a.chat.sent[0][-1]["content"])
 
-    def test_a_page_is_fetched_with_permission_and_saved_for_the_coder(self):
-        a, t = self.pair([], [move("fetch", url="https://example.org/set-list", save_as="set list"),
-                              move("done", summary="Saved.")])
-        a.fetch = lambda url: "Item A\nItem B\n"  # the real one asks the person first (D86)
+    def test_a_page_is_fetched_with_permission_and_kept(self):
+        a, t = self.pair([], [move("fetch", url="https://example.org/set-list"), move("done", summary="Saved.")])
+        got = []
+        a.fetch = lambda url: (got.append(url), f"saved {url} as sources/set-list.txt and sources/set-list.html")[1]
         self.assertEqual(t.turn("get the set list"), "Saved.")
-        with open(os.path.join(self.root, "sources", "set-list.txt")) as f:
-            self.assertEqual(f.read(), "Item A\nItem B\n")
-        self.assertIn("saved https://example.org/set-list as sources", t.junior.sent[1][1]["content"])
+        self.assertEqual(got, ["https://example.org/set-list"])  # the agent's fetch: asks, then keeps it whole
+        self.assertIn("saved https://example.org/set-list as sources/set-list.txt", t.junior.sent[1][1]["content"])
 
 
 if __name__ == "__main__":
