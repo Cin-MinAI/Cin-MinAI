@@ -1251,8 +1251,11 @@ class Service:
     def model_offer(self, task: str) -> dict:
         """What the matcher would offer for a task, if anything: never the built-in guide, never what's in use or
         what the user declined. The machine is read once every 10 minutes at most."""
-        when, plan = self.offers.get(task, (0, None))
-        if time.monotonic() - when > 600:
+        # never read yet = read now. (A default of time 0 hid every offer for the first 10 minutes after a boot: the
+        # clock counts from the boot, so "0" looked like a moment ago — Ian's PC, AICUI, 2026-10-07.)
+        cached = self.offers.get(task)
+        when, plan = cached or (0.0, None)
+        if cached is None or time.monotonic() - when > 600:
             m = matcher.read_machine(models_dir=self.store.root)
             plan = matcher.match(m).get(task)
             self.offers[task] = (time.monotonic(), plan)
