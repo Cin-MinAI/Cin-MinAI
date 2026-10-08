@@ -14,7 +14,7 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from cin_minai.aicui.agent import Agent, doing, outline, salvage, schema  # noqa: E402
+from cin_minai.aicui.agent import Agent, check_file, doing, outline, py_map, salvage, schema, undefined_calls  # noqa: E402
 
 
 class Scripted:
@@ -54,6 +54,8 @@ class AgentTest(unittest.TestCase):
             return [json.loads(line) for line in f]
 
     def test_read_edit_tick_answer(self):
+        with open(os.path.join(self.root, "test_app.py"), "w", encoding="utf-8") as f:  # a goal needs a test to tick
+            f.write("from app import add\nassert add(2, 3) == 5\n")
         a = self.agent([step("Look first.", tool="read", path="app.py"),
                         step("Wrong operator.", tool="edit", path="app.py", old="a - b", new="a + b"),
                         step("Note the goal.", tool="goal_add", text="Fix add()"),
@@ -196,7 +198,7 @@ class AgentTest(unittest.TestCase):
 
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
-        self.assertEqual(tools, ["read", "list", "search", "edit", "write", "append", "run", "fetch", "goal_add", "goal_done",
+        self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run", "fetch", "goal_add", "goal_done",
                                  "ask", "answer"])
 
     def cut_write(self, path, lines, tool="write"):
@@ -224,15 +226,55 @@ class AgentTest(unittest.TestCase):
         self.assertEqual([x["kind"] for x in self.events()].count("note"), 1)
 
     def test_a_cut_off_rewrite_never_replaces_a_good_file(self):
-        """2026-10-08: a cut-off new version of a 144-line file was saved over it as 76 lines."""
-        a = Agent(self.root, Scripted([self.cut_write("app.py", 40), step("", tool="answer", text="ok")]), "m", "auto",
+        """2026-10-08: a cut-off new version of a 144-line file was saved over it as 76 lines; later the same day a cut
+        rewrite was dropped and tried again three times (6½ min each). Now it's a draft, and the file stays whole."""
+        a = Agent(self.root, Scripted([self.cut_write("app.py", 40),
+                                       step("More.", tool="append", path="app.py",
+                                            content="".join(f"filler line number {i} of the draft\n"
+                                                            for i in range(41, 241))),
+                                       step("", tool="answer", text="ok")]), "m", "auto",
                   say=self.said.append, ctx=16384)
         a.turn("rewrite app.py")
         with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
-            self.assertEqual(f.read(), "def add(a, b):\n    return a - b\n")  # left as it was
+            self.assertEqual(f.read(), "def add(a, b):\n    return a - b\n")  # whole meanwhile
         note = a.chat.sent[1][-1]["content"]
-        self.assertIn("app.py was left as it was (2 lines)", note)
+        self.assertIn("being kept as a draft: 40 lines so far; app.py stays as it was", note)
+        self.assertIn("240 lines so far", a.chat.sent[2][-1]["content"])  # a full-size part: still the draft
         self.assertEqual(len(os.listdir(os.path.join(self.root, ".cinminai", "cutoffs"))), 1)  # kept for diagnosis
+        # the part that doesn't fill a step completes it: the draft replaces the file, through the changelog
+        a.chat = Scripted([step("Last part.", tool="append", path="app.py", content="def main():\n    pass\n"),
+                           step("", tool="answer", text="done")])
+        a.turn("finish it")
+        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
+            now = f.read()
+        self.assertTrue(now.startswith("line 1\n") and now.endswith("number 240 of the draft\ndef main():\n    pass\n"),
+                        now[-80:])
+        self.assertFalse(os.path.exists(a.draft_path("app.py")))
+        self.assertEqual(a.log.entries()[-1]["file"], "app.py")
+
+    def test_a_write_past_the_cap_is_ended_by_aicui(self):
+        """2026-10-08: llama-server keeps a string's maxLength only for small values (500 held; 3,000 and 8,800 didn't),
+        so the cap is enforced while the reply streams."""
+        from cin_minai.inference.backend import Cancelled
+        content = "".join(f"    int line{i} = {i};\n" for i in range(400))
+        raw = json.dumps(step("Write it.", tool="write", path="big.cpp", content=content))
+
+        def streaming(messages, schema=None, max_tokens=0, cancel=None, on_text=None):
+            if "Write it" in json.dumps(messages[-1:]):
+                return json.dumps(step("", tool="answer", text="ok")), {}
+            for i in range(0, len(raw), 8):
+                on_text(raw[i:i + 8])
+                if cancel.is_set():
+                    raise Cancelled("cancelled")
+            return raw, {"predicted_n": len(raw) // 3}
+        a = Agent(self.root, streaming, "m", "auto", say=self.said.append, ctx=16384)
+        a.content_max = 2000
+        a.turn("write big.cpp")
+        with open(os.path.join(self.root, "big.cpp"), encoding="utf-8") as f:
+            saved = f.read()
+        self.assertTrue(1500 < len(saved) <= 2300 and saved.endswith(";\n"), len(saved))  # ended at a whole line
+        notes = [e["text"] for e in self.events() if e["kind"] == "note"]
+        self.assertIn("filled what one step can hold, so it was ended at its last whole line", notes[0])
 
     def test_every_write_fits_a_step_and_says_what_the_file_holds(self):
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=32768)
@@ -391,7 +433,7 @@ class AgentTest(unittest.TestCase):
         dup = "class UI:\n    def draw(self):\n        pass\n\n    def draw(self):\n        return 1\n"
         r = a.change({"tool": "write", "path": "ui.py", "content": dup})
         self.assertIn("logged as change", r)  # the salvage path looks for this
-        self.assertIn("draw is defined twice in class UI (lines 2 and 5)", r)
+        self.assertIn("draw is defined twice in class UI (lines 2-3 and 5-6)", r)
         r = a.change({"tool": "write", "path": "half.py", "content": "def f(:\n"})
         self.assertIn("doesn't compile", r)
         self.assertIn("finish it first", r)
@@ -447,6 +489,94 @@ class AgentTest(unittest.TestCase):
         self.assertIn(f"Goals: 0 of 1 done; next: {g['id']}. Fix add", msg)
         self.assertIn("Last thing I was doing: Looking again.", msg)
         self.assertEqual(len(a.chat.sent), 16)  # 1 change + 15 steps without progress
+
+    def test_a_big_file_shows_its_shape_and_a_block_goes_by_its_lines(self):
+        """2026-10-08: one class held two generations of methods and main() called a class that didn't exist; read in
+        pieces for 12 steps, the model never saw it. The map and the check say it from the code; replace_lines removes
+        the old block without copying it."""
+        old_gen = "".join(f"    def handle_{i}(self):\n        return {i}\n\n" for i in range(60))
+        new_gen = "".join(f"    def handle_{i}(self, pos):\n        return pos\n\n" for i in range(3))
+        text = ("import pygame\n\n\nclass GameWindow:\n    def __init__(self):\n        self.x = 1\n\n" + old_gen
+                + new_gen + "\ndef main():\n    app = GameApp()\n    app.run()\n")
+        with open(os.path.join(self.root, "gui.py"), "w") as f:
+            f.write(text)
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.reads, a.cut, a.lite, a.steps = {}, 0, 0, []
+        shape = py_map(text)
+        self.assertIn("class GameWindow 4-", shape)
+        self.assertIn("handle_0 8+", shape)
+        self.assertIn("(TWICE)", shape)
+        self.assertIn("def main", shape)
+        problems = check_file(os.path.join(self.root, "gui.py"))
+        self.assertIn("handle_0 is defined twice in class GameWindow", problems)
+        self.assertIn("GameApp (called on line", problems)
+        read = a.do({"tool": "read", "path": "gui.py"})
+        self.assertTrue(read.startswith("Map of gui.py ("), read[:80])  # the whole shape first
+        first, last = 8, 7 + old_gen.count("\n")
+        out = a.do({"tool": "replace_lines", "path": "gui.py", "first": first, "last": last, "new": ""})
+        self.assertIn("logged as change", out)
+        self.assertIn(f"Lines after {last} are now {last - first + 1} lower (old line {last + 1} is line {first})", out)
+        self.assertNotIn("defined twice", out)
+        self.assertIn("GameApp", out)  # still said until it's fixed
+        with open(os.path.join(self.root, "gui.py")) as f:
+            now = f.read()
+        self.assertEqual(now.count("def handle_0"), 1)
+        self.assertIn("def handle_0(self, pos)", now)
+        self.assertIn("aren't in it", a.do({"tool": "replace_lines", "path": "gui.py", "first": 5, "last": 999,
+                                            "new": "x"}))
+        self.assertIn("isn't defined or imported", check_file(os.path.join(self.root, "gui.py")))
+        self.assertEqual(undefined_calls("from x import *\nfoo()\n"), [])  # can't know: say nothing
+        self.assertEqual(undefined_calls("def f(cb):\n    cb()\n    print(len([]))\n"), [])
+
+    def test_a_new_turn_starts_with_the_projects_map_and_its_problems(self):
+        """2026-10-08: told to continue, the model re-read six files in pieces and spent its 15 steps before changing
+        anything, twice; the problem it had to fix was in a file it never reached."""
+        os.makedirs(os.path.join(self.root, "src"))
+        with open(os.path.join(self.root, "src", "engine.cpp"), "w") as f:
+            f.write("#include \"engine.h\"\n\nstruct Match {\n    int lp;\n};\n\nint Engine::draw(int p) {\n"
+                    "    if (p) {\n        return 1;\n    }\n    return 0;\n}\n\nvoid start_turn(Match& d)\n{\n}\n")
+        with open(os.path.join(self.root, "gui.py"), "w") as f:
+            f.write("class GameWindow:\n    def run(self):\n        pass\n\n    def run(self):\n        pass\n\n\n"
+                    "def main():\n    GameApp().run()\n")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=16384)
+        text = a.system()
+        problems = text.index("Problems the checks find in the files now:")
+        self.assertIn("run is defined twice in class GameWindow", text[problems:])
+        self.assertIn("GameApp (called on line 10)", text[problems:])
+        self.assertIn("class GameWindow 1-6: 1 method; TWICE: run 2-3 and 5-6", text)
+        self.assertIn("struct Match 3, Engine::draw 7, start_turn 14", text)
+        self.assertLess(problems, text.index("The project's map"))  # problems first: what "continue" needs
+
+    def test_the_write_cap_follows_what_the_model_measures(self):
+        """2026-10-08: dense list data ran ~2.1 characters a token; the cap assumed 2.6 and a write overran the step."""
+        data = '    {"Steel Hammer", 3000, 2500, 8},\n' * 60
+        dense = step("Data.", tool="append", path="items.cpp", content=data)
+        raw = json.dumps(dense)
+        a = Agent(self.root, Scripted([(raw, {"predicted_n": int(len(raw) / 2.1)}), step("", tool="answer", text="ok")]),
+                  "m", "auto", say=self.said.append, ctx=16384)
+        before = a.content_max
+        a.turn("go")
+        self.assertLess(a.content_max, before)
+        self.assertAlmostEqual(a.content_cpt, 0.92 * 2.1, places=1)
+        self.assertLessEqual(a.content_max, (a.answer_tokens - 700) * 2.0)  # what fits 4,096 tokens of it
+
+    def test_a_listing_shows_the_whole_project_and_a_repeat_is_named(self):
+        """2026-10-08: the 27B listed "." 13 times — it saw only two folders, never the files in them."""
+        os.makedirs(os.path.join(self.root, "include"))
+        os.makedirs(os.path.join(self.root, "src"))
+        with open(os.path.join(self.root, "include", "item.h"), "w") as f:
+            f.write("struct Item {};\n")
+        with open(os.path.join(self.root, "src", "items.cpp"), "w") as f:
+            f.write("#include \"item.h\"\n")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.lists = {}
+        first = a.do({"tool": "list", "path": "."})
+        self.assertIn("include/item.h  (16 bytes)", first)
+        self.assertIn("src/items.cpp", first)
+        self.assertNotIn("You've listed", a.do({"tool": "list", "path": "."}))
+        third = a.do({"tool": "list", "path": "./"})
+        self.assertTrue(third.startswith("You've listed ./ 3 times"))
+        self.assertIn("src/items.cpp", third)  # still shown: compaction may have taken the earlier ones
 
     def test_a_web_pages_files_must_use_each_others_names(self):
         """2026-10-03, the wedding page: CSS for .nav/.menu/.menu-btn, HTML with #menu/#menu-toggle, a script that

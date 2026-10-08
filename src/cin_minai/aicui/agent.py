@@ -28,13 +28,15 @@ import threading
 import time
 
 from .changelog import Changelog
-from .project import Goals, entry_point, project_root, tree
+from .project import HIDE, Goals, entry_point, project_root, tree
 
 CHECKPOINT_STEPS = 60  # a handover in the chat every this many steps; the work goes on
 STUCK_STEPS = 15       # steps without progress (see Agent.progressed) before it stops and says where it is
 SAFETY_STEPS = 600     # the last resort: a runaway the stuck check didn't see
+READ_STREAK = 8        # reads in a row without a change before the next one says to act (2026-10-08: 29 reads)
 READ_LINES = 80        # a read fits one result (OBS_CHARS) with its "more lines" note
 OBS_CHARS = 3000       # what one tool result may add to the context (8K on an 11 GB card)
+LIST_ENTRIES = 150     # a listing shows the whole folder, files inside its folders too, up to this many
 RUN_TIMEOUT = 120
 ANSWER_TOKENS = 1800   # room for one step's answer at 8K (thinking + an action); 16K gets 4096 (see Agent)
 TOKENS_A_LINE = 25     # a code line in a JSON string, escapes included: the size of one write part
@@ -46,6 +48,7 @@ ACTIONS = [
     {"tool": "list", "path": STR},
     {"tool": "search", "pattern": STR},
     {"tool": "edit", "path": STR, "old": STR, "new": STR},
+    {"tool": "replace_lines", "path": STR, "first": {"type": "integer"}, "last": {"type": "integer"}, "new": STR},
     {"tool": "write", "path": STR, "content": STR},
     {"tool": "append", "path": STR, "content": STR},
     {"tool": "run", "command": STR},
@@ -75,14 +78,14 @@ SYSTEM = """You are the coding agent in AICUI, working in the project folder {ro
 You work step by step. Each step: your thinking (short), then exactly one action:
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
 - edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
-  append (add `content` to the end of a file)
+  append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
 - run (a shell command in the project folder{sandbox})
 - fetch (a web page's text, from an https `url`; the user is asked first)
 - goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
 - ask (a question for the user), answer (tell the user something; ends your turn)
 Your thinking is a sentence or two about your next move — never a copy of the user's message or of an error; the
 user sees it in the chat.
-Rules: read before you edit; make the smallest change that does the job; after a change, check it (run the tests or
+Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change, check it (run the tests or
 the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
 haven't read. Data or a source the user gives you (pasted or fetched) beats your memory: use it as given; if it
 differs, say so once and go on. Files that work together use each other's exact names: before writing a page's CSS or script, read
@@ -96,7 +99,7 @@ pages aren't shown. Check your work with tests, `python3 -m py_compile`, or `tim
 loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
 button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
 project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
-seconds; a goal whose checks fail stays open.{venv}
+seconds; a goal whose checks fail stays open. Never edit tests or the entry point to pass.{venv}
 
 The project's files (first lines):
 {files}
@@ -115,6 +118,9 @@ def slim(step: dict) -> str:
         n = len(str(a.get("content", "")).splitlines())
         did = "wrote" if a["tool"] == "write" else "added to the end of"
         return f"{thinking}\n(Earlier I {did} {a.get('path', '')}, {n} lines; it's on disk — read it if I need it.)"
+    if a.get("tool") == "replace_lines":
+        return f"{thinking}\n(Earlier I replaced lines {a.get('first')}-{a.get('last')} of {a.get('path', '')} with " \
+               f"{len(str(a.get('new', '')).splitlines())} lines; it's on disk.)"
     if a.get("tool") == "edit" and len(str(a.get("old", "")) + str(a.get("new", ""))) > 600:
         return f"{thinking}\n(Earlier I edited {a.get('path', '')}: replaced {len(str(a.get('old', '')).splitlines())} " \
                f"lines with {len(str(a.get('new', '')).splitlines())}; it's on disk.)"
@@ -152,6 +158,8 @@ def outline(result: str, limit: int = 40) -> str:
     return "\n".join(shown)
 
 
+NL_JOIN = "\n"
+WRITE_TOOL = re.compile(r'"tool"\s*:\s*"(?:write|append)"')
 ESCAPE = re.compile(r'\\.|[^\\]', re.S)
 
 
@@ -182,7 +190,7 @@ def doing(raw: str) -> str:
     if not tool:
         return "thinking"
     what = re.search(r'"(?:path|command|pattern|url)"\s*:\s*"((?:[^"\\]|\\.){0,60})', raw)
-    verb = {"write": "writing", "append": "writing", "edit": "editing", "read": "reading", "run": "running",
+    verb = {"write": "writing", "append": "writing", "edit": "editing", "replace_lines": "editing", "read": "reading", "run": "running",
             "list": "looking in", "search": "searching", "answer": "answering", "ask": "asking",
             "fetch": "fetching"}.get(tool.group(1),
                                                                                                     tool.group(1))
@@ -232,6 +240,146 @@ def summary(text: str, added: str) -> str:
     return "".join(out)
 
 
+def py_map(text: str, limit: int = 1800, compact: bool = False) -> str:
+    """A Python file's structure, from the code: each class and function with its lines, each method with its line,
+    a name defined twice marked with both (2026-10-08: reading a 674-line GUI in pieces for 12 steps, the model never
+    saw that one class held two generations of the same methods — it even "saw" a class that wasn't there)."""
+    import ast
+    try:
+        tree_ = ast.parse(text)
+    except SyntaxError:
+        return ""
+    out = []
+    for node in tree_.body:
+        if isinstance(node, ast.ClassDef):
+            seen: dict[str, list[int]] = {}
+            ends: dict[str, list[str]] = {}  # a name defined twice: each block's lines, so it can go whole
+            for m in node.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    seen.setdefault(m.name, []).append(m.lineno)
+                    ends.setdefault(m.name, []).append(f"{m.lineno}-{m.end_lineno}")
+            methods = ", ".join(f"{n} {'+'.join(map(str, ls))}" + (" (TWICE)" if len(ls) > 1 else "")
+                                for n, ls in seen.items())
+            if compact and seen:  # the project map: how many, and only what's wrong
+                twice = [f"{n} {' and '.join(ends[n])}" for n, ls in seen.items() if len(ls) > 1]
+                methods = f"{len(seen)} method{'s' if len(seen) > 1 else ''}" + (f"; TWICE: {', '.join(twice)}" if twice else "")
+            out.append(f"class {node.name} {node.lineno}-{node.end_lineno}: {methods or '(no methods)'}")
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            out.append(f"def {node.name} {node.lineno}-{node.end_lineno}")
+    text_ = "\n".join(out)
+    return text_ if len(text_) <= limit else text_[:limit].rsplit("\n", 1)[0] + "\n…"
+
+
+C_LIKE = (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".js", ".mjs", ".ts")
+C_TYPE = re.compile(r"^(?:template\s*<[^>]*>\s*)?(?:typedef\s+)?(class|struct|enum(?:\s+class)?)\s+(\w+)[^;]*$")
+C_FUNC = re.compile(r"^(?!\s)(?!(?:if|for|while|switch|return|else|do)\b)[\w:<>,*&~\s]*?\b([A-Za-z_][\w:~]*)\s*\("
+                    r"[^;]*\)\s*(?:const\s*)?(?:noexcept\s*)?(?:override\s*)?\{?\s*$")
+JS_FUNC = re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)|^\s*(?:export\s+)?(?:const|let)\s+(\w+)\s*=\s*"
+                     r"(?:async\s*)?\(|^\s*(?:export\s+)?class\s+(\w+)")
+
+
+def code_map(path: str, text: str, limit: int = 700) -> str:
+    """A file's landmarks from the code, for the project map at the start of a turn: Python's classes and functions
+    with their lines (py_map), C/C++'s types and function definitions, JavaScript's functions and classes."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".py":
+        return py_map(text, limit, compact=True)
+    if ext not in C_LIKE:
+        return ""
+    marks = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if ext in (".js", ".mjs", ".ts"):
+            m = JS_FUNC.match(line)
+            name = m and next(g for g in m.groups() if g)
+        else:
+            t = C_TYPE.match(line)
+            f = None if t else C_FUNC.match(line)
+            name = (f"{t.group(1).split()[0]} {t.group(2)}" if t else f.group(1) if f else None)
+        if name:
+            marks.append(f"{name} {n}")
+    out = ", ".join(marks)
+    return out if len(out) <= limit else out[:limit].rsplit(", ", 1)[0] + ", …"
+
+
+def undefined_calls(text: str) -> list[str]:
+    """Names a Python file calls that it neither defines, assigns nor imports (and aren't built in): a class renamed
+    in one place and not the other (2026-10-08: main() called GameApp; the class was GameWindow)."""
+    import ast
+    import builtins
+    try:
+        tree_ = ast.parse(text)
+    except SyntaxError:
+        return []
+    known = set(dir(builtins)) | {"__file__", "__name__"}
+    for node in ast.walk(tree_):
+        if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+            return []  # anything could come from there
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            known |= {(a.asname or a.name).split(".")[0] for a in node.names}
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            known.add(node.name)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            known.add(node.id)
+        elif isinstance(node, ast.arg):
+            known.add(node.arg)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            known.add(node.name)
+    found: dict[str, int] = {}
+    for node in ast.walk(tree_):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id not in known:
+            found.setdefault(node.func.id, node.lineno)
+    return [f"{n} (called on line {line}) isn't defined or imported anywhere in the file"
+            for n, line in sorted(found.items(), key=lambda x: x[1])]
+
+
+CPP_STD = re.compile(r"-std=\S+")
+CPP_ERROR = re.compile(r"^(?P<file>[^:\s][^:]*):(?P<line>\d+):(?:\d+:)? (?:fatal )?error: (?P<msg>.*)$")
+
+
+def compile_check(full: str) -> str:
+    """A C or C++ file through the compiler, syntax only, with the project's own flags where its Makefile says them
+    (2026-10-08: nothing checked the C++; the engine didn't build — two namespaces, a header that didn't exist, two
+    signatures for one function — and neither model saw it until the coder read nine files). "" when it compiles or
+    there's no compiler."""
+    import shutil
+    import subprocess
+    ext = os.path.splitext(full)[1].lower()
+    cc = shutil.which("gcc" if ext == ".c" else "g++")
+    if not cc:
+        return ""
+    root = os.path.dirname(full)
+    while root != os.path.dirname(root) and not os.path.exists(os.path.join(root, ".cinminai")) and \
+            not os.path.exists(os.path.join(root, "Makefile")):
+        root = os.path.dirname(root)
+    std = "-std=c11" if ext == ".c" else "-std=c++17"
+    try:
+        with open(os.path.join(root, "Makefile"), encoding="utf-8") as f:
+            m = CPP_STD.search(f.read())
+            std = m.group() if m else std
+    except OSError:
+        pass
+    args = [cc, std, "-fsyntax-only", "-I" + os.path.join(root, "include"), "-I" + os.path.join(root, "src"),
+            "-I" + root]
+    if ext in (".h", ".hh", ".hpp"):
+        args += ["-x", "c++-header" if ext != ".h" or os.path.exists(os.path.join(root, "Makefile")) else "c-header"]
+    try:
+        out = subprocess.run(args + [full], capture_output=True, text=True, timeout=60, cwd=root)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if out.returncode == 0:
+        return ""
+    errors = []
+    for line in out.stderr.splitlines():
+        m = CPP_ERROR.match(line)
+        if m:
+            where = os.path.relpath(m.group("file"), root) if os.path.isabs(m.group("file")) else m.group("file")
+            errors.append(f"{where}:{m.group('line')}: {m.group('msg')[:160]}")
+    if not errors:
+        return "doesn't compile"
+    more = f" (+{len(errors) - 5} more)" if len(errors) > 5 else ""
+    return "doesn't compile: " + "; ".join(errors[:5]) + more
+
+
 def check_file(full: str) -> str:
     """Problems in a file just changed, said plainly ("" when none): Python that doesn't compile or defines a name
     twice in one place (2026-10-03: a duplicated _draw_buttons — Python silently used the second — confused the
@@ -249,15 +397,16 @@ def check_file(full: str) -> str:
             return f"doesn't compile: {e.msg}, line {e.lineno}"
         found = []
         for scope in [tree_] + [n for n in ast.walk(tree_) if isinstance(n, ast.ClassDef)]:
-            seen: dict[str, int] = {}
+            seen: dict[str, str] = {}
             for node in scope.body:
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    here = f"{node.lineno}-{node.end_lineno}"  # the whole block, so it can be removed by its lines
                     if node.name in seen and not node.decorator_list:  # @x.setter etc. redefine on purpose
                         where = f"class {scope.name}" if isinstance(scope, ast.ClassDef) else "the file"
                         found.append(f"{node.name} is defined twice in {where} (lines {seen[node.name]} and "
-                                     f"{node.lineno}); Python uses only the last one")
-                    seen[node.name] = node.lineno
-        return "; ".join(found)
+                                     f"{here}); Python uses only the last one")
+                    seen[node.name] = here
+        return "; ".join(found + undefined_calls(text))
     if ext in (".html", ".htm"):
         from html.parser import HTMLParser
         stack: list[tuple[str, int]] = []
@@ -286,6 +435,8 @@ def check_file(full: str) -> str:
             json.loads(text)
         except ValueError as e:
             return f"isn't valid JSON: {e}"
+    if ext in (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"):
+        return compile_check(full)
     return ""
 
 
@@ -391,7 +542,8 @@ class Agent:
         self.write_lines = self.answer_tokens // TOKENS_A_LINE // 10 * 10           # 8K: 70 lines, 16K: 160
         # the characters a write may hold: the step's tokens, less the thinking (<= 1500 chars) and the JSON around it,
         # at ~2.6 characters a token of escaped code — 8K: ~2,900, 16K and up: ~8,800
-        self.content_max = int(max(800, (self.answer_tokens - 700) * 2.6))
+        self.content_cpt = 2.6  # lowered by what the model's long replies measure (generate)
+        self.content_max = int(max(800, (self.answer_tokens - 700) * self.content_cpt))
         self.venv = venv_of(root)
         self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
         self.tick = tick  # tick(text): the terminal's progress line while a step is generated
@@ -412,6 +564,7 @@ class Agent:
     def system(self) -> str:
         files = "\n".join("  " + r + ("/" if d else line_count(os.path.join(self.root, r)))
                           for r, d, _ in tree(self.root)[:80])
+        files += self.project_map()
         goals = "\n".join(f"  {g['id']}. [{'x' if g['done'] else ' '}] {g['text']}" for g in self.goals.load()) or "  (none yet)"
         venv = ""
         if self.venv:
@@ -423,6 +576,51 @@ class Agent:
         return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
                              answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                              sandbox=", sandboxed without network" if self.sandbox else "")
+
+    def problems(self) -> list[str]:
+        """What the checks find in the project's files now, one line a file."""
+        found = []
+        for rel, is_dir, _ in tree(self.root)[:80]:
+            full = os.path.join(self.root, rel)
+            if not is_dir and os.path.getsize(full) <= 400_000:
+                problem = check_file(full)
+                if problem:
+                    found.append(f"{rel}: {problem}")
+        return found
+
+    def project_map(self) -> str:
+        """The project's shape and its known problems, from the code, at the start of every task (2026-10-08: told to
+        continue, the model re-read six files in pieces and spent its 15 steps before changing anything — twice)."""
+        if self.ctx < 8192:  # no room for it (no setup of ours runs below 8K)
+            return ""
+        budget = 600 * (self.ctx // 8192) + (900 if self.ctx >= 16384 else 0)  # 8K: 600 chars, 16K: 2,100, 32K: 3,300
+        shapes, problems = [], []
+        for rel, is_dir, _ in tree(self.root)[:80]:
+            if is_dir:
+                continue
+            full = os.path.join(self.root, rel)
+            try:
+                if os.path.getsize(full) > 400_000:
+                    continue
+                with open(full, encoding="utf-8") as f:
+                    text = f.read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            shape = code_map(rel, text)
+            if shape:
+                shapes.append(f"  {rel}:\n    " + shape.replace("\n", "\n    "))
+            problem = check_file(full)
+            if problem:
+                problems.append(f"  {rel}: {problem}")
+        out = ""
+        if problems:  # first: they're what "continue" most needs
+            out += "\n\nProblems the checks find in the files now:\n" + "\n".join(problems)[:budget]
+        if shapes:
+            room = max(0, budget - len(out))
+            body = "\n".join(shapes)
+            out += "\n\nThe project's map (from the code; line numbers to read from):\n" + \
+                (body if len(body) <= room else body[:room].rsplit("\n", 1)[0] + "\n  …")
+        return out if len(out) > 2 else ""
 
     def messages(self, text: str, steps: list[dict], cut: int = 0, lite: int = 0) -> list[dict]:
         """What the model is sent: the system text, earlier turns, this request, and this turn's steps — the first
@@ -488,9 +686,18 @@ class Agent:
         """One step from the model, with its progress to AICUI (busy events) and the terminal (tick) as it comes."""
         parts: list[str] = []
         last = [time.time()]
+        stop, capped = threading.Event(), [False]
 
         def on_text(piece: str) -> None:
             parts.append(piece)
+            if cancel is not None and cancel.is_set():
+                stop.set()
+            if not capped[0] and len(parts) % 16 == 0:  # the write's content past the cap: end it here, cleanly
+                so_far = "".join(parts)
+                at = so_far.find('"content"')
+                if at >= 0 and len(so_far) - at > self.content_max + 20 and WRITE_TOOL.search(so_far[:at]):
+                    capped[0] = True
+                    stop.set()
             if time.time() - last[0] >= TICK_S:
                 last[0] = time.time()
                 what = doing("".join(parts))
@@ -499,24 +706,37 @@ class Agent:
                     self.tick(f"step {n} · {what} · {len(parts)} tokens")
         self.event("busy", step=n, doing="reading the request", tokens=0)
         t0 = time.time()
-        raw, timings = self.chat(messages, schema=schema(self.content_max), max_tokens=self.answer_tokens, cancel=cancel,
-                                 on_text=on_text)
+        from cin_minai.inference.backend import Cancelled
+        try:
+            raw, timings = self.chat(messages, schema=schema(self.content_max), max_tokens=self.answer_tokens,
+                                     cancel=stop, on_text=on_text)
+        except Cancelled:
+            if not capped[0]:
+                raise
+            raw, timings = "".join(parts), {"predicted_n": len(parts), "capped": True}
         t = timings if isinstance(timings, dict) else {}
         tokens = (t.get("prompt_n") or 0) + (t.get("cache_n") or 0)
         if tokens > 500:  # characters a token, as the server counted this prompt (code in JSON: ~2.9, not 3.3)
             self.cpt = min(3.3, max(2.0, 0.95 * sum(len(x["content"]) for x in messages) / tokens))
+        made = t.get("predicted_n") or 0
+        if made > 1000:  # characters a token in what it writes, as counted: the write cap follows the densest seen
+            # (2026-10-08: list data — quoted names, numbers a token per digit — ran ~2.1 a token; at the assumed 2.6
+            # a 327-line append fit the cap and still ran past the step's 4,096 tokens, twice)
+            self.content_cpt = min(self.content_cpt, max(1.5, 0.92 * len(raw) / made))
+            self.content_max = int(max(800, (self.answer_tokens - 700) * self.content_cpt))
         self.event("timing", seconds=round(time.time() - t0, 1), prompt_n=t.get("prompt_n"),  # for diagnosis
                    cache_n=t.get("cache_n"), prompt_tps=round(t.get("prompt_per_second") or 0),
                    gen_n=t.get("predicted_n"), gen_tps=round(t.get("predicted_per_second") or 0, 1))
         return raw, t
 
-    def unfinished(self, raw: str, cut: bool) -> str:
+    def unfinished(self, raw: str, cut: bool, capped: bool = False) -> str:
         """A reply that isn't a whole step: save what a cut-off write holds, and tell the model plainly what happened."""
         if not cut:
             return "Your last reply wasn't valid JSON, so nothing was done. Reply with your thinking and one action."
         limit = (f"Your last reply was cut off: one step holds about {self.answer_tokens} tokens, and it was longer. "
                  f"Write long files in parts of under {self.write_lines} lines: write the first part, then append the "
-                 "rest, one part per step.")
+                 "rest, one part per step.") if not capped else (
+            "That write filled what one step can hold, so it was ended at its last whole line.")
         try:  # the reply as it came, for diagnosis (the project's own .cinminai/, never shown to the model again)
             folder = os.path.join(self.root, ".cinminai", "cutoffs")
             os.makedirs(folder, exist_ok=True)
@@ -532,11 +752,10 @@ class Agent:
             existing = open(self.path(rel), encoding="utf-8").read() if tool == "write" else ""
         except OSError:
             existing = ""
-        if existing.strip():  # a cut-off new version must not replace a good file (2026-10-08: 144 lines became 76)
-            n = existing.count("\n") + (not existing.endswith("\n"))
-            return (f"{limit} Your new version of {rel} was cut off, so {rel} was left as it was ({n} lines). To "
-                    f"replace it, write it again in parts: the first part (under {self.write_lines} lines) with write, "
-                    "then append the rest.")
+        if existing.strip() or os.path.exists(self.draft_path(rel)):
+            # a new version of a good file: never in place half-written (2026-10-08: 144 lines became 76); kept as a
+            # draft to go on with (it used to be dropped, and the same rewrite was tried three times, 6½ min each)
+            return f"{limit} " + self.change({"tool": tool, "path": rel, "content": content}, filled=True)
         result = self.change({"tool": tool, "path": rel, "content": content})
         if "logged as change" not in result:
             return f"{limit} The part that came through couldn't be saved ({result})."
@@ -557,6 +776,10 @@ class Agent:
     def work(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
         self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
+        self.stopped = ""  # how this task ended: "answer", "ask", "stuck", "limit" or "error" (the organizer reads it)
+        self.lists: dict = {}  # (folder, what it showed) -> times listed in this task
+        self.read_streak = 0  # reads since the last change
+        self.plans: dict = {}  # a thinking's opening -> times written since the last change
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
         last_progress = 0
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
@@ -571,6 +794,7 @@ class Agent:
                 except Exception:
                     msg = (f"I couldn't go on ({str(e)[:160]}). What's done is saved and in the changelog; tell me to "
                            "continue and I'll pick up from the files and the goals.")
+                    self.stopped = "error"
                     self.event("answer", text=msg)
                     self.say(msg)
                     self.history.append({"user": text, "answer": msg})
@@ -579,8 +803,8 @@ class Agent:
                 step = json.loads(raw)
                 act = step["action"]
             except (ValueError, KeyError, TypeError):
-                cut = (t.get("predicted_n") or 0) >= self.answer_tokens - 2
-                note = self.unfinished(raw, cut)
+                cut = (t.get("predicted_n") or 0) >= self.answer_tokens - 2 or bool(t.get("capped"))
+                note = self.unfinished(raw, cut, capped=bool(t.get("capped")))
                 self.event("note", text=note)
                 self.say(f"\033[33m{note.splitlines()[0]}\033[0m")
                 steps.append({"note": note})
@@ -590,14 +814,27 @@ class Agent:
             if step.get("thinking"):
                 self.event("thinking", text=step["thinking"])
                 self.say(f"\033[2m{step['thinking']}\033[0m")
+                # its first six words: the wording drifts ("…the integration:" / "…the integration issues:", ten times)
+                opening = " ".join(re.sub(r"\W+", " ", step["thinking"]).lower().split()[:6])
+                self.plans[opening] = self.plans.get(opening, 0) + 1
+                if self.plans[opening] == 3:  # 2026-10-08: "Now I have a complete picture…" eight times, no change
+                    steps.append({"note": "You've written the same plan three times without changing anything. Make "
+                                          "its first change now, in this step or the next — the lines the checks "
+                                          "or the map name can be changed by number with replace_lines."})
             if act["tool"] in ("answer", "ask"):
                 msg = act.get("text") or act.get("question") or ""
+                self.stopped = act["tool"]
                 self.event("answer", text=msg)
                 self.say(msg)
                 self.history.append({"user": text, "answer": msg})
                 return msg
             self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
+            if act["tool"] == "read":
+                self.read_streak += 1
+            elif "logged as change" in result:
+                self.read_streak = 0
+                self.plans = {}
             steps.append({"did": step, "result": result[:self.obs_chars]})
             if self.progressed(act, result):
                 last_progress = n
@@ -607,16 +844,37 @@ class Agent:
                 msg = self.handover(steps, f"I've gone {STUCK_STEPS} steps without changing a file, ticking a goal "
                                            "or getting a new result, so I've stopped here.") + \
                     "\nTell me how to go on — a hint about where I'm stuck helps most."
+                self.stopped = "stuck"
                 self.event("answer", text=msg)
                 self.say(msg)
                 self.history.append({"user": text, "answer": msg})
                 return msg
         msg = self.handover(steps, f"I've stopped at the safety limit of {self.max_steps} steps.") + \
             "\nTell me to continue and I'll pick up from here."
+        self.stopped = "limit"
         self.event("answer", text=msg)
         self.say(msg)
         self.history.append({"user": text, "answer": msg})
         return msg
+
+    def listing(self, folder: str) -> str:
+        """Everything under a folder, files inside its folders too, with sizes (one look shows the project)."""
+        out = []
+        for here, dirs, files in os.walk(folder):
+            dirs[:] = sorted(d for d in dirs if d not in HIDE and not d.startswith("."))
+            rel = os.path.relpath(here, folder)
+            for d in dirs:
+                out.append(os.path.normpath(os.path.join(rel, d)) + "/")
+            for f in sorted(files):
+                try:
+                    size = os.path.getsize(os.path.join(here, f))
+                except OSError:
+                    continue
+                out.append(f"{os.path.normpath(os.path.join(rel, f))}  ({size:,} bytes)")
+            if len(out) > LIST_ENTRIES:
+                break
+        more = f"\n… and more (list a folder above to see inside it)" if len(out) > LIST_ENTRIES else ""
+        return "\n".join(sorted(out[:LIST_ENTRIES])) + more if out else "(empty)"
 
     def progressed(self, act: dict, result: str) -> bool:
         """A step that moved the work on: a file changed, a goal added or ticked, or a command whose output is new
@@ -752,14 +1010,32 @@ class Agent:
                 part = lines[start - 1:start - 1 + self.read_lines]
                 more = f"\n… {len(lines) - (start - 1 + len(part))} more lines (read from line {start + len(part)})" \
                     if start - 1 + len(part) < len(lines) else ""
+                streak = getattr(self, "read_streak", 0)
+                if streak >= READ_STREAK:  # it had a plan and kept reading (2026-10-08: "Now I have a clear picture.
+                    # Let me also check…" 29 times, a hint in between): the content still comes, after the push to act
+                    return (f"(You've read {streak} times in a row without changing anything. You know enough: make the "
+                            "change now — the lines the checks or the map name can go with replace_lines by number — "
+                            "or ask the user.)\n" + NL_JOIN.join(f"{start + i:5} {line}" for i, line in
+                                                         enumerate(lines[start - 1:start - 1 + self.read_lines])))
                 note = ("" if len(earlier) < 3 else
                         f"(You've read this {len(earlier)} times in this task: not every file fits in view at once. "
                         "Work on one file at a time, and make the change you read it for in your next step.)\n")
-                return note + "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
+                shape = py_map("\n".join(lines)) if full.endswith(".py") and len(lines) > self.read_lines \
+                    and start == 1 else ""
+                head = f"Map of {a['path']} ({len(lines)} lines, from the code):\n{shape}\n\n" if shape else ""
+                return note + head + "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
             if t == "list":
-                p = self.path(a.get("path") or ".")
-                return "\n".join(sorted(e + ("/" if os.path.isdir(os.path.join(p, e)) else "") for e in os.listdir(p)
-                                        if e != ".cinminai")) or "(empty)"
+                where = a.get("path") or "."
+                shown = self.listing(self.path(where))
+                # the loop guard for listings (2026-10-08: it listed "." 13 times in a row — the top level only showed
+                # two folders, so it never saw the files and asked again): the same folder, unchanged, a third time
+                key = (os.path.normpath(where), hash(shown))
+                self.lists[key] = self.lists.get(key, 0) + 1
+                if self.lists[key] >= 3:
+                    return (f"You've listed {where} {self.lists[key]} times in this task and nothing in it changed. "
+                            "Don't list it again: read one of these files, write or run something, or ask the "
+                            "user.\n" + shown)
+                return shown
             if t == "search":
                 rx, hits = re.compile(a["pattern"]), []
                 for rel, is_dir, _ in tree(self.root):
@@ -771,7 +1047,7 @@ class Agent:
                     except (OSError, UnicodeDecodeError):
                         pass
                 return "\n".join(hits[:60]) or "no matches"
-            if t in ("edit", "write", "append"):
+            if t in ("edit", "replace_lines", "write", "append"):
                 return self.change(a)
             if t == "run":
                 return self.run(a["command"])
@@ -791,12 +1067,38 @@ class Agent:
         except (OSError, ValueError, re.error, KeyError, StopIteration) as e:
             return f"error: {e}"
 
-    def change(self, a: dict) -> str:
+    def draft_path(self, rel: str) -> str:
+        return os.path.join(self.root, ".cinminai", "drafts", rel)
+
+    def change(self, a: dict, filled: bool | None = None) -> str:
         rel = os.path.relpath(self.path(a["path"]), self.root)
         full = os.path.join(self.root, rel)
         old = open(full, encoding="utf-8").read() if os.path.exists(full) else ""
         part = ""
-        if a["tool"] in ("write", "append") and len(a["content"]) >= self.content_max - 5:  # it filled the step
+        if filled is None:
+            filled = a["tool"] in ("write", "append") and len(a["content"]) >= self.content_max - 5
+        draft = self.draft_path(rel)
+        if a["tool"] in ("write", "append") and filled and (old.strip() and a["tool"] == "write" or
+                                                            os.path.exists(draft)):
+            # a new version of an existing file, longer than a step: the parts go to a draft and the file stays whole
+            content = a["content"][:a["content"].rfind("\n") + 1] if "\n" in a["content"] else a["content"]
+            os.makedirs(os.path.dirname(draft), exist_ok=True)
+            with open(draft, "w" if a["tool"] == "write" else "a", encoding="utf-8") as f:
+                f.write(content)
+            with open(draft, encoding="utf-8") as f:
+                n = f.read().count("\n")
+            self.event("note", text=f"Rewriting {rel} in parts: the draft has {n} lines.")
+            return (f"The new version of {rel} is longer than one step, so it's being kept as a draft: {n} lines so "
+                    f"far; {rel} stays as it was meanwhile. Continue with append to {rel} from where the draft ends — "
+                    "the parts go to the draft — and it replaces the file when a part ends without filling the step.")
+        if a["tool"] == "append" and os.path.exists(draft):  # the last part: the draft becomes the file
+            with open(draft, encoding="utf-8") as f:
+                whole = f.read()
+            os.remove(draft)
+            a = {**a, "tool": "write", "content": whole + a["content"]}
+        elif a["tool"] == "write" and os.path.exists(draft):
+            os.remove(draft)  # written whole after all: the draft is stale
+        if a["tool"] in ("write", "append") and filled:  # it filled the step
             if not a["content"].endswith("\n") and "\n" in a["content"]:
                 a = {**a, "content": a["content"][:a["content"].rfind("\n") + 1]}  # up to its last whole line
             part = (" This part filled what one step can hold, so it ends at its last whole line: if there's more, "
@@ -805,11 +1107,18 @@ class Agent:
             if old.count(a["old"]) != 1:
                 return f"error: the text to replace appears {old.count(a['old'])} times in {rel}, not once"
             new = old.replace(a["old"], a["new"], 1)
+        elif a["tool"] == "replace_lines":
+            lines = old.splitlines(True)
+            first, last = int(a["first"]), int(a["last"])
+            if not 1 <= first <= last <= len(lines):
+                return f"error: {rel} has {len(lines)} lines; lines {first}-{last} aren't in it"
+            block = a["new"] + ("\n" if a["new"] and not a["new"].endswith("\n") else "")
+            new = "".join(lines[:first - 1]) + block + "".join(lines[last:])
         elif a["tool"] == "append":
             new = old + ("\n" if old and not old.endswith("\n") else "") + a["content"]
         else:
             new = a["content"]
-        text = a.get("new", "") if a["tool"] == "edit" else a["content"]
+        text = a.get("new", "") if a["tool"] in ("edit", "replace_lines") else a["content"]
         if a["tool"] in ("write", "append") and PLACEHOLDER.match(text):  # never a stand-in for real code (see slim)
             return (f"error: that isn't file content ({text.strip()[:40]!r}). Write the complete, real contents of "
                     f"{rel}.")
@@ -829,7 +1138,16 @@ class Agent:
         done = f"{rel} changed (+{e['added']} -{e['removed']}), logged as change {e['id']}"
         if a["tool"] in ("write", "append"):
             done += "." + summary(new, a["content"]) + part
+        if a["tool"] == "replace_lines":  # line numbers below the block moved: say by how much
+            moved = new.count("\n") - old.count("\n")
+            if moved:
+                done += f". Lines after {a['last']} are now {abs(moved)} {'higher' if moved > 0 else 'lower'}"
+                done += f" (old line {int(a['last']) + 1} is line {int(a['last']) + 1 + moved})"
         problem = check_file(full)
+        if rel.endswith(".py") and new.count("\n") > self.read_lines:  # it no longer fits one read: its shape
+            shape = py_map(new)
+            if shape:
+                done += f"\nIts map (from the code):\n{shape}\n"
         if os.path.splitext(rel)[1].lower() in (".html", ".htm", ".css", ".js"):
             names = web_names(self.root)  # a page's files must use each other's names
             problem = "; ".join(p for p in (problem, names) if p)
@@ -903,8 +1221,10 @@ class Agent:
             ok &= not problems
             lines.append(f"{page} and its CSS/JS: " + ("names and tags line up" if not problems else
                                                       "PROBLEMS: " + "; ".join(problems)))
-        if not tests and not entry and not page:
-            lines.append("no tests (test_*.py), entry point (run.sh, main.py) or web page to check")
+        if not tests and not page:  # a start alone proves little (2026-10-08: run.sh built the C++, found no pygame,
+            # printed how to install it and exited 0 — and the engine goal was ticked with nothing testing its rules)
+            ok = False
+            lines.append("no tests: a goal is ticked when tests of what it promises pass — write test_*.py first")
         return ok, "\n".join(lines)
 
 
@@ -947,8 +1267,12 @@ def local_backend(say=print):
     from cin_minai.inference import matcher
     from cin_minai.inference.llamacpp import LlamaCppBackend
     store = ModelStore()
+    unload_guide()  # first: with the guide on the card, the card read too full for our pick's 32K
     machine = matcher.read_machine(models_dir=store.root)
-    plan = store.in_use("coding") or matcher.match(machine).get("coding")
+    ours = matcher.match(machine).get("coding")
+    plan = store.in_use("coding") or ours
+    if plan and ours and plan["file"] == ours["file"] and ours.get("context", 0) > plan.get("context", 0):
+        plan = {**ours, "why": plan.get("why", ours.get("why", ""))}  # a choice saved at 16K before 32K was offered
     if not plan:
         raise SystemExit("No coding model in our list runs on this computer.")
     if not store.has(plan["file"]):  # the best one you already have that runs here, and say what else there is
@@ -961,7 +1285,6 @@ def local_backend(say=print):
         m, p = have[0]
         plan = {"model": m.name, "file": m.file, **p, "context": matcher.CONTEXT["coding"],
                 "reserve_mib": matcher.margin_mib(machine.cards[0]) if machine.cards else 0}
-    unload_guide()
     cfg = backend_cfg(config.load()["inference"], plan, store.path(plan["file"]))
     cfg["socket_name"] = "llama-code.sock"
     say(f"\033[2mModel: {plan['model']} ({plan['mode']}), loading…\033[0m")
@@ -983,6 +1306,8 @@ def main(argv=None) -> int:
     ap.add_argument("--no-permissions", action="store_true",
                     help="no questions and no sandbox — strongly advised against until the model is tested")
     ap.add_argument("--admin", action="store_true", help="allow administrator commands")
+    ap.add_argument("--solo", action="store_true",
+                    help="the coding model alone, without the guide organizing on the processor (SPEC 22.5)")
     a = ap.parse_args(argv)
     mode = "none" if a.no_permissions else "auto" if a.auto else "ask"
     root = project_root(a.folder)
@@ -1000,6 +1325,27 @@ def main(argv=None) -> int:
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
+    from . import tandem as tandem_mod
+    pair = {"junior": None, "tandem": None, "failed": a.solo}
+
+    def organizer():
+        """The guide on the processor, once the project has open goals (a new project starts with the coder asking
+        about its scope); loaded on first use; if it can't start, the coder works alone and says so."""
+        if pair["failed"] or not any(not g["done"] for g in agent.goals.load()):
+            return None
+        if pair["tandem"] is None:
+            print("\033[2mOrganizer: the guide on the processor, loading…\033[0m")
+            try:
+                pair["junior"] = tandem_mod.junior_backend()
+                if pair["junior"] is None:
+                    raise RuntimeError("the guide model isn't on this computer")
+                pair["junior"].chat([{"role": "user", "content": "ok"}], max_tokens=1)  # load it now, not mid-task
+            except Exception as e:
+                pair["failed"] = True
+                print(f"\033[33mThe organizer couldn't start ({e}); the coding model works alone.\033[0m")
+                return None
+            pair["tandem"] = tandem_mod.Tandem(agent, pair["junior"].chat, say=lambda s: print(f"\r\033[K{s}"))
+        return pair["tandem"]
     try:
         while True:
             try:
@@ -1012,13 +1358,15 @@ def main(argv=None) -> int:
             if text:
                 cancel = threading.Event()
                 try:
-                    agent.turn(text, cancel)
+                    (organizer() or agent).turn(text, cancel)
                 except KeyboardInterrupt:  # AICUI's Stop button sends Ctrl+C; the server stops when we hang up
                     cancel.set()
                     print("\r\033[K(stopped — what's done is saved and in the changelog)")
                     agent.event("answer", text="Stopped. What's done is saved and in the changelog.")
     finally:
         backend.unload()
+        if pair["junior"] is not None:
+            pair["junior"].unload()
     return 0
 
 

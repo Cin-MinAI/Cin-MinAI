@@ -40,6 +40,21 @@ def context(job: str) -> int:
     return matcher.VISION_CONTEXT if job == "vision" else matcher.CONTEXT[BY_JOB[job][1]]
 
 
+def job_plan(m, machine, job: str, why: str = "your choice") -> dict | None:
+    """How this machine runs m for a job, as our own pick would: the job's context, or the larger one when the model
+    still runs the same way with it (2026-10-08: the 27B ran at 32K as our pick and dropped to 16K once chosen here)."""
+    import dataclasses
+    plan = matcher.full_plan(m, machine, context(job), why=why)
+    task = BY_JOB[job][1]
+    if plan and job != "vision" and task in matcher.MORE_CONTEXT:
+        tighter = dataclasses.replace(machine, cards=[{**c, "free_mib": c["free_mib"] - matcher.MORE_CONTEXT_EXTRA_MIB}
+                                                      for c in machine.cards])
+        big = matcher.full_plan(m, tighter, matcher.MORE_CONTEXT[task], why=why)
+        if big and big["mode"] == plan["mode"]:
+            plan = big
+    return plan
+
+
 def catalog_entry(file: str):
     return next((m for ms in matcher.CATALOG.values() for m in ms if m.file == os.path.basename(file)), None)
 
@@ -166,7 +181,7 @@ def assign(store, job: str, file: str, guide_path: str = "", machine=None) -> di
         p = matcher.vision_plan(m, machine)
         plan = dict(p, model=m.name, file=m.file, why="your choice", context=matcher.VISION_CONTEXT) if p else None
     else:
-        plan = matcher.full_plan(m, machine, context(job), why="your choice")
+        plan = job_plan(m, machine, job)
     if plan is None:
         raise JobError(f"{m.name} doesn't run on this computer")
     store.use(job, plan)

@@ -1719,7 +1719,7 @@ class Service:
             GLib.idle_add(lambda: inv.return_dbus_error(f"{IFACE}.Error.Model", msg) and False)
             return
         if method == "ModelAssign":
-            log(f"job {args[0]}: {out.get('model') or 'our pick'}")
+            log(f"job {args[0]}: " + (f"our pick again ({out.get('model', '')})" if out.get("ours") else out["model"]))
         GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
 
     def hub_call(self, method: str, args: tuple):
@@ -1758,7 +1758,7 @@ class Service:
         """Load the model the way its job will and measure it (the matcher only estimates)."""
         from . import jobs
         machine = matcher.read_machine(models_dir=self.store.root)
-        plan = matcher.full_plan(m, machine, jobs.context(job or "coding"), why="your choice")
+        plan = jobs.job_plan(m, machine, job or "coding")
         if plan is None:
             raise BackendError("it doesn't fit on this computer now")
         big = LlamaCppBackend(backend_cfg(config.load()["inference"], plan, self.store.path(m.file)), log)

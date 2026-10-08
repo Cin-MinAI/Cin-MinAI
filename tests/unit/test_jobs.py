@@ -79,6 +79,16 @@ class Jobs(unittest.TestCase):
         self.assertIsNone(self.store.in_use("writing"))
         self.assertFalse(self.job("writing")["chosen"])
 
+    def test_chosen_as_ours_would_be(self):
+        """2026-10-08: the 27B ran at 32K as our pick and dropped to 16K once chosen in the Models view."""
+        ours = matcher.match(machine())["coding"]
+        jobs.assign(self.store, "coding", BIG, self.guide)
+        mine = self.store.in_use("coding")
+        self.assertEqual(ours["file"], BIG)
+        self.assertEqual((mine["context"], mine["mode"]), (ours["context"], ours["mode"]))
+        self.assertIn(str(ours["context"]), mine["args"])
+        self.assertEqual(ours["context"], matcher.MORE_CONTEXT["coding"])  # 32K fits a free 1080 Ti
+
     def test_refused(self):
         for job, file, why in (("system", BIG, "stay with the guide"), ("junior", BIG, "hand-offs"),
                                ("vision", "old-coder-7b.Q4_K_M.gguf", "picture reader"),

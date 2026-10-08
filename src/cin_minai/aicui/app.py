@@ -244,6 +244,9 @@ class Workspace(Gtk.ApplicationWindow):
                 self.thought(e.get("text", ""), "Note")
             elif e["kind"] == "handover":  # every 60 steps: where the work stands; the AI goes on
                 self.bubble("ai", e.get("text", ""))
+            elif e["kind"] == "handoff":  # the organizer (the guide) giving the coder its next task (SPEC 22.5)
+                who = {"coder": "Organizer → coder", "fetch": "Organizer → fetch", "person": "Organizer → you"}
+                self.thought(e.get("text", ""), who.get(e.get("to", ""), "Organizer"))
             elif e["kind"] == "check":  # a problem found in a file the AI just changed
                 self.thought(f"{e.get('file', '')}: {e.get('problem', '')}", "Check")
             elif e["kind"] == "busy":
