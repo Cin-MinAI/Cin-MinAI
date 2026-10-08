@@ -32,6 +32,10 @@ model's story: `docs/guide-model-journal.md`.
   compatibility mode or with the boot-option change (nouveau off), and the assistant runs on the processor. Say it
   in the README's "What you need", the website, docs/hardware.md and the offline_mode/drivers help cards (D86: the
   promise matches what ships).
+- **Ian's PC now runs Cin-MinAI on the NVMe** (installed from the 0.0.1 ISO, updated to update 5): the assistant on
+  CUDA, **kernel 7.0 works** — the 7.0 trap was only the old Kingston SATA SSD's link, not 7.0 itself. The old Mint
+  install is backed up on the USB drive (`USB Storage/nvme-mint-backup-2026-10-07/`, both partitions verified
+  bit-for-bit, RESTORE.txt beside them). The test SSD stays the clean test machine.
 - **Decisions D88–D92** in PLAN (standing tasks; Mint's automatic updates with a 2-day hold + trusted sources;
   feeling noticed, honestly; successive actions as recipes in code; the news scan — who says what).
 - **Hands-on rounds 1–5** (Ian at the test SSD, no runner; the lead reads the D-Bus signals: the watcher on the SSD
