@@ -1904,6 +1904,14 @@ load tests (CPU, GPU, power-supply rails under load) and the guided ones (USB po
 
 ## 21. AICUI — the AI coding workspace (PLAN D61)
 
+> **Project environments (Ian, 2026-10-08; built that night).** A folder AICUI works in becomes a project only on the
+> person's yes and only inside their home folder (`.cinminai/project.json`, a token); the home folder and the system
+> never get one. A project is offered a Python environment; accepting makes `.venv/` a folder holding only a header —
+> "the bot can't make it until it knows what it's making". When the work needs a package, the AI asks for it (`need`,
+> never pip); AICUI shows the person what and why, and on their yes builds the real environment outside the project
+> (`~/.local/share/cinminai/envs/<token>`), links `.venv` to it and writes `requirements.txt`. The working tree shows it
+> as one line; environments of projects that are gone are offered for removal. A venv made elsewhere is left alone.
+
 Ian's design (2026-10-02, layout sketch `artwork/aicui-layout-2026-10-02.png`): a simple, clean coding workspace
 "like JetBrains in spirit, but not as elaborate: easy navigation and clean-looking coding action". It opens a folder
 or a file, like an IDE; one window per project.
@@ -2061,6 +2069,15 @@ failed, cancelled) and its result. Every token is written to the record.
 - **Cloud models by choice** as the final check or the whole job (OpenAI and Anthropic now; Gemini and Grok later);
   their keys through the key card into the login keyring; what's sent shown first.
 
+**As built in AICUI (2026-10-08, slice 3).** The guide organizes on the processor beside the coding model on the
+card; it never reads code, but the map, the problems the checks find, each goal's cycle state and short summaries of
+what the coder did. Every move follows one contract, checked by code rather than by its wording: it says what it acts
+on, and a task also what proves it's done; what the person just gave (a link, a project file, pasted material — kept
+as a source) is used first, or the move goes back once and then to the person; a task that changed nothing comes back
+as such, and two in a row go to the person; the coder may decline a task with its reason. Stuck: one hint (from the
+problems when the checks name any), then the person. Ian: "We can't just auto code what to do. This has to be
+generalized for function."
+
 ### 22.6 Admin, and the key
 
 Admin actions go through the guide and cinminai-admin's typed verbs, every one recorded (D85). Built 2026-10-08:
@@ -2153,6 +2170,17 @@ the Requests view shows it.
 - **A check is only as good as what it checks:** counts catch missing rows, not wrong ones — checks also compare
   samples against the source.
 - **Honest reports:** a failed check or review is said plainly, with what failed.
+
+### 23.3b As built in AICUI (2026-10-08 night)
+
+- **Fetch:** whatever comes in is kept whole in the project — a page as `sources/<name>.txt` (every piece of text,
+  pictures' and links' own words included) beside `sources/<name>.html` as it came; a file as it came under `assets/`;
+  the person's pasted material as `sources/pasted-N.txt`. Always asked first (D86).
+- **The cycle per goal:** AICUI records what was fetched and the data made from it while a goal was worked, and shows
+  each goal's stages to both models — fetched, structured, checked by a test, used by the code, reviewed (ticked by
+  the person). A goal isn't ticked while data recorded for it isn't read by a passing test.
+- **One progress rule:** progress is a change of state; six steps without one are said (and recorded), again at
+  twelve; fifteen stop the task — a hint, then the person.
 
 ### 23.4 Build order
 

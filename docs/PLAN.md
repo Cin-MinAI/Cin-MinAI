@@ -147,8 +147,8 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **58 filled (61 %)**, 23 partly,
-9 open, 5 parked (2026-10-08 evening: D96 open -> partly). 90 % is **86 filled**: 28 to go.
+**Count:** 95 live decisions (D18 superseded) — **59 filled (62 %)**, 22 partly,
+9 open, 5 parked (2026-10-08: D96 open -> partly; night: D95 filled). 90 % is **86 filled**: 27 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -212,7 +212,7 @@ row when work lands. D87 was never adopted.
 | D58 | filled | Make a manuscript |
 | D59 | filled | self-restart after updates |
 | D60 | filled | writing model offered by the matcher |
-| D61 | partly | AICUI slices 1-2 + the day's checks (map, compile check, drafts, goal gate); closures queued (below): the progress rule, project token + environment header; file-watching changelog, goals interview, cloud not built |
+| D61 | partly | AICUI slices 1-2, the checks from code, the one progress rule, the project token and environment header (built 2026-10-08 night); file-watching changelog, goals interview, cloud not built |
 | D62 | open | publishing to GitHub Pages from AICUI not built |
 | D63 | open | cloud senior not built (local hand-offs are D94/D95) |
 | D64 | filled | update 3 |
@@ -245,11 +245,13 @@ row when work lands. D87 was never adopted.
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; models in parts, sign-in repos, the setup helper not built |
 | D94 | partly | the guide holds system tools and organizes AICUI; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
-| D95 | partly | turn tokens slice 1, Requests view, placement, AICUI tandem (organizer + coder, live 2026-10-08); closure queued: the move contract |
-| D96 | partly | code-made structure and checks in AICUI (map, problems, compile check, cap, drafts, goal gate); closure queued: the cycle state per goal |
+| D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem with the move contract (2026-10-08) |
+| D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
 
-### Queued for the next build: closures and fixes (Ian, 2026-10-08)
+### The closures and fixes of 2026-10-08 — built the same night (Ian, 2026-10-08)
+
+**Built 2026-10-08 night** (`aicui/tandem.py`, `aicui/intake.py`, `aicui/project.py`, `aicui/agent.py`, `aicui/app.py`): all four closures and every fix below; the day's special cases are gone (the review word list, the code-written goal task, the plan-opening key, the read, listing and re-read counters). Checked on the page that kept 7 entries in the afternoon: kept whole, its text now holds all 103 the page lists.
 
 Agreed with Ian while watching the tandem's first long run; built together in the next build, once his test run ends
 (nothing built meanwhile). Ian: "We can't just auto code what to do. This has to be generalized for function" — so
