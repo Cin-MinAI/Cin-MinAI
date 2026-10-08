@@ -24,6 +24,14 @@ model's story: `docs/guide-model-journal.md`.
   the page cache before starting) and say what's happening ("loading the assistant from the stick, about N
   minutes") instead of a bare "Getting ready…". Also: the live session keeps no user journal (`journalctl --user`
   empty); the daemon's log was in `systemctl --user status`.
+- **The NVMe install itself went fine** (Ian, 2026-10-07: "everything installed fine… it's very fast"). Two snags
+  for update 6: (1) **AICUI's model isn't on the system after install** — AICUI needs its bigger model downloaded
+  first; how that's offered/explained on first open needs looking at with Ian. (2) **Offline users and NVIDIA must
+  be told plainly up front:** NVIDIA's licence doesn't let us put its driver on the ISO (docs/nvidia-edition-
+  licence.md), so a computer that never goes online gets no NVIDIA driver and misses important updates; it runs in
+  compatibility mode or with the boot-option change (nouveau off), and the assistant runs on the processor. Say it
+  in the README's "What you need", the website, docs/hardware.md and the offline_mode/drivers help cards (D86: the
+  promise matches what ships).
 - **Decisions D88–D92** in PLAN (standing tasks; Mint's automatic updates with a 2-day hold + trusted sources;
   feeling noticed, honestly; successive actions as recipes in code; the news scan — who says what).
 - **Hands-on rounds 1–5** (Ian at the test SSD, no runner; the lead reads the D-Bus signals: the watcher on the SSD
