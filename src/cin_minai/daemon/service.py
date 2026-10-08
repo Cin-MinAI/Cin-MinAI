@@ -133,6 +133,8 @@ XML = f"""
     <method name="StandingChange"><arg type="s" name="task" direction="in"/><arg type="s" name="what" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
     <signal name="Standing"><arg type="s" name="json"/></signal>
+    <!-- turn tokens (SPEC §22.4): the recent requests, each with its tree of tasks (JSON) -->
+    <method name="TurnList"><arg type="s" name="json" direction="out"/></method>
     <!-- keys for sources that need one (keys.py): the key goes to the login keyring and nowhere else; the answer
          never repeats it. json: ok and the source's name, or ok false and the error -->
     <method name="KeySet"><arg type="s" name="source" direction="in"/><arg type="s" name="key" direction="in"/>
@@ -240,6 +242,15 @@ class Service:
         self.watch_offers: dict[str, dict] = {}  # "keep me up to date on X" cards waiting for their click
         self.standing_running = False
         self.cuda_asked = False  # D93: the CUDA engine is offered at most once per run (and never again after "No")
+        # turn tokens (SPEC §22.4): every request is a task on the computer's own Team Table; a request that comes
+        # while the assistant is answering waits its turn instead of being refused
+        from . import turns
+        self.turns = turns.open_table(int(getattr(backend, "cfg", {}).get("context", 8192) or 8192))
+        self.waiting: dict[int, tuple[int, str]] = {}  # task id -> (request id, text)
+        self.rid_task: dict[int, int] = {}            # request id -> its task
+        self.turn_ctx = 0
+        if self.turns is not None:
+            self.turns.close_stale()
         GLib.timeout_add_seconds(STANDING_CHECK_S, self.standing_tick)
         # M4: one path for every action (PLAN D67, D85)
         self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
@@ -439,15 +450,25 @@ class Service:
         self.active_at = time.monotonic()  # someone is using it: no update restart now (D59)
         if method == "Ask":
             (text,) = params.unpack()
-            if self.busy:
-                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
-                return
             if not text.strip():
                 inv.return_dbus_error(f"{IFACE}.Error.Empty", "nothing to answer")
                 return
+            task = self.turn_request(text)
+            if self.busy and task is None:  # no table: as before
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
             self.next_id += 1
-            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
-            self.ask(self.next_id, text)
+            rid = self.next_id
+            inv.return_value(GLib.Variant("(u)", (rid,)))
+            if task is not None and (self.busy or self.waiting):  # its turn comes after those ahead of it
+                self.waiting[task] = (rid, text)
+                self.emit("Action", "(ussss)", rid, "queue", "{}", "waiting",
+                          json.dumps({"ahead": len(self.waiting) - 1 + (1 if self.busy else 0)}))
+                return
+            if task is not None:
+                self.turns.start(task)
+                self.rid_task[rid] = task
+            self.ask(rid, text)
         elif method == "ActionAnswer":
             action_id, allow = params.unpack()
 
@@ -492,6 +513,9 @@ class Service:
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
             self.job(self.next_id, lambda on_text, on_action: self.start_watch(offer, topic, on_text, on_action))
+        elif method == "TurnList":
+            out = self.turns.recent(20) if self.turns is not None else []
+            inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
         elif method == "StandingList":
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
         elif method == "StandingChange":
@@ -1600,7 +1624,52 @@ class Service:
                        "idle" if self.backend.status().state == "ready" else "off")
         self.changed("LastStats", "Model", "Status")
         self.emit("Done", "(u)", rid)
+        self.turn_finished(rid, error, stats)
         return False
+
+    # --- turn tokens (SPEC §22.4) --------------------------------------------------------------------------
+    def turn_request(self, text: str) -> int | None:
+        if self.turns is None:
+            return None
+        try:
+            return self.turns.request(text)
+        except Exception as e:  # the record never stops an answer
+            log(f"turn table: {type(e).__name__}: {e}")
+            return None
+
+    def turn_finished(self, rid: int, error: str | None, stats: dict) -> None:
+        task = self.rid_task.pop(rid, None)
+        if self.turns is None:
+            return
+        try:
+            ctx = self.backend.status().context
+            if ctx and ctx != self.turn_ctx:  # the guide's size cap follows where it runs
+                self.turn_ctx = ctx
+                self.turns.guide_context(ctx)
+            if task is not None:
+                state = "cancelled" if stats.get("cancelled") else "failed" if error else "done"
+                self.turns.finish(task, state, error or str(stats.get("tool") or ""))
+        except Exception as e:
+            log(f"turn table: {type(e).__name__}: {e}")
+        if self.waiting:
+            GLib.idle_add(self.next_turn)
+
+    def next_turn(self) -> bool:
+        """The next waiting request, in the table's order (the person's first)."""
+        if self.busy or not self.waiting:
+            return False
+        try:
+            task = self.turns.next()
+        except Exception as e:
+            log(f"turn table: {type(e).__name__}: {e}")
+            task = next(iter(self.waiting))
+        if task is None or task not in self.waiting:
+            task = next(iter(self.waiting))  # the table and the queue disagree: oldest first
+        rid, text = self.waiting.pop(task)
+        self.rid_task[rid] = task
+        self.ask(rid, text)
+        return False
+
 
 
 def run(backend: InferenceBackend, guide: Guide, preload: bool) -> None:

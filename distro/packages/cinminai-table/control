@@ -1,0 +1,14 @@
+Package: cinminai-table
+Version: @VERSION@
+Architecture: all
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: python3 (>= 3.12)
+Description: Team Table core for the Cin-MinAI assistant (turn tokens)
+ Team Table (github.com/Brickmii/team-table), the coordination table the
+ assistant keeps on this computer: every request is a task, with its tree of
+ sub-tasks, budgets, a size cap per model, the person's requests first, Stop for
+ a whole request, and a record of who asked what and how it ended. This package
+ is its database core and operator command (python3 -m team_table.admin); the
+ MCP server for outside agents is not included.

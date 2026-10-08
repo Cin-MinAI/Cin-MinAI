@@ -42,6 +42,26 @@ class ShippedImports(unittest.TestCase):
                                 missing.setdefault(wanted, os.path.relpath(path, ROOT))
         self.assertEqual(missing, {}, "imported but no package ships it (module: first importer)")
 
+    def test_team_table_is_shipped_and_the_daemon_depends_on_it(self):
+        """Turn tokens (SPEC §22.4): the daemon imports team_table; cinminai-table ships its core, and every core
+        module the shipped files import is among them."""
+        packages = os.path.join(ROOT, "distro", "packages")
+        build = open(os.path.join(packages, "cinminai-table", "build.sh"), encoding="utf-8").read()
+        core = set(re.search(r"for f in ([a-z_ ]+); do", build).group(1).split())
+        uses = re.compile(r"^\s*from team_table(?:\.([a-z_]+))? import", re.M)
+        daemon = os.path.join(SRC, "daemon")
+        imported = {m or "__init__" for f in os.listdir(daemon) if f.endswith(".py")
+                    for m in uses.findall(open(os.path.join(daemon, f), encoding="utf-8").read())}
+        self.assertTrue(imported, "the daemon no longer uses team_table: drop this test and the package")
+        self.assertLessEqual(imported, core)
+        tt = os.path.join(ROOT, "third_party", "team-table", "src", "team_table")
+        for f in core:  # the core's own imports stay inside the core (no mcp)
+            for m in re.findall(r"^from team_table\.([a-z_]+) import", open(os.path.join(tt, f + ".py"),
+                                                                         encoding="utf-8").read(), re.M):
+                self.assertIn(m, core, f"team_table/{f}.py imports {m}, which the package doesn't ship")
+        control = open(os.path.join(packages, "cinminai-daemon", "control"), encoding="utf-8").read()
+        self.assertIn("cinminai-table (>= @RELEASE@)", control)
+
 
 if __name__ == "__main__":
     unittest.main()

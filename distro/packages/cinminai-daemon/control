@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
-Depends: python3 (>= 3.12), python3-gi, gir1.2-glib-2.0, cinminai-llama (>= @RELEASE@)
+Depends: python3 (>= 3.12), python3-gi, gir1.2-glib-2.0, cinminai-llama (>= @RELEASE@), cinminai-table (>= @RELEASE@)
 Recommends: network-manager, pulseaudio-utils, cups-client, pciutils, ubuntu-drivers-common
 Description: Cin-MinAI assistant (the daemon)
  The assistant built into Cin-MinAI: it answers on the session bus as

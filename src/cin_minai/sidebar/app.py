@@ -595,6 +595,8 @@ class Sidebar(Gtk.Application):
         elif signal == "Action" and args[1] == "draft":
             p = json.loads(args[4] or "{}")
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
+        elif signal == "Action" and args[1] == "queue" and args[3] == "waiting":  # turn tokens: its turn comes
+            self.progress_line(words.t("queued", ahead=max(1, json.loads(args[4] or "{}").get("ahead", 1))))
         elif signal == "Action" and args[1] == "watch" and args[3] == "proposal":
             self.watch_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "key_needed" and args[3] == "proposal":
