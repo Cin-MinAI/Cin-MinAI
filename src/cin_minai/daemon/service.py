@@ -375,6 +375,17 @@ class Service:
             elif event == "done":  # onto CUDA at the next pause
                 GLib.timeout_add_seconds(5, self.reload_for_cuda)
 
+    def maybe_step_up(self) -> None:
+        """Back onto the graphics card once it has room again (checked every minute while the assistant is idle on
+        the processor because the card was busy). A question asked meanwhile is never interrupted."""
+        has_room = getattr(self.backend, "card_has_room", None)
+        if has_room is None or self.busy or self.loading or self.backend.status().state != "ready":
+            return
+        if has_room():
+            log("the graphics card has room again: moving the assistant back onto it")
+            self.backend.unload()
+            self.start_load()
+
     def reload_for_cuda(self) -> bool:
         if self.busy or self.loading:
             return True  # after this answer
@@ -1058,6 +1069,7 @@ class Service:
         if self.busy or self.loading or self.standing_running:
             return True
         self.maybe_offer_cuda()
+        self.maybe_step_up()
         due = self.standing.due(datetime.datetime.now())
         if not due or not self.guide.tools.online():
             return True

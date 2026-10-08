@@ -364,6 +364,33 @@ class LlamaCppBackend(InferenceBackend):
             self._status = Status("error", self.model_name(), detail=errors[-1] if errors else "no profile to try")
             raise BackendError("The assistant's model couldn't be loaded on this computer.")
 
+    def card_has_room(self) -> bool:
+        """Running on the processor though this computer has a usable graphics card (it was busy at load time: another
+        model held it), is there room on the card now? (Ian's PC, 2026-10-08: the guide fell back to the processor
+        while AICUI's 27B held the card, and stayed there after AICUI closed and the card was empty.)"""
+        if self.profile is None or self.profile.build != "cpu" or not self.alive():
+            return False
+        gpu = [p for p in self.ladder() if p.build != "cpu"]
+        if not gpu:
+            return False  # no driver, or no engine for the card: the processor is right
+        p = gpu[0]
+        devices = self.list_devices() if p.build == "vulkan" else []
+        if devices:
+            p = dataclasses.replace(p, device=self.pick_device(p.build, devices))
+        free = self.free_mib(p, devices)
+        if free is None:
+            return False
+        model = self.model_path()
+        try:
+            meta = gguf.read(model)
+            need = gguf.need_mib(meta, p.context, self.cache_type(), gguf.cpu_moe_layers(self.cfg.get("extra_args", [])),
+                                 gguf.cpu_overrides(self.cfg.get("extra_args", [])),
+                                 gguf.ubatch(self.cfg.get("extra_args", [])))
+        except (OSError, ValueError, KeyError, struct.error, UnicodeDecodeError):
+            need = need_mib(os.path.getsize(model), p.context)
+        reserve = int(self.cfg.get("desktop_reserve_mib") or hardware.desktop_reserve_mib())
+        return free - reserve >= need
+
     def unload(self) -> None:
         with self.lock:
             self._stop()
