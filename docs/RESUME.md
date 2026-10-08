@@ -36,6 +36,12 @@ model's story: `docs/guide-model-journal.md`.
   CUDA, **kernel 7.0 works** — the 7.0 trap was only the old Kingston SATA SSD's link, not 7.0 itself. The old Mint
   install is backed up on the USB drive (`USB Storage/nvme-mint-backup-2026-10-07/`, both partitions verified
   bit-for-bit, RESTORE.txt beside them). The test SSD stays the clean test machine.
+- **Found on the NVMe install (for update 6):** (1) **the CUDA engine isn't installed** — `cinminai-llama-cuda` is
+  only Suggested (it pulls NVIDIA's large CUDA libraries), so after the driver goes in the assistant runs on Vulkan
+  (~7x slower prompt reading on Pascal); the assistant should offer it (Allow + password) once the NVIDIA driver is
+  in. (2) **Nothing offers AICUI's coding model:** the sidebar opens AICUI without `offer_model("coding")`, and AICUI
+  says "AICUI's model selection will offer it" though its selection has no download. Hugging Face itself is fine
+  (the vision add-on downloaded). Both belong to **D93** (models matched to tasks, a Models view, Hugging Face search).
 - **Decisions D88–D92** in PLAN (standing tasks; Mint's automatic updates with a 2-day hold + trusted sources;
   feeling noticed, honestly; successive actions as recipes in code; the news scan — who says what).
 - **Hands-on rounds 1–5** (Ian at the test SSD, no runner; the lead reads the D-Bus signals: the watcher on the SSD
