@@ -158,10 +158,13 @@ def duckduckgo(query: str, lang: str = "en", recent: str = "") -> list[dict]:
 # --- reading a page ------------------------------------------------------------------------------------------
 
 class _Text(HTMLParser):
-    """The readable text of a page: paragraphs and list items, without scripts, menus, headers and footers."""
+    """The readable text of a page: paragraphs, list items and table rows, without scripts, menus, headers and footers.
+    A table row is one line, its cells joined with " | " (2026-10-08: a reference list was a table of short cells —
+    "1", "Hydrogen", "H" — and each cell, under the 40-character floor, was dropped)."""
 
     SKIP = {"script", "style", "nav", "header", "footer", "aside", "form", "noscript", "svg", "button"}
-    KEEP = {"p", "li", "h1", "h2", "h3", "blockquote", "td", "dd"}
+    KEEP = {"p", "li", "h1", "h2", "h3", "blockquote", "dd", "tr"}
+    CELL = {"td", "th"}
 
     def __init__(self) -> None:
         super().__init__()
@@ -172,6 +175,8 @@ class _Text(HTMLParser):
             self.skip += 1
         elif tag in self.KEEP:
             self.keep += 1
+        elif tag in self.CELL and self.keep and "".join(self.buf).strip():
+            self.buf.append(" | ")
 
     def handle_endtag(self, tag):
         if tag in self.SKIP and self.skip:
@@ -179,7 +184,7 @@ class _Text(HTMLParser):
         elif tag in self.KEEP and self.keep:
             self.keep -= 1
             text = re.sub(r"\s+", " ", "".join(self.buf)).strip()
-            if len(text) > 40:
+            if len(text) > 40 or (tag == "tr" and " | " in text):  # a row of two cells or more counts, however short
                 self.parts.append(text)
             self.buf = []
 
@@ -199,10 +204,25 @@ def wikipedia_text(url: str) -> str:
     return re.sub(r"\n{2,}", "\n", re.sub(r"=+ [^=]+ =+", "", text)).strip()
 
 
+def fandom_text(url: str) -> str:
+    """A Fandom wiki page through the wiki's own published API (MediaWiki's api.php): Fandom refuses plain page
+    requests (403), and its API is the front door, as Wikipedia's is."""
+    parts = urllib.parse.urlsplit(url)
+    page = urllib.parse.unquote(parts.path.split("/wiki/", 1)[-1])
+    q = urllib.parse.urlencode({"action": "parse", "page": page, "prop": "text", "format": "json", "formatversion": 2,
+                                "redirects": 1})
+    raw, _ = _get(f"https://{parts.hostname}/api.php?{q}", "application/json")
+    p = _Text()
+    p.feed(json.loads(raw).get("parse", {}).get("text", ""))
+    return html.unescape("\n".join(p.parts))
+
+
 def page_text(url: str) -> str:
     host = urllib.parse.urlsplit(url).hostname or ""
     if host.endswith(".wikipedia.org") and "/wiki/" in url:
         return wikipedia_text(url)
+    if host.endswith(".fandom.com") and "/wiki/" in url:
+        return fandom_text(url)
     page, kind = _get(url)
     if "html" not in kind and "text" not in kind:
         return ""

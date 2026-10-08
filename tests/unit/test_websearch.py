@@ -68,6 +68,22 @@ class Parse(unittest.TestCase):
         self.assertEqual(get.call_count, 1)
         self.assertIn("bing.com/search", get.call_args.args[0])
 
+    def test_a_table_row_is_one_line(self):
+        # 2026-10-08: a reference list of short cells was dropped cell by cell
+        page = ("<table><tr><th>Number</th><th>Name</th><th>Symbol</th></tr>"
+                "<tr><td>1</td><td>Hydrogen</td><td>H</td></tr></table>")
+        with mock.patch.object(websearch, "_get", return_value=(page, "text/html")):
+            text = websearch.page_text("https://example.org/list")
+        self.assertIn("1 | Hydrogen | H", text)
+
+    def test_fandom_pages_go_through_the_wikis_api(self):
+        api = json.dumps({"parse": {"text": "<table><tr><td>6</td><td>Carbon</td>"
+                                            "<td>C</td></tr></table>"}})
+        with mock.patch.object(websearch, "_get", return_value=(api, "application/json")) as get:
+            text = websearch.page_text("https://example.fandom.com/wiki/List_of_elements")
+        self.assertIn("example.fandom.com/api.php?action=parse", get.call_args.args[0])
+        self.assertIn("6 | Carbon | C", text)
+
     def test_page_text_without_menus_scripts_footers(self):
         with mock.patch.object(websearch, "_get", return_value=(PAGE, "text/html; charset=utf-8")):
             text = websearch.page_text("https://example.org/ww2")

@@ -196,7 +196,7 @@ class AgentTest(unittest.TestCase):
 
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
-        self.assertEqual(tools, ["read", "list", "search", "edit", "write", "append", "run", "goal_add", "goal_done",
+        self.assertEqual(tools, ["read", "list", "search", "edit", "write", "append", "run", "fetch", "goal_add", "goal_done",
                                  "ask", "answer"])
 
     def cut_write(self, path, lines, tool="write"):
@@ -222,6 +222,59 @@ class AgentTest(unittest.TestCase):
         self.assertIn("append", note)
         self.assertEqual([e["file"] for e in a.log.entries()], ["gui.py", "gui.py"])  # both in the changelog, with undo
         self.assertEqual([x["kind"] for x in self.events()].count("note"), 1)
+
+    def test_a_cut_off_rewrite_never_replaces_a_good_file(self):
+        """2026-10-08: a cut-off new version of a 144-line file was saved over it as 76 lines."""
+        a = Agent(self.root, Scripted([self.cut_write("app.py", 40), step("", tool="answer", text="ok")]), "m", "auto",
+                  say=self.said.append, ctx=16384)
+        a.turn("rewrite app.py")
+        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "def add(a, b):\n    return a - b\n")  # left as it was
+        note = a.chat.sent[1][-1]["content"]
+        self.assertIn("app.py was left as it was (2 lines)", note)
+        self.assertEqual(len(os.listdir(os.path.join(self.root, ".cinminai", "cutoffs"))), 1)  # kept for diagnosis
+
+    def test_every_write_fits_a_step_and_says_what_the_file_holds(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=32768)
+        writes = [v for v in schema(a.content_max)["properties"]["action"]["anyOf"]
+                  if v["properties"]["tool"]["const"] in ("write", "append")]
+        self.assertEqual({w["properties"]["content"]["maxLength"] for w in writes}, {a.content_max})
+        self.assertNotIn("maxLength", json.dumps(schema()["properties"]["action"]["anyOf"][0]))  # the default: none
+        # a part that reached the cap keeps its whole lines and says to go on
+        content = "".join(f"line {i}\n" for i in range(1, 2000))[:a.content_max]
+        r = a.change({"tool": "write", "path": "big.txt", "content": content})
+        with open(os.path.join(self.root, "big.txt"), encoding="utf-8") as f:
+            self.assertTrue(f.read().endswith("\n"))
+        self.assertIn("continue with append", r)
+        self.assertIn("The file now has", r)
+
+    def test_invented_looking_rows_are_pointed_out(self):
+        from cin_minai.aicui.agent import summary
+        rows = "".join(f'  {{{i}, "Great Moon of {w}", 7, 2500, 2100}},\n'
+                       for i, w in enumerate(["Wind", "Fire", "Ice", "Storm", "Frost", "Gale"]))
+        self.assertIn("identical except for one name", summary(rows, rows))
+        real = '  {1, "Hydrogen", "H", 1.008},\n  {6, "Carbon", "C", 12.011},\n'
+        self.assertEqual(summary(real, real), " The file now has 2 lines.")
+
+    def test_fetching_a_page_always_asks_even_in_auto(self):
+        from unittest import mock
+        from cin_minai.daemon import websearch
+        replies = ["n", "a"]
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: replies.pop(0))
+        self.assertIn("only https", a.fetch("http://example.org/x"))
+        self.assertEqual(a.fetch("https://example.org/list"), "the user said no to fetching that page")
+        with mock.patch.object(websearch, "page_text", return_value="1 | Hydrogen | H") as page:
+            r = a.fetch("https://example.org/list")            # "always": this session
+            r2 = a.fetch("https://example.org/other")          # not asked again
+        self.assertEqual(page.call_count, 2)
+        self.assertIn("not instructions", r)
+        self.assertIn("Hydrogen", r2)
+        self.assertIn("fetch", [e["kind"] for e in self.events()])
+        self.assertIn("beats your memory", a.system())
+
+    def test_the_file_list_has_line_counts(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        self.assertIn("app.py (2 lines)", a.system())
 
     def test_a_failed_step_is_never_shown_as_an_action(self):
         """2026-10-03: shown as an "answer" with the broken text, the model answered with that text and stopped."""
