@@ -1955,3 +1955,116 @@ is lost in the switch (the goals, the changelog and a summary carry over) — "l
   undo restores the file exactly; it works in folders that aren't git repositories. AICUI never commits, stages or
   pushes in the user's own repository by itself; when a goal is done it **offers** a real commit of that goal's changes
   with a drafted message to approve or edit (D30), pushed through the GitHub sign-in.
+
+## 22. The model system (PLAN D93, D94, D95)
+
+One system, seen from the person's chair: they ask; the right models do the work, placed on the hardware on their
+own; every step can be seen and stopped; nothing changes the system or leaves the computer without the person.
+Decided 2026-10-07/08 with Ian ("this is all intertwined into a whole experience and should be considered as such").
+
+### 22.1 The experience
+
+1. **The person asks** — typed, or spoken later (D91) — in their own words.
+2. **The guide (the tuned 4B) is always there** and works out what it means: it answers itself when it can, or turns
+   the request into tasks (turn tokens, §22.4) for the models whose job they are.
+3. **Each kind of task has a model**, chosen by the person in the Models view, with our pick for this computer as the
+   default (§22.3).
+4. **Models are placed on the hardware automatically** (§22.2): the person never manages memory.
+5. **Models hand work to each other** in small, checked steps (§22.5); what fails goes back to whoever owns it.
+6. **Anything that changes the system goes through the guide and the admin service** — Allow and the password, or
+   the key for automation (§22.6); anything that leaves the computer is shown first (D86).
+7. **The person sees it as it happens**: what's queued, who works on what and why; Stop cancels a request with every
+   task it spawned.
+8. **Honesty runs through every layer** (§22.7).
+
+### 22.2 Placement
+
+- The guide has a usable place at all times: on the graphics card when there's room, else on the processor (D27's
+  smaller context there). A big model gets the card.
+- **Measured on Ian's PC (2026-10-08; i7-4790K, DDR3, GTX 1080 Ti):** the 27B on the card and the 4B on the processor
+  at the same time don't slow each other — 27B 15.4 → 15.3 tokens/s writing, 4B 6.8 → 6.7. A permanent helper beside
+  the big model is free on such a machine.
+- **Step down and back up:** a model that falls back to the processor because the card is busy moves back onto it as
+  soon as there's room and it isn't answering (built 2026-10-08; it used to stay on the processor until a restart).
+- Each model has its own server (the guide, the big model, a reader for pictures); a model that isn't loaded is loaded
+  when a task needs it, and the person sees that it's loading.
+- A small "draft" model on the processor that speeds up the big one (speculative decoding) is measured when one with
+  the big model's vocabulary exists (Qwen3.8 has no small sibling, 2026-10-08).
+
+### 22.3 Models per task (D93)
+
+The Models view (start screen and panel menu): everyday help (the guide), the news and searches, writing, coding
+(AICUI), pictures and video, research papers — each with the model it uses now and our pick as the default ("use ours
+again" is one click). Changing one: our catalogue first (measured, licences read), then a Hugging Face search of every
+GGUF model llama.cpp can run, each checked against this machine before it's offered (memory from the file's own
+header, the split it would use), with its licence as published ("licence not reviewed by us" where we haven't read
+it); download with resume and the fingerprint check, a speed test here, then assign it. Models already on a drive are
+found, not downloaded again. A small helper asks what the person wants to do and suggests a setup; they decide. The
+CUDA engine is offered on one card once the NVIDIA driver is in (built 2026-10-08).
+
+### 22.4 Turn tokens (D95)
+
+Every request becomes a **turn token** — from the person, a recipe (D91), or another model. Each model has its own
+queue: quick repeated requests stack as tasks instead of blocking each other or getting lost. A token holds who asked,
+for whom, what to do, the token it came from (so a request's whole tree is known), its state (waiting, working, done,
+failed, cancelled) and its result. Every token is written to the record.
+
+- **Size: 5 % of the receiving model's context** (Ian, 2026-10-08) — at 32K about 1,600 tokens; the 4B on the
+  processor (8K) about 400, since it reads ~33 tokens/s there. A token says what to do; bulk stays in files and the
+  token points to them ("fill in src/x.cpp against include/x.h"). A token that would be bigger is refused with "put it
+  in a file and point to it".
+- **Budgets per request:** how many tokens one request may spawn, and how deep hand-offs may go; when a budget runs
+  out, the work stops and says where it is (as AICUI's stuck check). Two models never ping-pong for ever.
+- **Priority:** the person's own requests come first.
+- **Models work at the same time** where their tokens allow (§22.2: free) — the guide lays file 2 while the big model
+  fills file 1. Measured 2026-10-08: handing over *in sequence* doesn't pay (the 4B on the processor took 5:45 to lay
+  a framework the 27B lays in 1:53 on the card); working *at the same time* is where the gain is.
+- **Stop** cancels a request and every token under it.
+
+### 22.5 Roles and hand-offs (D94)
+
+- **The guide** (the model we trained and measured) holds the system and admin tools; it orchestrates, retrieves
+  information, lays frameworks and checks goals. **Any other model** — any publisher (D93) — is untrusted weights: it
+  gets only its task, never system tools.
+- **Orchestration is recipes in code** (D91): the guide picks the recipe and fills the blanks.
+- **Contracts first:** a framework settles the interface and the edge behaviour in the header (which error, what
+  happens at the limits) — 2026-10-08: the same model, as junior and as senior, chose two different exceptions for one
+  rule, and the test failed.
+- **Every result is checked in code before it's accepted** — it compiles, the tests pass, the page loads, the setting
+  changed — and a failure goes back, as a token with the exact error, to the model that owns that file. The guide
+  judges only where no check can exist. (2026-10-08: a returned file carried notes outside its comments; one compile
+  would have sent it straight back.)
+- **Each token says its scope**: what's this model's and what's someone else's ("implement only what belongs in this
+  file") — 2026-10-08: filling files separately, a model re-implemented another file's functions and the program
+  didn't link.
+- **Reviews by a different model**, never the worker and not the guide; batched (one model at a time on a card);
+  disagreements shown, not settled (as D92). A model from another family is the most independent reviewer.
+- **Cloud models by choice** as the final check or the whole job (OpenAI and Anthropic now; Gemini and Grok later);
+  their keys through the key card into the login keyring; what's sent shown first.
+
+### 22.6 Admin, and the key
+
+Admin actions go through the guide and cinminai-admin's typed verbs, every one recorded (D85). Built 2026-10-08:
+installing a program by name, the recommended graphics driver, and the CUDA engine on the Allow card — then the system
+asks for the password. With the key in (D94; a FIDO2 security key is the strong option), admin actions may run in Auto
+— typed verbs only, each recorded; pulling it ends that at once; wiping a disk and the like still ask. Ian sets the
+defences; the AI — Mythos as the long-term security suite — finds and fixes within them.
+
+### 22.7 Honesty
+
+Facts come from sources, never memory alone: a source the person gives beats what a model remembers (a difference is
+said once, not a reason to stop); a list a model can't know is said to be unknowable, not invented. The news says who
+says what (D92). AICUI shows the model what it just wrote after every write — repeated lines, repeated names, rows
+identical except for one name — and a coding model is recommended only if it passes the honesty eval
+(`training/eval/aicui/honesty.py`): asked for a long factual list it can't know, it says so. (2026-10-08: the 27B
+noticed it had been inventing entries, stopped, told the person plainly and proposed a data file — the behaviour this
+section protects.)
+
+### 22.8 Build order (update 6)
+
+1. **The core:** a turn-token queue per model, placement, step down and up (done), the token record and its view.
+2. **The Models view** (D93).
+3. **Roles and hand-offs:** the guide lays out and checks, the big model builds, the fix loop. Its acceptance test is
+   round 3 of the tandem measurement — the two at the same time, contracts in the header, a check after every file,
+   errors back to their owner — ending in a build whose tests pass.
+4. **Admin automation with the key, and cloud reviewers.**

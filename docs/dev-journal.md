@@ -1435,3 +1435,58 @@ the README and website now name every place a word can go. A first full release 
 final round on the exact build passed; he signed it with the key stick, and the live repository checked out: good
 signature, 16 packages verified. One thing his own news search turned up: Reddit says it is ending its RSS feeds and
 public access — the feed our Reddit section reads. If it goes, the report will say so.
+
+
+## 2026-10-08 (night) — Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system
+
+**Ian's PC runs Cin-MinAI now.** The Mint install on the NVMe was imaged to the USB drive first and the image proved
+bit for bit (a fingerprint of each partition against the image read back: 2 h 12 min for 476 GB). Then the 0.0.1 ISO
+straight from Hugging Face (its fingerprint checked against the published one), Balena, and the install a newcomer
+would do — with the old test SSD and the backup drive unplugged. It installed in 11½ minutes, took update 5 and
+kernel 7.0 (the 7.0 trouble in September was the old SATA SSD's link, not 7.0), and runs well. Remote login for the
+lead is key-only, on its own key.
+
+**What the run found** — the reason to do it:
+- **On the live stick the assistant never loaded.** The model server reads the file in small scattered pieces, which
+  a USB stick does very slowly: after ten minutes only 2 of 2.6 GB were in, behind a bare "Getting ready…". Ian
+  proved the cause: one straight read of the file (dd), and the next load took 3 seconds. Fixed for the next ISO: the
+  model is read once from start to finish, with the progress in the header.
+- **NVIDIA users ended on Vulkan.** The CUDA engine is only a suggested package (it brings ~300 MB of NVIDIA's
+  libraries, 1.1 GB on disk), so nothing installed it. Ian chose the fix: the assistant offers it on one card once the
+  driver is in — built, with installing programs by name and the recommended graphics driver, all on the Allow card
+  and the password (the admin service doing what it was built for).
+- **AICUI's coding model was never offered**, and for ten minutes after every boot no model offer was made at all: a
+  cache treated "never checked" as time zero on a clock that counts from the boot. Fixed; the three starting models
+  went on — the 35B MoE copied from the USB drive in 3½ minutes, the 27B and the 14B from Hugging Face, each
+  fingerprint-checked.
+- **For people who never go online:** NVIDIA's licence keeps its driver off the ISO, so such a machine gets no NVIDIA
+  driver and no updates. That has to be said plainly before installing, not discovered after.
+
+**A long coding job, watched.** Ian gave AICUI's 27B a long job and the lead watched its steps over SSH. The C++ it
+wrote was clean and modern. What failed was elsewhere: each step could hold 4,096 tokens and the model kept trying to
+write more — "write in parts" was a request it ignored five times, ~5 minutes lost each — and, asked for a long list
+of real-world items, it filled the list from a pattern. Then it noticed its own repeated lines, **stopped, told Ian
+plainly that it had been inventing entries and couldn't know them from memory, and proposed a data file instead.**
+Ian: "a huge win actually in my eyes, not a failure." From it: each write is capped in the reply format so a step
+always fits; after every write the model is shown what the file holds (repeats, and rows identical except for one
+name); a cut-off rewrite never replaces a good file; a page can be fetched with the person's permission (always
+asked); a source the person gives beats the model's memory (it had doubted a correct list it remembered otherwise);
+table rows are read as lines (short cells used to vanish); and an honesty eval — a coding model is recommended only if,
+asked for something it can't know, it says so.
+
+**Two models at once.** While AICUI's 27B held the card, the guide fell back to the processor — and stayed there after
+the card was free (fixed: it moves back when there's room). Ian liked the accident: "one model ran on the card and
+one ran on the processor." Measured on his PC: together they don't slow each other at all (27B 15.4 → 15.3 tokens a
+second, 4B 6.8 → 6.7). A junior/senior test on a small C++ project — the 4B lays the framework, the 27B fills it in —
+showed that handing over in sequence doesn't pay (the 4B on the processor is slower at the framework than the 27B on
+the card); working at the same time is where the gain is. Both runs failed on hand-off rules, not on code: a
+contract each side chose differently, notes carried into code, a file re-implementing another's functions.
+
+**Decisions.** **D93**: models matched to tasks, chosen by the person — a Models view, our picks as defaults, a Hugging
+Face search of every compatible model with its licence as published. **D94**: the guide orchestrates and holds the
+system tools; any other model gets only its task; checks in code, reviews by another model, cloud models by choice; a
+physical key for admin automation; Ian sets the defensive strategy, the AI finds and fixes within it. **D95**: Ian saw
+it as one experience, so it is one design — SPEC §22, the model system: turn tokens (every request a recorded token
+in a queue per model, capped at 5 % of the receiving model's context, budgets per request, Stop cancels the tree),
+placement on the hardware, contracts first, every result checked, honesty in every layer. Update 6 is built as its
+slices.

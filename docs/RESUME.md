@@ -1,10 +1,28 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-07** (latest: journal "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-08** (latest: journal "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-08, night) — one model system (SPEC §22, D95); update 6 in progress
+
+- **Ian's PC runs Cin-MinAI on the NVMe** (0.0.1 ISO from Hugging Face + update 5, kernel 7.0, CUDA engine installed by
+  hand, models in the store: 27B IQ3_XXS, 35B-A3B, 14B). Old Mint image: `USB Storage/nvme-mint-backup-2026-10-07/`
+  (verified, RESTORE.txt). SSH: key `~/.ssh/cinminai_nvme`, known_hosts_cinminai_nvme, key-only; Ian's daily machine:
+  read freely, change nothing without asking. The test SSD stays the clean test machine.
+- **Design:** SPEC §22 "The model system" + D93 (models per task), D94 (roles, key, cloud), D95 (one system, turn
+  tokens, 5 % cap, placement). Update 6 = its slices (§22.8): 1 the core (turn-token queues, placement — step-up done),
+  2 the Models view, 3 roles and hand-offs with the fix loop (acceptance: tandem round 3), 4 admin automation + cloud.
+- **Update 6 so far (local commits after c3c0129 / pushed up to 8851f75):** live-stick straight read (db6b3a5, pushed),
+  boot-time model offer (dafc293, pushed), installs through the assistant + driver recipe + CUDA offer (1a4d47b), AICUI
+  steps-that-fit / write summary / safe rewrite / fetch / source-beats-memory / tables / honesty eval (f2030fc),
+  step back onto the card (49dc884), SPEC §22 + D95 + this journal. Also still on the update 6 list: D89, privacy
+  questions to the card by rule, Reddit-only wording, the NVIDIA-offline note.
+- **Tandem measurements** (script in the scratchpad, results on Ian's PC /tmp/tandem): together no slowdown; sequential
+  hand-off doesn't pay; failures were hand-off rules. Round 3 (parallel + fix loop) is slice 3's acceptance test.
+- Ian's own coding test is private: findings in `cinminai-devtools/internal-tests/` (never in the repo).
 
 ## Where we stopped (2026-10-07) — chains, the news scan, standing watches; Bing as the backup
 
