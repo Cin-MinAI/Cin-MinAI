@@ -382,7 +382,7 @@ class Sidebar(Gtk.Application):
         self.stop.set_visible(busy)
         self.go.set_visible(not busy)
         if self.reply is not None and not self.reply_started:
-            self.reply.set_text(words.waiting(state, status.get("build", "")))
+            self.reply.set_text(words.waiting(state, status.get("build", ""), status.get("detail", "")))
 
     def update_now(self, button) -> None:
         button.set_sensitive(False)

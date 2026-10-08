@@ -34,6 +34,8 @@ from typing import Callable
 from . import gguf, hardware
 from .backend import BackendError, Cancelled, InferenceBackend, Status
 
+LIVE_MEDIA = ("/cdrom/", "/run/live/medium/")  # where the live USB keeps the model (model_path)
+
 SERVER_DIR = "/usr/lib/cinminai/llama"
 DEVICE_RE = re.compile(r"^\s*((?:CUDA|Vulkan)\d+): (.*?) \((\d+) MiB, (\d+) MiB free\)", re.M)
 
@@ -140,6 +142,7 @@ class LlamaCppBackend(InferenceBackend):
         self._status = Status(model=self.model_name())
         self.active: http.client.HTTPConnection | None = None
         self.spawner = Spawner()
+        self.on_progress: Callable[[], None] = lambda: None  # the daemon tells the sidebar (the stick's read)
 
     # --- what to run -------------------------------------------------------------------------------
     def model_path(self) -> str:
@@ -153,6 +156,31 @@ class LlamaCppBackend(InferenceBackend):
             if os.path.isfile(alt):
                 return alt
         return path
+
+    def warm(self, path: str) -> None:
+        """On the live USB, read the model once from start to finish before the server starts. The server maps the
+        file and reads it in small scattered pieces, which a USB stick does very slowly: on Ian's PC (2026-10-07,
+        blue USB 3 port) only ~2 of 2.6 GB were in after 10 minutes and the load gave up; after one straight read
+        (as `dd`) the next load took 3 seconds. The read is shown as a percentage in the sidebar's header."""
+        if not path.startswith(LIVE_MEDIA):
+            return
+        size = os.path.getsize(path) or 1
+        done, shown, t0 = 0, -1, time.monotonic()
+        buf = bytearray(8 << 20)
+        try:
+            with open(path, "rb", buffering=0) as f:
+                while n := f.readinto(buf):
+                    done += n
+                    pct = done * 100 // size
+                    if pct // 5 != shown // 5:
+                        shown = pct
+                        self._status = Status("loading", self.model_name(), detail=f"stick:{pct}")
+                        self.on_progress()
+        except OSError as e:  # the server still tries; it reads what it needs itself
+            self.log(f"reading the model from the stick: {e}")
+            return
+        secs = time.monotonic() - t0
+        self.log(f"read the model from the stick in {secs:.0f} s ({size / 2**20 / max(secs, 0.1):.0f} MB/s)")
 
     def model_name(self) -> str:
         return self.cfg.get("model_name") or os.path.splitext(os.path.basename(self.cfg.get("model", "")))[0]
@@ -295,6 +323,7 @@ class LlamaCppBackend(InferenceBackend):
             if not os.path.isfile(model):
                 self._status = Status("error", self.model_name(), detail=f"the model file is missing: {model}")
                 raise BackendError("The assistant's model isn't installed on this computer.")
+            self.warm(model)
             size = os.path.getsize(model)
             try:  # the model's own numbers (gguf.py); the old estimate if the file can't be read
                 meta = gguf.read(model)

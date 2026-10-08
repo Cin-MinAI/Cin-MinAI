@@ -196,6 +196,8 @@ def save_actions_mode(mode: str) -> None:
 class Service:
     def __init__(self, loop: GLib.MainLoop, backend: InferenceBackend, guide: Guide, preload: bool) -> None:
         self.loop, self.backend, self.guide = loop, backend, guide
+        if hasattr(backend, "on_progress"):  # the live stick's straight read, as a percentage in the header
+            backend.on_progress = lambda: GLib.idle_add(self.changed, "Status")
         self.conn: Gio.DBusConnection | None = None
         self.state = "off"
         self.awareness = {"terminals": False, "browser": False, "web": False}  # nothing is watched in the Alpha
