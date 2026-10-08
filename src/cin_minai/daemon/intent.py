@@ -201,3 +201,18 @@ def watch_request(text: str) -> dict | None:
     if not topic and only:
         return None  # all of Reddit is not a watch
     return {"topic": topic, "at": at, **({"only": only} if only else {})}
+
+
+# --- the graphics driver (update 6): "install the NVIDIA driver", "set up my graphics card driver" -----------------
+DRIVER = re.compile(r"\b(install|set\s*up|get|add|download)\b.{0,40}\b(nvidia|graphics?|video|gpu|display|amd|radeon)"
+                    r"\b.{0,25}\bdrivers?\b|\b(nvidia|graphics?|video|gpu)\s+(card\s+)?drivers?\b.{0,30}\b(install|set\s*up)\b|"
+                    r"\binstal(a|ar|e|ler|lieren)\b.{0,40}\b(controlador(es)?|driver|pilote|treiber)\b.{0,30}\b(nvidia|gr[aá]fic\w*|"
+                    r"v[ií]deo|graphique|grafik\w*)\b|\b(grafik|nvidia)treiber\b.{0,30}\binstallieren\b|"
+                    r"(グラフィック|NVIDIA|nvidia|ビデオ).{0,10}ドライバ.{0,10}(インストール|入れ)", re.I)
+DRIVER_NOT = re.compile(r"\b(printer|impresora|impressora|imprimante|drucker|wifi|wi-fi|bluetooth|sound|audio|uninstall|"
+                        r"remove|update|desinstalar|deinstallieren)\b|プリンタ|アンインストール", re.I)
+
+
+def driver_request(text: str) -> bool:
+    """The person asks to install the graphics driver (the recipe asks the system's driver tool which one)."""
+    return bool(DRIVER.search(text)) and not DRIVER_NOT.search(text)

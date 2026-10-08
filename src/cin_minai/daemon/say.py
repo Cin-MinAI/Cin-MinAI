@@ -9,6 +9,13 @@ from __future__ import annotations
 
 SAY = {
     "en": {
+        "driver_offer": "Your graphics card's recommended driver is {pkg}, the same one Driver Manager would pick. The card below installs it: click {allow}, then type your password. When it's done, restart the computer so the new driver starts.",
+        "driver_none": "This computer doesn't need an extra graphics driver: the one it uses now is the right one.",
+        "driver_have": 'The recommended driver ({pkg}) is already installed. If the screen or the assistant still seem slow, restart the computer once so the driver starts.',
+        "driver_reason": "the recommended driver for this computer's graphics card (the one Driver Manager lists)",
+        "cuda_reason": "a faster engine for your NVIDIA card: the assistant reads your questions several times faster ({size}, about 1.1 GB on disk). No: it keeps working as it does now, and won't ask again.",
+        "size_mb": 'about {mb} MB to download',
+        "size_unknown": 'a few hundred MB to download',
         "search_offer": "I can look that up on the web. Below is exactly what would be sent; nothing leaves this "
                         "computer until you click Search.",
         "search_offline": "I'd need to look that up on the web, and this computer isn't online right now. Connect "
@@ -34,6 +41,13 @@ SAY = {
         "notify_body": "{n} new about {what}. Open the assistant to read them.",
     },
     "es": {
+        "driver_offer": 'El controlador recomendado para tu tarjeta gráfica es {pkg}, el mismo que elegiría el Gestor de controladores. La tarjeta de abajo lo instala: haz clic en {allow} y escribe tu contraseña. Cuando termine, reinicia el equipo para que arranque el nuevo controlador.',
+        "driver_none": 'Este equipo no necesita un controlador gráfico adicional: el que usa ahora es el adecuado.',
+        "driver_have": 'El controlador recomendado ({pkg}) ya está instalado. Si la pantalla o el asistente siguen lentos, reinicia el equipo una vez para que arranque.',
+        "driver_reason": 'el controlador recomendado para la tarjeta gráfica de este equipo (el que muestra el Gestor de controladores)',
+        "cuda_reason": 'un motor más rápido para tu tarjeta NVIDIA: el asistente lee tus preguntas varias veces más rápido ({size}, unos 1,1 GB en disco). No: sigue funcionando como ahora y no vuelve a preguntar.',
+        "size_mb": 'unos {mb} MB de descarga',
+        "size_unknown": 'unos cientos de MB de descarga',
         "search_offer": "Puedo buscarlo en la web. Abajo está exactamente lo que se enviaría; nada sale de este "
                         "equipo hasta que hagas clic en Buscar.",
         "search_offline": "Tendría que buscarlo en la web, y este equipo no tiene conexión ahora. Conéctate a "
@@ -61,6 +75,13 @@ SAY = {
         "notify_body": "{n} novedades sobre {what}. Abre el asistente para leerlas.",
     },
     "pt": {
+        "driver_offer": 'O driver recomendado para a sua placa de vídeo é {pkg}, o mesmo que o Gerenciador de drivers escolheria. O cartão abaixo o instala: clique em {allow} e digite sua senha. Quando terminar, reinicie o computador para o novo driver iniciar.',
+        "driver_none": 'Este computador não precisa de um driver de vídeo extra: o que ele usa agora é o certo.',
+        "driver_have": 'O driver recomendado ({pkg}) já está instalado. Se a tela ou o assistente ainda parecerem lentos, reinicie o computador uma vez para ele iniciar.',
+        "driver_reason": 'o driver recomendado para a placa de vídeo deste computador (o que o Gerenciador de drivers mostra)',
+        "cuda_reason": 'um motor mais rápido para a sua placa NVIDIA: o assistente lê suas perguntas várias vezes mais rápido ({size}, cerca de 1,1 GB no disco). Não: ele continua funcionando como agora e não pergunta de novo.',
+        "size_mb": 'cerca de {mb} MB para baixar',
+        "size_unknown": 'algumas centenas de MB para baixar',
         "search_offer": "Posso pesquisar isso na web. Abaixo está exatamente o que seria enviado; nada sai deste "
                         "computador até você clicar em Pesquisar.",
         "search_offline": "Eu precisaria pesquisar isso na web, e este computador está sem internet agora. "
@@ -88,6 +109,13 @@ SAY = {
         "notify_body": "{n} novidades sobre {what}. Abra o assistente para ler.",
     },
     "fr": {
+        "driver_offer": "Le pilote recommandé pour votre carte graphique est {pkg}, celui que choisirait le Gestionnaire de pilotes. La carte ci-dessous l'installe : cliquez sur {allow}, puis saisissez votre mot de passe. Une fois terminé, redémarrez l'ordinateur pour que le nouveau pilote démarre.",
+        "driver_none": "Cet ordinateur n'a pas besoin d'un pilote graphique supplémentaire : celui qu'il utilise est le bon.",
+        "driver_have": "Le pilote recommandé ({pkg}) est déjà installé. Si l'écran ou l'assistant semblent encore lents, redémarrez l'ordinateur une fois pour qu'il démarre.",
+        "driver_reason": 'le pilote recommandé pour la carte graphique de cet ordinateur (celui que liste le Gestionnaire de pilotes)',
+        "cuda_reason": "un moteur plus rapide pour votre carte NVIDIA : l'assistant lit vos questions plusieurs fois plus vite ({size}, environ 1,1 Go sur le disque). Non : il continue comme maintenant et ne redemande pas.",
+        "size_mb": 'environ {mb} Mo à télécharger',
+        "size_unknown": 'quelques centaines de Mo à télécharger',
         "search_offer": "Je peux le chercher sur le web. Ci-dessous, exactement ce qui serait envoyé ; rien ne quitte "
                         "cet ordinateur avant que vous cliquiez sur Rechercher.",
         "search_offline": "Il faudrait le chercher sur le web, et cet ordinateur n'est pas en ligne pour l'instant. "
@@ -117,6 +145,13 @@ SAY = {
         "notify_body": "{n} nouveautés sur {what}. Ouvrez l'assistant pour les lire.",
     },
     "de": {
+        "driver_offer": 'Der empfohlene Treiber für Ihre Grafikkarte ist {pkg}, derselbe, den die Treiberverwaltung wählen würde. Die Karte unten installiert ihn: Klicken Sie auf {allow} und geben Sie Ihr Passwort ein. Starten Sie den Computer danach neu, damit der neue Treiber startet.',
+        "driver_none": 'Dieser Computer braucht keinen zusätzlichen Grafiktreiber: Der aktuelle ist der richtige.',
+        "driver_have": 'Der empfohlene Treiber ({pkg}) ist schon installiert. Wenn Bildschirm oder Assistent noch langsam wirken, starten Sie den Computer einmal neu, damit er startet.',
+        "driver_reason": 'der empfohlene Treiber für die Grafikkarte dieses Computers (der in der Treiberverwaltung)',
+        "cuda_reason": 'ein schnellerer Motor für Ihre NVIDIA-Karte: Der Assistent liest Ihre Fragen mehrfach schneller ({size}, etwa 1,1 GB auf der Festplatte). Nein: Er arbeitet weiter wie jetzt und fragt nicht noch einmal.',
+        "size_mb": 'etwa {mb} MB zum Herunterladen',
+        "size_unknown": 'einige hundert MB zum Herunterladen',
         "search_offer": "Ich kann das im Web nachschlagen. Unten steht genau, was gesendet würde; nichts verlässt "
                         "diesen Computer, bevor Sie auf Suchen klicken.",
         "search_offline": "Ich müsste das im Web nachschlagen, und dieser Computer ist gerade offline. Verbinden Sie "
@@ -144,6 +179,13 @@ SAY = {
         "notify_body": "{n} neu zu {what}. Öffnen Sie den Assistenten, um sie zu lesen.",
     },
     "ja": {
+        "driver_offer": 'お使いのグラフィックカードの推奨ドライバーは{pkg}です（ドライバーマネージャーが選ぶものと同じ）。下のカードでインストールします。「{allow}」を押してからパスワードを入力してください。終わったら、新しいドライバーを使うためにコンピューターを再起動してください。',
+        "driver_none": 'このコンピューターに追加のグラフィックドライバーは必要ありません。今のドライバーで適切です。',
+        "driver_have": '推奨ドライバー（{pkg}）はすでにインストールされています。画面やアシスタントがまだ遅い場合は、一度再起動してください。',
+        "driver_reason": 'このコンピューターのグラフィックカードの推奨ドライバー（ドライバーマネージャーに表示されるもの）',
+        "cuda_reason": 'NVIDIAカード用の高速エンジン：アシスタントが質問を数倍速く読み込みます（{size}、ディスク約1.1 GB）。「いいえ」の場合は今のまま動作し、再度は尋ねません。',
+        "size_mb": 'ダウンロード約{mb} MB',
+        "size_unknown": 'ダウンロード数百MB',
         "search_offer": "ウェブで調べられます。送信される内容は下のとおりです。「検索」を押すまで、このコンピューターからは"
                         "何も送られません。",
         "search_offline": "ウェブで調べる必要がありますが、今はオフラインです。インターネットに接続してから、下の「検索」を"

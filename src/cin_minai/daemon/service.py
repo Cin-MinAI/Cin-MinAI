@@ -239,6 +239,7 @@ class Service:
         self.standing = standing.Store()
         self.watch_offers: dict[str, dict] = {}  # "keep me up to date on X" cards waiting for their click
         self.standing_running = False
+        self.cuda_asked = False  # D93: the CUDA engine is offered at most once per run (and never again after "No")
         GLib.timeout_add_seconds(STANDING_CHECK_S, self.standing_tick)
         # M4: one path for every action (PLAN D67, D85)
         self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
@@ -367,6 +368,55 @@ class Service:
 
     def action_notify(self, event: str, p) -> None:
         GLib.idle_add(self.emit, "ActionCard", "(s)", json.dumps(self.card(p, event), ensure_ascii=False))
+        from . import installs
+        if p.kind.name == "admin.install_package" and p.args.get("package") == installs.CUDA_PKG:
+            if event == "denied" and p.error is None:  # "No" on the card (a cancelled password may be an accident)
+                installs.decline("cuda")
+            elif event == "done":  # onto CUDA at the next pause
+                GLib.timeout_add_seconds(5, self.reload_for_cuda)
+
+    def reload_for_cuda(self) -> bool:
+        if self.busy or self.loading:
+            return True  # after this answer
+        self.backend.unload()
+        self.start_load()
+        return False
+
+    def maybe_offer_cuda(self) -> None:
+        """D93: once the NVIDIA driver is in and the CUDA engine isn't, offer it on one card, with its size."""
+        from . import installs
+        if self.cuda_asked or self.backend.status().state != "ready":
+            return
+        self.cuda_asked = True
+        server_dir = getattr(self.backend, "server_dir", "")
+        if not server_dir or "admin.install_package" not in self.actions.kinds or installs.declined("cuda"):
+            return
+        lang = self.guide.tools.lang
+
+        def work():
+            if not installs.cuda_wanted(server_dir) or installs.state(installs.CUDA_PKG) != "available":
+                return
+            mb = installs.download_mb(installs.CUDA_PKG)
+            size = say(lang, "size_mb", mb=mb) if mb else say(lang, "size_unknown")
+            self.actions.propose("admin.install_package", {"package": installs.CUDA_PKG},
+                                 reason=say(lang, "cuda_reason", size=size))
+        threading.Thread(target=work, daemon=True).start()
+
+    def offer_driver(self, on_text, on_action) -> dict:
+        """The driver the system's own tool recommends (Driver Manager's list), proposed on the Allow card."""
+        from . import installs
+        lang = self.guide.tools.lang
+        pkg = installs.recommended_driver()
+        if not pkg:
+            on_text(say(lang, "driver_none"))
+            return {"tool": "driver", "recommended": ""}
+        if installs.state(pkg) == "installed":
+            on_text(say(lang, "driver_have", pkg=pkg))
+            return {"tool": "driver", "recommended": pkg, "installed": True}
+        self.actions.propose("admin.install_package", {"package": pkg}, reason=say(lang, "driver_reason"))
+        from cin_minai.sidebar.words import t
+        on_text(say(lang, "driver_offer", pkg=pkg, allow=t("allow", lang)))
+        return {"tool": "driver", "recommended": pkg, "proposed": True}
 
     def set_state(self, state: str) -> bool:
         if state != self.state:
@@ -746,6 +796,9 @@ class Service:
         if found:  # D91: "pull up a video about X (and summarize it)" — a chain, not a web answer
             self.job(rid, lambda on_text, on_action: self.offer_video_chain(text, found, on_text, on_action))
             return
+        if intent.driver_request(text):  # update 6: the system's recommended graphics driver, on the Allow card
+            self.job(rid, lambda on_text, on_action: self.offer_driver(on_text, on_action))
+            return
         watch = intent.watch_request(text)
         if watch is not None:  # D88: "keep me up to date on X" — a standing watch, set up on a card
             self.job(rid, lambda on_text, on_action: self.offer_watch(text, watch, on_text, on_action))
@@ -1004,6 +1057,7 @@ class Service:
         never offline (it tries again next minute)."""
         if self.busy or self.loading or self.standing_running:
             return True
+        self.maybe_offer_cuda()
         due = self.standing.due(datetime.datetime.now())
         if not due or not self.guide.tools.online():
             return True

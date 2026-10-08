@@ -343,9 +343,16 @@ class Sidebar(Gtk.Application):
         self.proxy.get_connection().signal_subscribe(LIBREOFFICE[0], LIBREOFFICE[2], "Asked", LIBREOFFICE[1], None,
                                                      Gio.DBusSignalFlags.NONE, self.on_libreoffice)
         self.update_header()
+        GLib.idle_add(self.show_waiting)
         if self.pending_ask:
             text, self.pending_ask = self.pending_ask, None
             self.ask(text)
+
+    def show_waiting(self) -> bool:
+        """Cards proposed while the sidebar was closed (the CUDA engine's offer, update 6) are shown when it opens."""
+        for card in (self.daemon_json("ActionList") or {}).get("waiting", []):
+            self.action_card(card)
+        return False
 
     def prop(self, name: str, default=None):
         v = self.proxy.get_cached_property(name) if self.proxy else None
@@ -969,6 +976,10 @@ class Sidebar(Gtk.Application):
         from model text. Waiting: Allow / No. Done: an Undo where it has one."""
         event = card.get("event")
         if event == "waiting":
+            shown = self.__dict__.setdefault("waiting_shown", set())
+            if card.get("id") in shown:
+                return  # already on screen (a signal and ActionList can both bring it)
+            shown.add(card.get("id"))
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             box.get_style_context().add_class("proposal")
             for text, cls in words.action_lines(card):
@@ -976,9 +987,9 @@ class Sidebar(Gtk.Application):
                 label.get_style_context().add_class(cls)
                 box.pack_start(label, False, False, 0)
             buttons = Gtk.Box(spacing=6)
-            allow = Gtk.Button(label="Allow")
+            allow = Gtk.Button(label=words.t("allow"))
             allow.get_style_context().add_class("suggested-action")
-            no = Gtk.Button(label="No")
+            no = Gtk.Button(label=words.t("no"))
 
             def answer(button, yes: bool) -> None:
                 allow.set_sensitive(False)

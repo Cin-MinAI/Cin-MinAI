@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The guide's read-only tools for the Alpha (PLAN §4): inspect_system, open_app, and the answer for
-request_install (not in the Alpha: it says how to install by hand). lookup_help is helpcards.py.
+"""The guide's tools (PLAN §4): inspect_system, open_app (read-only), and request_install, which proposes an admin
+install on the Allow card since update 6 (installs.py). lookup_help is helpcards.py.
 
 inspect_system returns the same shapes the guide was trained on (training/datasets/sessions/generate.py
 `system_result`): short facts plus "open_with", the name of the settings page or program to fix it, in
@@ -412,11 +412,28 @@ class Tools:
                         "assistant, in LibreOffice's menu."}
 
     def request_install(self, package: str) -> dict:
-        return {"installed": False,
-                "note": "Installing through the assistant comes in a later version of Cin-MinAI. The user can "
-                        f"install it themselves: open {self.label('software_manager')} from the Menu, search for "
-                        "the program, click Install, and type their password.",
-                "open_with": self.label("software_manager")}
+        """Update 6: a package the system's sources have is proposed as an admin action — the person allows the card,
+        then the system asks for the password. Anything else: how to find it in the Software Manager."""
+        from cin_minai.actions import hook
+        from . import installs
+        package = package.strip().lower()
+        by_hand = {"installed": False, "open_with": self.label("software_manager"),
+                   "note": f"It isn't in this system's software sources under that name. The user can look for it in "
+                           f"{self.label('software_manager')}: open it from the Menu, search for the program, click "
+                           "Install, and type their password."}
+        what = installs.state(package)
+        if what == "installed":
+            return {"installed": True, "package": package, "note": f"{package} is already installed."}
+        actions = hook.installed()
+        if what != "available" or actions is None or "admin.install_package" not in actions.kinds:
+            return by_hand
+        mb = installs.download_mb(package)
+        size = f" (about {mb} MB to download)" if mb else ""
+        p = actions.propose("admin.install_package", {"package": package},
+                            reason=f"you asked to install {package}{size}")
+        return {"installed": False, "proposed": True, "package": package, "card": p.id,
+                "note": f"A card below asks to install {package}{size}. When the user clicks Allow, the system asks "
+                        "for their password, and then it installs. Nothing is installed until they do."}
 
 
 def edid_name(conn: str) -> str:
