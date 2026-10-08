@@ -25,6 +25,8 @@ const GLib = imports.gi.GLib;
 // update 5's menu entry in the six v1 languages (D25); the older entries are still English
 const STANDING = { en: "Standing tasks", es: "Tareas permanentes", pt: "Tarefas permanentes",
                    fr: "Tâches permanentes", de: "Daueraufgaben", ja: "定期タスク" };
+const REQUESTS = { en: "Requests", es: "Peticiones", pt: "Pedidos", fr: "Demandes", de: "Anfragen",
+                   ja: "リクエスト" };
 const LANG = (GLib.get_language_names()[0] || "en").slice(0, 2);
 
 // State property -> [symbolic icon, words]. Placeholder icons from the theme until Ian's artwork.
@@ -58,7 +60,11 @@ class CinMinAIApplet extends Applet.IconApplet {
         const standing = new PopupMenu.PopupMenuItem(STANDING[LANG] || STANDING.en);
         standing.connect("activate", () => Util.spawn([SIDEBAR, "--standing"]));
         ctx.addMenuItem(standing, 4);
-        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 5);
+        // turn tokens (SPEC §22.4): what was asked, who's working on what, Stop
+        const requests = new PopupMenu.PopupMenuItem(REQUESTS[LANG] || REQUESTS.en);
+        requests.connect("activate", () => Util.spawn([SIDEBAR, "--requests"]));
+        ctx.addMenuItem(requests, 5);
+        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 6);
 
         this.proxy = null;
         new AssistantProxy(Gio.DBus.session, BUS_NAME, OBJ_PATH, (proxy, error) => {

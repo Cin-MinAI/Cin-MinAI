@@ -135,6 +135,9 @@ XML = f"""
     <signal name="Standing"><arg type="s" name="json"/></signal>
     <!-- turn tokens (SPEC §22.4): the recent requests, each with its tree of tasks (JSON) -->
     <method name="TurnList"><arg type="s" name="json" direction="out"/></method>
+    <!-- Stop a request (or any task in it): it and everything under it; a waiting one never starts -->
+    <method name="TurnCancel"><arg type="u" name="task" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
     <!-- keys for sources that need one (keys.py): the key goes to the login keyring and nowhere else; the answer
          never repeats it. json: ok and the source's name, or ok false and the error -->
     <method name="KeySet"><arg type="s" name="source" direction="in"/><arg type="s" name="key" direction="in"/>
@@ -516,6 +519,9 @@ class Service:
         elif method == "TurnList":
             out = self.turns.recent(20) if self.turns is not None else []
             inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method == "TurnCancel":
+            (task,) = params.unpack()
+            inv.return_value(GLib.Variant("(s)", (json.dumps(self.turn_cancel(int(task))),)))
         elif method == "StandingList":
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
         elif method == "StandingChange":
@@ -1648,11 +1654,30 @@ class Service:
                 self.turns.guide_context(ctx)
             if task is not None:
                 state = "cancelled" if stats.get("cancelled") else "failed" if error else "done"
-                self.turns.finish(task, state, error or str(stats.get("tool") or ""))
+                model = self.backend.status().model or ""
+                self.turns.finish(task, state, error or str(stats.get("tool") or ""), model=model)
         except Exception as e:
             log(f"turn table: {type(e).__name__}: {e}")
         if self.waiting:
             GLib.idle_add(self.next_turn)
+
+    def turn_cancel(self, task: int) -> dict:
+        """Stop from the Requests view: a waiting request never starts (its asker is told); the running one stops
+        like the Stop button; the table cancels the task and everything under it."""
+        if self.turns is None:
+            return {"cancelled": 0}
+        root = (self.turns.db.task_tree(task) or {}).get("id", task)
+        for t in list(self.waiting):
+            if t in (task, root):
+                rid, _ = self.waiting.pop(t)
+                self.emit("Error", "(us)", rid, "Stopped before it started.")
+                self.emit("Done", "(u)", rid)
+        if any(t in (task, root) for t in self.rid_task.values()):
+            self.cancel.set()
+            interrupt = getattr(self.backend, "interrupt", None)
+            if interrupt:
+                interrupt()
+        return {"cancelled": self.turns.cancel(task)}
 
     def next_turn(self) -> bool:
         """The next waiting request, in the table's order (the person's first)."""

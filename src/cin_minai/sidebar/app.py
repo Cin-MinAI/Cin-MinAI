@@ -232,7 +232,8 @@ class Sidebar(Gtk.Application):
         for label, cb in (("Start a writing project", lambda b: self.new_project()),
                           ("Open the journal", lambda b: self.open_journal()),
                           ("Open AICUI (coding)", lambda b: self.open_aicui()),
-                          (words.t("standing"), lambda b: self.standing_list())):  # D88: found where people look
+                          (words.t("standing"), lambda b: self.standing_list()),  # D88: found where people look
+                          (words.t("requests"), lambda b: self.requests_view())):  # turn tokens (SPEC §22.4)
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
             row.add(b)
@@ -639,8 +640,11 @@ class Sidebar(Gtk.Application):
         item = Gtk.MenuItem(label="Coding (AICUI)…")
         item.connect("activate", lambda i: self.open_aicui())
         menu.append(item)
-        item = Gtk.MenuItem(label="Standing tasks")
+        item = Gtk.MenuItem(label=words.t("standing"))
         item.connect("activate", lambda i: self.standing_list())
+        menu.append(item)
+        item = Gtk.MenuItem(label=words.t("requests"))
+        item.connect("activate", lambda i: self.requests_view())
         menu.append(item)
         sharing = self.daemon_json("TerminalSharing", "state") or {}
         if sharing.get("available"):  # D77: the switch, for after the one-time offer
@@ -1077,6 +1081,59 @@ class Sidebar(Gtk.Application):
         buttons.pack_start(go, False, False, 0)
         buttons.pack_start(no, False, False, 0)
         box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def requests_view(self) -> None:
+        """Recent requests, each with its tree of tasks: state, what kind, which model did it; Stop on anything not
+        finished (turn tokens, SPEC §22.4)."""
+        trees = self.daemon_json("TurnList")
+        if trees is None:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Box(spacing=6)
+        title = Gtk.Label(label=words.t("requests"), xalign=0)
+        title.get_style_context().add_class("what")
+        head.pack_start(title, True, True, 0)
+        refresh = Gtk.Button(label=words.t("refresh"))
+        refresh.connect("clicked", lambda b: (box.destroy(), self.requests_view()))
+        head.pack_end(refresh, False, False, 0)
+        box.pack_start(head, False, False, 0)
+        if not trees:
+            box.pack_start(Gtk.Label(label=words.t("no_requests"), xalign=0), False, False, 0)
+
+        def node(task: dict, depth: int) -> None:
+            line, detail = words.request_lines(task)
+            row = Gtk.Box(spacing=6)
+            row.set_margin_start(12 * depth)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            text.pack_start(Gtk.Label(label=("└ " if depth else "") + line, xalign=0, wrap=True,
+                                      max_width_chars=26), False, False, 0)
+            if detail:
+                small = Gtk.Label(label=detail, xalign=0, wrap=True, max_width_chars=26)
+                small.get_style_context().add_class("note")
+                text.pack_start(small, False, False, 0)
+            row.pack_start(text, True, True, 0)
+            if task.get("status") in ("pending", "in_progress", "awaiting_review"):
+                stop = Gtk.Button(label=words.t("stop"))
+
+                def stop_it(b, tid=task["id"]) -> None:
+                    b.set_sensitive(False)
+                    self.proxy.call("TurnCancel", GLib.Variant("(u)", (tid,)), Gio.DBusCallFlags.NONE, 10000, None,
+                                    lambda p, r: GLib.idle_add(lambda: (box.destroy(), self.requests_view()) and False))
+                stop.connect("clicked", stop_it)
+                row.pack_end(stop, False, False, 0)
+            box.pack_start(row, False, False, 0)
+            for child in task.get("children", []):
+                node(child, depth + 1)
+
+        for tree in trees:
+            node(tree, 0)
+        close = Gtk.Button(label=words.t("close"))
+        close.set_halign(Gtk.Align.START)
+        close.connect("clicked", lambda b: box.destroy())
+        box.pack_start(close, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
 
@@ -1595,7 +1652,8 @@ class Sidebar(Gtk.Application):
             self.ask(" ".join(args[1:]))
             return 0
         action = {"--toggle": self.toggle, "--flip": self.flip, "--show": self.show, "--hide": self.hide,
-                  "--quit": self.quit, "--standing": lambda: (self.show(), self.standing_list())}.get(args[0])
+                  "--quit": self.quit, "--standing": lambda: (self.show(), self.standing_list()),
+                  "--requests": lambda: (self.show(), self.requests_view())}.get(args[0])
         if action is None:
             cmdline.printerr(f"unknown option {args[0]}\n")
             return 2

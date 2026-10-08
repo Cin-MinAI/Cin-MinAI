@@ -12,6 +12,7 @@ If team-table isn't installed, the daemon works as before and records nothing he
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 
@@ -72,13 +73,16 @@ class Turns:
     def start(self, task_id: int) -> None:
         self.db.claim_task(task_id, GUIDE)
 
-    def finish(self, task_id: int, state: str, summary: str = "") -> None:
-        """state: done | failed | cancelled."""
+    def finish(self, task_id: int, state: str, summary: str = "", model: str = "") -> None:
+        """state: done | failed | cancelled. model: which model did it — the Requests view shows it, so a
+        combination of models can be judged by how it did (SPEC §22.3)."""
         if state == "cancelled":
             self.db.cancel_task(task_id, PERSON)
             return
         status = "done" if state == "done" else "blocked"
-        self.db.update_task(task_id, status, summary[:RESULT] or None, agent_name=GUIDE)
+        result = json.dumps({"model": model, "note": summary[:RESULT]}, ensure_ascii=False) if model else \
+            summary[:RESULT]
+        self.db.update_task(task_id, status, result or None, agent_name=GUIDE)
 
     def cancel(self, task_id: int) -> int:
         out = self.db.cancel_task(task_id, PERSON) or {}
@@ -94,6 +98,17 @@ class Turns:
             self.db.update_task(row["id"], "blocked", "the assistant restarted before this was answered",
                                 agent_name=GUIDE)
         return len(rows)
+
+    @staticmethod
+    def model_of(task: dict) -> tuple[str, str]:
+        """(model, note) from a finished task's result."""
+        try:
+            out = json.loads(task.get("result") or "")
+            if isinstance(out, dict):
+                return str(out.get("model", "")), str(out.get("note", ""))
+        except ValueError:
+            pass
+        return "", task.get("result") or ""
 
     def recent(self, n: int = 20) -> list[dict]:
         """The last n requests, each with its tree (for the view)."""

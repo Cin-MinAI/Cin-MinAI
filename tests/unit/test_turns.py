@@ -76,10 +76,12 @@ class Queue(unittest.TestCase):
         s = types.SimpleNamespace(
             busy=busy, waiting={}, rid_task={}, next_id=0, turn_ctx=0, emitted=[], asked=[],
             turns=turns.Turns(os.path.join(d.name, "table.db")),
-            backend=types.SimpleNamespace(status=lambda: types.SimpleNamespace(context=8192)))
+            backend=types.SimpleNamespace(status=lambda: types.SimpleNamespace(context=8192, model="Cin-MinAI guide"),
+                                          interrupt=lambda: None),
+            cancel=__import__("threading").Event())
         s.emit = lambda name, fmt, *a: s.emitted.append((name, a))
         s.ask = lambda rid, text: s.asked.append((rid, text))
-        for name in ("turn_request", "turn_finished", "next_turn"):
+        for name in ("turn_request", "turn_finished", "next_turn", "turn_cancel"):
             setattr(s, name, getattr(service.Service, name).__get__(s))
         return s
 
@@ -110,7 +112,34 @@ class Queue(unittest.TestCase):
         task = s.rid_task[1]
         service.Service.turn_finished(s, 1, None, {"tool": "lookup_help"})
         done = s.turns.db.list_tasks()[0]
-        self.assertEqual((done["id"], done["status"], done["result"]), (task, "done", "lookup_help"))
+        self.assertEqual((done["id"], done["status"]), (task, "done"))
+        self.assertEqual(turns.Turns.model_of(done), ("Cin-MinAI guide", "lookup_help"))  # which model did it
+
+    def test_stop_from_the_view(self):
+        s = self.daemon(busy=True)
+        self.ask(s, "waiting one")
+        (task,) = s.waiting
+        out = service.Service.turn_cancel(s, task)
+        self.assertEqual(out["cancelled"], 1)
+        self.assertEqual(s.waiting, {})
+        self.assertIn(("Error", (1, "Stopped before it started.")), s.emitted)  # its asker is told
+        s2 = self.daemon(busy=False)
+        self.ask(s2, "running one")
+        service.Service.turn_cancel(s2, s2.rid_task[1])
+        self.assertTrue(s2.cancel.is_set())  # the running answer stops like the Stop button
+
+
+class View(unittest.TestCase):
+    def test_lines_say_state_kind_and_model(self):
+        from cin_minai.sidebar import words
+        task = {"title": "What's the latest on Artemis?", "status": "done", "kind": "ask",
+                "result": json.dumps({"model": "Qwen2.5-Coder 7B", "note": "news"})}
+        for lang, (state, by) in {"en": ("done", "by Qwen2.5-Coder 7B"), "de": ("fertig", "von Qwen2.5-Coder 7B"),
+                                  "ja": ("完了", "担当：Qwen2.5-Coder 7B")}.items():
+            with mock.patch.object(words, "ui_lang", return_value=lang):
+                line, detail = words.request_lines(task)
+            self.assertIn(state, line)
+            self.assertIn(by, detail)
 
 
 if __name__ == "__main__":

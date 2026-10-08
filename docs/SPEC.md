@@ -2002,6 +2002,17 @@ it); download with resume and the fingerprint check, a speed test here, then ass
 found, not downloaded again. A small helper asks what the person wants to do and suggests a setup; they decide. The
 CUDA engine is offered on one card once the NVIDIA driver is in (built 2026-10-08).
 
+**Jobs, and the Requests view (Ian, 2026-10-08: "the requests list ties to the model list… we may try a combo with an
+old Qwen coder instead of 4B that works better for certain things").** The Models view assigns a model to each *job*,
+finer than a task's kind: help and the system, laying out code (the junior), writing code (the senior), reviewing, news
+and searches, writing, pictures and video, research papers. Every job takes any model — ours or one found on Hugging
+Face — except **help and the system**, which holds the system and admin tools and stays with a model we trained and
+measured (§22.5; shown locked). The **Requests view** (start screen, panel menu, `--requests`) lists recent requests
+as trees: each task with its state, its kind, and **which model did it** (recorded when it finishes), with Stop on
+anything not finished. So a combination is judged by what it did: swap the junior for an older coder model, and the
+Requests view shows how its tasks went. Built 2026-10-08: the Requests view, the model recorded per task, Stop from
+the view.
+
 ### 22.4 Turn tokens (D95)
 
 Every request becomes a **turn token** — from the person, a recipe (D91), or another model. Each model has its own

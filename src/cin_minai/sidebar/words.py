@@ -446,7 +446,8 @@ def journal_written(e: dict) -> str:
 # Written by Claude (not a native speaker of es/pt/fr/de/ja): wants a native speaker's review (D36). The rest of the
 # sidebar is still English (the Alpha's note above).
 T = {
-    "en": {"queued": 'Waiting its turn: the assistant is finishing another answer first ({ahead} ahead).', "allow": 'Allow', "no": 'No', "stick_read": 'Reading the assistant from the USB stick: {pct}%', "stick_wait": "Getting the assistant ready from the USB stick. The first time it reads the whole model from the stick, a few minutes; the header shows how far it is. Once it's installed, it starts in seconds.",
+    "en": {'requests': 'Requests', 'no_requests': 'Nothing asked yet.', 'stop': 'Stop', 'refresh': 'Refresh', 'st_pending': 'waiting', 'st_in_progress': 'working', 'st_done': 'done', 'st_blocked': "didn't finish", 'st_cancelled': 'stopped', 'st_awaiting_review': 'in review', 'by_model': 'by {model}', 'k_ask': 'a question', 'k_watch': 'a news watch', 'k_code': 'code', 'k_review': 'a review', 
+           "queued": 'Waiting its turn: the assistant is finishing another answer first ({ahead} ahead).', "allow": 'Allow', "no": 'No', "stick_read": 'Reading the assistant from the USB stick: {pct}%', "stick_wait": "Getting the assistant ready from the USB stick. The first time it reads the whole model from the stick, a few minutes; the header shows how far it is. Once it's installed, it starts in seconds.",
            "search_head": "Search the web for:", "search": "Search", "no_thanks": "No thanks", "looking": "Looking it up…",
            "search_note": "Only these words are sent, to {provider}. The pages it finds are read to answer you. "
                           "Nothing about you or this computer is sent.",
@@ -476,7 +477,8 @@ T = {
                        "assistant never sees it, and it isn't kept in the conversation. Only that source's own "
                        "requests use it.",
            "key_saved": "Key saved for {name}, in your login keyring. It's used from the next search on."},
-    "es": {"queued": 'Esperando su turno: el asistente está terminando otra respuesta ({ahead} por delante).', "allow": 'Permitir', "no": 'No', "stick_read": 'Leyendo el asistente desde la memoria USB: {pct}%', "stick_wait": 'Preparando el asistente desde la memoria USB. La primera vez lee todo el modelo de la memoria, unos minutos; arriba se ve cuánto lleva. Una vez instalado, arranca en segundos.',
+    "es": {'requests': 'Peticiones', 'no_requests': 'Todavía no se ha pedido nada.', 'stop': 'Detener', 'refresh': 'Actualizar', 'st_pending': 'en espera', 'st_in_progress': 'en curso', 'st_done': 'hecho', 'st_blocked': 'no terminó', 'st_cancelled': 'detenido', 'st_awaiting_review': 'en revisión', 'by_model': 'por {model}', 'k_ask': 'una pregunta', 'k_watch': 'un seguimiento de noticias', 'k_code': 'código', 'k_review': 'una revisión', 
+           "queued": 'Esperando su turno: el asistente está terminando otra respuesta ({ahead} por delante).', "allow": 'Permitir', "no": 'No', "stick_read": 'Leyendo el asistente desde la memoria USB: {pct}%', "stick_wait": 'Preparando el asistente desde la memoria USB. La primera vez lee todo el modelo de la memoria, unos minutos; arriba se ve cuánto lleva. Una vez instalado, arranca en segundos.',
            "search_head": "Buscar en la web:", "search": "Buscar", "no_thanks": "No, gracias", "looking": "Buscando…",
            "search_note": "Solo se envían estas palabras, a {provider}. Las páginas que encuentre se leen para "
                           "responderte. No se envía nada sobre ti ni sobre este equipo.",
@@ -507,7 +509,8 @@ T = {
                        "fuente.",
            "key_saved": "Clave guardada para {name} en tu llavero de inicio de sesión. Se usará a partir de la "
                         "próxima búsqueda."},
-    "pt": {"queued": 'Aguardando a vez: o assistente está terminando outra resposta ({ahead} na frente).', "allow": 'Permitir', "no": 'Não', "stick_read": 'Lendo o assistente do pendrive: {pct}%', "stick_wait": 'Preparando o assistente a partir do pendrive. Na primeira vez ele lê o modelo inteiro do pendrive, alguns minutos; o andamento aparece no topo. Depois de instalado, ele inicia em segundos.',
+    "pt": {'requests': 'Pedidos', 'no_requests': 'Nada pedido ainda.', 'stop': 'Parar', 'refresh': 'Atualizar', 'st_pending': 'aguardando', 'st_in_progress': 'em andamento', 'st_done': 'feito', 'st_blocked': 'não terminou', 'st_cancelled': 'parado', 'st_awaiting_review': 'em revisão', 'by_model': 'por {model}', 'k_ask': 'uma pergunta', 'k_watch': 'um acompanhamento de notícias', 'k_code': 'código', 'k_review': 'uma revisão', 
+           "queued": 'Aguardando a vez: o assistente está terminando outra resposta ({ahead} na frente).', "allow": 'Permitir', "no": 'Não', "stick_read": 'Lendo o assistente do pendrive: {pct}%', "stick_wait": 'Preparando o assistente a partir do pendrive. Na primeira vez ele lê o modelo inteiro do pendrive, alguns minutos; o andamento aparece no topo. Depois de instalado, ele inicia em segundos.',
            "search_head": "Pesquisar na web:", "search": "Pesquisar", "no_thanks": "Não, obrigado",
            "looking": "Pesquisando…",
            "search_note": "Só estas palavras são enviadas, para {provider}. As páginas encontradas são lidas para "
@@ -537,7 +540,8 @@ T = {
            "key_note": "A chave vai direto para o seu chaveiro de sessão, protegido pela sua senha. O assistente "
                        "nunca a vê e ela não fica na conversa. Só as consultas dessa fonte a usam.",
            "key_saved": "Chave salva para {name} no seu chaveiro de sessão. Ela será usada a partir da próxima busca."},
-    "fr": {"queued": "En attente : l'assistant termine d'abord une autre réponse ({ahead} avant).", "allow": 'Autoriser', "no": 'Non', "stick_read": "Lecture de l'assistant depuis la clé USB : {pct} %", "stick_wait": "Préparation de l'assistant depuis la clé USB. La première fois, il lit tout le modèle sur la clé, quelques minutes ; l'en-tête montre l'avancement. Une fois installé, il démarre en quelques secondes.",
+    "fr": {'requests': 'Demandes', 'no_requests': "Rien de demandé pour l'instant.", 'stop': 'Arrêter', 'refresh': 'Actualiser', 'st_pending': 'en attente', 'st_in_progress': 'en cours', 'st_done': 'fait', 'st_blocked': 'pas terminé', 'st_cancelled': 'arrêté', 'st_awaiting_review': 'en relecture', 'by_model': 'par {model}', 'k_ask': 'une question', 'k_watch': "une veille d'actualités", 'k_code': 'du code', 'k_review': 'une relecture', 
+           "queued": "En attente : l'assistant termine d'abord une autre réponse ({ahead} avant).", "allow": 'Autoriser', "no": 'Non', "stick_read": "Lecture de l'assistant depuis la clé USB : {pct} %", "stick_wait": "Préparation de l'assistant depuis la clé USB. La première fois, il lit tout le modèle sur la clé, quelques minutes ; l'en-tête montre l'avancement. Une fois installé, il démarre en quelques secondes.",
            "search_head": "Rechercher sur le web :", "search": "Rechercher", "no_thanks": "Non merci",
            "looking": "Recherche…",
            "search_note": "Seuls ces mots sont envoyés, à {provider}. Les pages trouvées sont lues pour vous "
@@ -570,7 +574,8 @@ T = {
                        "requêtes de cette source l'utilisent.",
            "key_saved": "Clé enregistrée pour {name} dans votre trousseau de session. Elle servira dès la prochaine "
                         "recherche."},
-    "de": {"queued": 'Wartet: Der Assistent beendet zuerst eine andere Antwort ({ahead} davor).', "allow": 'Erlauben', "no": 'Nein', "stick_read": 'Assistent wird vom USB-Stick gelesen: {pct} %', "stick_wait": 'Der Assistent wird vom USB-Stick vorbereitet. Beim ersten Mal liest er das ganze Modell vom Stick, ein paar Minuten; oben steht, wie weit er ist. Nach der Installation startet er in Sekunden.',
+    "de": {'requests': 'Anfragen', 'no_requests': 'Noch nichts gefragt.', 'stop': 'Stoppen', 'refresh': 'Aktualisieren', 'st_pending': 'wartet', 'st_in_progress': 'läuft', 'st_done': 'fertig', 'st_blocked': 'nicht fertig geworden', 'st_cancelled': 'gestoppt', 'st_awaiting_review': 'in Prüfung', 'by_model': 'von {model}', 'k_ask': 'eine Frage', 'k_watch': 'eine Nachrichtenbeobachtung', 'k_code': 'Code', 'k_review': 'eine Prüfung', 
+           "queued": 'Wartet: Der Assistent beendet zuerst eine andere Antwort ({ahead} davor).', "allow": 'Erlauben', "no": 'Nein', "stick_read": 'Assistent wird vom USB-Stick gelesen: {pct} %', "stick_wait": 'Der Assistent wird vom USB-Stick vorbereitet. Beim ersten Mal liest er das ganze Modell vom Stick, ein paar Minuten; oben steht, wie weit er ist. Nach der Installation startet er in Sekunden.',
            "search_head": "Im Web suchen nach:", "search": "Suchen", "no_thanks": "Nein, danke", "looking": "Suche läuft…",
            "search_note": "Nur diese Wörter werden gesendet, an {provider}. Die gefundenen Seiten werden gelesen, um "
                           "Ihnen zu antworten. Nichts über Sie oder diesen Computer wird gesendet.",
@@ -602,7 +607,8 @@ T = {
                        "die Anfragen dieser Quelle verwenden ihn.",
            "key_saved": "Schlüssel für {name} im Anmelde-Schlüsselbund gespeichert. Er wird ab der nächsten Suche "
                         "verwendet."},
-    "ja": {"queued": '順番待ち：アシスタントは先に別の回答を仕上げています（前に{ahead}件）。', "allow": '許可', "no": 'いいえ', "stick_read": 'USBメモリからアシスタントを読み込み中：{pct}%', "stick_wait": 'USBメモリからアシスタントを準備しています。初回はモデル全体をUSBメモリから読み込むため数分かかります。進み具合は上部に表示されます。インストール後は数秒で起動します。',
+    "ja": {'requests': 'リクエスト', 'no_requests': 'まだ何も頼まれていません。', 'stop': '停止', 'refresh': '更新', 'st_pending': '待機中', 'st_in_progress': '処理中', 'st_done': '完了', 'st_blocked': '完了せず', 'st_cancelled': '停止済み', 'st_awaiting_review': 'レビュー中', 'by_model': '担当：{model}', 'k_ask': '質問', 'k_watch': 'ニュースの見守り', 'k_code': 'コード', 'k_review': 'レビュー', 
+           "queued": '順番待ち：アシスタントは先に別の回答を仕上げています（前に{ahead}件）。', "allow": '許可', "no": 'いいえ', "stick_read": 'USBメモリからアシスタントを読み込み中：{pct}%', "stick_wait": 'USBメモリからアシスタントを準備しています。初回はモデル全体をUSBメモリから読み込むため数分かかります。進み具合は上部に表示されます。インストール後は数秒で起動します。',
            "search_head": "ウェブで検索：", "search": "検索", "no_thanks": "結構です", "looking": "検索しています…",
            "search_note": "送られるのはこの言葉だけで、送り先は{provider}です。見つかったページを読んで答えます。あなたや"
                           "このコンピューターについての情報は送られません。",
@@ -1071,3 +1077,20 @@ def action_declined(card: dict) -> str:
 def action_error(message: str) -> str:
     """D-Bus errors arrive as 'GDBus.Error:org.cinminai…: the reason'; the person reads the reason."""
     return message.split(": ", 1)[-1] if ": " in message else message
+
+
+def request_lines(task: dict, lang: str | None = None) -> tuple[str, str]:
+    """(the line, the detail) for one task in the Requests view: its title and state; what kind it was and which
+    model did it (SPEC §22.3: how a combination of models did, at a glance)."""
+    state = t("st_" + task.get("status", "pending"), lang) if ("st_" + task.get("status", "")) in T["en"] \
+        else task.get("status", "")
+    kind = t("k_" + task["kind"], lang) if ("k_" + (task.get("kind") or "")) in T["en"] else (task.get("kind") or "")
+    model = ""
+    try:
+        out = json.loads(task.get("result") or "")
+        if isinstance(out, dict):
+            model = str(out.get("model", ""))
+    except ValueError:
+        pass
+    detail = " · ".join(x for x in (kind, t("by_model", lang, model=model) if model else "") if x)
+    return f"{task.get('title', '')} — {state}", detail
