@@ -1153,11 +1153,21 @@ class Sidebar(Gtk.Application):
             for m in v["models"]:
                 where = (words.t("m_system") if m["where"] == "system" else
                          words.t("m_parked", drive=m.get("drive") or "?") if m["where"] == "parked" else "")
-                line = f"{m['model']} · {m['size'] / 2**30:.1f} GB" + (f" · {where}" if where else "")
-                box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+                used = ", ".join(words.t("job_" + j) for j in m.get("used_by", []))
+                line = f"{m['model']} · {m['size'] / 2**30:.1f} GB" + (f" · {where}" if where else "") + \
+                    (f" · {words.t('h_used', jobs=used)}" if used else "")
+                row = Gtk.Box(spacing=6)
+                row.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=26), True, True, 0)
+                if m["where"] == "store" and m["present"] and not used:
+                    rm = Gtk.Button(label=words.t("h_remove"))
+                    rm.connect("clicked", lambda b, f=m["file"]: (b.set_sensitive(False), self.daemon_async(
+                        "ModelRemove", (f,), "(s)", lambda v: again())))
+                    row.pack_end(rm, False, False, 0)
+                box.pack_start(row, False, False, 0)
             free = Gtk.Label(label=words.t("m_free", gb=f"{v['free_bytes'] / 2**30:.0f}"), xalign=0)
             free.get_style_context().add_class("note")
             box.pack_start(free, False, False, 0)
+            self.more_models(box, v["free_bytes"])
             close = Gtk.Button(label=words.t("close"))
             close.set_halign(Gtk.Align.START)
             close.connect("clicked", lambda b: box.destroy())
@@ -1176,6 +1186,161 @@ class Sidebar(Gtk.Application):
             GLib.idle_add(fill, v)
 
         self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
+
+    def daemon_async(self, method: str, args: tuple, fmt: str, done) -> None:
+        """A daemon call that may take a while (the network, reading model files): done(value) on the main loop;
+        an error goes to a bubble and done is not called."""
+        def got(p, r) -> None:
+            try:
+                v = p.call_finish(r).unpack()
+            except GLib.Error as e:
+                Gio.DBusError.strip_remote_error(e)
+                msg = e.message
+                GLib.idle_add(lambda: self.bubble("error", msg) and False)
+                return
+            out = v[0] if v else None
+            GLib.idle_add(lambda: done(json.loads(out) if isinstance(out, str) else out) and False)
+        self.proxy.call(method, GLib.Variant(fmt, args) if args else None, Gio.DBusCallFlags.NONE, 180000, None, got)
+
+    def job_picker(self, fit: dict) -> Gtk.ComboBoxText:
+        """The jobs a model could do here (none yet is first): it gets the job after its speed test."""
+        pick = Gtk.ComboBoxText()
+        pick.append("", words.t("h_no_job"))
+        for job, f in fit.items():
+            if f["fits"]:
+                pick.append(job, words.t("job_" + job))
+        pick.set_active_id("")
+        return pick
+
+    def more_models(self, box: Gtk.Box, free: int) -> None:
+        """The Models view's lower part: search Hugging Face (what's sent is said first, D86), look at a repository's
+        files, check one runs here before fetching it, fetch it and give it a job; or bring one in from a drive."""
+        head = Gtk.Label(label=words.t("h_more"), xalign=0)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        note = Gtk.Label(label=words.t("h_note"), xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        row = Gtk.Box(spacing=6)
+        entry = Gtk.Entry(placeholder_text=words.t("h_hint"))
+        go = Gtk.Button(label=words.t("h_search"))
+        row.pack_start(entry, True, True, 0)
+        row.pack_end(go, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        found = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.pack_start(found, False, False, 0)
+        drives = Gtk.Button(label=words.t("h_drives"))
+        drives.set_halign(Gtk.Align.START)
+        box.pack_start(drives, False, False, 0)
+        on_drives = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.pack_start(on_drives, False, False, 0)
+
+        def clear(area: Gtk.Box) -> None:
+            for c in area.get_children():
+                c.destroy()
+
+        def small(text: str) -> Gtk.Label:
+            label = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+            label.get_style_context().add_class("note")
+            return label
+
+        def checked(area: Gtk.Box, v: dict) -> None:
+            clear(area)
+            for line in words.fit_lines(v["jobs"]):
+                area.pack_start(small(line), False, False, 0)
+            if not any(f["fits"] for f in v["jobs"].values()):
+                area.pack_start(small(words.t("h_runs_nothing")), False, False, 0)
+            elif not v["here"] and v["size"] + (2 << 30) > v["free_bytes"]:
+                area.pack_start(small(words.t("h_room", gb=f"{v['size'] / 2**30:.1f}")), False, False, 0)
+            else:
+                pick = self.job_picker(v["jobs"])
+                get = Gtk.Button(label=words.t("h_get", gb=f"{v['size'] / 2**30:.1f}"))
+                get.connect("clicked", lambda b: (b.set_sensitive(False), self.start_job(
+                    "HubDownload", (v["file"], pick.get_active_id() or ""),
+                    "Getting the model… (you can keep using the computer)", "(ss)")))
+                area.pack_start(pick, False, False, 0)
+                area.pack_start(get, False, False, 0)
+            area.show_all()
+
+        def repo_files(area: Gtk.Box, v: dict) -> None:
+            clear(area)
+            area.pack_start(small(words.licence_line(v["licence"])), False, False, 0)
+            if v["gated"]:
+                area.pack_start(small(words.t("h_gated")), False, False, 0)
+            for f in v["files"]:
+                line = Gtk.Box(spacing=6)
+                why = {"in parts": "h_parts", "picture reader": "h_mmproj", "no checksum": "h_nosum",
+                       "helper file": "h_helper"}.get(f["why_not"])
+                text = f"{f['file']} · {f['size'] / 2**30:.1f} GB" + (f" · {words.t(why)}" if why else "")
+                line.pack_start(Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=24), True, True, 0)
+                result = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                result.set_margin_start(12)
+                if f["offered"] and not v["gated"]:
+                    check = Gtk.Button(label=words.t("h_check"))
+
+                    def run_check(b, path=f["path"], result=result) -> None:
+                        b.set_sensitive(False)
+                        clear(result)
+                        result.pack_start(small(words.t("h_checking")), False, False, 0)
+                        result.show_all()
+                        self.daemon_async("HubCheck", (v["repo"], path), "(ss)", lambda c: checked(result, c))
+                    check.connect("clicked", run_check)
+                    line.pack_end(check, False, False, 0)
+                area.pack_start(line, False, False, 0)
+                area.pack_start(result, False, False, 0)
+            area.show_all()
+
+        def results(rs: list) -> None:
+            clear(found)
+            go.set_sensitive(True)
+            if not rs:
+                found.pack_start(small(words.t("h_none")), False, False, 0)
+            for r in rs:
+                b = Gtk.Button(label=r["repo"])
+                b.set_halign(Gtk.Align.START)
+                b.set_relief(Gtk.ReliefStyle.NONE)
+                found.pack_start(b, False, False, 0)
+                found.pack_start(small(f"{words.licence_line(r['licence'])} · {words.t('h_dl', n=r['downloads'])}"),
+                                 False, False, 0)
+                area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                area.set_margin_start(12)
+                found.pack_start(area, False, False, 0)
+                b.connect("clicked", lambda b, repo=r["repo"], area=area: self.daemon_async(
+                    "HubFiles", (repo,), "(s)", lambda v: repo_files(area, v)))
+            found.show_all()
+
+        def search(*_a) -> None:
+            q = entry.get_text().strip()
+            if q:
+                go.set_sensitive(False)
+                self.daemon_async("HubSearch", (q,), "(s)", results)
+        go.connect("clicked", search)
+        entry.connect("activate", search)
+
+        def drive_list(ds: list) -> None:
+            clear(on_drives)
+            drives.set_sensitive(True)
+            if not ds:
+                on_drives.pack_start(small(words.t("h_no_drives")), False, False, 0)
+            for d in ds:
+                on_drives.pack_start(Gtk.Label(label=f"{d['model']} · {d['size'] / 2**30:.1f} GB", xalign=0,
+                                               wrap=True, max_width_chars=30), False, False, 0)
+                on_drives.pack_start(small(d["path"]), False, False, 0)
+                for line in words.fit_lines(d["jobs"]):
+                    on_drives.pack_start(small(line), False, False, 0)
+                if d.get("here"):
+                    on_drives.pack_start(small(words.t("h_have")), False, False, 0)
+                elif any(f["fits"] for f in d["jobs"].values()):
+                    pick = self.job_picker(d["jobs"])
+                    bring = Gtk.Button(label=words.t("h_bring", gb=f"{d['size'] / 2**30:.1f}"))
+                    bring.connect("clicked", lambda b, path=d["path"], pick=pick: (b.set_sensitive(False),
+                                  self.start_job("ModelBringIn", (path, pick.get_active_id() or ""),
+                                                 "Copying the model…", "(ss)")))
+                    on_drives.pack_start(pick, False, False, 0)
+                    on_drives.pack_start(bring, False, False, 0)
+            on_drives.show_all()
+        drives.connect("clicked", lambda b: (b.set_sensitive(False),
+                                             self.daemon_async("ModelsOnDrives", (), "()", drive_list)))
 
     def requests_view(self) -> None:
         """Recent requests, each with its tree of tasks: state, what kind, which model did it; Stop on anything not

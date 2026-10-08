@@ -2002,6 +2002,14 @@ it); download with resume and the fingerprint check, a speed test here, then ass
 found, not downloaded again. A small helper asks what the person wants to do and suggests a setup; they decide. The
 CUDA engine is offered on one card once the NVIDIA driver is in (built 2026-10-08).
 
+*As built (2026-10-08, `daemon/jobs.py`, `daemon/hub.py`):* the view lists each job with its model (ours or the
+person's choice) and the models here, with Remove for one no job uses. The search says first that its words go to
+Hugging Face and nothing else (D86). A repository's files are pinned to its current revision with the SHA-256 from its
+own record; "Does it run here?" reads the file's first 8–96 MB (a range request) and answers per job. Download (the
+store's: resumes, checked), a speed test as the job will load it, then the job. Models on connected drives are copied
+in. The news and searches have no line: their reports are built in code, not by a model (D92). Not yet: models in
+parts, models that ask for a Hugging Face sign-in, a picture reader for a found model, and the setup helper.
+
 **Jobs, and the Requests view (Ian, 2026-10-08: "the requests list ties to the model list… we may try a combo with an
 old Qwen coder instead of 4B that works better for certain things").** The Models view assigns a model to each *job*,
 finer than a task's kind: help and the system, laying out code (the junior), writing code (the senior), reviewing, news

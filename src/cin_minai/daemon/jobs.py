@@ -15,6 +15,7 @@ The choice is kept in the model store (ModelStore.use: the plan, with the matche
 from __future__ import annotations
 
 import os
+import types
 
 from cin_minai.inference import matcher
 
@@ -123,7 +124,22 @@ def view(store, guide_path: str, machine=None) -> dict:
                                 "tok_s": round((p or {}).get("tok_s", 0), 1)})
         jobs.append({"job": job, "locked": locked, "active": active, "chosen": chosen, "current": current,
                      "choices": choices})
+    use = store.state()["use"]
+    for h in here:  # which jobs use it: a model in use isn't removed
+        h["used_by"] = sorted(j for j, p in use.items() if p and p.get("file") == h["file"])
     return {"jobs": jobs, "models": here, "free_bytes": store.free_bytes()}
+
+
+def remove(store, file: str) -> dict:
+    """Take a model out of the model folder (the record keeps where it came from). Not while a job uses it."""
+    file = os.path.basename(file)
+    if not store.has(file):
+        raise JobError(f"{file} isn't in the model folder")
+    using = [j for j, p in store.state()["use"].items() if p and p.get("file") == file]
+    if using:
+        raise JobError("a job uses that model: give the job another model first")
+    store.delete(catalog_entry(file) or types.SimpleNamespace(file=file))
+    return {"removed": file}
 
 
 def assign(store, job: str, file: str, guide_path: str = "", machine=None) -> dict:

@@ -143,6 +143,23 @@ XML = f"""
     <!-- give a job a model on this computer ("" = our pick again); help and the system stay with the guide (D94) -->
     <method name="ModelAssign"><arg type="s" name="job" direction="in"/><arg type="s" name="file" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
+    <!-- more models from Hugging Face (hub.py): the search words go there, nothing else (D86) -->
+    <method name="HubSearch"><arg type="s" name="query" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
+    <method name="HubFiles"><arg type="s" name="repo" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
+    <!-- whether a file there runs here, from its first megabytes: the jobs it can do and how fast -->
+    <method name="HubCheck"><arg type="s" name="repo" direction="in"/><arg type="s" name="path" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
+    <!-- fetch a checked file (resumes, checked against its checksum), test its speed, give it the job ("" = none) -->
+    <method name="HubDownload"><arg type="s" name="file" direction="in"/><arg type="s" name="job" direction="in"/>
+      <arg type="u" name="id" direction="out"/></method>
+    <!-- models on connected drives, each with the jobs it can do here; bring one in (copied into the model folder) -->
+    <method name="ModelRemove"><arg type="s" name="file" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
+    <method name="ModelsOnDrives"><arg type="s" name="json" direction="out"/></method>
+    <method name="ModelBringIn"><arg type="s" name="path" direction="in"/><arg type="s" name="job" direction="in"/>
+      <arg type="u" name="id" direction="out"/></method>
     <!-- keys for sources that need one (keys.py): the key goes to the login keyring and nowhere else; the answer
          never repeats it. json: ok and the source's name, or ok false and the error -->
     <method name="KeySet"><arg type="s" name="source" direction="in"/><arg type="s" name="key" direction="in"/>
@@ -225,6 +242,8 @@ class Service:
         self.vision_offers: dict[str, tuple[str, str]] = {}  # "set up reading pictures?": id -> (path, request)
         self.bigger_offers: dict[str, str] = {}  # offered "ask the bigger model", by id: the question with its terminal
         self.chain_offers: dict[str, dict] = {}  # D91: a chain waiting for its Search click, by offer id
+        self.hub_found: dict = {}  # repo -> its files as Hugging Face listed them (the checksums come from here)
+        self.hub_checked: dict = {}  # file -> the matcher's entry, read from its header: only these are fetched
         self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
         self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
@@ -527,8 +546,16 @@ class Service:
         elif method == "TurnCancel":
             (task,) = params.unpack()
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.turn_cancel(int(task))),)))
-        elif method in ("ModelsView", "ModelAssign"):
-            args = params.unpack() if method == "ModelAssign" else ()
+        elif method in ("HubDownload", "ModelBringIn"):
+            a, job = params.unpack()
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            (self.hub_download if method == "HubDownload" else self.bring_in)(self.next_id, a, job)
+        elif method in ("ModelsView", "ModelAssign", "ModelRemove", "HubSearch", "HubFiles", "HubCheck", "ModelsOnDrives"):
+            args = params.unpack() if params is not None else ()
             threading.Thread(target=self.models_call, args=(method, args, inv), daemon=True).start()
         elif method == "StandingList":
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
@@ -1365,7 +1392,8 @@ class Service:
             self.offers[task] = (time.monotonic(), plan)
         used = self.store.in_use(task)
         offer = None
-        if plan and plan.get("source") and (not used or used["file"] != plan["file"])                 and plan["file"] not in self.store.state()["declined"]:
+        if plan and plan.get("source") and (not used or used["file"] != plan["file"]) \
+                and plan["file"] not in self.store.state()["declined"]:
             offer = {k: plan[k] for k in ("model", "file", "why", "mode", "tok_s", "size")}
             offer["downloaded"] = self.store.has(plan["file"])
             rec = self.store.where(plan["file"]) or {}
@@ -1671,13 +1699,19 @@ class Service:
 
     def models_call(self, method: str, args: tuple, inv) -> None:
         """ModelsView / ModelAssign off the main loop: reading the machine and the models' headers takes a moment."""
-        from . import jobs
+        from . import hub, jobs
         guide = config.load()["inference"].get("model", "")
         try:
-            out = jobs.view(self.store, guide) if method == "ModelsView" else (
-                jobs.assign(self.store, args[0], args[1], guide))
+            if method == "ModelsView":
+                out = jobs.view(self.store, guide)
+            elif method == "ModelAssign":
+                out = jobs.assign(self.store, args[0], args[1], guide)
+            elif method == "ModelRemove":
+                out = jobs.remove(self.store, args[0])
+            else:
+                out = self.hub_call(method, args)
         except Exception as e:
-            if isinstance(e, jobs.JobError):
+            if isinstance(e, (jobs.JobError, hub.HubError)):
                 msg = str(e)
             else:
                 log(f"models view: {type(e).__name__}: {e}")
@@ -1687,6 +1721,128 @@ class Service:
         if method == "ModelAssign":
             log(f"job {args[0]}: {out.get('model') or 'our pick'}")
         GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
+
+    def hub_call(self, method: str, args: tuple):
+        """Searching Hugging Face, a repository's files, the fit check, and models on connected drives."""
+        from . import hub
+        if method == "HubSearch":
+            return hub.search(args[0])
+        if method == "HubFiles":
+            found = hub.files(args[0])
+            self.hub_found[found["repo"]] = found
+            return found
+        machine = matcher.read_machine(models_dir=self.store.root)
+        if method == "HubCheck":
+            repo, path = args
+            found = self.hub_found.get(repo)
+            f = next((x for x in (found or {}).get("files", []) if x["path"] == path), None)
+            if f is None:
+                raise hub.HubError("look at the repository's files first")
+            m = hub.model_for(repo, found["revision"], f)
+            self.hub_checked[m.file] = m
+            return {"repo": repo, "file": m.file, "model": m.name, "size": m.size, "licence": found["licence"],
+                    "gated": found["gated"], "here": self.store.has(m.file), "free_bytes": self.store.free_bytes(),
+                    "jobs": hub.fit(m, machine)}
+        out = []  # ModelsOnDrives
+        for d in hub.on_drives():
+            try:
+                m = matcher.model_from_gguf(d["path"])
+            except Exception:  # not a model llama.cpp reads: listed, never offered
+                out.append({**d, "model": d["file"], "jobs": {}})
+                continue
+            out.append({**d, "model": m.name, "here": self.store.has(d["file"]), "jobs": hub.fit(m, machine)})
+        self.drive_models = {d["path"] for d in out}
+        return out
+
+    def speed_test(self, m, job: str) -> tuple[dict, float]:
+        """Load the model the way its job will and measure it (the matcher only estimates)."""
+        from . import jobs
+        machine = matcher.read_machine(models_dir=self.store.root)
+        plan = matcher.full_plan(m, machine, jobs.context(job or "coding"), why="your choice")
+        if plan is None:
+            raise BackendError("it doesn't fit on this computer now")
+        big = LlamaCppBackend(backend_cfg(config.load()["inference"], plan, self.store.path(m.file)), log)
+        self.backend.unload()  # the card holds one model: the guide comes back with the next question
+        self.release_writing_model()
+        try:
+            return plan, benchmark(big.chat)
+        finally:
+            big.unload()
+
+    def model_ready(self, m, job: str, on_text, on_action) -> dict:
+        """After a download or a copy: test it here, then give it the job (if one was chosen)."""
+        from . import jobs
+        on_action("download", {"file": m.file}, "running", json.dumps({"model": m.name, "testing": True}))
+        try:
+            _, speed = self.speed_test(m, job)
+        except Exception as e:  # kept: the person decides whether to delete it
+            on_text(f"{m.name} is on this computer, but it didn't start here ({e}). Nothing was changed; you can "
+                    "remove it from the Models view.")
+            return {"tool": "model", "done": False}
+        if job:
+            jobs.assign(self.store, job, m.file, config.load()["inference"].get("model", ""))
+            self.store.use(job, {**self.store.state()["use"][job], "measured": round(speed, 1)})
+        on_action("download", {"file": m.file}, "done", json.dumps({"model": m.name, "measured": round(speed, 1)}))
+        on_text(f"{m.name} is ready: tested here at {speed:.0f} tokens a second (about {speed * 45:.0f} words a "
+                "minute). " + (f"It does that job from now on; the Models view switches it back."
+                               if job else "Give it a job in the Models view."))
+        return {"tool": "model", "done": True, "measured": speed}
+
+    def hub_download(self, rid: int, file: str, job: str) -> None:
+        m = self.hub_checked.get(file)
+        gb = lambda b: f"{b / 2**30:.1f}"  # noqa: E731
+
+        def fetch(on_text, on_action):
+            if m is None:
+                on_text("Check that model first: the Models view looks at whether it runs here before fetching it.")
+                return {"tool": "model", "done": False}
+            rec = self.store.where(m.file) or {}
+            if self.store.has(m.file) and rec.get("source") != m.source:
+                on_text(f"A different model called {m.file} is already in the model folder, so this one wasn't "
+                        "fetched.")
+                return {"tool": "model", "done": False}
+            repo = m.source.partition("@")[0]
+            try:
+                hook.run("download_model", lambda: self.store.download(m, lambda have, total: on_action(
+                    "download", {"file": m.file}, "running",
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total)})), self.cancel),
+                    f"download the model {m.name} from huggingface.co/{repo} (checked before use)",
+                    reversible=False, private=False)
+            except DownloadStopped:
+                on_text("Stopped. What was downloaded is kept, so it can carry on later.")
+                return {"tool": "model", "done": False}
+            return self.model_ready(m, job, on_text, on_action)
+        self.job(rid, fetch)
+
+    def bring_in(self, rid: int, path: str, job: str) -> None:
+        """Copy a model from a connected drive into the model folder (only one ModelsOnDrives listed)."""
+        gb = lambda b: f"{b / 2**30:.1f}"  # noqa: E731
+
+        def copy(on_text, on_action):
+            if path not in getattr(self, "drive_models", set()) or not os.path.isfile(path):
+                on_text("That model isn't on a connected drive any more.")
+                return {"tool": "model", "done": False}
+            m = matcher.model_from_gguf(path)
+            if self.store.has(m.file):
+                on_text(f"{m.file} is already in the model folder.")
+                return self.model_ready(m, job, on_text, on_action)
+            if m.size + (2 << 30) > self.store.free_bytes():
+                on_text(f"There isn't room for it: {m.size / 2**30:.1f} GB needed.")
+                return {"tool": "model", "done": False}
+            try:
+                self.store._copy_checked(path, self.store.path(m.file), "", lambda have, total: on_action(
+                    "download", {"file": m.file}, "running",
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total), "copy": True})),
+                    self.cancel)
+            except DownloadStopped:
+                part = self.store.path(m.file) + ".part"
+                if os.path.exists(part):
+                    os.remove(part)
+                on_text("Stopped; nothing was kept.")
+                return {"tool": "model", "done": False}
+            self.store.record(m, "store")
+            return self.model_ready(m, job, on_text, on_action)
+        self.job(rid, copy)
 
     def turn_cancel(self, task: int) -> dict:
         """Stop from the Requests view: a waiting request never starts (its asker is told); the running one stops
