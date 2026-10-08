@@ -1,10 +1,50 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-08** (latest: journal "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-08** (latest: journal "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-08, evening) — the AICUI tandem live; next build = the closures; Flash-Next next
+
+- **Pushed with this entry:** everything up to the evening (AICUI map/compile check/line-range edits/drafts/cap
+  enforced while streaming/goal gate, the tandem `aicui/tandem.py`, D96 SPEC §23, D97, PLAN §1b fill audit).
+- **Ian's PC runs AICUI `…193414`** (the last build; daemon too). His long test project finished: all goals ticked,
+  README, the program starts (private notes in cinminai-devtools/internal-tests).
+- **Next build — PLAN §1b "Queued for the next build"** (Ian: generalize, don't special-case): the move contract, the
+  cycle state per goal, one progress rule, project token + environment header (Ian's design), and the fixes found
+  (aicui Depends python3-venv, notes as events, refused fetch said plainly, link brackets, fetched pages keep HTML,
+  files from the web through AICUI with OK, stale drafts set aside). Replace REVIEW/is_review, goal_task, the
+  six-word plan key and the read/list counters — don't keep them beside the new mechanisms.
+- **Flash-Next as the reviewer:** files on Ian's NVMe, checksums match HF — `~/cinminai-flash/llama-0.6.0/` (CUDA
+  sm_61 + Vulkan + CPU; the 0.6.0 build root output in WSL m1/llama/d812350…), `~/cinminai-flash/Qwen3.8-Flash-Next/`
+  (3 parts + mmproj), Qwen3.5-9B in the model store. Plan: 9B coder + Flash-Next backbone on the card
+  (`-ngl 99 -ot "(exps|per_layer_token_embd)=CPU"`, mmap on, no mlock), the 4B out of AICUI; measure alone, together,
+  and on a real review. Check CUDA's "0 MiB" with the card free.
+- Decisions paused per D97 (D98-D100 only if required/forced); fill 58/95.
+
+## Where we stopped (2026-10-08, day) — Models view done; D96 habits designed; first test round on Ian's PC
+
+- **Pushed (2026-10-08 morning):** Team Table `5478d0c` (turn tokens) on Brickmii/team-table, then Cin-MinAI up to
+  `21356cf`: turn tokens slice 1 (daemon keeps a Team Table, a question while answering waits), Requests view, Models
+  view part 1 (jobs, assign, our pick, `daemon/jobs.py`) and part 2 (Hugging Face search / files pinned with SHA-256 /
+  "Does it run here?" by range request / download + speed test + job / drives / Remove, `daemon/hub.py`).
+  PyPI team-table 0.3.0 not released (needs a token scoped to team-table; manual release, pull from the Pi first).
+- **Local, not pushed:** `ff6a4da` AICUI listing shows the whole tree + a third identical listing is named;
+  `b05a088` the write cap follows measured characters per token; the D96 write-up (SPEC §23, PLAN D96, this journal).
+- **Test round on Ian's PC (NVMe):** builds `*082353*` (Models view), `*123337*` (listing fix), `*131824*` (cap fix) in
+  `~/cinminai-debs`; the desktop `prompts.txt` is append-only, a dated section per build (Ian: keep the bread crumbs —
+  never delete old debs or rewrite old lines). Installed so far: 082353 then 123337. Coding job given to the 27B in the
+  Models view; vision set and reset to our pick. Not yet tried: a Hugging Face download through the view, drives,
+  Remove, the Requests queue.
+- **D96 (SPEC §23): fetch – structure – check – use – review – assimilate.** Next slice: AICUI data from scripts (a
+  list over ~30 items comes from a script into a data file, checked; long literal data in code flagged after each
+  write), measured on a long coding job with real-world data before/after. Then the habit format + shipped habits
+  (PDF, video, web page, tables); then review + assimilation with slice 3 (hand-offs).
+- Still open on the update 6 list: slice 3 (roles, hand-offs, fix loop; acceptance: tandem round 3), slice 4 (key,
+  cloud reviewers), D89, privacy questions to the card by rule, Reddit-only wording, the NVIDIA-offline note, AGENTS.md
+  (Mint box wiped; Codex needs a new home).
 
 ## Where we stopped (2026-10-08, night) — one model system (SPEC §22, D95); update 6 in progress
 

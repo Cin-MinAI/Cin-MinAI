@@ -1490,3 +1490,100 @@ it as one experience, so it is one design — SPEC §22, the model system: turn 
 in a queue per model, capped at 5 % of the receiving model's context, budgets per request, Stop cancels the tree),
 placement on the hardware, contracts first, every result checked, honesty in every layer. Update 6 is built as its
 slices.
+
+## 2026-10-08 (day) — which model does which job, more models from Hugging Face, and the habit of working
+
+**The engine for turn tokens.** Ian's own Team Table (github.com/Brickmii/team-table) became the record of every
+request: hardened first (no identity takeover, no self-made admins, no cross-agent leaks, the MCP SDK pinned to a
+patched 1.x) and released as 0.2.1 on PyPI, then given turn tokens — task trees, budgets, a size cap of 5 % of the
+receiving model's context, the person's requests first, Stop for a whole tree, reviews. It ships as `cinminai-table`
+(the stdlib-only core; the MCP server stays an optional extra). In the daemon every question is a task; one asked
+while the assistant is answering waits its turn instead of being refused.
+
+**Requests and Models.** The **Requests view** lists recent requests as trees — state, kind, which model did it — with
+Stop on anything unfinished. The **Models view** shows each job with its model: help and the system locked to the
+guide (it holds the system's tools), writing code, writing, and pictures and video each with a picker of the models
+here that can do them, and the jobs that come with the hand-offs shown as coming. Ian's example drove it: "we may try
+a combo with an old Qwen coder instead of 4B that works better for certain things." Under it, **more models from
+Hugging Face**: a search of every GGUF repository (the screen says first that only the search words go there), each
+licence as the repository states it, "not reviewed by us"; the files pinned to one revision with their SHA-256 from
+the repository's own record; and **"Does it run here?"** — the first 8 MB of the file, by a range request, hold its
+header, and the matcher answers per job before anything big is fetched (1.4–1.8 s live: a 7B coder fully on a 1080 Ti
+at ~42 tokens a second, a 30B MoE coder with experts partly in RAM at ~23). Then the store's own download (resumes,
+checked), a speed test as the job will load it, and the job. Models on connected drives are found and copied in;
+Remove for one no job uses. Models in parts, sign-in repositories and picture readers for found models come later.
+
+**Tested on Ian's PC the same morning.** Installed over update 5 (16 upgraded, `cinminai-table` new); Ian gave the
+coding job to the 27B in the Models view and put AICUI to a long job. Two fixes came out of watching it:
+- **It listed the project 13 times in a row** until the stuck guard stopped it: a listing showed only the top level
+  (two folders), so it never saw the files inside and asked again. A listing now shows everything under the folder
+  with sizes, and the same unchanged listing a third time says so. Re-run: four looks, then straight to work.
+- **Two writes overran a step** although they were under the write cap: the cap assumed 2.6 characters a token, and
+  dense data — quoted names, numbers the tokenizer splits a digit at a time — ran about 2.1. The cap now follows what
+  the model's own long replies measure. The safeguards from last night held meanwhile: the cut-off rewrite never
+  replaced the file, and it finished in parts.
+
+Ian keeps the trail: old test builds stay in `~/cinminai-debs`, and the desktop prompts file grows a dated section per
+build ("I like to leave bread crumbs in case we get lost").
+
+**D96 — habits.** Asked how long a person would take for the same job (weeks, mostly the rules and the per-item
+logic), Ian asked how much good habits and shortcuts could help — and then saw it in the aggregate: "There is something
+I see here as universal in habit: jsons, automated scripts for quick habit retrieval like maybe reading a pdf and
+summarizing or fetching a youtube video and summarizing, or in code doing the json then checking it." He named the
+cycle: **fetch – structure – check – use – review – assimilate.** The model directs and code carries the bulk: code
+brings the material in and shapes it as JSON, code checks it, the model works from the checked data, someone other
+than the model that did the work reviews it, and what passed is assimilated — scripts with their checks become
+habits run by name, failures become new checks, preferences and project kits are kept, each with its origin, offered
+and never imposed. We had already worked this way twice without naming it — the news report built in code, the video
+summaries — and the long job had failed exactly where it skipped steps: data typed from memory, steps too long, a
+given source unused. SPEC §23; first slice: in AICUI, data comes from scripts and is checked before code uses it,
+measured against the same kind of job.
+
+## 2026-10-08 (afternoon and evening) — two models on one project, and the finish line
+
+**The coding model gets the whole picture from code.** Ian put AICUI to a long job in C++ and Python with a GUI,
+and each stall taught one thing. The 27B listed a folder 13 times (it saw only the top level), then re-read six files
+on every "continue", then read one 674-line file in pieces for twelve steps without noticing that a class held two
+generations of the same methods and that `main()` called a class that didn't exist. Now a project map is built from
+the code and starts every task — classes and functions with their lines, anything defined twice with both line
+ranges, names called but defined nowhere, and C/C++ compiled by the checks with the project's own flags — and an
+edit by line range removes a block without copying it out. The Models view had also dropped the chosen 27B from 32K
+to 16K; a chosen model now keeps the larger context, as our own pick does.
+
+**Two models on one project (SPEC §22.5, slice 3).** Ian: "If I hit continue on AICUI it should feed it to the
+small bot… letting the smaller bot do most of the organization except crucial stuff that needs to be done by the
+bigger bot, and information retrieval. Then they bounce back and forth until the project is finished." Built the
+same afternoon: the guide on the processor organizes (it never reads code — it reads ~38 tokens a second there — but
+the map, the problems the checks find, the goals and short summaries), the 27B on the card codes, one hint when it's
+stuck, then the person. Live on Ian's PC: the organizer's first task named the exact lines to fix; the coder fixed
+them in three minutes, renaming one call instead of writing a new class. Over the evening the pair made 99 changes in
+740 model steps with 34 hand-offs, compiled C++ that had never built, playtested the engine through its C bridge
+(finding that a placed piece never reached the board), fetched a source page with Ian's permission, parsed it with a
+script into a data file with a test, and ticked all four goals with a README — and the program starts. Its last move
+was to ask Ian to confirm it runs, which he did.
+
+**Measured, not assumed.** The write cap of the morning was never enforced at the sizes that matter: our
+llama-server keeps a string's maxLength at 500 characters but not at 3,000 or 8,800 (7,362 and 10,606 came out), so
+long writes kept running into a step's 4,096 tokens — three rewrites in a row, 6½ minutes each. AICUI now enforces
+the cap while the reply streams, and a long rewrite of an existing file goes to a draft that replaces the file only
+when complete. A goal was ticked once on a start script that had just been changed to exit cleanly when a package
+was missing; no goal is ticked now without a test that passes.
+
+**Ian's rule for the fixes.** As the patches piled up — a word list for "review" tasks, a code-written task, matching
+a plan's first words — Ian stopped it: "We can't just auto code what to do. This has to be generalized for
+function." The next build replaces them with general mechanisms (PLAN §1b): a contract for every move (what it acts
+on, what it changes, what proves it; the person's newest input first; the coder may decline a task with its
+reason), the habit cycle's state per goal, one progress rule, and Ian's design for environments — a project token,
+and a `.venv` that is first only a header, because "the bot can't make it until it knows what it's making"; the AI
+declares what it needs, and AICUI builds it with the person's OK. Practising the terminal, Ian made a venv by hand
+and hit the quirk every newcomer will: without `python3-venv` it comes without pip — so AICUI's package will depend
+on it.
+
+**D97 and the audit.** Ian paused new decisions: from D97 to D100 only what current ones require or what is forced,
+then none until 90 % are filled. The first fill audit: 58 of 95 live decisions filled (61 %), 86 needed.
+
+**Next: Flash-Next as the reviewer.** Its header shows 74 GiB: n-gram tables (27 GiB, a few rows read per token —
+left memory-mapped on the NVMe), 512 experts (43 GiB, ~0.9 GB read per token — RAM and the NVMe), and a ~3.5 GiB
+backbone read every token, which wants the card. So the coder steps down to a dense model that leaves room for it:
+Qwen3.5-9B (32K, ~36 tokens a second, beside ~4.4 GB of Flash-Next), chosen over a squeezed 14B coder. Both are on
+Ian's NVMe with their checksums matching Hugging Face; the measurement comes next.

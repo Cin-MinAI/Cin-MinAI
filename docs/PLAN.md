@@ -105,6 +105,8 @@ Last updated: 2026-09-25 (vision + community oversight, D26; M9 user-built softw
 | D93 | **Models matched to tasks, chosen by the person (Ian, 2026-10-07; extends D60, D82).** Ian: "We want options and customization when it comes to models. We have our basic stuff for easy use but people that want to dive in can search through Hugging Face for compatible models for their machine. I want an easy UI and integration with Cin-MinAI that allows the user to match the bot to the tasks. Searching for news isn't hard, small bots can do that. Working through arXiv papers is harder and would need a bigger model like the coding model. Or maybe someone wants to use a small coding model and a big writing model. They can do that." **One Models view** (start-screen button and panel menu, as every feature people open): the tasks — everyday help (the guide), the news and searches, writing, coding (AICUI), pictures and video, research papers — each with the model it uses now and **our pick for this computer as the default** (the matcher, D60); "use ours again" is one click. **Change a task's model:** our catalogue first (D82: measured, licences read); then **search Hugging Face** for GGUF models llama.cpp can run, each checked against this machine before it's offered (memory need read from the file's own header, the split it would use, and whether it fits), with its size, publisher and licence shown; download with resume and the fingerprint check, a short speed test on this machine, then assign it to one task or several. Models already on a drive (a USB disk's folder) are found and offered, not downloaded again. **A small helper** in the view asks what the person wants to do ("read arXiv papers", "code on a small card") and suggests a task setup; the person decides (Rule 9). What leaves the computer follows D86 (the search words go to Hugging Face; the card says so). Models are data, not code: GGUF only. Found on Ian's NVMe install the same day, the first pieces: nothing offered AICUI's coding model (AICUI pointed to a "model selection" that has no download), and the CUDA engine is only suggested, so NVIDIA users ended on Vulkan. **The search shows every compatible model** (Ian, 2026-10-07: "Every model. We assume these are for personal uses with a small push to invent with AI."): each with its licence as the publisher states it; licences we have read (D82) say so in plain words, the rest are labelled "licence not reviewed by us" with a link — information to show, not ours to filter. **The CUDA engine is offered, not forced** (Ian, 2026-10-07: "I like that method"): it costs ~296 MB to download and ~1.1 GB on disk (NVIDIA's CUDA libraries plus our build), so it stays a suggested package; the moment the NVIDIA driver is loaded and the engine is missing, the assistant offers it on one card (what it gives, the size) — Allow, then the password through the admin service — and switches to CUDA on the next load. Machines without an NVIDIA card never pay for it; one chain with "install the graphics driver" (driver, restart, "faster engine?"). | new 2026-10-07 |
 | D94 | **The 4B orchestrates; models by role; a key for admin automation; checks in code, reviews by another model (Ian, 2026-10-08; builds on D85, D88, D91, D93).** Ian: "4B is our guy though. I think anything system level goes there because we can safeguard it easily and use cards for direction easily… I want the admin cards kept with the admin and we might even make a USB key requirement for the admin stuff to be automated… 4B then directs the other models for tasks. If we want quality checks, we have it switch models and review with the other model but not the 4B. The 4B just orchestrates and verifies task goals." **Roles:** the tuned 4B guide alone holds system and admin tools — the model we trained and measured; any other model (any publisher, D93) is untrusted weights and gets only its task, never system tools. **Admin cards ship with the admin service** (versioned with the mechanism); the typed verbs and the mechanism's checks stay the lock, the cards are direction. **Orchestration** is recipes in code (D91): the 4B picks the recipe and fills the blanks; **"verifies task goals" means checks in code** wherever one can exist (file made, tests pass, page loads, setting changed — as AICUI's goal gate: "no tests" never passes), the 4B judging only where none can. **Reviews by a different model**, never the worker itself and not the 4B: e.g. the 27B (dense, careful) checks the 35B's fast summaries, the 35B (MoE, fast) reviews the 27B's code; one model at a time on a card, so reviews are batched; when they disagree, both views are shown, not settled (as D92). Same-family models share blind spots: a reviewer from another family is the most independent (a D93 setting). **Cloud models by choice** as the final check or the whole job (Ian: "you or Codex will be available for a final check also. Or Gemini or Grok… frontier cloud models are very useful and honestly trustworthy at this point"): OpenAI and Anthropic now, Gemini and Grok later; their API keys through the key card into the login keyring; what is sent shown first (D86). **A key for admin automation:** with the key in, admin actions may run in Auto (typed verbs only, each recorded); pulling it ends that at once; wiping a disk and the like still ask. This changes D85's "the assistant is never the admin" to "only with the key in, only typed actions, always recorded". The key: a FIDO2 security key (can't be copied; Linux supports it for admin prompts) is the strong option; a stick holding a key file is easier but copyable — Ian's choice when it's built. **Security strategy and work, split** (Ian: "all I can do is form the defensive strategies we use… thinking ahead about potential problems. Finding and fixing them is probably better off in the AI's hands"): Ian sets the defences (the 2-day hold and trusted sources, D89; untrusted models never hold system tools; the key); the AI — Mythos as the long-term security suite — finds and fixes within them, through the typed actions and the record, so trusting it stays cheap to check. | new 2026-10-08 |
 | D95 | **One model system; turn tokens (Ian, 2026-10-08; with D93, D94; SPEC §22).** Ian: "I kind of feel like this is all intertwined into a whole experience and should be considered as such." The models per task (D93), the roles (D94), placement on the hardware and the hand-offs between models are one system, designed and built together (SPEC §22). **Turn tokens** (Ian: "every request gets a turn token… if one model has quick repeated requests they stack as turn tokens like tasks for each model… if you ask the assistant to help you build the game it opens AICUI and gives 27B a turn token to start, then 27B gives back turn tokens for 4B"): a queue per model; every request — from the person, a recipe or another model — is a recorded token with its origin, so a request's whole tree is known and Stop cancels it. **Size cap: 5 % of the receiving model's context** (Ian: "turn tokens are capped at 5% of big model context cap"; per receiver, so the 4B on the processor gets ~400 at 8K); bulk goes by reference to files. Budgets per request (how many tokens, how deep); the person's own requests first. **Placement:** the big model on the card, the 4B on the processor beside it — measured on Ian's PC (2026-10-08), the two together don't slow each other (27B 15.4 → 15.3 tok/s, 4B 6.8 → 6.7); a model that fell back to the processor moves back onto the card when there's room (built). Ian: "I did like how one model ran on the card and one ran on the processor… tandem runs with a little assistant for the big model that runs in RAM and CPU"; junior/senior: "4B would handle a lot of the organization and information retrieval and 27B would lay down the code." **Measured, junior/senior on a small C++ project:** handing over in sequence doesn't pay (the 4B laid the framework in 5:45 on the processor, the 27B in 1:53 on the card); the gain is in working at the same time. Both runs failed on hand-off rules, not on coding: a contract chosen differently by the two sides (→ contracts in the header), notes carried into code (→ every result checked in code before it's accepted, errors back to the owner), a file re-implementing another's functions (→ each token says its scope). Update 6 is built as slices of this system (SPEC §22.8). | new 2026-10-08 |
+| D96 | **Habits: fetch – structure – check – use – review – assimilate (Ian, 2026-10-08; SPEC §23; builds on D86, D92, D94, D95).** Ian, watching a long coding job: "I'm wondering how much we can assist the process with good habits and shortcuts" — then, in the aggregate: "There is something I see here as universal in habit: jsons, automated scripts for quick habit retrieval like maybe reading a pdf and summarizing or fetching a youtube video and summarizing, or in code doing the json then checking it, or scripting or whatever then checking it." And the cycle: "fetch-structure-check-use-review-assimilate." **The model directs, code carries the bulk:** code fetches the material and structures it as JSON (the source of truth from then on), code checks it, the model works from the checked data, another model or the person reviews the result (never the one that did the work, D94), and what passed review is assimilated with its origin — a script and its check become a **habit** run by name, a failure becomes a **new check**, a preference, a project **kit**. For bulk (over ~30 items or a page) and for anything done before; small asks stay direct. Assimilation is offered, never decided (Rule 9), except checks learned from failures, which only add caution (listed, removable). Habits are code: sandboxed (D1), under the action modes (D85), network only if declared and allowed, a habit from elsewhere reviewed before its first run, no admin tools. Every run is a Team Table task (D95). The news scan (D92: the report built in code) and the video summaries already worked this way; the day it was named, a long coding job failed exactly where it skipped steps (real-world data typed from memory, two over-long steps, a given source unused). Built in slices (SPEC §23.4): AICUI data from scripts first, measured; then the habit format and shipped habits (PDF, video, web page, tables); then review and assimilation with the hand-offs. | new 2026-10-08 |
+| D97 | **Decisions pause at D100 until 90 % of the current ones are filled (Ian, 2026-10-08).** Ian: "at d100 all new decisions will be paused until 90% of current decisions are filled. No new decisions will be introduced from 97 to 100 except requirements for current decisions unless forced." **From D97 to D100:** a new decision only when an existing one requires it to be carried out (its missing piece, not a new direction), or when something forces it (a security flaw, a legal or licence requirement, hardware or an upstream change that breaks a promised function — the D52 kind). **At D100:** no new decisions until 90 % of the current ones are **filled** — built and shipped as decided, or applied as a standing rule — counted over the live decisions (not superseded ones such as D18; D87 was never adopted and stays unused). New ideas meanwhile are written down as **ideas** (PLAN §5b), not decisions. To count, each decision gets a fill status — filled, partly, open, parked — in a table kept with this file, updated as work lands. | new 2026-10-08 |
 | D42 | **AI recovery mode (post-MVP):** boot the install USB → the guide diagnoses the installed system against a **sealed install record + change timeline** ("what changed since it last worked?"), plus package checksums as an independent reference; key by 2-of-3 secret sharing (USB share, machine share in TPM/EFI, printed code); the guide suggests refreshing the USB backup and writes only on the user's approval; fixed repair set, plan + button, offline (SPEC §8.7). | new 2026-09-26 |
 
 ### D1 — Sandbox details
@@ -138,6 +140,172 @@ reuses the pyte emulation from the terminal spike. Risks to measure in M0: added
 throughput, and edge cases (`sudo -i`, `su`, `tmux`, `ssh`, nested shells).
 
 ---
+
+## 1b. Fill status (D97)
+
+Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a standing rule; **partly** = some of
+it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
+row when work lands. D87 was never adopted.
+
+**Count:** 95 live decisions (D18 superseded) — **58 filled (61 %)**, 23 partly,
+9 open, 5 parked (2026-10-08 evening: D96 open -> partly). 90 % is **86 filled**: 28 to go.
+
+| Decision | Status | Where it stands |
+|---|---|---|
+| D1 | filled | cinminai-sandbox (bwrap, private network), M3 |
+| D2 | filled | the action lanes in the one action path (M4) |
+| D3 | filled | cinminai-admin: polkit auth_admin per request, live-tested |
+| D4 | filled | the model is configuration, chosen by bakeoff (D43) |
+| D5 | filled | our llama.cpp packages: CUDA incl. sm_61, Vulkan, CPU (amended by D35) |
+| D6 | filled | schema-constrained JSON for every tool call |
+| D7 | partly | off by default; the opt-in for multi-step diagnosis isn't built |
+| D8 | filled | decided after the baseline (D43) |
+| D9 | filled | in effect; the private part ended with going public (D26, D70) |
+| D10 | filled | the ISO, public since 2026-10-04 |
+| D11 | filled | stage 1 (remaster + our apt repo) in use |
+| D12 | filled | daemon, applet, sidebar, Super+A |
+| D13 | filled | cinminai-shell PTY relay + OSC 133 (M3) |
+| D14 | filled | cinminai-firefox, Mozilla-signed, policy-installed |
+| D15 | filled | session D-Bus Assistant1; the admin service with polkit |
+| D16 | filled | Debian-packaged Python, GTK 3 |
+| D17 | filled | Cin-MinAI OS branding |
+| D18 | superseded | superseded by D23 |
+| D19 | filled | the relay skips input with echo off; terminals show whether they're seen |
+| D20 | partly | built and shipped; not tested hands-on, Ian's rework pending |
+| D21 | filled | standing rule |
+| D22 | filled | standing rule |
+| D23 | filled | the guide on the ISO, offline from the live USB |
+| D24 | partly | CUDA and Vulkan built; AMD never run on real hardware (HELP-WANTED) |
+| D25 | partly | UI and help in six languages; no Japanese input method or CJK font on the ISO yet |
+| D26 | filled | public repos, decisions, evals |
+| D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
+| D28 | partly | the offline-mode button and the 'what has this computer sent?' page aren't built |
+| D29 | open | no update window of our own yet (Mint's Update Manager) |
+| D30 | filled | standing rule (offer cards everywhere) |
+| D31 | partly | security updates continuous; model cycle 1 parked |
+| D32 | filled | the transition corpus, published |
+| D33 | filled | standing rule (A/B before adopting) |
+| D34 | filled | standing scope |
+| D35 | open | no cloud backend yet (OpenAI + Anthropic planned) |
+| D36 | filled | docs/HELP-WANTED.md |
+| D37 | partly | requirements stated (hardware.md); no testing on 6 GB laptops |
+| D38 | filled | standing rule |
+| D39 | partly | interpretation corpus generated; not in a shipped guide; personalization not built |
+| D40 | partly | compaction and handovers in AICUI; the sidebar's long-session notebook not built |
+| D41 | partly | method and bench published; no review cycle run since cycle 0 |
+| D42 | parked | post-MVP |
+| D43 | filled | the tuned 4B ships |
+| D44 | filled | licences in place |
+| D45 | filled | both boot checks passed |
+| D46 | filled | Pages apt repo + Hugging Face |
+| D47 | partly | the recommendation stands; the help cards and the installer work (whole drive as the recommended choice, bootloader always on the drive installed: the M7 fork) not done |
+| D48 | filled | how the assistant runs, as built |
+| D49 | filled | in the guide's prompt |
+| D50 | filled | screen-first boot |
+| D51 | partly | cinminai-diag with 23 codes; hardware tests from the USB not built |
+| D52 | filled | standing rule |
+| D53 | filled | diagnose + spreadsheets |
+| D54 | filled | standing rule |
+| D55 | filled | search offer + the journal |
+| D56 | filled | Story Circle |
+| D57 | filled | review before every chapter |
+| D58 | filled | Make a manuscript |
+| D59 | filled | self-restart after updates |
+| D60 | filled | writing model offered by the matcher |
+| D61 | partly | AICUI slices 1-2 + the day's checks (map, compile check, drafts, goal gate); closures queued (below): the progress rule, project token + environment header; file-watching changelog, goals interview, cloud not built |
+| D62 | open | publishing to GitHub Pages from AICUI not built |
+| D63 | open | cloud senior not built (local hand-offs are D94/D95) |
+| D64 | filled | update 3 |
+| D65 | filled | standing rule |
+| D66 | open | memory and personality (M4b) |
+| D67 | partly | action record and walls (M4 slices 1-3); memory atoms not built |
+| D68 | partly | web search and fetch; calculator, Z3, Khan Academy, Wikipedia tools not built |
+| D69 | filled | standing rule (guide and AICUI ask) |
+| D70 | filled | the org, the download, the path |
+| D71 | filled | CinMin/Cin-MinAI-OS |
+| D72 | filled | every signing with the key stick |
+| D73 | filled | docs/hardware.md |
+| D74 | parked | after the release |
+| D75 | parked | after the release |
+| D76 | parked | Ian's apps not ready |
+| D77 | filled | terminal sharing offered, then on (M3) |
+| D78 | filled | vision shipped before M4 |
+| D79 | parked | waits for a test picture with a known answer |
+| D80 | filled | YouTube summaries through our extension |
+| D81 | open | voice not built (whisper only for video files) |
+| D82 | partly | base + matched upgrades + Hugging Face explorer; memory that outlives a model waits for D66 |
+| D83 | open | the host assistant |
+| D84 | partly | coverage audit 80/84, tasks 69/77 |
+| D85 | filled | Ask / Auto / undo on the one action path |
+| D86 | filled | what's sent shown first, search offered |
+| D88 | partly | installs, standing watches; 'keep my computer updated' waits for D89 |
+| D89 | open | automatic updates with the hold |
+| D90 | open | waits for D66 |
+| D91 | partly | chains for video and news; other successive actions not built |
+| D92 | filled | press / social / official, standing watches |
+| D93 | partly | Models view + Hugging Face fit check; models in parts, sign-in repos, the setup helper not built |
+| D94 | partly | the guide holds system tools and organizes AICUI; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
+| D95 | partly | turn tokens slice 1, Requests view, placement, AICUI tandem (organizer + coder, live 2026-10-08); closure queued: the move contract |
+| D96 | partly | code-made structure and checks in AICUI (map, problems, compile check, cap, drafts, goal gate); closure queued: the cycle state per goal |
+| D97 | filled | standing rule; this table |
+
+### Queued for the next build: closures and fixes (Ian, 2026-10-08)
+
+Agreed with Ian while watching the tandem's first long run; built together in the next build, once his test run ends
+(nothing built meanwhile). Ian: "We can't just auto code what to do. This has to be generalized for function" — so
+the day's special cases (a word list for "review" tasks, a code-written goal task, matching a plan's first words,
+separate counters for reads and listings, picking links out of a message) are replaced by the general mechanisms
+below, not kept beside them.
+
+**Closures**
+
+1. **The move contract** (closes D95's hand-offs; with D94, D96; SPEC §22.5). Every organizer move declares what it
+   acts on, what it changes and what proves the change (a check, a test, a source). Code checks the contract, not the
+   wording: a move that changes nothing and proves nothing fails it (a review, a no-op such as "call X at line 13"
+   where line 13 *is* X), and so does a move that ignores the person's newest input — a link, a file, pasted data, an
+   answer to its question — which is consumed first. The coder may decline a task with its reason ("this doesn't
+   apply: …"); that is a valid outcome and goes back to the organizer, who revises it.
+2. **The cycle state per goal** (closes D96 in AICUI; with D68). Each goal carries where it stands in the cycle:
+   fetched, structured, checked, used, reviewed. The organizer picks the next stage; code knows what each needs:
+   *use* needs checked data (a source beats memory), *tick* needs a passing proof (no test, no tick), the person's
+   input enters at *fetch*.
+3. **One progress rule** (D61). Progress is a change of state — a file, a check's result, a stage, a source. No
+   progress for N steps: a hint (from code when the checks name problems), then the person. It replaces the read,
+   listing and plan counters.
+4. **Project token and environment header** (D61, with D30, D85, D86). Ian: "when a folder is opened up if it is an
+   AICUI created project it gets a project token… only AICUI projects can get a venv, and when it opens it asks if
+   you want to create one… it is just the folder with a header to the real one the AI is using because the bot can't
+   make it until it knows what it's making."
+   - A project AICUI created (or a folder the person makes one) gets a token (`.cinminai/project.json`); any other
+     folder — the home folder, the system — gets no environment and no offer.
+   - Opening a project, AICUI offers an environment (D30). Accepting makes `.venv/` a folder holding only a header:
+     the token, the Python version, the packages needed (none yet), where the real environment will live.
+   - When the work shows what it needs, the AI writes it into the header (a project file; it never runs pip). AICUI
+     sees the change and asks the person ("Python 3.12 + pygame-ce, about 15 MB from PyPI?" — D86), builds the real
+     environment outside the project (`~/.local/share/cinminai/envs/<token>`), and links `.venv` to it; a standard
+     `requirements.txt` is written from the header for other tools.
+   - The working tree shows it as one line ("Python environment: 3.12 · pygame-ce · built" / "not built yet").
+     Deleting the project lets AICUI remove its environment by token.
+
+**Fixes found** (2026-10-08, not built yet)
+
+- `cinminai-aicui` depends on `python3-venv`: Mint lacks it, and a venv made without it has no pip (Ian hit this).
+- A note sent to the model (a repeated plan, a reading streak) is also an event, so the chat and the record show it.
+- A fetch the person declined comes back to the organizer as "the person said no", never as a technical failure (the
+  4B read a refusal as "Wikipedia requires a browser").
+- A link's own closing bracket is kept when it's taken from a sentence (some wiki pages end in "…_(1E)") —
+  part of closure 1's input intake.
+- Flash-Next's engine (llama.cpp 0.6.0) showed the CUDA card as "0 MiB" while the 27B filled it: confirm with the
+  card free before the measurement (not a build item).
+- A fetched page keeps its structure, not only its text: the page as it came (HTML) beside the text, so a script can
+  parse it whole. The first fetch-to-data run (a wiki's gallery page) kept 7 of the list's 126 entries — a gallery is
+  pictures with captions, and the text lost them; the goal was ticked on a test that checked the 7 parsed, not the
+  set complete (closure 2's "checked" stage asks for the source's own count).
+- Files a project needs from the web (images) come through AICUI with the person's OK (D86), like pages; the
+  sandbox has no network, so the images asked for couldn't be fetched.
+- A draft belongs to the task that started it: a task that ends with its draft unfinished sets the draft aside
+  (`.cinminai/drafts-stale/`, kept) and says so. A 421-line draft of a GUI file was left by a task that stopped; the next
+  append to it would have completed it and replaced the 732-line file (moved aside by hand, 2026-10-08 17:39).
 
 ## 2. Hardware and environment
 

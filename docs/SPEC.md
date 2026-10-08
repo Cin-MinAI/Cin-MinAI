@@ -2087,3 +2087,79 @@ section protects.)
    round 3 of the tandem measurement — the two at the same time, contracts in the header, a check after every file,
    errors back to their owner — ending in a build whose tests pass.
 4. **Admin automation with the key, and cloud reviewers.**
+
+## 23. Habits: fetch, structure, check, use, review, assimilate (PLAN D96)
+
+One way of working for every job with bulk in it — code, a PDF, a video, a list, the system's logs. Ian, 2026-10-08:
+"There is something I see here as universal in habit: jsons, automated scripts for quick habit retrieval like maybe
+reading a pdf and summarizing or fetching a youtube video and summarizing, or in code doing the json then checking
+it, or scripting or whatever then checking it." And the cycle, in his words: **fetch – structure – check – use –
+review – assimilate.**
+
+**The principle: the model directs, code carries the bulk.** A model's context is small (8–16K here) and its memory
+of facts is unreliable; a script reads a 300-page PDF or a 126-row set list without effort and without inventing a
+row. So the model decides and writes small programs; code fetches, shapes and checks; the model works from the result.
+Measured the day it was named: on a long coding job the model typed ~340 lines of real-world data from memory — two
+steps overran their limit, the data was partly guessed, and a source it had been given went unused. Every failure was
+a step of this cycle skipped.
+
+### 23.1 The six steps
+
+1. **Fetch** — code brings the material in (a page, a file, a transcript, a feed, logs). What leaves the computer is
+   shown first (D86); the model doesn't read the bulk.
+2. **Structure** — code turns it into JSON (or CSV for plain tables): sections with pages, segments with times, rows
+   with fields. From here on that file is the source of truth, not the model's memory.
+3. **Check** — code checks the data: the count, no empty fields, every page or minute covered, a sample compared
+   against the source. Mechanical: *is the data right?* Only checked data goes on.
+4. **Use** — the model works from the checked JSON: it summarizes, codes, answers, reading what it needs.
+5. **Review** — a judgment on the result: *did it do what was asked, and is it good?* Never by the model that did the
+   work (D94): the reviewing job (§22.3), the person, or a cloud reviewer when the person allows one.
+6. **Assimilate** — what passed review goes back into the system, with where it came from (which run, which source,
+   who reviewed):
+   - a script and its check that worked → a **habit**, run by name next time;
+   - a failure review caught → a **new check**, so it can't pass again;
+   - how the person likes things done → a **preference** the next run starts from;
+   - a project shape that worked → a **kit** (a starting point for that kind of project).
+
+Small asks stay direct ("what time is it", a one-line edit). The cycle is for **bulk** (more than ~30 items or more
+than a page) and for anything **done before**.
+
+### 23.2 A habit
+
+A folder with three files — `habit.json` (name, what it's for, what it takes and gives as JSON schemas, the
+permissions it needs, its origin, its runs: how many, the last that passed, the last that failed), `run.py` (fetch and
+structure) and `check.py` (the check, exit 0 = passed, its findings as JSON). Three places: shipped with the system
+(`/usr/share/cinminai/habits`, ours, reviewed), the person's own (`~/.local/share/cinminai/habits`), and a project's
+(`.cinminai/habits` in AICUI). First shipped: a PDF to sections, a video to timed segments (the video pipeline), a web
+page to its text and tables, a table to rows, a list from a named source.
+
+**Who does what (D94):** running a habit is choosing it, filling its inputs and reading a small result — the guide
+can do that; writing a new habit is coding — the coding model; reviewing is another model or the person. The tandem
+split (§22.5) follows from the work itself.
+
+**Every run is a task on the Team Table (§22.4)** with its inputs, its output, the check's verdict and the review's;
+the Requests view shows it.
+
+### 23.3 Rules
+
+- **Assimilate only what passed review** — otherwise mistakes are learned and repeated.
+- **Assimilating changes the system, so it is suggested, never decided (Rule 9, D30):** a new habit, preference or
+  kit is offered with its reason ("this worked three times — keep it as a habit?"). A check learned from a failure
+  only adds caution and may be added on its own; it is listed and can be removed.
+- **Everything assimilated keeps its origin** and can be traced and undone.
+- **Habits are code:** they run in the sandbox (D1) under the action modes (D85) — reversible ones may run
+  automatically, anything else asks; network only if the habit declares it and the person allows it. A habit from
+  anyone else is shown and reviewed before its first run. No habit holds admin tools (D94).
+- **A check is only as good as what it checks:** counts catch missing rows, not wrong ones — checks also compare
+  samples against the source.
+- **Honest reports:** a failed check or review is said plainly, with what failed.
+
+### 23.4 Build order
+
+1. **AICUI, data from scripts:** a list over ~30 items comes from a script into a data file and is checked before
+   code uses it; long literal data written into code is flagged by the summary after each write. Measured on a long
+   coding job with real-world data, before and after.
+2. **The habit format and the first shipped habits**, reshaped from what the daemon already does (video, web page,
+   tables), plus PDF.
+3. **Review and assimilation:** the reviewing job, the offer card for a new habit, learned checks; with slice 3 of
+   §22.8 (the guide runs habits, the big model writes them).
