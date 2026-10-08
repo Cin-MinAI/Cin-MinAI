@@ -14,6 +14,16 @@ model's story: `docs/guide-model-journal.md`.
   test SSD runs exactly this build. Found in the final round, for update 6: privacy questions answered from the
   model's memory once (route them to the card by rule); Reddit-only requests leaking words / "reddit …" first;
   Reddit announced it is ending RSS and public API access (our Reddit source may go; the report says so if it does).
+- **Bug found on the live stick (Ian's NVMe install run, 2026-10-07, the 0.0.1 ISO from Hugging Face, Balena,
+  blue USB 3 port):** the assistant never loads on the stick. On the processor (no NVIDIA driver live) llama-server
+  maps the model from `/cdrom/cinminai/models/…gguf` and reads it in small scattered pieces; the stick is slow at
+  that, so after 10 minutes only ~2 GB of 2.6 GB was in memory and the load gave up ("took too long to load the
+  model"; the header said "Getting ready…" all along, then "Not available"). Proven: reading the file once in a
+  straight pass (`dd … of=/dev/null bs=4M`) put it in memory and the next question answered in ~30 s. **Fix for
+  update 6 + the next ISO:** on the live session read the model in one pass (`--no-mmap`, or a sequential read into
+  the page cache before starting) and say what's happening ("loading the assistant from the stick, about N
+  minutes") instead of a bare "Getting ready…". Also: the live session keeps no user journal (`journalctl --user`
+  empty); the daemon's log was in `systemctl --user status`.
 - **Decisions D88–D92** in PLAN (standing tasks; Mint's automatic updates with a 2-day hold + trusted sources;
   feeling noticed, honestly; successive actions as recipes in code; the news scan — who says what).
 - **Hands-on rounds 1–5** (Ian at the test SSD, no runner; the lead reads the D-Bus signals: the watcher on the SSD
