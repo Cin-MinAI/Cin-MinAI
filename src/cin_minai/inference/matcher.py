@@ -275,6 +275,33 @@ def plan(m: Model, machine: Machine, ctx: int) -> dict | None:
     return None
 
 
+def model_from_gguf(path: str, name: str = "", size: int = 0) -> Model:
+    """A matcher entry from a model file's own header (SPEC §22.3): any GGUF — ours, one on a drive, one found on
+    Hugging Face (its first megabytes are enough: size = the whole file's bytes)."""
+    from . import gguf
+    g = gguf.read(path, size or None)
+    experts = g.expert_bytes()
+    n_expert = int(g.get("expert_count", 0) or 0)
+    used = int(g.get("expert_used_count", 0) or 0)
+    return Model(name or os.path.splitext(os.path.basename(path))[0], os.path.basename(path),
+                 sum(g.tensors.values()) or g.file_bytes, g.layers,  # the tensors, as the catalog counts
+                 int(g.kv_bytes_per_token("q8_0")), int(g.kv_bytes_per_token("q4_0")),
+                 emb=g.tensors.get("token_embd.weight", 0), experts=experts,
+                 active=(used / n_expert) if experts and n_expert else 1.0, size=size or g.file_bytes)
+
+
+def full_plan(m: Model, machine: Machine, ctx: int, why: str = "") -> dict | None:
+    """How this machine runs m at ctx, in the shape match() gives (for a model the person chose for a job)."""
+    p = plan(m, machine, ctx)
+    if not p:
+        return None
+    return {"model": m.name, "file": m.file, "why": why or m.note, **p, "context": ctx, "source": m.source,
+            "size": m.size, "sha256": m.sha256,
+            "reserve_mib": margin_mib(machine.cards[0]) if machine.cards else 0,
+            "tok_s": [round(p["tok_s"] * 0.7, 1), round(p["tok_s"] * 1.3, 1)],
+            "args": p["args"] + ["-c", str(ctx), "-fa", "on", "-ctk", p["cache"], "-ctv", p["cache"]]}
+
+
 def match(machine: Machine) -> dict:
     out = {}
     for task, models in CATALOG.items():

@@ -446,7 +446,8 @@ def journal_written(e: dict) -> str:
 # Written by Claude (not a native speaker of es/pt/fr/de/ja): wants a native speaker's review (D36). The rest of the
 # sidebar is still English (the Alpha's note above).
 T = {
-    "en": {'requests': 'Requests', 'no_requests': 'Nothing asked yet.', 'stop': 'Stop', 'refresh': 'Refresh', 'st_pending': 'waiting', 'st_in_progress': 'working', 'st_done': 'done', 'st_blocked': "didn't finish", 'st_cancelled': 'stopped', 'st_awaiting_review': 'in review', 'by_model': 'by {model}', 'k_ask': 'a question', 'k_watch': 'a news watch', 'k_code': 'code', 'k_review': 'a review', 
+    "en": {'models': 'Models', 'job_system': 'Help and the system', 'job_coding': 'Writing code (AICUI)', 'job_writing': 'Writing', 'job_vision': 'Pictures and video', 'job_junior': 'Laying out code', 'job_review': 'Reviewing', 'job_research': 'Research papers', 'm_locked': "Stays with the guide: it holds the system's tools.", 'm_soon': 'Comes when models can hand work to each other.', 'm_ours': 'our pick', 'm_yours': 'your choice', 'm_use_ours': 'Our pick', 'm_fast': 'runs well here', 'm_slow': 'runs slowly here', 'm_no_fit': "doesn't run here", 'm_here': 'On this computer', 'm_system': 'comes with the system', 'm_parked': 'parked on {drive}', 'm_free': '{gb} GB free for models', 'm_reading': 'Reading the models here…', 
+           'requests': 'Requests', 'no_requests': 'Nothing asked yet.', 'stop': 'Stop', 'refresh': 'Refresh', 'st_pending': 'waiting', 'st_in_progress': 'working', 'st_done': 'done', 'st_blocked': "didn't finish", 'st_cancelled': 'stopped', 'st_awaiting_review': 'in review', 'by_model': 'by {model}', 'k_ask': 'a question', 'k_watch': 'a news watch', 'k_code': 'code', 'k_review': 'a review', 
            "queued": 'Waiting its turn: the assistant is finishing another answer first ({ahead} ahead).', "allow": 'Allow', "no": 'No', "stick_read": 'Reading the assistant from the USB stick: {pct}%', "stick_wait": "Getting the assistant ready from the USB stick. The first time it reads the whole model from the stick, a few minutes; the header shows how far it is. Once it's installed, it starts in seconds.",
            "search_head": "Search the web for:", "search": "Search", "no_thanks": "No thanks", "looking": "Looking it up…",
            "search_note": "Only these words are sent, to {provider}. The pages it finds are read to answer you. "
@@ -477,7 +478,8 @@ T = {
                        "assistant never sees it, and it isn't kept in the conversation. Only that source's own "
                        "requests use it.",
            "key_saved": "Key saved for {name}, in your login keyring. It's used from the next search on."},
-    "es": {'requests': 'Peticiones', 'no_requests': 'Todavía no se ha pedido nada.', 'stop': 'Detener', 'refresh': 'Actualizar', 'st_pending': 'en espera', 'st_in_progress': 'en curso', 'st_done': 'hecho', 'st_blocked': 'no terminó', 'st_cancelled': 'detenido', 'st_awaiting_review': 'en revisión', 'by_model': 'por {model}', 'k_ask': 'una pregunta', 'k_watch': 'un seguimiento de noticias', 'k_code': 'código', 'k_review': 'una revisión', 
+    "es": {'models': 'Modelos', 'job_system': 'Ayuda y el sistema', 'job_coding': 'Escribir código (AICUI)', 'job_writing': 'Escritura', 'job_vision': 'Imágenes y vídeo', 'job_junior': 'Esbozar código', 'job_review': 'Revisión', 'job_research': 'Artículos de investigación', 'm_locked': 'Se queda con la guía: tiene las herramientas del sistema.', 'm_soon': 'Llegará cuando los modelos puedan pasarse el trabajo.', 'm_ours': 'nuestra elección', 'm_yours': 'tu elección', 'm_use_ours': 'Nuestra elección', 'm_fast': 'va bien aquí', 'm_slow': 'va lento aquí', 'm_no_fit': 'no funciona aquí', 'm_here': 'En este equipo', 'm_system': 'viene con el sistema', 'm_parked': 'guardado en {drive}', 'm_free': '{gb} GB libres para modelos', 'm_reading': 'Leyendo los modelos de este equipo…', 
+           'requests': 'Peticiones', 'no_requests': 'Todavía no se ha pedido nada.', 'stop': 'Detener', 'refresh': 'Actualizar', 'st_pending': 'en espera', 'st_in_progress': 'en curso', 'st_done': 'hecho', 'st_blocked': 'no terminó', 'st_cancelled': 'detenido', 'st_awaiting_review': 'en revisión', 'by_model': 'por {model}', 'k_ask': 'una pregunta', 'k_watch': 'un seguimiento de noticias', 'k_code': 'código', 'k_review': 'una revisión', 
            "queued": 'Esperando su turno: el asistente está terminando otra respuesta ({ahead} por delante).', "allow": 'Permitir', "no": 'No', "stick_read": 'Leyendo el asistente desde la memoria USB: {pct}%', "stick_wait": 'Preparando el asistente desde la memoria USB. La primera vez lee todo el modelo de la memoria, unos minutos; arriba se ve cuánto lleva. Una vez instalado, arranca en segundos.',
            "search_head": "Buscar en la web:", "search": "Buscar", "no_thanks": "No, gracias", "looking": "Buscando…",
            "search_note": "Solo se envían estas palabras, a {provider}. Las páginas que encuentre se leen para "
@@ -509,7 +511,8 @@ T = {
                        "fuente.",
            "key_saved": "Clave guardada para {name} en tu llavero de inicio de sesión. Se usará a partir de la "
                         "próxima búsqueda."},
-    "pt": {'requests': 'Pedidos', 'no_requests': 'Nada pedido ainda.', 'stop': 'Parar', 'refresh': 'Atualizar', 'st_pending': 'aguardando', 'st_in_progress': 'em andamento', 'st_done': 'feito', 'st_blocked': 'não terminou', 'st_cancelled': 'parado', 'st_awaiting_review': 'em revisão', 'by_model': 'por {model}', 'k_ask': 'uma pergunta', 'k_watch': 'um acompanhamento de notícias', 'k_code': 'código', 'k_review': 'uma revisão', 
+    "pt": {'models': 'Modelos', 'job_system': 'Ajuda e o sistema', 'job_coding': 'Escrever código (AICUI)', 'job_writing': 'Escrita', 'job_vision': 'Imagens e vídeo', 'job_junior': 'Esboçar código', 'job_review': 'Revisão', 'job_research': 'Artigos de pesquisa', 'm_locked': 'Fica com o guia: ele tem as ferramentas do sistema.', 'm_soon': 'Chega quando os modelos puderem passar trabalho entre si.', 'm_ours': 'nossa escolha', 'm_yours': 'sua escolha', 'm_use_ours': 'Nossa escolha', 'm_fast': 'roda bem aqui', 'm_slow': 'roda devagar aqui', 'm_no_fit': 'não roda aqui', 'm_here': 'Neste computador', 'm_system': 'vem com o sistema', 'm_parked': 'guardado em {drive}', 'm_free': '{gb} GB livres para modelos', 'm_reading': 'Lendo os modelos deste computador…', 
+           'requests': 'Pedidos', 'no_requests': 'Nada pedido ainda.', 'stop': 'Parar', 'refresh': 'Atualizar', 'st_pending': 'aguardando', 'st_in_progress': 'em andamento', 'st_done': 'feito', 'st_blocked': 'não terminou', 'st_cancelled': 'parado', 'st_awaiting_review': 'em revisão', 'by_model': 'por {model}', 'k_ask': 'uma pergunta', 'k_watch': 'um acompanhamento de notícias', 'k_code': 'código', 'k_review': 'uma revisão', 
            "queued": 'Aguardando a vez: o assistente está terminando outra resposta ({ahead} na frente).', "allow": 'Permitir', "no": 'Não', "stick_read": 'Lendo o assistente do pendrive: {pct}%', "stick_wait": 'Preparando o assistente a partir do pendrive. Na primeira vez ele lê o modelo inteiro do pendrive, alguns minutos; o andamento aparece no topo. Depois de instalado, ele inicia em segundos.',
            "search_head": "Pesquisar na web:", "search": "Pesquisar", "no_thanks": "Não, obrigado",
            "looking": "Pesquisando…",
@@ -540,7 +543,8 @@ T = {
            "key_note": "A chave vai direto para o seu chaveiro de sessão, protegido pela sua senha. O assistente "
                        "nunca a vê e ela não fica na conversa. Só as consultas dessa fonte a usam.",
            "key_saved": "Chave salva para {name} no seu chaveiro de sessão. Ela será usada a partir da próxima busca."},
-    "fr": {'requests': 'Demandes', 'no_requests': "Rien de demandé pour l'instant.", 'stop': 'Arrêter', 'refresh': 'Actualiser', 'st_pending': 'en attente', 'st_in_progress': 'en cours', 'st_done': 'fait', 'st_blocked': 'pas terminé', 'st_cancelled': 'arrêté', 'st_awaiting_review': 'en relecture', 'by_model': 'par {model}', 'k_ask': 'une question', 'k_watch': "une veille d'actualités", 'k_code': 'du code', 'k_review': 'une relecture', 
+    "fr": {'models': 'Modèles', 'job_system': 'Aide et système', 'job_coding': 'Écrire du code (AICUI)', 'job_writing': 'Écriture', 'job_vision': 'Images et vidéo', 'job_junior': 'Esquisser du code', 'job_review': 'Relecture', 'job_research': 'Articles de recherche', 'm_locked': 'Reste avec le guide : il détient les outils du système.', 'm_soon': 'Arrive quand les modèles pourront se passer le travail.', 'm_ours': 'notre choix', 'm_yours': 'votre choix', 'm_use_ours': 'Notre choix', 'm_fast': 'tourne bien ici', 'm_slow': 'tourne lentement ici', 'm_no_fit': 'ne tourne pas ici', 'm_here': 'Sur cet ordinateur', 'm_system': 'fourni avec le système', 'm_parked': 'rangé sur {drive}', 'm_free': '{gb} Go libres pour les modèles', 'm_reading': 'Lecture des modèles de cet ordinateur…', 
+           'requests': 'Demandes', 'no_requests': "Rien de demandé pour l'instant.", 'stop': 'Arrêter', 'refresh': 'Actualiser', 'st_pending': 'en attente', 'st_in_progress': 'en cours', 'st_done': 'fait', 'st_blocked': 'pas terminé', 'st_cancelled': 'arrêté', 'st_awaiting_review': 'en relecture', 'by_model': 'par {model}', 'k_ask': 'une question', 'k_watch': "une veille d'actualités", 'k_code': 'du code', 'k_review': 'une relecture', 
            "queued": "En attente : l'assistant termine d'abord une autre réponse ({ahead} avant).", "allow": 'Autoriser', "no": 'Non', "stick_read": "Lecture de l'assistant depuis la clé USB : {pct} %", "stick_wait": "Préparation de l'assistant depuis la clé USB. La première fois, il lit tout le modèle sur la clé, quelques minutes ; l'en-tête montre l'avancement. Une fois installé, il démarre en quelques secondes.",
            "search_head": "Rechercher sur le web :", "search": "Rechercher", "no_thanks": "Non merci",
            "looking": "Recherche…",
@@ -574,7 +578,8 @@ T = {
                        "requêtes de cette source l'utilisent.",
            "key_saved": "Clé enregistrée pour {name} dans votre trousseau de session. Elle servira dès la prochaine "
                         "recherche."},
-    "de": {'requests': 'Anfragen', 'no_requests': 'Noch nichts gefragt.', 'stop': 'Stoppen', 'refresh': 'Aktualisieren', 'st_pending': 'wartet', 'st_in_progress': 'läuft', 'st_done': 'fertig', 'st_blocked': 'nicht fertig geworden', 'st_cancelled': 'gestoppt', 'st_awaiting_review': 'in Prüfung', 'by_model': 'von {model}', 'k_ask': 'eine Frage', 'k_watch': 'eine Nachrichtenbeobachtung', 'k_code': 'Code', 'k_review': 'eine Prüfung', 
+    "de": {'models': 'Modelle', 'job_system': 'Hilfe und System', 'job_coding': 'Code schreiben (AICUI)', 'job_writing': 'Schreiben', 'job_vision': 'Bilder und Video', 'job_junior': 'Code entwerfen', 'job_review': 'Prüfen', 'job_research': 'Fachartikel', 'm_locked': 'Bleibt beim Guide: Er hat die Werkzeuge des Systems.', 'm_soon': 'Kommt, wenn Modelle einander Arbeit übergeben können.', 'm_ours': 'unsere Wahl', 'm_yours': 'deine Wahl', 'm_use_ours': 'Unsere Wahl', 'm_fast': 'läuft hier gut', 'm_slow': 'läuft hier langsam', 'm_no_fit': 'läuft hier nicht', 'm_here': 'Auf diesem Computer', 'm_system': 'gehört zum System', 'm_parked': 'ausgelagert auf {drive}', 'm_free': '{gb} GB frei für Modelle', 'm_reading': 'Die Modelle hier werden gelesen …', 
+           'requests': 'Anfragen', 'no_requests': 'Noch nichts gefragt.', 'stop': 'Stoppen', 'refresh': 'Aktualisieren', 'st_pending': 'wartet', 'st_in_progress': 'läuft', 'st_done': 'fertig', 'st_blocked': 'nicht fertig geworden', 'st_cancelled': 'gestoppt', 'st_awaiting_review': 'in Prüfung', 'by_model': 'von {model}', 'k_ask': 'eine Frage', 'k_watch': 'eine Nachrichtenbeobachtung', 'k_code': 'Code', 'k_review': 'eine Prüfung', 
            "queued": 'Wartet: Der Assistent beendet zuerst eine andere Antwort ({ahead} davor).', "allow": 'Erlauben', "no": 'Nein', "stick_read": 'Assistent wird vom USB-Stick gelesen: {pct} %', "stick_wait": 'Der Assistent wird vom USB-Stick vorbereitet. Beim ersten Mal liest er das ganze Modell vom Stick, ein paar Minuten; oben steht, wie weit er ist. Nach der Installation startet er in Sekunden.',
            "search_head": "Im Web suchen nach:", "search": "Suchen", "no_thanks": "Nein, danke", "looking": "Suche läuft…",
            "search_note": "Nur diese Wörter werden gesendet, an {provider}. Die gefundenen Seiten werden gelesen, um "
@@ -607,7 +612,8 @@ T = {
                        "die Anfragen dieser Quelle verwenden ihn.",
            "key_saved": "Schlüssel für {name} im Anmelde-Schlüsselbund gespeichert. Er wird ab der nächsten Suche "
                         "verwendet."},
-    "ja": {'requests': 'リクエスト', 'no_requests': 'まだ何も頼まれていません。', 'stop': '停止', 'refresh': '更新', 'st_pending': '待機中', 'st_in_progress': '処理中', 'st_done': '完了', 'st_blocked': '完了せず', 'st_cancelled': '停止済み', 'st_awaiting_review': 'レビュー中', 'by_model': '担当：{model}', 'k_ask': '質問', 'k_watch': 'ニュースの見守り', 'k_code': 'コード', 'k_review': 'レビュー', 
+    "ja": {'models': 'モデル', 'job_system': 'ヘルプとシステム', 'job_coding': 'コードを書く（AICUI）', 'job_writing': '文章', 'job_vision': '画像と動画', 'job_junior': 'コードの骨組み', 'job_review': 'レビュー', 'job_research': '研究論文', 'm_locked': 'ガイドのままです。システムの道具を持っているからです。', 'm_soon': 'モデル同士が作業を受け渡せるようになったら使えます。', 'm_ours': 'おすすめ', 'm_yours': 'あなたの選択', 'm_use_ours': 'おすすめ', 'm_fast': 'ここで快適に動きます', 'm_slow': 'ここでは遅いです', 'm_no_fit': 'ここでは動きません', 'm_here': 'このコンピューターにあるもの', 'm_system': 'システムに付属', 'm_parked': '{drive} に保管中', 'm_free': 'モデル用の空き {gb} GB', 'm_reading': 'このコンピューターのモデルを読んでいます…', 
+           'requests': 'リクエスト', 'no_requests': 'まだ何も頼まれていません。', 'stop': '停止', 'refresh': '更新', 'st_pending': '待機中', 'st_in_progress': '処理中', 'st_done': '完了', 'st_blocked': '完了せず', 'st_cancelled': '停止済み', 'st_awaiting_review': 'レビュー中', 'by_model': '担当：{model}', 'k_ask': '質問', 'k_watch': 'ニュースの見守り', 'k_code': 'コード', 'k_review': 'レビュー', 
            "queued": '順番待ち：アシスタントは先に別の回答を仕上げています（前に{ahead}件）。', "allow": '許可', "no": 'いいえ', "stick_read": 'USBメモリからアシスタントを読み込み中：{pct}%', "stick_wait": 'USBメモリからアシスタントを準備しています。初回はモデル全体をUSBメモリから読み込むため数分かかります。進み具合は上部に表示されます。インストール後は数秒で起動します。',
            "search_head": "ウェブで検索：", "search": "検索", "no_thanks": "結構です", "looking": "検索しています…",
            "search_note": "送られるのはこの言葉だけで、送り先は{provider}です。見つかったページを読んで答えます。あなたや"
@@ -1094,3 +1100,19 @@ def request_lines(task: dict, lang: str | None = None) -> tuple[str, str]:
         pass
     detail = " · ".join(x for x in (kind, t("by_model", lang, model=model) if model else "") if x)
     return f"{task.get('title', '')} — {state}", detail
+
+
+def job_lines(job: dict, lang: str | None = None) -> tuple[str, str]:
+    """(the job's name, what does it now) for the Models view (SPEC §22.3)."""
+    name = t("job_" + job["job"], lang)
+    if job.get("locked"):
+        return name, f"{(job.get('current') or {}).get('model', '')} · {t('m_locked', lang)}"
+    if not job.get("active"):
+        return name, t("m_soon", lang)
+    cur = job.get("current") or {}
+    return name, f"{cur.get('model', '')} · {t('m_yours' if job.get('chosen') else 'm_ours', lang)}"
+
+
+def choice_label(choice: dict, lang: str | None = None) -> str:
+    speed = "m_no_fit" if not choice.get("fits") else "m_fast" if choice.get("tok_s", 0) >= 6 else "m_slow"
+    return f"{choice['model']} — {t(speed, lang)}"

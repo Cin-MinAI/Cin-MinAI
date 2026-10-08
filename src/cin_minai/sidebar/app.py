@@ -233,7 +233,8 @@ class Sidebar(Gtk.Application):
                           ("Open the journal", lambda b: self.open_journal()),
                           ("Open AICUI (coding)", lambda b: self.open_aicui()),
                           (words.t("standing"), lambda b: self.standing_list()),  # D88: found where people look
-                          (words.t("requests"), lambda b: self.requests_view())):  # turn tokens (SPEC §22.4)
+                          (words.t("requests"), lambda b: self.requests_view()),  # turn tokens (SPEC §22.4)
+                          (words.t("models"), lambda b: self.models_view())):  # which model does which job (§22.3)
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
             row.add(b)
@@ -645,6 +646,9 @@ class Sidebar(Gtk.Application):
         menu.append(item)
         item = Gtk.MenuItem(label=words.t("requests"))
         item.connect("activate", lambda i: self.requests_view())
+        menu.append(item)
+        item = Gtk.MenuItem(label=words.t("models"))
+        item.connect("activate", lambda i: self.models_view())
         menu.append(item)
         sharing = self.daemon_json("TerminalSharing", "state") or {}
         if sharing.get("available"):  # D77: the switch, for after the one-time offer
@@ -1083,6 +1087,95 @@ class Sidebar(Gtk.Application):
         box.pack_start(buttons, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
+
+    def models_view(self) -> None:
+        """Which model does each job, and the models on this computer (SPEC §22.3): give a job another model that
+        runs here, or our pick again. Help and the system stay with the guide (D94)."""
+        if not self.proxy:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        title = Gtk.Label(label=words.t("models"), xalign=0)
+        title.get_style_context().add_class("what")
+        box.pack_start(title, False, False, 0)
+        reading = Gtk.Label(label=words.t("m_reading"), xalign=0)
+        box.pack_start(reading, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+        def again() -> bool:
+            box.destroy()
+            self.models_view()
+            return False
+
+        def assigned(p, r) -> None:
+            try:
+                p.call_finish(r)
+            except GLib.Error as e:
+                Gio.DBusError.strip_remote_error(e)
+                msg = e.message
+                GLib.idle_add(lambda: self.bubble("error", msg) and False)
+            GLib.idle_add(again)
+
+        def fill(v) -> bool:
+            reading.destroy()
+            for job in v["jobs"]:
+                name, now = words.job_lines(job)
+                head = Gtk.Label(label=name, xalign=0)
+                head.get_style_context().add_class("what")
+                box.pack_start(head, False, False, 0)
+                small = Gtk.Label(label=now, xalign=0, wrap=True, max_width_chars=30)
+                small.get_style_context().add_class("note")
+                box.pack_start(small, False, False, 0)
+                if job["locked"] or not job["active"] or not job["choices"]:
+                    continue
+                pick = Gtk.ComboBoxText()
+                pick.append("", words.t("m_use_ours"))
+                for c in job["choices"]:
+                    pick.append(c["file"] if c["fits"] else "-" + c["file"], words.choice_label(c))
+                pick.set_active_id(job["current"]["file"] if job["chosen"] else "")
+
+                def changed(combo, j=job["job"], was=pick.get_active_id()) -> None:
+                    file = combo.get_active_id()
+                    if file is None or file == was:
+                        return
+                    if file.startswith("-"):  # doesn't run here: keep what it was
+                        combo.set_active_id(was)
+                        return
+                    combo.set_sensitive(False)
+                    self.proxy.call("ModelAssign", GLib.Variant("(ss)", (j, file)), Gio.DBusCallFlags.NONE,
+                                    120000, None, assigned)
+                pick.connect("changed", changed)
+                box.pack_start(pick, False, False, 0)
+            here = Gtk.Label(label=words.t("m_here"), xalign=0)
+            here.get_style_context().add_class("what")
+            box.pack_start(here, False, False, 0)
+            for m in v["models"]:
+                where = (words.t("m_system") if m["where"] == "system" else
+                         words.t("m_parked", drive=m.get("drive") or "?") if m["where"] == "parked" else "")
+                line = f"{m['model']} · {m['size'] / 2**30:.1f} GB" + (f" · {where}" if where else "")
+                box.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+            free = Gtk.Label(label=words.t("m_free", gb=f"{v['free_bytes'] / 2**30:.0f}"), xalign=0)
+            free.get_style_context().add_class("note")
+            box.pack_start(free, False, False, 0)
+            close = Gtk.Button(label=words.t("close"))
+            close.set_halign(Gtk.Align.START)
+            close.connect("clicked", lambda b: box.destroy())
+            box.pack_start(close, False, False, 0)
+            box.show_all()
+            return False
+
+        def got(p, r) -> None:
+            try:
+                v = json.loads(p.call_finish(r).unpack()[0])
+            except GLib.Error as e:
+                Gio.DBusError.strip_remote_error(e)
+                msg = e.message
+                GLib.idle_add(lambda: (box.destroy(), self.bubble("error", msg)) and False)
+                return
+            GLib.idle_add(fill, v)
+
+        self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
 
     def requests_view(self) -> None:
         """Recent requests, each with its tree of tasks: state, what kind, which model did it; Stop on anything not
@@ -1653,7 +1746,8 @@ class Sidebar(Gtk.Application):
             return 0
         action = {"--toggle": self.toggle, "--flip": self.flip, "--show": self.show, "--hide": self.hide,
                   "--quit": self.quit, "--standing": lambda: (self.show(), self.standing_list()),
-                  "--requests": lambda: (self.show(), self.requests_view())}.get(args[0])
+                  "--requests": lambda: (self.show(), self.requests_view()),
+                  "--models": lambda: (self.show(), self.models_view())}.get(args[0])
         if action is None:
             cmdline.printerr(f"unknown option {args[0]}\n")
             return 2

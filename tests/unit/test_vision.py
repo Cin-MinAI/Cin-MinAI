@@ -27,6 +27,9 @@ class FakeStore:
     def path(self, f):
         return os.path.join(self.root, f)
 
+    def in_use(self, task):
+        return None
+
 
 def machine(free=11159):
     return M.Machine([{"name": "NVIDIA GeForce GTX 1080 Ti", "api": "CUDA0", "total_mib": 11264, "free_mib": free}],

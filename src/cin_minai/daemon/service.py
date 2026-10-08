@@ -138,6 +138,11 @@ XML = f"""
     <!-- Stop a request (or any task in it): it and everything under it; a waiting one never starts -->
     <method name="TurnCancel"><arg type="u" name="task" direction="in"/><arg type="s" name="json" direction="out"/>
     </method>
+    <!-- the Models view (SPEC §22.3): each job with its model and the models that can do it here; the models here -->
+    <method name="ModelsView"><arg type="s" name="json" direction="out"/></method>
+    <!-- give a job a model on this computer ("" = our pick again); help and the system stay with the guide (D94) -->
+    <method name="ModelAssign"><arg type="s" name="job" direction="in"/><arg type="s" name="file" direction="in"/>
+      <arg type="s" name="json" direction="out"/></method>
     <!-- keys for sources that need one (keys.py): the key goes to the login keyring and nowhere else; the answer
          never repeats it. json: ok and the source's name, or ok false and the error -->
     <method name="KeySet"><arg type="s" name="source" direction="in"/><arg type="s" name="key" direction="in"/>
@@ -522,6 +527,9 @@ class Service:
         elif method == "TurnCancel":
             (task,) = params.unpack()
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.turn_cancel(int(task))),)))
+        elif method in ("ModelsView", "ModelAssign"):
+            args = params.unpack() if method == "ModelAssign" else ()
+            threading.Thread(target=self.models_call, args=(method, args, inv), daemon=True).start()
         elif method == "StandingList":
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
         elif method == "StandingChange":
@@ -1660,6 +1668,25 @@ class Service:
             log(f"turn table: {type(e).__name__}: {e}")
         if self.waiting:
             GLib.idle_add(self.next_turn)
+
+    def models_call(self, method: str, args: tuple, inv) -> None:
+        """ModelsView / ModelAssign off the main loop: reading the machine and the models' headers takes a moment."""
+        from . import jobs
+        guide = config.load()["inference"].get("model", "")
+        try:
+            out = jobs.view(self.store, guide) if method == "ModelsView" else (
+                jobs.assign(self.store, args[0], args[1], guide))
+        except Exception as e:
+            if isinstance(e, jobs.JobError):
+                msg = str(e)
+            else:
+                log(f"models view: {type(e).__name__}: {e}")
+                msg = "couldn't read the models here"
+            GLib.idle_add(lambda: inv.return_dbus_error(f"{IFACE}.Error.Model", msg) and False)
+            return
+        if method == "ModelAssign":
+            log(f"job {args[0]}: {out.get('model') or 'our pick'}")
+        GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
 
     def turn_cancel(self, task: int) -> dict:
         """Stop from the Requests view: a waiting request never starts (its asker is told); the running one stops

@@ -59,12 +59,19 @@ def picture(path: str) -> tuple[str, str]:
 
 def choose(store, inference_cfg: dict) -> dict:
     """Which model reads pictures here, and what's missing. {"model", "file", "path", "plan", "projector": Model,
-    "projector_ready": bool, "recommended": bool} — the 27B if it's downloaded and runs here, else the guide."""
+    "projector_ready": bool, "recommended": bool} — the person's choice (the Models view), else the 27B if it's
+    downloaded and runs here, else the guide."""
     from cin_minai.inference import matcher
     machine = matcher.read_machine(models_dir=store.root)
     # the desktop's share of the card as measured here (200 MiB when it's drawn by the board's graphics), as AICUI
     # passes it — without it the backend kept its 1.5 GB default and put the 27B on the processor (2026-10-04: 9 min)
     reserve = matcher.margin_mib(machine.cards[0]) if machine.cards else 0
+    chosen = store.in_use("vision")  # the person's choice in the Models view (jobs.py), when it reads pictures
+    if chosen and chosen["file"] in matcher.PROJECTORS:
+        proj = matcher.PROJECTORS[chosen["file"]]
+        return {"model": chosen["model"], "file": chosen["file"], "path": store.path(chosen["file"]),
+                "plan": dict(chosen, reserve_mib=reserve), "projector": proj, "projector_ready": store.has(proj.file),
+                "recommended": True}
     for m in matcher.CATALOG["coding"]:
         if m.file in matcher.PROJECTORS and store.has(m.file):
             plan = matcher.vision_plan(m, machine)

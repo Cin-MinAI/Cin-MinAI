@@ -85,7 +85,9 @@ def _value(f, kind: int, keep: bool = True):
     return struct.unpack(fmt, f.read(struct.calcsize(fmt)))[0]
 
 
-def read(path: str) -> Model:
+def read(path: str, size: int | None = None) -> Model:
+    """The header of a GGUF file. size: the whole file's bytes, when path holds only its beginning (the first
+    megabytes fetched from Hugging Face are enough to read the header and plan the model)."""
     with open(path, "rb") as f:
         if f.read(4) != b"GGUF":
             raise ValueError(f"not a GGUF file: {path}")
@@ -107,7 +109,7 @@ def read(path: str) -> Model:
             infos.append((offset, name))
         align = int(meta.get("general.alignment", 32))
         start = (f.tell() + align - 1) // align * align
-    size = os.path.getsize(path)
+    size = size or os.path.getsize(path)
     infos.sort()
     ends = [o for o, _ in infos[1:]] + [size - start]
     tensors = {name: end - off for (off, name), end in zip(infos, ends)}
