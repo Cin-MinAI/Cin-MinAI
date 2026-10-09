@@ -44,6 +44,8 @@ Your reply: a short thinking (a sentence), then one move:
   `acts_on` (the files, lines or the person's input it works on) and `proof` (what shows it's done: a build, a test,
   a run, a source's count).
 - fetch: a web page or file the work needs (one the person named first); it's kept in the project for the coder.
+- look: see the program running (target "program"), a page ("page", with its `address`) or the person's screen
+  ("screen", asked first) — facts read by code, and your one `question` answered by a picture model.
 - ask: a question only the person can answer (a choice, a source, a fact nobody here can know).
 - done: the goals are met and the checks find no problems, or nothing more can be done now: say what was done and
   what's left.
@@ -70,7 +72,9 @@ def plan_schema(cap: int) -> dict:
         "thinking": {"type": "string", "maxLength": 400},
         "next": {"anyOf": [move("coder", task={"type": "string", "minLength": 8, "maxLength": cap}, acts_on=said,
                                 proof=said),
-                           move("fetch", url=s), move("ask", question=s), move("done", summary=s)]}}}
+                           move("fetch", url=s), move("look", target={"enum": ["program", "page", "screen"]},
+                                                      question=s, address=s),
+                           move("ask", question=s), move("done", summary=s)]}}}
 
 
 HINT_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["next"], "properties": {"next": {"anyOf": [
@@ -87,7 +91,7 @@ def token_cap(coder_ctx: int) -> int:
 
 def uses(move: dict, given: dict) -> bool:
     """Does a move work on something the person gave? A link by its address, a file by its path."""
-    said = " ".join(str(move.get(k, "")) for k in ("url", "task", "acts_on", "question"))
+    said = " ".join(str(move.get(k, "")) for k in ("url", "address", "task", "acts_on", "question"))
     return given["value"] in said or (given["kind"] == "link" and move.get("url", "").rstrip("/") ==
                                       given["value"].rstrip("/"))
 
@@ -210,6 +214,13 @@ class Tandem:
                 self.agent.event("note", text=f"The organizer's move didn't use what you gave ({what}); asked again.")
                 continue
             given = [g for g in given if not uses(move, g)]
+            if kind == "look":
+                self.agent.event("handoff", by="organizer", to="look", text=f"{move.get('target')}: "
+                                                                         f"{move.get('question', '')}")
+                rounds.append({"task": f"look at the {move.get('target', 'program')}: {move.get('question', '')}",
+                               "outcome": self.agent.look(move.get("target", "program"), move.get("question", ""),
+                                                          move.get("address", ""))})
+                continue
             if kind == "fetch":
                 url = move.get("url", "").strip()
                 if not url.startswith("https://"):  # the contract: a fetch acts on a web address (the 4B "fetched"

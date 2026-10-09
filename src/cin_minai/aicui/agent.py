@@ -924,8 +924,8 @@ class Agent:
         never reading, listing or the same output again."""
         if "logged as change" in result or (act.get("tool") == "goal_done" and " ticked." in result):
             return True
-        if act.get("tool") in ("goal_add", "fetch", "need") and not result.startswith(("error", "the person said no")):
-            return True
+        if act.get("tool") in ("goal_add", "need") and not result.startswith(("error", "the person said no")):
+            return True  # (a fetch is gathering, like reading: what it brings counts once code uses it)
         if act.get("tool") == "look" and result.startswith("Looked at"):  # a new look is new state if it differs
             key = hash(re.sub(r"\(\.cinminai/looks/[^)]*\)", "", result))
             if key not in self.outputs:
@@ -1063,7 +1063,8 @@ class Agent:
             code, out = self.execute(look.program_script(entry, self.venv or "", screen, base), 60, self.sandbox)
             facts.update(program=entry, running="running=yes" in (out or ""))
             try:
-                with open(full(base + ".out"), encoding="utf-8", errors="replace") as f:
+                printed = base + (".seen" if os.path.exists(full(base + ".seen")) else ".out")
+                with open(full(printed), encoding="utf-8", errors="replace") as f:
                     facts["output"] = f.read()[-1500:]
                 with open(full(base + ".windows"), encoding="utf-8", errors="replace") as f:
                     facts["windows"] = look.windows(f.read(), screen)
@@ -1118,6 +1119,7 @@ class Agent:
         answer = self.ask_picture(full(base + ".png"), facts, question) if question else ""
         facts.update(problems=problems, answer=answer)
         look.save(self.root, base, facts)
+        self.last_look = facts
         self.event("look", picture=full(base + ".png"), target=target, problems=problems[:5])
         return look.report(facts, problems, answer)
 
@@ -1376,6 +1378,14 @@ class Agent:
             ok &= not problems
             lines.append(f"{page} and its CSS/JS: " + ("names and tags line up" if not problems else
                                                       "PROBLEMS: " + "; ".join(problems)))
+        if entry and not entry.endswith((".html", ".htm")) and shutil.which("Xvfb"):
+            self.look("program", "", entry)  # what it shows, at the person's screen: facts by code, no model needed
+            seen = getattr(self, "last_look", {}) or {}
+            if seen.get("windows") or seen.get("problems"):
+                bad = [p for p in seen.get("problems", []) if "runs off" in p or "blank" in p or "stopped" in p]
+                ok &= not bad
+                lines.append(f"{entry} as seen ({seen.get('picture_path', '')}): " +
+                             ("; ".join(seen.get("problems", [])) or "fits the screen, something drawn"))
         if not tests and not page:  # a start alone proves little (2026-10-08: run.sh built the C++, found no pygame,
             # printed how to install it and exited 0 — and the engine goal was ticked with nothing testing its rules)
             ok = False
@@ -1498,9 +1508,10 @@ def main(argv=None) -> int:
         return pair["junior"]
 
     def organizer():
-        """The guide organizes once the project has open goals (a new project starts with the coder asking about its
-        scope); --solo turns it off; if it can't start, the coder works alone and says so."""
-        if a.solo or not any(not g["done"] for g in agent.goals.load()) or guide() is None:
+        """The guide organizes every request (2026-10-09: tied to open goals, it sat out a project whose one goal was
+        ticked, and the requests ran on the coder alone); --solo turns it off; if it can't start, the coder works
+        alone and says so."""
+        if a.solo or guide() is None:
             return None
         if pair["tandem"] is None:
             pair["tandem"] = tandem_mod.Tandem(agent, pair["junior"].chat, say=lambda s: print(f"\r\033[K{s}"))

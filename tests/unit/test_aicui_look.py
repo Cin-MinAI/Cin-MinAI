@@ -71,7 +71,8 @@ class Facts(unittest.TestCase):
 
     def test_the_program_runs_at_the_persons_screen_inside_the_sandbox(self):
         script = look.program_script("run.sh", "/p/.venv", SCREEN, ".cinminai/looks/x")
-        self.assertIn("Xvfb :77 -screen 0 4095x2160x24 -nolisten tcp", script)
+        self.assertIn("mkdir -p -m 1777 /tmp/.X11-unix; Xvfb :77 -screen 0 4095x2160x24 -nolisten tcp -extension GLX",
+                      script)
         self.assertIn("GDK_SCALE=3", script)
         self.assertIn("-video_size 4095x2160 -i :77", script)
         self.assertIn("( bash run.sh )", script)

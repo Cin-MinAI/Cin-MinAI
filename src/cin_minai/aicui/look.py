@@ -100,12 +100,17 @@ def program_script(entry: str, venv: str, screen: tuple[int, int, int], base: st
     start = f"bash {shlex.quote(entry)}" if entry.endswith(".sh") else \
         f"{shlex.quote(os.path.join(venv, 'bin', 'python') if venv else 'python3')} {shlex.quote(entry)}"
     b = shlex.quote(base)
-    return (f"Xvfb :77 -screen 0 {w}x{h}x24 -nolisten tcp >/dev/null 2>&1 & XV=$!; sleep 1; "
+    # in the sandbox: its /tmp starts empty and Xvfb won't make the socket folder unless it's root; and its OpenGL
+    # extension goes through the NVIDIA driver, which crashes without the card's devices (measured 2026-10-09) —
+    # a picture of a window needs neither
+    return (f"mkdir -p -m 1777 /tmp/.X11-unix; Xvfb :77 -screen 0 {w}x{h}x24 -nolisten tcp -extension GLX "
+            f">/dev/null 2>&1 & XV=$!; sleep 1; "
             f"export DISPLAY=:77 SDL_VIDEODRIVER=x11 GDK_SCALE={k} QT_SCALE_FACTOR={k}; "
             f"( {start} ) > {b}.out 2>&1 & P=$!; sleep {WAIT_S}; "
             f"if kill -0 $P 2>/dev/null; then echo running=yes; else echo running=no; fi; "
             f"xwininfo -root -tree > {b}.windows 2>&1; "
             f"ffmpeg -loglevel error -f x11grab -video_size {w}x{h} -i :77 -frames:v 1 -y {b}.png; "
+            f"cp {b}.out {b}.seen 2>/dev/null; "  # what it printed by the picture, not its complaints at the shutdown
             f"kill $P 2>/dev/null; kill $XV 2>/dev/null; wait 2>/dev/null; true")
 
 

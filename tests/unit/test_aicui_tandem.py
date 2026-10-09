@@ -203,6 +203,25 @@ class TandemTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"CINMINAI_SCREEN": ""}):
             self.assertNotIn("person's screen", a.system())
 
+    def test_the_organizer_looks(self):
+        """2026-10-09: asked to look at the program, the coder read the code and ran tests instead; looking (like
+        fetching) is gathering, the organizer's move."""
+        a, t = self.pair([], [move("look", target="program", question="Is the ball visible?", address=""),
+                              move("done", summary="ok")])
+        seen = []
+        a.look = lambda target, question, address="": (seen.append((target, question)),
+                                                       "Looked at program: window \"Bouncing Ball\" 400x300")[1]
+        t.turn("look at the program and check the ball is visible")
+        self.assertEqual(seen, [("program", "Is the ball visible?")])
+        self.assertIn('Looked at program: window "Bouncing Ball" 400x300', t.junior.sent[1][1]["content"])
+        self.assertIn(("organizer", "look"), [(e["by"], e["to"]) for e in self.events() if e["kind"] == "handoff"])
+
+    def test_a_fetch_alone_isnt_progress(self):
+        """A run of guessed image addresses reset the progress counter ten times in a minute."""
+        a, _ = self.pair([], [])
+        self.assertFalse(a.progressed({"tool": "fetch"}, "saved https://x.org/a.jpg as assets/a.jpg (503 bytes)"))
+        self.assertTrue(a.progressed({"tool": "need"}, "Asked for pygame-ce"))
+
     def test_pasted_material_is_kept_as_a_source(self):
         a, t = self.pair([], [move("done", summary="ok")])
         rows = "".join(f"item {i}, {i * 10}\n" for i in range(12))

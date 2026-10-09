@@ -170,7 +170,7 @@ class Workspace(Gtk.ApplicationWindow):
                                 ("No", b"n\n", "Don't do this")):
             b = Gtk.Button(label=label)
             b.set_tooltip_text(tip)
-            b.connect("clicked", lambda btn, k=key: self.term.feed_child(k))
+            b.connect("clicked", lambda btn, k=key: self.answer(k))
             b.show()
             self.ask_box.pack_start(b, False, False, 0)
         self.busy_box.pack_start(self.ask_box, False, False, 0)
@@ -253,7 +253,7 @@ class Workspace(Gtk.ApplicationWindow):
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "handoff":  # the organizer (the guide) and the coder passing work (SPEC 22.5)
                 who = {"coder": "Organizer → coder", "fetch": "Organizer → fetch", "person": "Organizer → you",
-                       "organizer": "Coder → organizer"}
+                       "organizer": "Coder → organizer", "look": "Organizer → look"}
                 self.thought(e.get("text", ""), who.get(e.get("to", ""), "Organizer"))
             elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
                 self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
@@ -280,6 +280,15 @@ class Workspace(Gtk.ApplicationWindow):
             elif e["kind"] == "goals":
                 self.load_goals()
         return True
+
+    def answer(self, key: bytes) -> None:
+        """Allow / Always / No: one answer to the question waiting, never a stray key (2026-10-08: clicks after the
+        answer reached the agent as messages — "a", three times)."""
+        if not self.busy or self.busy.get("doing") != "waiting for your answer in the terminal":
+            return
+        self.term.feed_child(key)
+        self.busy = dict(self.busy, doing="answered")
+        self.ask_box.hide()
 
     def show_busy(self) -> bool:
         """The indicator: step, what the AI is doing, tokens so far, and how long this step has taken."""
