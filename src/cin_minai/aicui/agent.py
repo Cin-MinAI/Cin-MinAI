@@ -1148,7 +1148,11 @@ class Agent:
         facts = {"target": target, "question": question[:300], "screen": dict(zip(("width", "height", "scale"), screen)),
                  "picture_path": base + ".png", "facts_path": base + ".json", "windows": []}
         if target == "program":
-            entry = address if address and os.path.isfile(full(address)) else entry_point(self.root)
+            # only the project's own program: 2026-10-09, a look's facts file (.cinminai/looks/….json) was handed in as
+            # the address and run as Python
+            own = address and os.path.isfile(full(address)) and address.endswith((".py", ".sh", ".html", ".htm")) \
+                and not kept_material(address) and not address.replace(os.sep, "/").lstrip("./").startswith(".")
+            entry = address if own else entry_point(self.root)
             if not entry:
                 return "error: nothing to run yet (no run.sh, main.py or index.html)"
             if entry.endswith((".html", ".htm")):

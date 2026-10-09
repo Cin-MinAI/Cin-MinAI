@@ -147,6 +147,11 @@ class Looking(unittest.TestCase):
         with open(os.path.join(self.root, ".cinminai", "looks", saved[0])) as f:
             facts = json.load(f)
         self.assertEqual((facts["running"], facts["answer"]), (True, "No: the buttons are cut off."))
+        ran = []  # a look's own facts file is never run as the program (2026-10-09: it was, as Python)
+        a.execute = lambda command, timeout, sandbox: (ran.append(command), execute(command, timeout, sandbox))[1]
+        with mock.patch("shutil.which", return_value="/usr/bin/Xvfb"):
+            a.do({"tool": "look", "target": "program", "question": "", "address": ".cinminai/looks/" + saved[0]})
+        self.assertNotIn(".json", ran[0].split("> ")[0])
 
     def test_the_persons_screen_is_asked_twice_and_shown_first(self):
         a = self.agent(["y", "n"])
