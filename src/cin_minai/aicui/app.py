@@ -342,6 +342,10 @@ class Workspace(Gtk.ApplicationWindow):
         argv = ["bash", full] if entry.endswith(".sh") else [venv_python(self.root), full]
         launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
         launcher.set_cwd(self.root)
+        venv = os.path.dirname(os.path.dirname(venv_python(self.root))) if venv_python(self.root) != "python3" else ""
+        if venv:  # the project's environment on, as in the AI's own commands: run.sh's `python3` is the project's
+            launcher.setenv("VIRTUAL_ENV", venv, True)  # (2026-10-08: run.sh said `python3 main.py` — the system's,
+            launcher.setenv("PATH", os.path.join(venv, "bin") + os.pathsep + os.environ.get("PATH", ""), True)  # no pygame)
         try:
             proc = launcher.spawnv(argv)
         except GLib.Error as e:
