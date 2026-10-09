@@ -287,6 +287,21 @@ coding (time to passing tests, stuck stops, changes that hold) and looking (the 
 
 The 35B-A3B (20 GB) is on Ian's USB drive; its picture reader is fetched from the pinned repository with its checksum.
 
+**The roles in B and C** (Ian, 2026-10-09: "Sr focuses on organizing all 4 and overseeing final code, Jr runs bulk
+code for the 9b runs. Jr focuses on 1 of those actions at a time. Sr focuses on aggregate of project and patches
+properly while also instructing properly in order to assist 9b map the same script as its Sr."):
+
+- **The senior (the big MoE)** holds the aggregate: it writes and keeps *the script* — the project's plan as ordered
+  steps, each one of the four kinds of action (pass/fail, write/delete, accept/reject, create/destroy), with the files
+  and the names and signatures they share — so the junior maps the project the same way it does. It hands the junior
+  one step at a time, reviews each result against the script (accept / reject, by another model than the one that did
+  the work, D94), writes the patches that matter itself, and keeps the script current. It also looks (pictures).
+- **The junior (the 9B on the card)** runs the bulk code: one step, one kind of action, at a time, with the script in
+  view; it reports what it did, and may decline a step that doesn't fit the script.
+- **Code checks the contract:** a step's result is of its declared kind (a write step changed a file; a pass/fail step
+  produced a verdict), and the script's steps name their kind and their files.
+- The guide (4B) keeps the system and admin tools outside AICUI (D94); in round 4 it organizes nothing.
+
 ### The closures and fixes of 2026-10-08 — built the same night (Ian, 2026-10-08)
 
 **Built 2026-10-08 night** (`aicui/tandem.py`, `aicui/intake.py`, `aicui/project.py`, `aicui/agent.py`, `aicui/app.py`): all four closures and every fix below; the day's special cases are gone (the review word list, the code-written goal task, the plan-opening key, the read, listing and re-read counters). Checked on the page that kept 7 entries in the afternoon: kept whole, its text now holds all 103 the page lists.
