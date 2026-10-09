@@ -10,6 +10,7 @@ install -d "$py"
 for pkg in daemon inference diag firefox actions; do
     cp -r "$repo/src/cin_minai/$pkg" "$py/"
 done
+cp "$repo/src/cin_minai/engine.py" "$py/"  # the multi-model engine on the Team Table (D95), for the daemon and AICUI
 rm -rf "$py/firefox/extension"  # the extension itself ships signed, through Firefox's policy (D14)
 find "$py" -name __pycache__ -prune -exec rm -rf {} +
 python3 gen_data.py "$stage/usr/share/cinminai/guide" "$repo"

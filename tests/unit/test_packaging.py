@@ -11,7 +11,9 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SRC = os.path.join(ROOT, "src", "cin_minai")
 PACKAGES = os.path.join(ROOT, "distro", "packages")
-IMPORT = re.compile(r"^\s*(?:from|import)\s+cin_minai\.([a-z_]+)", re.M)
+# "from cin_minai.x import …", "import cin_minai.x" and "from cin_minai import x" (2026-10-09: engine.py came in by the
+# last form, which this didn't read, and AICUI wouldn't start)
+IMPORT = re.compile(r"^\s*(?:(?:from|import)\s+cin_minai\.([a-z_]+)|from\s+cin_minai\s+import\s+([a-z_]+))", re.M)
 
 
 def shipped() -> set[str]:
@@ -21,7 +23,7 @@ def shipped() -> set[str]:
         if not os.path.exists(path):
             continue
         text = open(path, encoding="utf-8").read()
-        out.update(re.findall(r'src/cin_minai/([a-z_]+)"? "\$py/"', text))
+        out.update(re.findall(r'src/cin_minai/([a-z_]+)(?:\.py)?"? "\$py/"', text))
         for loop in re.findall(r"for pkg in ([a-z_ ]+); do\s+cp -r \"\$repo/src/cin_minai/\$pkg\"", text):
             out.update(loop.split())
     return out
@@ -33,13 +35,14 @@ class ShippedImports(unittest.TestCase):
         self.assertIn("daemon", have)           # the reader of build.sh still works
         missing = {}
         for module in sorted(have):
-            for folder, _, files in os.walk(os.path.join(SRC, module)):
-                for f in files:
-                    if f.endswith(".py"):
-                        path = os.path.join(folder, f)
-                        for wanted in IMPORT.findall(open(path, encoding="utf-8").read()):
-                            if wanted not in have and os.path.isdir(os.path.join(SRC, wanted)):
-                                missing.setdefault(wanted, os.path.relpath(path, ROOT))
+            paths = [os.path.join(SRC, module + ".py")] if os.path.isfile(os.path.join(SRC, module + ".py")) else                 [os.path.join(folder, f) for folder, _, files in os.walk(os.path.join(SRC, module))
+                 for f in files if f.endswith(".py")]
+            for path in paths:
+                for pair in IMPORT.findall(open(path, encoding="utf-8").read()):
+                    wanted = pair[0] or pair[1]
+                    if wanted not in have and (os.path.isdir(os.path.join(SRC, wanted))
+                                               or os.path.isfile(os.path.join(SRC, wanted + ".py"))):
+                        missing.setdefault(wanted, os.path.relpath(path, ROOT))
         self.assertEqual(missing, {}, "imported but no package ships it (module: first importer)")
 
     def test_team_table_is_shipped_and_the_daemon_depends_on_it(self):
