@@ -344,6 +344,28 @@ CPP_STD = re.compile(r"-std=\S+")
 CPP_ERROR = re.compile(r"^(?P<file>[^:\s][^:]*):(?P<line>\d+):(?:\d+:)? (?:fatal )?error: (?P<msg>.*)$")
 
 
+CPP_MARKS = re.compile(r"^\s*(namespace|class|template|using)\b|std::|#include\s*<(string|vector|map|memory|"
+                       r"iostream|array|optional|functional|unordered_map|algorithm)>", re.M)
+
+
+def cpp_header(full: str, root: str) -> bool:
+    """Is a .h C++? Its own text says so, or the project's sources are C++ (2026-10-09: a C++ header checked as C:
+    "string: No such file or directory", on every check of a project with no Makefile yet)."""
+    try:
+        with open(full, encoding="utf-8", errors="replace") as f:
+            if CPP_MARKS.search(f.read(20000)):
+                return True
+    except OSError:
+        pass
+    if os.path.exists(os.path.join(root, "Makefile")):
+        return True
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("sources", "assets")]
+        if any(f.endswith((".cpp", ".cc", ".cxx")) for f in files):
+            return True
+    return False
+
+
 def compile_check(full: str) -> str:
     """A C or C++ file through the compiler, syntax only, with the project's own flags where its Makefile says them
     (2026-10-08: nothing checked the C++; the engine didn't build — two namespaces, a header that didn't exist, two
@@ -369,7 +391,7 @@ def compile_check(full: str) -> str:
     args = [cc, std, "-fsyntax-only", "-I" + os.path.join(root, "include"), "-I" + os.path.join(root, "src"),
             "-I" + root]
     if ext in (".h", ".hh", ".hpp"):
-        args += ["-x", "c++-header" if ext != ".h" or os.path.exists(os.path.join(root, "Makefile")) else "c-header"]
+        args += ["-x", "c++-header" if ext != ".h" or cpp_header(full, root) else "c-header"]
     try:
         out = subprocess.run(args + [full], capture_output=True, text=True, timeout=60, cwd=root)
     except (OSError, subprocess.TimeoutExpired):

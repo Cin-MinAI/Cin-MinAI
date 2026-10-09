@@ -118,6 +118,19 @@ class TandemTest(unittest.TestCase):
         self.assertEqual(len(t.junior.sent), 2)
 
     @unittest.skipUnless(shutil.which("g++"), "needs g++")
+    def test_a_cpp_header_is_checked_as_cpp_without_a_makefile(self):
+        """2026-10-09: "card.h:2: string: No such file or directory" on every check — a C++ header compiled as C."""
+        from cin_minai.aicui.agent import compile_check
+        os.makedirs(os.path.join(self.root, "engine"))
+        with open(os.path.join(self.root, "engine", "card.h"), "w") as f:
+            f.write("#pragma once\n#include <string>\nstruct Card { std::string name; };\n")
+        with open(os.path.join(self.root, "engine", "plain.h"), "w") as f:
+            f.write("#pragma once\nint add(int a, int b);\n")
+        self.pair([], [])
+        self.assertEqual(compile_check(os.path.join(self.root, "engine", "card.h")), "")
+        self.assertEqual(compile_check(os.path.join(self.root, "engine", "plain.h")), "")
+
+    @unittest.skipUnless(shutil.which("g++"), "needs g++")
     def test_cpp_that_doesnt_build_is_a_problem_the_organizer_sees(self):
         """2026-10-08: nothing compiled the C++; two namespaces and a missing header went unseen by both models."""
         os.makedirs(os.path.join(self.root, "include"))
