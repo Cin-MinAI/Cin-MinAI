@@ -216,11 +216,25 @@ class TandemTest(unittest.TestCase):
         self.assertIn('Looked at program: window "Bouncing Ball" 400x300', t.junior.sent[1][1]["content"])
         self.assertIn(("organizer", "look"), [(e["by"], e["to"]) for e in self.events() if e["kind"] == "handoff"])
 
-    def test_a_fetch_alone_isnt_progress(self):
-        """A run of guessed image addresses reset the progress counter ten times in a minute."""
+    def test_progress_is_four_kinds_of_action(self):
+        """Ian, 2026-10-09: "The only 4 things that qualify as an action that counts as progress is pass, fail,
+        write, delete. Accept, reject, create, destroy." Gathering isn't progress (a run of guessed image addresses
+        reset the counter ten times in a minute)."""
         a, _ = self.pair([], [])
-        self.assertFalse(a.progressed({"tool": "fetch"}, "saved https://x.org/a.jpg as assets/a.jpg (503 bytes)"))
-        self.assertTrue(a.progressed({"tool": "need"}, "Asked for pygame-ce"))
+        a.outputs = set()
+        gathering = [({"tool": "fetch"}, "saved https://x.org/a.jpg as assets/a.jpg (503 bytes)"),
+                     ({"tool": "look"}, "Looked at program (…)\nwindow \"Ball\": 400x300"),
+                     ({"tool": "read"}, "    1 import pygame"), ({"tool": "list"}, "main.py  (1 bytes)"),
+                     ({"tool": "search"}, "main.py:1: import pygame")]
+        for act, result in gathering:
+            self.assertFalse(a.progressed(act, result), act)
+        self.assertTrue(a.progressed({"tool": "write"}, "main.py changed (+3 -0), logged as change 4"))  # write
+        self.assertTrue(a.progressed({"tool": "edit"}, "the user said no to this change"))              # reject
+        self.assertTrue(a.progressed({"tool": "goal_add"}, "goal 2 added"))                              # create
+        self.assertTrue(a.progressed({"tool": "run"}, "exit 1\nFAILED test_x"))                          # fail
+        self.assertFalse(a.progressed({"tool": "run"}, "exit 1\nFAILED test_x"))                         # same verdict
+        self.assertTrue(a.progressed({"tool": "run"}, "exit 0\nok"))                                     # pass
+        self.assertTrue(a.progressed({"tool": "goal_done"}, "goal 1 NOT ticked — the checks failed: …"))  # fail
 
     def test_pasted_material_is_kept_as_a_source(self):
         a, t = self.pair([], [move("done", summary="ok")])

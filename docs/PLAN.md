@@ -309,9 +309,11 @@ below, not kept beside them.
    fetched, structured, checked, used, reviewed. The organizer picks the next stage; code knows what each needs:
    *use* needs checked data (a source beats memory), *tick* needs a passing proof (no test, no tick), the person's
    input enters at *fetch*.
-3. **One progress rule** (D61). Progress is a change of state — a file, a check's result, a stage, a source. No
-   progress for N steps: a hint (from code when the checks name problems), then the person. It replaces the read,
-   listing and plan counters.
+3. **One progress rule** (D61). Progress is an action of four kinds (Ian, 2026-10-09: "pass, fail, write, delete.
+   Accept, reject, create, destroy. Assimilate, Dissimilate, Disseminate, Annihilate"): a verdict (pass / fail),
+   content (write / delete), a decision (accept / reject), existence (create / destroy); gathering — reading, listing,
+   searching, fetching, looking — isn't. No progress for N steps: a hint (from code when the checks name problems),
+   then the person. It replaces the read, listing and plan counters.
 4. **Project token and environment header** (D61, with D30, D85, D86). Ian: "when a folder is opened up if it is an
    AICUI created project it gets a project token… only AICUI projects can get a venv, and when it opens it asks if
    you want to create one… it is just the folder with a header to the real one the AI is using because the bot can't

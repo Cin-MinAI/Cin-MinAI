@@ -2179,7 +2179,12 @@ the Requests view shows it.
 - **The cycle per goal:** AICUI records what was fetched and the data made from it while a goal was worked, and shows
   each goal's stages to both models — fetched, structured, checked by a test, used by the code, reviewed (ticked by
   the person). A goal isn't ticked while data recorded for it isn't read by a passing test.
-- **One progress rule:** progress is a change of state; six steps without one are said (and recorded), again at
+- **One progress rule:** progress is an action of four kinds, and nothing else (Ian, 2026-10-09: "The only 4 things
+  that qualify as an action that counts as progress is pass, fail, write, delete. Accept, reject, create, destroy.
+  Assimilate, Dissimilate, Disseminate, Annihilate"): a verdict (pass / fail — a check's result, when it's new),
+  content (write / delete), a decision (accept / reject — the person's, or the coder declining a task), existence
+  (create / destroy — a goal, an environment). Reading, listing, searching, fetching, looking and thinking gather; the
+  cycle's own steps count when they land as one of the four. Six steps without one are said (and recorded), again at
   twelve; fifteen stop the task — a hint, then the person.
 
 ### 23.4 Build order

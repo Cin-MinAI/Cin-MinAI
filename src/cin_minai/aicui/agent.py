@@ -919,20 +919,26 @@ class Agent:
         return "\n".join(sorted(out[:LIST_ENTRIES])) + more if out else "(empty)"
 
     def progressed(self, act: dict, result: str) -> bool:
-        """The one progress rule (PLAN §1b closure 3): a change of state — a file changed, a goal added or ticked, a
-        source saved, a package asked for, a command whose output is new (a new test result, a different error) —
-        never reading, listing or the same output again."""
-        if "logged as change" in result or (act.get("tool") == "goal_done" and " ticked." in result):
+        """Progress is an action of four kinds, and nothing else (Ian, 2026-10-09: "The only 4 things that qualify as
+        an action that counts as progress is pass, fail, write, delete. Accept, reject, create, destroy. Assimilate,
+        Dissimilate, Disseminate, Annihilate"):
+
+        * a verdict — pass or fail: a check's result (a command's exit, the goal check), when it's new;
+        * content — write or delete: a file written, changed or cut;
+        * a decision — accept or reject: the person's yes or no, the coder declining a task;
+        * existence — create or destroy: a goal, an environment.
+
+        Reading, listing, searching, fetching, looking and thinking gather; they aren't progress (the D96 cycle's own
+        steps count when they land as one of these)."""
+        tool = act.get("tool")
+        if "logged as change" in result:  # write / delete
             return True
-        if act.get("tool") in ("goal_add", "need") and not result.startswith(("error", "the person said no")):
-            return True  # (a fetch is gathering, like reading: what it brings counts once code uses it)
-        if act.get("tool") == "look" and result.startswith("Looked at"):  # a new look is new state if it differs
-            key = hash(re.sub(r"\(\.cinminai/looks/[^)]*\)", "", result))
-            if key not in self.outputs:
-                self.outputs.add(key)
-                return True
-        if act.get("tool") == "run":
-            key = hash(re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result))  # timings and addresses don't count as new
+        if result.startswith(("the person said no", "the user said no")):  # reject (the person decided)
+            return True
+        if tool in ("goal_add", "need") and not result.startswith("error"):  # create (a goal; the environment's entry)
+            return True
+        if tool in ("run", "goal_done"):  # pass / fail: a verdict, counted when it's a new one
+            key = hash((tool, re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result)))  # timings and addresses aren't news
             if key not in self.outputs:
                 self.outputs.add(key)
                 return True
