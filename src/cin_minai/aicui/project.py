@@ -171,6 +171,17 @@ def want_package(root: str, package: str, why: str = "") -> str:
     return "wanted"
 
 
+def has_tests(root: str) -> bool:
+    """test_*.py (or *_test.py) at the project's top or in tests/."""
+    for folder in (root, os.path.join(root, "tests")):
+        try:
+            if any(re.match(r"(test_.*|.*_test)\.py$", n) for n in os.listdir(folder)):
+                return True
+        except OSError:
+            pass
+    return False
+
+
 def build_env(root: str, say=print, run=subprocess.run) -> dict:
     """Make (or bring up to date) the real environment outside the project, install what the header wants, and link
     `.venv` to it; write requirements.txt for other tools. Run by AICUI — with the network — after the person agreed."""
@@ -184,6 +195,8 @@ def build_env(root: str, say=print, run=subprocess.run) -> dict:
         if r.returncode != 0 or not os.path.exists(os.path.join(real, "bin", "pip")):
             raise RuntimeError("Python couldn't make the environment (" + (r.stderr or "").strip()[-200:] + ") — is the "
                                "python3-venv package installed?")
+    if has_tests(root) and "pytest" not in header.get("packages", []) + header.get("wanted", []):
+        header.setdefault("wanted", []).append("pytest")  # the project has tests: the tool that runs them comes along
     wanted = [p for p in header.get("wanted", []) if p not in header.get("packages", [])]
     if wanted:
         say("Installing " + ", ".join(wanted) + " from PyPI…")

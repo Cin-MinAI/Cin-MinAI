@@ -193,8 +193,8 @@ class AgentTest(unittest.TestCase):
 
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
-        self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run", "fetch",
-                                 "goal_add", "goal_done", "need", "look", "decline", "ask", "answer"])
+        self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
+                                 "web_search", "fetch", "goal_add", "goal_done", "need", "look", "decline", "ask", "answer"])
 
     def cut_write(self, path, lines, tool="write"):
         """What the server sends when a write runs into the token limit: JSON that stops inside the content."""
@@ -311,6 +311,7 @@ class AgentTest(unittest.TestCase):
         replies = ["n", "a"]
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: replies.pop(0))
         a.goals.add("A list from the source")
+        a.given("Use https://example.org/list.")  # the person's own address (the picture comes from the page)
         self.assertIn("only https", a.fetch("http://example.org/x"))
         self.assertEqual(a.fetch("https://example.org/list"), "the person said no to fetching https://example.org/list")
         page = b"<html><body><table><tr><td>1</td><td>Hydrogen</td></tr></table><img alt='Helium' src='he.png'>"
@@ -329,6 +330,42 @@ class AgentTest(unittest.TestCase):
                          ["sources/list.txt", "sources/list.html", "assets/he.png"])
         self.assertIn("fetch", [e["kind"] for e in self.events()])
         self.assertIn("beats your memory", a.system())
+        self.assertIn("Its 1 pictures are listed at the end of sources/list.txt; the first: https://example.org/he.png", r)
+
+    def test_a_fetch_needs_an_address_from_somewhere(self):
+        """2026-10-09: asked for a photo, the coder fetched picture addresses made up from
+        memory, the same one seven times, then used a placeholder picture. An address must come from the person, a
+        search result or a kept page; the same fetch twice gives the first answer; stand-in sites are refused."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        from cin_minai.daemon import websearch
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: "a")
+        made_up = a.fetch("https://i.imgur.com/abc123.jpg")
+        self.assertIn("didn't come from anywhere here", made_up)
+        self.assertIn("web_search", made_up)
+        self.assertIn("stand-in", a.fetch("https://via.placeholder.com/800x600.png"))
+        found = [{"title": "Mountain lakes", "url": "https://pictures.example/wiki/Mountain_lakes", "snippet": "the art"}]
+        with mock.patch.object(websearch, "search", return_value=found):
+            r = a.web_search("mountain lake photo")
+        self.assertIn("kept as sources/search-mountain-lake-photo.txt", r)
+        page = b"<html><body><p>Mountain lakes</p><img src='/img/lake.jpg' alt='A lake'></body></html>"
+        answers = {"https://pictures.example/wiki/Mountain_lakes": (page, "text/html"),
+                   "https://pictures.example/img/lake.jpg": (b"JFIF jpeg", "image/jpeg")}
+        with mock.patch.object(intake, "get", side_effect=lambda url: answers[url]) as got:
+            self.assertIn("saved", a.fetch("https://pictures.example/wiki/Mountain_lakes"))  # a search result
+            self.assertIn("assets/lake.jpg", a.fetch("https://pictures.example/img/lake.jpg"))  # a picture on that page
+            again = a.fetch("https://pictures.example/img/lake.jpg")
+        self.assertEqual(got.call_count, 2)
+        self.assertIn("already fetched", again)
+
+    def test_pytest_style_tests_are_never_passed_unrun(self):
+        """Run as a script, a file of bare test_ functions defines them and exits 0: that isn't a pass."""
+        with open(os.path.join(self.root, "test_ball.py"), "w") as f:
+            f.write("def test_speed():\n    assert 1 == 2\n")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        ok, report = a.verify()
+        self.assertFalse(ok)
+        self.assertIn("test_ball.py: NOT RUN — its tests are pytest style", report)
 
     def test_the_file_list_has_line_counts(self):
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)

@@ -30,7 +30,7 @@ import uuid
 from cin_minai.daemon.turns import PERSON, path as table_path
 
 KINDS = ("write", "delete", "check")              # a work order's one kind of action (the four kinds, for code)
-GATHER = ("look", "fetch")                        # the organizer's own: gathering, not progress
+GATHER = ("look", "fetch", "search")              # the organizer's own: gathering, not progress
 REF_LINES = re.compile(r"^(?P<file>[^:\s]+):(?P<first>\d+)(?:-(?P<last>\d+))?$")
 REF_CHARS = 12_000                                # one reference's content at most (a few hundred lines)
 ENGINE = "engine"                                 # who keeps the references (its keys are its own: "engine/…")

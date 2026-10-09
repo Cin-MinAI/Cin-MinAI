@@ -292,6 +292,20 @@ class TandemTest(unittest.TestCase):
         self.assertEqual(t.turn("continue"), "Worked on it alone.")
         self.assertIn("continue", a.chat.sent[0][-1]["content"])
 
+    def test_a_reply_that_doesnt_parse_is_asked_again(self):
+        """2026-10-09: one bad reply from the organizer and the coder went on alone; now it gets a second try."""
+        a, t = self.pair([], [ValueError("cut off"), move("done", summary="Nothing to do.")])
+        self.assertEqual(t.turn("continue"), "Nothing to do.")
+        self.assertEqual(len(t.junior.sent), 2)
+
+    def test_the_organizer_searches_instead_of_guessing_an_address(self):
+        a, t = self.pair([], [move("search", query="mountain lake photo"), move("done", summary="ok")])
+        a.web_search = lambda q: f"results for {q} (kept as sources/search-mountain-lake-photo.txt)"
+        t.turn("find a picture")
+        self.assertIn("results for mountain lake photo", t.junior.sent[1][1]["content"])
+        kinds = [c["kind"] for c in self.engine.summary(self.engine.db.list_tasks()[0]["id"])]
+        self.assertEqual(kinds, ["search"])
+
     def test_a_page_is_fetched_with_permission_and_kept(self):
         a, t = self.pair([], [move("fetch", url="https://example.org/set-list"), move("done", summary="Saved.")])
         got = []

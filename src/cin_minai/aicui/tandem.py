@@ -51,7 +51,10 @@ Your reply: a short thinking (a sentence), then one move:
   verdict), `task` (what to do, in which file and lines — concrete and small, at most {cap} characters), `acts_on`
   (the files and lines it works on, like game.py:40-62 — they're given to the coder as they are now — or the
   person's input) and `proof` (what shows it's done: a build, a test, a run, a source's count).
-- fetch: a web page or file the work needs (one the person named first); it's kept in the project for the coder.
+- search: `query`, words to look up on the web when the work needs something from it and nobody gave an address;
+  the results are kept, and their addresses (and the pictures and links on pages fetched) can be fetched next.
+- fetch: a web page or file the work needs, at an address the person gave, a search found or a kept page lists —
+  never one from memory; it's kept in the project for the coder.
 - look: see the program running (target "program"), a page ("page", with its `address`) or the person's screen
   ("screen", asked first) — facts read by code, and your one `question` answered by a picture model.
 - ask: a question only the person can answer (a choice, a source, a fact nobody here can know).
@@ -75,14 +78,15 @@ def plan_schema(cap: int) -> dict:
     move = lambda name, **props: {  # noqa: E731
         "type": "object", "additionalProperties": False, "required": ["move", *props],
         "properties": {"move": {"const": name}, **props}}
-    s, said = {"type": "string"}, {"type": "string", "minLength": 2, "maxLength": 300}
+    # every text bounded: an unbounded one ran past the reply's 500 tokens and the reply didn't parse (2026-10-09)
+    s, said = {"type": "string", "maxLength": 300}, {"type": "string", "minLength": 2, "maxLength": 300}
     return {"type": "object", "additionalProperties": False, "required": ["thinking", "next"], "properties": {
         "thinking": {"type": "string", "maxLength": 400},
         "next": {"anyOf": [move("coder", kind={"enum": list(engine_mod.KINDS)},
                                 task={"type": "string", "minLength": 8, "maxLength": cap}, acts_on=said, proof=said),
-                           move("fetch", url=s), move("look", target={"enum": ["program", "page", "screen"]},
+                           move("search", query=s), move("fetch", url=s), move("look", target={"enum": ["program", "page", "screen"]},
                                                       question=s, address=s),
-                           move("ask", question=s), move("done", summary=s)]}}}
+                           move("ask", question=s), move("done", summary={"type": "string", "maxLength": 800})]}}}
 
 
 HINT_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["next"], "properties": {"next": {"anyOf": [
@@ -200,13 +204,18 @@ class Tandem:
                 + f"\n\nDone so far in this request:\n{done}")
 
     def ask_junior(self, system: str, user: str, schema: dict, cancel) -> dict | None:
-        try:
-            raw, _ = self.junior([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                                 schema=schema, max_tokens=500, cancel=cancel)
-            return json.loads(raw)
-        except Exception as e:  # the organizer failing never loses the request: the coder works it alone
-            self.agent.event("note", text=f"The organizer didn't answer ({type(e).__name__}); the coder goes on alone.")
-            return None
+        error = None
+        for _ in range(2):  # one more try before the coder goes on alone (a reply that didn't parse, 2026-10-09)
+            try:
+                raw, _ = self.junior([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                                     schema=schema, max_tokens=500, cancel=cancel)
+                return json.loads(raw)
+            except Exception as e:  # the organizer failing never loses the request: the coder works it alone
+                error = e
+                if cancel is not None and cancel.is_set():
+                    break
+        self.agent.event("note", text=f"The organizer didn't answer ({type(error).__name__}); the coder goes on alone.")
+        return None
 
     def next_move(self, request: str, rounds: list[dict], given: list[dict], cancel) -> dict | None:
         out = self.ask_junior(SYSTEM.format(cap=self.cap), self.situation(request, rounds, given),
@@ -284,6 +293,7 @@ class Tandem:
     def turn(self, request: str, cancel: threading.Event | None = None) -> str:
         cancel = cancel or threading.Event()
         self.agent.event("user", text=request)
+        self.agent.given(request)
         try:
             return self.work(request, cancel)
         finally:
@@ -337,6 +347,12 @@ class Tandem:
                 record.step("look", self.organizer_name, f"look at the {target}: {question}"[:200],
                             f"{target}: {question}" + (f"\n{move['address']}" if move.get("address") else ""), "",
                             lambda _c: (self.agent.look(target, question, move.get("address", "")), "looked"))
+                continue
+            if kind == "search":
+                query = move.get("query", "").strip()
+                self.agent.event("handoff", by="organizer", to="search", text=query)
+                record.step("search", self.organizer_name, f"search the web: {query}"[:200], query, "",
+                            lambda _c: (self.agent.web_search(query), "searched"))
                 continue
             if kind == "fetch":
                 url = move.get("url", "").strip()

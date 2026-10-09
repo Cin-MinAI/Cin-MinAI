@@ -321,6 +321,28 @@ at the project and we will make it so the whole thing is organized properly to i
   Requests view shows them in the six languages.
 - **Stop** anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it opens.
 
+### Fixes from the test of 2026-10-09 (evening) — fill D86, D96, D64; no new decision
+
+A request for a picture from the web, and a look at the program. Built the same night, to ship after the test:
+
+1. **An address comes from somewhere** (D96 fetch; D86). The coder made up picture addresses from memory and fetched
+   one seven times in a row. A fetch's address must come from the person's request, a search result or a page kept in
+   `sources/` — checked by code; otherwise it's refused with "search for it, or ask the person". New: a `web_search`
+   tool for the coder and a `search` move for the organizer (the assistant's own search, D55: DuckDuckGo, then Bing;
+   asked first like a fetch; results kept as `sources/search-….txt`); a kept page lists its pictures and links as
+   full addresses, so a picture found on a page can be fetched.
+2. **The same fetch twice** gives the first answer instead of fetching again.
+3. **No stand-ins** (§22.7 honesty): sites that make placeholder pictures are refused; the coder's rules say a
+   stand-in is never used for what the person asked for — it asks.
+4. **Motion by code** (the look closure): two pictures half a second apart, compared pixel by pixel — "something
+   moved, in WxH at x,y" or "nothing moved" — in the facts and told to the picture model. The picture model had
+   given two opposite answers with no change between.
+5. **The organizer's reply**: every text field bounded (an unbounded one ran past the reply's limit and didn't parse);
+   one more try before the coder goes on alone.
+6. **Tests that never ran don't pass**: run as a script, a pytest-style file only defines its tests and exits 0; the
+   goal check runs pytest when the environment has it, and otherwise reports such a file as not run. A project with
+   tests gets pytest in its environment when it's built.
+
 **Next (v2, on the same engine):** members at the same time — the organizer preparing the next order while the coder
 works (Ian's "nitrous": more information per unit); round 4's senior and junior as members (the script in shared
 context, review with `review_task`); cloud and outside members claiming orders assigned to them (the MCP server on

@@ -78,6 +78,27 @@ class Facts(unittest.TestCase):
         self.assertIn("( bash run.sh )", script)
         self.assertEqual(look.screen_of({"CINMINAI_SCREEN": "4095x2160@3"}), SCREEN)
         self.assertEqual(look.screen_of({}), (1920, 1080, 1))
+        self.assertIn("sleep 0.5; ffmpeg -loglevel error -f x11grab -video_size 4095x2160 -i :77 -frames:v 1 -y "
+                      ".cinminai/looks/x-2.png", script)  # the second picture: does anything move
+
+    @unittest.skipUnless(HAVE_PIL, "needs Pillow")
+    def test_whether_anything_moves_is_read_by_code(self):
+        """2026-10-09: the picture model said the ball wasn't visible, then that it was moving, with no change between."""
+        import tempfile
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            a, b, c = (os.path.join(d, n) for n in ("a.png", "b.png", "c.png"))
+            for path, x in ((a, 100), (b, 100), (c, 140)):
+                im = Image.new("RGB", (400, 300), (0, 0, 0))
+                im.paste((255, 255, 255), (x, 100, x + 30, 130))
+                im.save(path)
+            self.assertEqual(look.motion(a, b), {"moved": False})
+            moved = look.motion(a, c)
+            self.assertEqual(moved, {"moved": True, "where": {"x": 100, "y": 100, "width": 70, "height": 30}})
+        facts = {"target": "the program", "picture_path": "p.png", "facts_path": "p.json", "question": "",
+                 "screen": {"width": 400, "height": 300, "scale": 1}, "motion": moved}
+        self.assertIn("between two pictures 0.5 s apart: something moved, in 70x30 at 100,100",
+                      look.report(facts, [], ""))
 
 
 @unittest.skipUnless(shutil.which("git") and HAVE_PIL, "needs git and Pillow")

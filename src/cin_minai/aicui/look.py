@@ -27,6 +27,7 @@ import time
 
 LOOKS = os.path.join(".cinminai", "looks")
 WAIT_S = 4          # how long a program runs before its picture is taken
+APART_S = 0.5      # the second picture, to see whether anything moves (code, not a model's guess)
 SMALL = 0.4         # a window under this share of the screen's width is "small on this screen"
 WINDOW = re.compile(r'^\s+0x[0-9a-f]+ "(?P<name>[^"]*)":.*?\s(?P<w>\d+)x(?P<h>\d+)\+-?\d+\+-?\d+\s+\+(?P<x>-?\d+)\+(?P<y>-?\d+)')
 
@@ -71,6 +72,20 @@ def picture_facts(path: str) -> dict:
         return {}
 
 
+def motion(first: str, second: str) -> dict:
+    """Two pictures APART_S apart: did anything change, and where (2026-10-09: the picture model said "the ball isn't
+    visible", then "visible and moving", with no change in between — code can tell)."""
+    try:
+        from PIL import Image, ImageChops
+        with Image.open(first) as a, Image.open(second) as b:
+            box = ImageChops.difference(a.convert("RGB"), b.convert("RGB")).getbbox()
+    except Exception:
+        return {}
+    if not box:
+        return {"moved": False}
+    return {"moved": True, "where": {"x": box[0], "y": box[1], "width": box[2] - box[0], "height": box[3] - box[1]}}
+
+
 def checks(facts: dict) -> list[str]:
     """The problems code can name from the facts — before any model looks."""
     found = []
@@ -110,6 +125,7 @@ def program_script(entry: str, venv: str, screen: tuple[int, int, int], base: st
             f"if kill -0 $P 2>/dev/null; then echo running=yes; else echo running=no; fi; "
             f"xwininfo -root -tree > {b}.windows 2>&1; "
             f"ffmpeg -loglevel error -f x11grab -video_size {w}x{h} -i :77 -frames:v 1 -y {b}.png; "
+            f"sleep {APART_S}; ffmpeg -loglevel error -f x11grab -video_size {w}x{h} -i :77 -frames:v 1 -y {b}-2.png; "
             f"cp {b}.out {b}.seen 2>/dev/null; "  # what it printed by the picture, not its complaints at the shutdown
             f"kill $P 2>/dev/null; kill $XV 2>/dev/null; wait 2>/dev/null; true")
 
@@ -143,6 +159,10 @@ def report(facts: dict, problems: list[str], answer: str) -> str:
     if facts.get("program"):
         lines.append("the program was " + ("still running" if facts.get("running") else "stopped") + " after "
                      f"{WAIT_S} s" + (f"; it printed: {facts['output'][-400:]}" if facts.get("output") else ""))
+    if "moved" in facts.get("motion", {}):
+        m = facts["motion"]
+        lines.append(f"between two pictures {APART_S} s apart: " + (
+            "something moved, in {width}x{height} at {x},{y}".format(**m["where"]) if m["moved"] else "nothing moved"))
     lines.append("problems code found: " + ("; ".join(problems) if problems else "none"))
     lines.append(f"the picture model, asked \"{facts['question']}\": {answer}" if answer else
                  "no picture model answered (none here can read pictures, or it wasn't asked)")
