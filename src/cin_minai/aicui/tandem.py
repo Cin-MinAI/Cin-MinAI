@@ -14,7 +14,11 @@ each answer reaches the coder between its steps (before it finishes, it waits fo
   coder, who decides (a second goal_done ticks it); the person is above both.
 
 Every request is the coder's task on the Team Table, every Junior job a child task with its verdict; the chat shows
-each exchange; Stop cancels the tree (cin_minai.engine).
+each exchange. **Stop works on the table's tokens** (Ian, 2026-10-09: "It falls back to team tables tokens. Stop
+both or just one?"): every errand is a task from the moment it's queued; at Stop, AICUI lists them with their session
+goals and the person stops both, the coder only (the errands go on; their answers come at the next request), or the
+helper only (its tasks are cancelled on the table, the coder goes on). The helper obeys the table: a cancelled task is
+skipped, or stopped between its parts — from AICUI or from the sidebar's Requests view alike.
 """
 
 from __future__ import annotations
@@ -34,6 +38,8 @@ from .project import token_of
 JUNIOR_CONTEXT = 8192
 PART_CHARS = 9000        # what the helper reads at a time (its 8K context holds a part, the question and its answer)
 MAX_PARTS = 24           # a file longer than this many parts is read from its start (the helper says so)
+KEEP = os.path.join(".cinminai", "keep-errands")   # AICUI: Stop the coder only — the errands go on
+HALT = os.path.join(".cinminai", "stop-errands")   # AICUI: Stop the helper only (when the table can't be reached)
 
 READ = """You read part {n} of {total} of the file {source} for the coding model. Answer only from this part: {question}
 Copy names and numbers exactly as they are here. If this part has nothing for the question, answer: nothing here."""
@@ -73,6 +79,8 @@ class Tandem:
         self.count = 0
         self.lock = threading.Lock()
         self.worker: threading.Thread | None = None
+        self.listing: dict[int, dict] = {}           # errands out, as AICUI lists them at Stop
+        self.errand_stop = threading.Event()         # the errands' own stop (Stop may leave them running)
         agent.inbox = []                             # answers waiting for the coder's next step
         agent.errand = self.errand                   # the coder's errand tool
         agent.errands_pending = lambda: self.out > 0
@@ -82,6 +90,8 @@ class Tandem:
     def turn(self, request: str, cancel: threading.Event | None = None) -> str:
         self.cancel = cancel or threading.Event()
         self.root = None
+        if self.out == 0:
+            self.errand_stop.clear()
         if self.engine is not None:
             try:
                 self.root = self.engine.request(request, self.lead)
@@ -89,11 +99,11 @@ class Tandem:
                 self.agent.event("note", text=f"The Team Table couldn't take this request ({str(e)[:160]}).")
         try:
             out = self.agent.turn(request, self.cancel)
-        except BaseException:  # Stop (Ctrl+C) or a failure: the request's tree is cancelled, not left open
-            self.close_cancelled()
+        except BaseException:  # Stop (Ctrl+C) or a failure: the coder's part ends; errands as the person chose
+            self.stopped()
             raise
         if self.cancel.is_set():
-            self.close_cancelled()
+            self.stopped()
         else:
             ended = getattr(self.agent, "stopped", "")
             verdict = {"answer": "done", "ask": "asks the person", "declined": "declined"}.get(ended, ended or "done")
@@ -108,6 +118,27 @@ class Tandem:
             except Exception:
                 pass
 
+    def stopped(self) -> None:
+        """Stop: errands still out keep going if the person chose so at Stop (AICUI's question); else all ends."""
+        keep = os.path.join(self.agent.root, KEEP)
+        kept = os.path.exists(keep)
+        if kept:
+            try:
+                os.remove(keep)
+            except OSError:
+                pass
+        if kept and self.out > 0:
+            self.close("stopped by the person; the helper's errands go on in the background", "stopped")
+            self.agent.event("note", text="Stopped. Your helper's errands go on in the background; their answers come "
+                                          "at your next request.")
+            return
+        self.errand_stop.set()
+        self.close_cancelled()
+
+    def show_errands(self) -> None:
+        """What the helper has out, for AICUI's question at Stop."""
+        self.agent.event("errands", out=sorted(self.listing.values(), key=lambda x: x["n"]))
+
     def close_cancelled(self) -> None:
         if self.engine is not None and self.root:
             try:
@@ -116,7 +147,7 @@ class Tandem:
                 pass
 
     # --- the helper's jobs, each a child task on the table ---------------------------------------------------
-    def errand(self, kind: str, source: str, question: str) -> str:
+    def errand(self, kind: str, source: str, question: str, goal: int | None = None) -> str:
         """The coder's errand tool: queued for the Junior, answered between the coder's steps."""
         if kind not in ("read", "look"):
             return "error: an errand is read (a long file, for a question) or look (the program, for a question)"
@@ -126,11 +157,24 @@ class Tandem:
             full = os.path.realpath(os.path.join(self.agent.root, source))
             if not full.startswith(os.path.realpath(self.agent.root) + os.sep) or not os.path.isfile(full):
                 return f"error: {source} isn't a file in the project"
+        goals = self.agent.goals.load()
+        g = next((x for x in goals if x["id"] == goal), None) or next((x for x in goals if not x["done"]), None)
+        what = f"{kind} {source}: {question}"[:200] if kind == "read" else f"look at the program: {question}"[:200]
+        towards = f"goal {g['id']}: {g['text'][:120]}" if g else "no session goal"
+        task = None
+        if self.engine is not None and self.root:  # a token on the table from now: the person can stop it
+            try:
+                task = self.engine.order(self.root["id"], self.lead, self.helper_name, what, f"{what}\nfor {towards}",
+                                         kind)
+            except Exception:
+                task = None
         with self.lock:
             self.count += 1
             self.out += 1
             n = self.count
-        self.errands.put((n, kind, source, question, self.root))
+            self.listing[n] = {"n": n, "what": what, "goal": towards, "task": task["id"] if task else None}
+        self.show_errands()
+        self.errands.put((n, kind, source, question, task))
         if self.worker is None or not self.worker.is_alive():
             self.worker = threading.Thread(target=self.work_queue, daemon=True)
             self.worker.start()
@@ -141,28 +185,54 @@ class Tandem:
         """The Junior: one errand at a time, while the coder works."""
         while True:
             try:
-                n, kind, source, question, root = self.errands.get(timeout=5)
+                n, kind, source, question, task = self.errands.get(timeout=5)
             except queue.Empty:
                 return
             try:
-                if self.cancel is not None and self.cancel.is_set():
-                    result = "not done: the request was stopped"
+                if self.halted(task):
+                    result = "not done: stopped by the person"
+                    self.agent.event("handoff", by="helper", to="coder", text=f"errand {n}: {result}")
                 elif kind == "read":
-                    result = self.read(source, question, root)
+                    result = self.read(source, question, task=task)
                 else:
                     result = self.job("look", f"look at the program: {question}"[:200], question,
-                                      lambda: (self.agent.look("program", question, ""), "looked"), root)
+                                      lambda: (self.agent.look("program", question, ""), "looked"), task=task)
             except Exception as e:  # a failing errand never stops the coder
                 result = f"error: the helper couldn't do it ({type(e).__name__})"
             self.agent.inbox.append((n, kind, result))
             with self.lock:
                 self.out -= 1
+                self.listing.pop(n, None)
+            self.show_errands()
 
-    def job(self, kind: str, title: str, text: str, run, root: dict | None = None) -> str:
-        """Give the Junior a job under a request and run it: run() -> (result, verdict)."""
-        task = None
+    def halted(self, task: dict | None) -> bool:
+        """Is this errand stopped — all of the helper's work (Stop both, or the helper only), or its own token?"""
+        halt = os.path.join(self.agent.root, HALT)
+        if os.path.exists(halt):
+            try:
+                os.remove(halt)
+            except OSError:
+                pass
+            self.errand_stop.set()
+        if self.errand_stop.is_set():
+            return True
+        if task is not None and self.engine is not None:
+            try:
+                return self.engine.state(task["id"]) == "cancelled"
+            except Exception:
+                return False
+        return False
+
+    def job(self, kind: str, title: str, text: str, run, root: dict | None = None, task: dict | None = None) -> str:
+        """Run a Junior job — its task given (an errand, queued earlier) or made now under the request: run() ->
+        (result, verdict)."""
         root = root if root is not None else self.root
-        if self.engine is not None and root:
+        if self.engine is not None and task is not None:
+            try:
+                self.engine.db.claim_task(task["id"], self.helper_name)
+            except Exception:
+                pass
+        elif self.engine is not None and root:
             try:
                 task = self.engine.order(root["id"], self.lead, self.helper_name, title, text, kind)
                 self.engine.claim(self.helper_name)
@@ -173,7 +243,7 @@ class Tandem:
             result, verdict = run()
         except Exception as e:  # the helper failing never stops the coder
             result, verdict = f"error: the helper couldn't do it ({type(e).__name__}: {str(e)[:160]})", "error"
-        if task is not None:
+        if task is not None and not self.halted(task):
             try:
                 self.engine.finish(task, self.helper_name, self.models[self.helper_name], verdict, result)
                 self.engine.claim(self.lead)  # the request again: its child is closed
@@ -182,12 +252,13 @@ class Tandem:
         self.agent.event("handoff", by="helper", to="coder", text=result[:300])
         return result
 
-    def ask(self, system: str, user: str, schema: dict | None = None, max_tokens: int = 600) -> str:
+    def ask(self, system: str, user: str, schema: dict | None = None, max_tokens: int = 600,
+            cancel: threading.Event | None = None) -> str:
         raw, _ = self.junior([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                             schema=schema, max_tokens=max_tokens, cancel=self.cancel)
+                             schema=schema, max_tokens=max_tokens, cancel=cancel or self.cancel)
         return str(raw)
 
-    def read(self, source: str, question: str, root: dict | None = None) -> str:
+    def read(self, source: str, question: str, root: dict | None = None, task: dict | None = None) -> str:
         """A read errand: the Junior reads a long file for one question, part by part; the answer is kept."""
         full = os.path.realpath(os.path.join(self.agent.root, source))
         base = os.path.realpath(self.agent.root)  # the project folder (root is the request)
@@ -205,10 +276,11 @@ class Tandem:
             parts = parts[:MAX_PARTS]
             found = []
             for n, part in enumerate(parts, 1):
-                if self.cancel is not None and self.cancel.is_set():
+                if self.halted(task):  # stopped by the person, as a whole or this one token
                     break
                 self.agent.event("helper", doing=f"reading {rel}, part {n} of {len(parts)}")  # not the coder's status
-                said = self.ask(READ.format(n=n, total=len(parts), source=rel, question=question), part).strip()
+                said = self.ask(READ.format(n=n, total=len(parts), source=rel, question=question), part,
+                                cancel=self.errand_stop).strip()
                 if said and not said.lower().startswith("nothing here"):
                     found.append(f"## part {n}\n{said}")
             os.makedirs(os.path.join(base, ".cinminai", "helper"), exist_ok=True)
@@ -216,10 +288,13 @@ class Tandem:
             answer = "\n\n".join(found) or "nothing in the file answers it"
             with open(os.path.join(base, kept), "w", encoding="utf-8") as f:
                 f.write(f"# {rel}: {question}\n\n{answer}\n")
+            if self.halted(task):  # stopped while it read (between parts, or during the last one)
+                return (f"not done: stopped by the person — what it found before is kept in {kept}" if found else
+                        "not done: stopped by the person"), "stopped"
             note = f" (only its first {MAX_PARTS} parts: the file is longer)" if cut else ""
             return (f"the helper read {rel} in {len(parts)} parts{note} for: {question}\nIts answer is kept in {kept} "
                     f"({answer.count(chr(10)) + 1} lines); it begins:\n{answer[:1500]}"), "answered"
-        return self.job("read", f"read {rel}: {question}"[:200], f"{rel}\n{question}", run, root)
+        return self.job("read", f"read {rel}: {question}"[:200], f"{rel}\n{question}", run, root, task)
 
     def review_goal(self, goal: dict, report: str) -> tuple[bool, str] | None:
         """Before a tick: do the facts cover every part of the goal? (2026-10-09: a goal for "the set's cards with

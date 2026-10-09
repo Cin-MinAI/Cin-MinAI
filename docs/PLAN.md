@@ -392,6 +392,14 @@ Junior" and back; the coder's rules say to take the person's words as they are a
 Not needed in style A: holding files (the Junior writes no project files). Style B (and file holds) when round 4
 runs.
 
+**Stop on the table's tokens** (Ian, 2026-10-09: "a pop up asking if the user wants the task to continue in the
+background with a listing of the task and for what session goal… It falls back to team tables tokens. Stop both or
+just one? Thats what the ultimate function is."): every errand is a task on the table from the moment it's queued,
+with the session goal it serves. At Stop, with errands out, AICUI asks: stop both, the coder only (the errands go on;
+their answers come at the next request), or the helper only (its tasks are cancelled on the table; the coder goes
+on). The helper obeys the table — a cancelled task is skipped or stopped at its next part — so a Stop on one task in
+the sidebar's Requests view works the same way.
+
 ### The tandem flipped, and a day of patches rolled back (Ian, 2026-10-09)
 
 The first engine-driven tandem put the guide (the 4B) in front of every request, choosing each move for the coder.

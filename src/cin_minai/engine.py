@@ -173,6 +173,11 @@ class Engine:
         result = json.dumps({"model": model, "verdict": verdict, "note": outcome[:1500]}, ensure_ascii=False)
         self.db.update_task(task["id"], state, result=result[:4800], agent_name=member)
 
+    def state(self, task_id: int) -> str:
+        """A task's status now (pending, in_progress, done, blocked, cancelled…)."""
+        row = self.db._get_conn().execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+        return row["status"] if row is not None else ""
+
     def cancel(self, root: int) -> int:
         out = self.db.cancel_task(root, PERSON) or {}
         return int(out.get("cancelled", 0)) if isinstance(out, dict) else 0

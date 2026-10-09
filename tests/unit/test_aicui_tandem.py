@@ -114,6 +114,84 @@ class TandemTest(Base):
         labels = [(e["by"], e["to"]) for e in self.events() if e["kind"] == "handoff"]
         self.assertEqual(labels, [("coder", "helper"), ("helper", "coder")])  # shown as Senior → Junior and back
 
+    def gated(self, replies):
+        """A pair whose helper waits at a gate before each answer (an errand stays out while the test acts)."""
+        import threading
+        gate = threading.Event()
+        a, t = self.pair([])
+        helper = t.junior
+
+        def slow(messages, **kw):
+            gate.wait(10)
+            return helper(messages, **kw)
+        t.junior = slow
+        helper.steps = list(replies)
+        t.root = self.engine.request("make the list", t.lead)
+        os.makedirs(os.path.join(self.root, "sources"), exist_ok=True)
+        with open(os.path.join(self.root, "sources", "list.txt"), "w") as f:
+            f.write("a short page\n")
+        return a, t, gate
+
+    def wait_out(self, t):
+        import time
+        for _ in range(200):
+            if t.out == 0:
+                return
+            time.sleep(0.05)
+        self.fail("the errand never finished")
+
+    def test_an_errand_is_a_token_on_the_table_with_its_goal(self):
+        """Ian, 2026-10-09: "a pop up asking if the user wants the task to continue in the background with a listing of
+        the task and for what session goal" — "It falls back to team tables tokens." From the moment it's queued, an
+        errand is a task on the table, and AICUI's list says what it's for."""
+        a, t, gate = self.gated(["the answer"])
+        a.do({"tool": "errand", "kind": "read", "source": "sources/list.txt", "question": "what's on it?"})
+        (child,) = self.tree()["children"]
+        self.assertEqual((child["assignee"], child["kind"]), (t.helper_name, "read"))
+        listed = [e for e in self.events() if e["kind"] == "errands"][-1]["out"]
+        self.assertEqual(listed, [{"n": 1, "what": "read sources/list.txt: what's on it?", "goal": "goal 1: A round runs",
+                                   "task": child["id"]}])
+        gate.set()
+        self.wait_out(t)
+        self.assertEqual([e for e in self.events() if e["kind"] == "errands"][-1]["out"], [])  # nothing out now
+
+    def test_stop_the_helper_only_cancels_its_tokens(self):
+        """The person stops the helper's task on the table (AICUI, or the sidebar's Requests view): it isn't done;
+        the coder is told, and goes on."""
+        a, t, gate = self.gated(["never used"])
+        a.do({"tool": "errand", "kind": "read", "source": "sources/list.txt", "question": "what's on it?"})
+        (child,) = self.tree()["children"]
+        self.engine.db.cancel_task(child["id"], "person")
+        gate.set()
+        self.wait_out(t)
+        ((n, kind, said),) = a.inbox
+        self.assertTrue(said.startswith("not done: stopped by the person"), said)  # skipped, or stopped mid-read
+        self.assertEqual(self.engine.state(child["id"]), "cancelled")
+        self.assertEqual(self.engine.state(t.root["id"]), "pending")  # the coder's request goes on
+
+    def test_stop_the_coder_only_keeps_the_errands_going(self):
+        a, t, gate = self.gated(["the answer"])
+        a.do({"tool": "errand", "kind": "read", "source": "sources/list.txt", "question": "what's on it?"})
+        open(os.path.join(self.root, ".cinminai", "keep-errands"), "w").close()  # AICUI: "Stop the coder only"
+        t.stopped()
+        tree = self.tree()
+        self.assertEqual(json.loads(tree["result"])["verdict"], "stopped")
+        self.assertNotEqual(tree["children"][0]["status"], "cancelled")
+        gate.set()
+        self.wait_out(t)
+        self.assertIn("the answer", a.inbox[0][2])  # it reaches the coder at the next request
+        self.assertFalse(os.path.exists(os.path.join(self.root, ".cinminai", "keep-errands")))
+
+    def test_stop_both_stops_the_errands_too(self):
+        a, t, gate = self.gated(["never used"])
+        a.do({"tool": "errand", "kind": "read", "source": "sources/list.txt", "question": "what's on it?"})
+        t.stopped()  # no choice to keep them: everything stops
+        gate.set()
+        self.wait_out(t)
+        ((n, kind, said),) = a.inbox
+        self.assertTrue(said.startswith("not done: stopped by the person"), said)  # skipped, or stopped mid-read
+        self.assertEqual({r["status"] for r in self.engine.db.list_tasks()}, {"cancelled"})
+
     def test_the_review_is_a_flag_and_the_senior_decides(self):
         """2026-10-09: the 4B's review said "no engine code exists" five times, over the coder and the person. Its
         review is a flag: the coder hears it once, and a second goal_done ticks the goal."""

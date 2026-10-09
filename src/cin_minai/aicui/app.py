@@ -157,7 +157,7 @@ class Workspace(Gtk.ApplicationWindow):
         self.busy_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, width_chars=46, max_width_chars=60)
         stop = Gtk.Button(label="Stop")
         stop.set_tooltip_text("Stop the AI now (Ctrl+C in its terminal). What it has done stays, with undo.")
-        stop.connect("clicked", lambda b: self.term.feed_child(b"\x03"))
+        stop.connect("clicked", lambda b: self.stop())
         self.busy_box = Gtk.Box(spacing=6, no_show_all=True)
         for w in (self.spinner, self.busy_label, stop):
             w.show()
@@ -278,7 +278,62 @@ class Workspace(Gtk.ApplicationWindow):
                 self.load_tree()
             elif e["kind"] == "goals":
                 self.load_goals()
+            elif e["kind"] == "errands":  # what the helper has out (tandem.py): asked about at Stop
+                self.errands = e.get("out", [])
         return True
+
+    def stop(self) -> None:
+        """Stop, on the Team Table's tokens (Ian, 2026-10-09: "It falls back to team tables tokens. Stop both or just
+        one?"). With the helper's errands out, ask first — each listed with its session goal: stop both, the coder
+        only (the errands go on; their answers come at the next request), or the helper only (its tasks are cancelled
+        on the table; the coder goes on). Without errands, Stop stops."""
+        out = getattr(self, "errands", [])
+        keep = os.path.join(self.root, ".cinminai", "keep-errands")
+        if os.path.exists(keep):
+            os.remove(keep)
+        if not out:
+            self.term.feed_child(b"\x03")
+            return
+        listing = "\n".join(f"{x['n']}. {x['what']}\n    for {x['goal']}" for x in out)
+        d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
+                              buttons=Gtk.ButtonsType.NONE, text="Stop both, or just one?")
+        d.format_secondary_text(f"Your helper is working on:\n\n{listing}\n\nThe coder is working on your request.")
+        d.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Stop the helper only", 2, "Stop the coder only", 1,
+                      "Stop both", Gtk.ResponseType.OK)
+        choice = d.run()
+        d.destroy()
+        if choice == 1:  # the coder stops; the helper's tokens go on
+            os.makedirs(os.path.dirname(keep), exist_ok=True)
+            open(keep, "w").close()
+            self.term.feed_child(b"\x03")
+        elif choice == 2:  # the helper's tokens are cancelled on the table; the coder goes on
+            self.cancel_errands(out)
+        elif choice == Gtk.ResponseType.OK:
+            self.term.feed_child(b"\x03")
+
+    def cancel_errands(self, out: list[dict]) -> None:
+        """The helper's tasks, cancelled on the Team Table (the helper skips or stops them); if the table can't be
+        reached, a note in the project tells the helper to stop."""
+        done = False
+        try:
+            from pathlib import Path
+
+            from team_table.config import Config
+            from team_table.db import Database
+
+            from cin_minai.daemon.turns import PERSON, path
+            db = Database(Config(db_path=Path(path()), require_tokens=False))
+            for x in out:
+                if x.get("task"):
+                    db.cancel_task(int(x["task"]), PERSON)
+                    done = True
+            done = done and all(x.get("task") for x in out)
+        except Exception:
+            done = False
+        if not done:
+            halt = os.path.join(self.root, ".cinminai", "stop-errands")
+            os.makedirs(os.path.dirname(halt), exist_ok=True)
+            open(halt, "w").close()
 
     def answer(self, key: bytes) -> None:
         """Allow / Always / No: one answer to the question waiting, never a stray key (2026-10-08: clicks after the

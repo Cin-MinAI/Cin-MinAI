@@ -57,7 +57,8 @@ ACTIONS = [
     {"tool": "run", "command": STR},
     {"tool": "web_search", "query": STR},
     {"tool": "fetch", "url": STR},
-    {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR},
+    {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR,
+     "goal": {"type": "integer"}},
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
     {"tool": "need", "package": STR, "why": STR},
@@ -65,7 +66,7 @@ ACTIONS = [
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
 ]
-OPTIONAL = {"start"}
+OPTIONAL = {"start", "goal"}
 
 
 def schema(content_max: int | None = None) -> dict:
@@ -1317,7 +1318,7 @@ class Agent:
                 errand = getattr(self, "errand", None)
                 if not callable(errand):
                     return "no helper is running here: do it yourself"
-                return errand(a.get("kind", "read"), a.get("source", ""), a.get("question", ""))
+                return errand(a.get("kind", "read"), a.get("source", ""), a.get("question", ""), a.get("goal"))
             if t == "read":
                 full = self.path(a["path"])
                 with open(full, encoding="utf-8", errors="replace") as f:
