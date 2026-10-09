@@ -42,6 +42,7 @@ LIST_ENTRIES = 150     # a listing shows the whole folder, files inside its fold
 RUN_TIMEOUT = 120
 ANSWER_TOKENS = 1800   # room for one step's answer at 8K (thinking + an action); 16K gets 4096 (see Agent)
 TOKENS_A_LINE = 25     # a code line in a JSON string, escapes included: the size of one write part
+EVENT_LOCK = threading.Lock()  # events come from the coder's loop and the helper's thread
 TICK_S = 1.5           # how often the progress of a step goes to AICUI (busy events)
 
 STR = {"type": "string"}
@@ -56,7 +57,7 @@ ACTIONS = [
     {"tool": "run", "command": STR},
     {"tool": "web_search", "query": STR},
     {"tool": "fetch", "url": STR},
-    {"tool": "ask_helper", "source": STR, "question": STR},
+    {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR},
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
     {"tool": "need", "package": STR, "why": STR},
@@ -87,13 +88,15 @@ You work step by step. Each step: your thinking (short), then exactly one action
   append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
 - run (a shell command in the project folder{sandbox})
 - web_search (a `query`), fetch (an https `url` from the user, a search or a kept page); both asked first
-- ask_helper (a second model reads a long `source` file for your `question`)
+- errand (your helper's side job while you work on: `kind` read a long `source` for your `question`, or look)
 - goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
 - need (a package the project needs: the person agrees, AICUI installs it)
 - look (see the program, a page or the screen: facts, and your `question` answered)
 - ask (a question for the user), answer (tell the user something; ends your turn)
 Your thinking: a sentence or two about your next move, never a copy of the user's message or an error (the user
 sees it).
+Take the user's words as they are ("continue" continues, "look at x" looks at x), against the session goals; one
+task or only coding: do it yourself; give your helper errands only when they make it faster.
 Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change, check it (run the tests or
 the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
 haven't read. Data or a source the user gives you (pasted or fetched) beats your memory: use it as given; if it
@@ -201,7 +204,7 @@ def doing(raw: str) -> str:
     what = re.search(r'"(?:path|command|pattern|url|query|source)"\s*:\s*"((?:[^"\\]|\\.){0,60})', raw)
     verb = {"write": "writing", "append": "writing", "edit": "editing", "replace_lines": "editing", "read": "reading", "run": "running",
             "list": "looking in", "search": "searching", "answer": "answering", "ask": "asking",
-            "fetch": "fetching", "web_search": "searching the web for", "ask_helper": "asking the helper about"}.get(tool.group(1),
+            "fetch": "fetching", "web_search": "searching the web for", "errand": "giving the helper an errand:"}.get(tool.group(1),
                                                                                                     tool.group(1))
     return f"{verb} {what.group(1)}" if what else verb
 
@@ -607,8 +610,26 @@ class Agent:
     # --- events for AICUI's panes --------------------------------------------------------------------------
     def event(self, kind: str, **data) -> None:
         os.makedirs(os.path.dirname(self.events), exist_ok=True)
-        with open(self.events, "a", encoding="utf-8") as f:
+        with EVENT_LOCK, open(self.events, "a", encoding="utf-8") as f:  # the helper's thread writes here too
             f.write(json.dumps({"t": time.time(), "kind": kind, **data}, ensure_ascii=False) + "\n")
+
+    # --- errands: the helper's answers, between this model's steps (tandem.py) ---------------------------------
+    def errands_out(self) -> bool:
+        out = getattr(self, "errands_pending", None)
+        return bool(out()) if callable(out) else False
+
+    def wait_errands(self, cancel: threading.Event | None, deadline_s: float = 1800) -> None:
+        end = time.time() + deadline_s
+        while self.errands_out() and time.time() < end and not (cancel and cancel.is_set()):
+            self.event("busy", doing="waiting for the helper's errand", tokens=0)
+            time.sleep(2)
+
+    def deliver(self, steps: list[dict]) -> None:
+        """What the helper finished since the last step, as notes the model reads now."""
+        inbox = getattr(self, "inbox", None)
+        while inbox:
+            n, kind, text = inbox.pop(0)
+            self.note(steps, f"Errand {n} ({kind}) is back from your helper:\n{text}")
 
     # --- the loop -------------------------------------------------------------------------------------------
     def system(self) -> str:
@@ -870,11 +891,13 @@ class Agent:
         self.stopped = ""  # how it ended: "answer", "ask", "declined", "stuck", "limit", "error" (the table records it)
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
+        self.flagged: set[int] = set()  # goals the helper flagged in this task (a second goal_done ticks)
         last_progress = 0
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
         for n in range(1, self.max_steps + 1):
+            self.deliver(steps)  # the helper's answers, as soon as they're back
             try:
                 raw, t = self.generate(self.fit(text, steps), n, cancel)
             except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
@@ -910,6 +933,12 @@ class Agent:
                 self.say(msg)
                 self.history.append({"user": text, "answer": msg})
                 return msg
+            if act["tool"] in ("answer", "ask") and (self.errands_out() or getattr(self, "inbox", None)):
+                # its helper's answers first: the ones out, and any back since its last step
+                self.wait_errands(cancel)
+                if getattr(self, "inbox", None):
+                    self.deliver(steps)
+                    continue
             if act["tool"] in ("answer", "ask"):
                 msg = act.get("text") or act.get("question") or ""
                 self.stopped = act["tool"]
@@ -926,7 +955,7 @@ class Agent:
             elif n - last_progress in (NUDGE_STEPS, NUDGE_STEPS * 2):  # the one progress rule: said, then said again
                 self.note(steps, f"No progress in the last {n - last_progress} steps: no file changed, no new result, "
                                  "no goal moved. Make the change now (lines the checks or the map name can go by number "
-                                 "with replace_lines), or decline the task with your reason, or ask the person.")
+                                 "with replace_lines), or ask the person.")
             if n % CHECKPOINT_STEPS == 0:  # a handover in the chat, and on it goes (Ian: as automated as possible)
                 self.event("handover", text=self.handover(steps, f"{n} steps so far — still working."))
             if n - last_progress >= STUCK_STEPS:
@@ -1284,11 +1313,11 @@ class Agent:
                 return self.fetch(a.get("url", ""))
             if t == "web_search":
                 return self.web_search(a.get("query", ""))
-            if t == "ask_helper":  # the tandem's helper (tandem.py); alone, there's none
-                helper = getattr(self, "helper", None)
-                if not callable(helper):
-                    return "no helper is running here: read the file yourself, in parts"
-                return helper(a.get("source", ""), a.get("question", ""))
+            if t == "errand":  # the tandem's Junior (tandem.py), working while this model does; alone, there's none
+                errand = getattr(self, "errand", None)
+                if not callable(errand):
+                    return "no helper is running here: do it yourself"
+                return errand(a.get("kind", "read"), a.get("source", ""), a.get("question", ""))
             if t == "read":
                 full = self.path(a["path"])
                 with open(full, encoding="utf-8", errors="replace") as f:
@@ -1345,11 +1374,15 @@ class Agent:
                     ok = False
                     report += ("\n" if report else "") + "not checked by any test: " + ", ".join(unchecked) + \
                         " — a test should read it and compare it with its source (e.g. how many it should hold)"
-                if ok and goal and callable(getattr(self, "reviewer", None)):  # D96 review: another model
-                    said = self.reviewer(goal, report)
+                flagged = getattr(self, "flagged", set())
+                if ok and goal and goal["id"] not in flagged and callable(getattr(self, "reviewer", None)):
+                    said = self.reviewer(goal, report)  # the Junior's review is a flag; this model, the Senior, decides
                     if said and not said[0]:
-                        ok = False
-                        report += ("\n" if report else "") + "review (another model): not covered yet — " + said[1]
+                        flagged.add(goal["id"])
+                        self.flagged = flagged
+                        return (f"goal {a['id']} not ticked yet — your helper flags: {said[1]}\nThe checks:\n{report}\n"
+                                "You decide: if it's right, do what's missing; if not, call goal_done again and it's "
+                                "ticked.")
                 if not ok:  # the user can still tick it by hand in AICUI
                     return (f"goal {a['id']} NOT ticked — the checks failed:\n{report}\nFix this, then tick the goal "
                             "again.")

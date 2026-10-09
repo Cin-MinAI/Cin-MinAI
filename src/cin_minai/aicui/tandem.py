@@ -1,19 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Two models on one project, the coder leading (SPEC §22.5, PLAN D94-D96). Ian, 2026-10-09: "flip the tandem".
+"""Two models on one project — style A of the two cards (PLAN §1b, SPEC §22.5; D94-D96): the coder holds the Senior
+card, the guide (the 4B, on the processor) the Junior card, as an errand intern. Ian, 2026-10-09: "4b is an
+assistant and doesnt have to be used, but will be used when it will make things go faster."
 
-The coding model (on the graphics card) works the person's request with its own judgement, exactly as it does alone.
-The guide (the 4B, on the processor) is its helper, for the jobs that would spend the coder's context or that need a
-second model — never deciding what the coder does:
+The coder works the person's request with its own judgement and has the final word. It gives the Junior errands only
+when it has other work meanwhile; they stack in the Junior's queue and run one at a time while the coder works, and
+each answer reaches the coder between its steps (before it finishes, it waits for any still out):
 
-* **read** — a long file (a kept page, a document) read for one question, in parts; the answer is kept under
-  `.cinminai/helper/` and the coder gets its beginning and where the rest is (the bulk stays out of its context:
-  "more information per cubic unit").
-* **review** — before a goal is ticked, a model other than the one that did the work says whether the facts cover
-  every part of the goal (D94, D96).
-* **pictures** — a look's one question (look.py), when the guide has its picture reader.
+* **read** — a long file (a kept page, a document) read in parts for one question; the answer is kept under
+  `.cinminai/helper/` and the coder gets its beginning and where the rest is.
+* **look** — the program looked at (look.py), the question answered.
+* **review** — before a goal is ticked, the Junior says whether the facts cover every part of it: a flag for the
+  coder, who decides (a second goal_done ticks it); the person is above both.
 
-Every request is a task on the Team Table for the coder, every helper job a child task for the helper, with its
-verdict; Stop cancels the tree (cin_minai.engine).
+Every request is the coder's task on the Team Table, every Junior job a child task with its verdict; the chat shows
+each exchange; Stop cancels the tree (cin_minai.engine).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import queue
 import re
 import threading
 import time
@@ -66,7 +68,14 @@ class Tandem:
         self.models = {self.lead: getattr(agent, "model_name", ""), self.helper_name: junior_model}
         self.root: dict | None = None
         self.cancel: threading.Event | None = None
-        agent.helper = self.read        # the coder's ask_helper tool
+        self.errands: queue.Queue = queue.Queue()   # the Junior's queue: errands stack, done one at a time
+        self.out = 0                                # errands given and not yet answered
+        self.count = 0
+        self.lock = threading.Lock()
+        self.worker: threading.Thread | None = None
+        agent.inbox = []                             # answers waiting for the coder's next step
+        agent.errand = self.errand                   # the coder's errand tool
+        agent.errands_pending = lambda: self.out > 0
         agent.reviewer = self.review_goal
 
     # --- one request: the coder's ----------------------------------------------------------------------------
@@ -107,12 +116,55 @@ class Tandem:
                 pass
 
     # --- the helper's jobs, each a child task on the table ---------------------------------------------------
-    def job(self, kind: str, title: str, text: str, run) -> str:
-        """Give the helper a job under the current request and run it: run() -> (result, verdict)."""
-        task = None
-        if self.engine is not None and self.root:
+    def errand(self, kind: str, source: str, question: str) -> str:
+        """The coder's errand tool: queued for the Junior, answered between the coder's steps."""
+        if kind not in ("read", "look"):
+            return "error: an errand is read (a long file, for a question) or look (the program, for a question)"
+        if not question.strip():
+            return "error: give the errand a question"
+        if kind == "read":
+            full = os.path.realpath(os.path.join(self.agent.root, source))
+            if not full.startswith(os.path.realpath(self.agent.root) + os.sep) or not os.path.isfile(full):
+                return f"error: {source} isn't a file in the project"
+        with self.lock:
+            self.count += 1
+            self.out += 1
+            n = self.count
+        self.errands.put((n, kind, source, question, self.root))
+        if self.worker is None or not self.worker.is_alive():
+            self.worker = threading.Thread(target=self.work_queue, daemon=True)
+            self.worker.start()
+        return (f"errand {n} given to your helper ({kind}{' ' + source if kind == 'read' else ''}: {question}); its "
+                "answer comes between your steps — go on with other work meanwhile.")
+
+    def work_queue(self) -> None:
+        """The Junior: one errand at a time, while the coder works."""
+        while True:
             try:
-                task = self.engine.order(self.root["id"], self.lead, self.helper_name, title, text, kind)
+                n, kind, source, question, root = self.errands.get(timeout=5)
+            except queue.Empty:
+                return
+            try:
+                if self.cancel is not None and self.cancel.is_set():
+                    result = "not done: the request was stopped"
+                elif kind == "read":
+                    result = self.read(source, question, root)
+                else:
+                    result = self.job("look", f"look at the program: {question}"[:200], question,
+                                      lambda: (self.agent.look("program", question, ""), "looked"), root)
+            except Exception as e:  # a failing errand never stops the coder
+                result = f"error: the helper couldn't do it ({type(e).__name__})"
+            self.agent.inbox.append((n, kind, result))
+            with self.lock:
+                self.out -= 1
+
+    def job(self, kind: str, title: str, text: str, run, root: dict | None = None) -> str:
+        """Give the Junior a job under a request and run it: run() -> (result, verdict)."""
+        task = None
+        root = root if root is not None else self.root
+        if self.engine is not None and root:
+            try:
+                task = self.engine.order(root["id"], self.lead, self.helper_name, title, text, kind)
                 self.engine.claim(self.helper_name)
             except Exception:
                 task = None
@@ -135,15 +187,15 @@ class Tandem:
                              schema=schema, max_tokens=max_tokens, cancel=self.cancel)
         return str(raw)
 
-    def read(self, source: str, question: str) -> str:
-        """ask_helper: the helper reads a long file for one question, part by part; the answer is kept."""
+    def read(self, source: str, question: str, root: dict | None = None) -> str:
+        """A read errand: the Junior reads a long file for one question, part by part; the answer is kept."""
         full = os.path.realpath(os.path.join(self.agent.root, source))
-        root = os.path.realpath(self.agent.root)
-        if not full.startswith(root + os.sep) or not os.path.isfile(full):
+        base = os.path.realpath(self.agent.root)  # the project folder (root is the request)
+        if not full.startswith(base + os.sep) or not os.path.isfile(full):
             return f"error: {source} isn't a file in the project"
         if not question.strip():
             return "error: ask the helper a question about the file"
-        rel = os.path.relpath(full, root).replace(os.sep, "/")
+        rel = os.path.relpath(full, base).replace(os.sep, "/")
 
         def run() -> tuple[str, str]:
             with open(full, encoding="utf-8", errors="replace") as f:
@@ -155,19 +207,19 @@ class Tandem:
             for n, part in enumerate(parts, 1):
                 if self.cancel is not None and self.cancel.is_set():
                     break
-                self.agent.event("busy", doing=f"the helper is reading {rel}, part {n} of {len(parts)}", tokens=0)
+                self.agent.event("helper", doing=f"reading {rel}, part {n} of {len(parts)}")  # not the coder's status
                 said = self.ask(READ.format(n=n, total=len(parts), source=rel, question=question), part).strip()
                 if said and not said.lower().startswith("nothing here"):
                     found.append(f"## part {n}\n{said}")
-            os.makedirs(os.path.join(root, ".cinminai", "helper"), exist_ok=True)
+            os.makedirs(os.path.join(base, ".cinminai", "helper"), exist_ok=True)
             kept = f".cinminai/helper/{time.strftime('%Y%m%d-%H%M%S')}.md"
             answer = "\n\n".join(found) or "nothing in the file answers it"
-            with open(os.path.join(root, kept), "w", encoding="utf-8") as f:
+            with open(os.path.join(base, kept), "w", encoding="utf-8") as f:
                 f.write(f"# {rel}: {question}\n\n{answer}\n")
             note = f" (only its first {MAX_PARTS} parts: the file is longer)" if cut else ""
             return (f"the helper read {rel} in {len(parts)} parts{note} for: {question}\nIts answer is kept in {kept} "
                     f"({answer.count(chr(10)) + 1} lines); it begins:\n{answer[:1500]}"), "answered"
-        return self.job("read", f"read {rel}: {question}"[:200], f"{rel}\n{question}", run)
+        return self.job("read", f"read {rel}: {question}"[:200], f"{rel}\n{question}", run, root)
 
     def review_goal(self, goal: dict, report: str) -> tuple[bool, str] | None:
         """Before a tick: do the facts cover every part of the goal? (2026-10-09: a goal for "the set's cards with

@@ -142,14 +142,21 @@ class AgentTest(unittest.TestCase):
         self.assertIn("Earlier I wrote big.py, 300 lines", second)
         self.assertNotIn('"content"', second)  # nothing that looks like file content to imitate
 
+    def test_the_system_text_leaves_room_at_8k(self):
+        """The coder's rules and tools, before the project's files: about a tenth of the smallest context we run (8K,
+        ~24,000 characters) — 3,156 on 2026-10-09; more than 3,600 needs a reason."""
+        from cin_minai.aicui.agent import SYSTEM
+        self.assertLessEqual(len(SYSTEM), 3600)
+
     def test_a_small_context_shrinks_the_history(self):
         steps = [step(f"Look {i}.", tool="read", path="app.py") for i in range(8)] + [step("", tool="answer", text="ok")]
         a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=2400)
         a.turn("read a lot")
         last = a.chat.sent[-1]
-        # the system text is ~2,400 characters with the tools of 2026-10-08/09 (need, decline, replace_lines, look);
-        # what this checks is the history shrinking, at a context no setup of ours uses (the floor is 8K)
-        self.assertLessEqual(sum(len(m["content"]) for m in last), (2400 - 1800 - 300) * 3.3 + 2400)
+        # what this checks is the history shrinking, at a context no setup of ours uses (the floor is 8K): the
+        # messages after the system text (bounded on its own: test_the_system_text_leaves_room_at_8k)
+        self.assertEqual(last[0]["role"], "system")
+        self.assertLessEqual(sum(len(m["content"]) for m in last[1:]), (2400 - 1800 - 300) * 3.3)
         self.assertTrue(any(m["content"].startswith("Earlier in this task:") for m in last))
 
     def test_a_model_error_is_answered_not_a_crash(self):
@@ -194,7 +201,7 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "ask_helper", "goal_add", "goal_done", "need", "look", "ask",
+                                 "web_search", "fetch", "errand", "goal_add", "goal_done", "need", "look", "ask",
                                  "answer"])
 
     def cut_write(self, path, lines, tool="write"):

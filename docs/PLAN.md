@@ -384,8 +384,13 @@ Junior task is one file — or one stub — inside that frame: fixed names, fixe
 "contracts first" from the 2026-10-08 senior/junior measurement — two models chose different exceptions for one rule,
 and a file re-implemented another's functions — made the Senior's first job.)
 
-**To build (with Ian's go):** style A first — the Junior's review a flag and the Senior's word final; every exchange
-shown in the chat; the Junior's queue running beside the Senior; files held per task. Style B when round 4 runs.
+**Style A built 2026-10-09** (`aicui/tandem.py`, the coder's `errand` tool): errands (read a long file for a
+question, look at the program) stack in the Junior's queue and run on their own thread while the coder works; each
+answer reaches the coder between its steps, and it waits for any still out before it finishes; the Junior's review
+of a goal is a flag — the coder hears it once, and a second goal_done ticks the goal; the chat shows "Senior →
+Junior" and back; the coder's rules say to take the person's words as they are and give errands only when faster.
+Not needed in style A: holding files (the Junior writes no project files). Style B (and file holds) when round 4
+runs.
 
 ### The tandem flipped, and a day of patches rolled back (Ian, 2026-10-09)
 

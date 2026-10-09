@@ -251,9 +251,9 @@ class Workspace(Gtk.ApplicationWindow):
                 self.thought(e.get("text", ""), "Note")
             elif e["kind"] == "handover":  # every 60 steps: where the work stands; the AI goes on
                 self.bubble("ai", e.get("text", ""))
-            elif e["kind"] == "handoff":  # the coder and its helper (the guide) passing work (SPEC 22.5)
-                who = {"helper": "Coder → helper", "coder": "Helper → coder", "person": "Coder → you"}
-                self.thought(e.get("text", ""), who.get(e.get("to", ""), "Helper"))
+            elif e["kind"] == "handoff":  # the two cards passing work: the coder (Senior) and its helper (Junior)
+                who = {"helper": "Senior → Junior", "coder": "Junior → Senior", "person": "Senior → you"}
+                self.thought(e.get("text", ""), who.get(e.get("to", ""), "Junior"))
             elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
                 self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
             elif e["kind"] == "env_request":  # the AI declared a package the work needs: the person decides

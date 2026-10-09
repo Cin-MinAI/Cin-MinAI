@@ -20,8 +20,11 @@ model's story: `docs/guide-model-journal.md`.
 - **How we work now** (Ian): AICUI is "a simple entry point to building your own software with AI", not a full coding
   agent. When a run shows a problem: report it and stop; specifics go on a list and are fixed in batches decided with
   Ian — no patch-and-build per log check.
+- **Style A of the two cards is built** (PLAN §1b): the coder is the Senior, the 4B an errand intern whose queue
+  runs beside it; the Junior's review is a flag, the coder decides, the person above both.
 - **The specifics list so far:** the goal review sees only Python tests (it said "no engine code" with a 407-line C++
-  engine and a C++ test on disk); the no-progress note still says "decline the task" (the decline tool is gone).
+  engine and a C++ test on disk — now only a flag the coder can overrule); fixed: the no-progress note's leftover
+  "decline the task".
 - **Next, when Ian picks it:** the rest of update 6 (SPEC §22.8), the D97 fill, tandem round 4 (9B + Flash-Next /
   9B + 35B-A3B as coder + helper), members working at the same time on the engine.
 

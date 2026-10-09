@@ -58,6 +58,10 @@ class Base(unittest.TestCase):
         self.addCleanup(self.engine.db.close)
         return a, tandem.Tandem(a, Helper(list(helper_replies)), say=self.said.append, engine=self.engine)
 
+    def events(self):
+        with open(os.path.join(self.root, ".cinminai", "events.jsonl"), encoding="utf-8") as f:
+            return [json.loads(line) for line in f]
+
     def tree(self):
         (root,) = [r for r in self.engine.db.list_tasks() if r["parent_id"] is None]
         return self.engine.db.task_tree(root["id"])
@@ -77,51 +81,66 @@ class TandemTest(Base):
         self.assertEqual((tree["assignee"], tree["status"], tree["origin"]), (t.lead, "done", "person"))
         self.assertEqual(json.loads(tree["result"])["model"], "Qwen3.8-27B")
 
-    def test_the_helper_reads_a_long_file_for_the_coder(self):
-        """The bulk stays out of the coder's context: the helper reads it in parts and keeps its answer."""
+    def test_an_errand_runs_while_the_coder_works(self):
+        """Style A (PLAN §1b): the Junior is an errand intern — the coder gives it a long read and goes on working; the
+        answer reaches the coder between its steps, and the coder doesn't finish before it's back."""
         os.makedirs(os.path.join(self.root, "sources"))
         rows = "".join(f"row {i}: filler text for the page\n" for i in range(700))  # ~3 parts
         with open(os.path.join(self.root, "sources", "list.txt"), "w") as f:
             f.write(rows)
-        a, t = self.pair([step("A long page: the helper reads it.", tool="ask_helper", source="sources/list.txt",
-                               question="Which entries score over 2000?"),
-                          step("", tool="answer", text="Got them.")],
+        a, t = self.pair([step("The helper reads the long page.", tool="errand", kind="read",
+                               source="sources/list.txt", question="Which entries score over 2000?"),
+                          step("Meanwhile, the duplicate.", tool="replace_lines", path="gui.py", first=2, last=4,
+                               new=""),
+                          step("", tool="answer", text="Done."),
+                          step("", tool="answer", text="Done.")],
                          ["Stone Giant 3000", "nothing here", "River Knight 2500"])
-        t.turn("make the card list")
-        told = a.chat.sent[1][-1]["content"]
-        self.assertIn("the helper read sources/list.txt in 3 parts for: Which entries score over 2000?", told)
-        self.assertIn("Stone Giant 3000", told)
-        kept = [f for f in os.listdir(os.path.join(self.root, ".cinminai", "helper"))]
+        self.assertEqual(t.turn("make the list and fix gui.py"), "Done.")
+        sent = [m[-1]["content"] for m in a.chat.sent]
+        self.assertIn("errand 1 given to your helper (read sources/list.txt: Which entries score over 2000?)", sent[1])
+        back = "\n".join(sent)
+        self.assertIn("Errand 1 (read) is back from your helper", back)
+        self.assertIn("the helper read sources/list.txt in 3 parts", back)
+        self.assertIn("Stone Giant 3000", back)
+        with open(os.path.join(self.root, "gui.py")) as f:
+            self.assertEqual(f.read().count("def run"), 1)  # the coder worked while the errand ran
+        kept = os.listdir(os.path.join(self.root, ".cinminai", "helper"))
         with open(os.path.join(self.root, ".cinminai", "helper", kept[0])) as f:
             answer = f.read()
-        self.assertIn("## part 1\nStone Giant 3000", answer)
         self.assertIn("## part 3\nRiver Knight 2500", answer)
         self.assertNotIn("nothing here", answer)
-        self.assertIn("part 2 of 3", t.junior.sent[1][0]["content"])
         (child,) = self.tree()["children"]
         self.assertEqual((child["assignee"], child["kind"], child["status"]), (t.helper_name, "read", "done"))
-        self.assertEqual(json.loads(child["result"])["verdict"], "answered")
+        labels = [(e["by"], e["to"]) for e in self.events() if e["kind"] == "handoff"]
+        self.assertEqual(labels, [("coder", "helper"), ("helper", "coder")])  # shown as Senior → Junior and back
 
-    def test_a_goal_is_ticked_after_the_helpers_review(self):
-        """2026-10-09: a goal for "the set's cards with card images" was ticked on 7 cards and no images, because its
-        tests passed. Before a tick, the helper — another model — says whether every part is covered."""
-        a, t = self.pair([], [{"covered": False, "missing": "card images: no image files, and no test reads any"},
-                              {"covered": True, "missing": ""}])
+    def test_the_review_is_a_flag_and_the_senior_decides(self):
+        """2026-10-09: the 4B's review said "no engine code exists" five times, over the coder and the person. Its
+        review is a flag: the coder hears it once, and a second goal_done ticks the goal."""
+        a, t = self.pair([], [{"covered": False, "missing": "no engine implementation code exists"}])
+        a.flagged = set()
         a.verify = lambda: (True, "test_cards.py: passed")
-        refused = a.do({"tool": "goal_done", "id": 1})
-        self.assertIn("goal 1 NOT ticked", refused)
-        self.assertIn("not covered yet — card images: no image files", refused)
-        self.assertIn("The goal: A round runs", t.junior.sent[0][1]["content"])
+        flagged = a.do({"tool": "goal_done", "id": 1})
+        self.assertIn("goal 1 not ticked yet — your helper flags: no engine implementation code exists", flagged)
+        self.assertIn("call goal_done again and it's ticked", flagged)
+        self.assertFalse(a.goals.load()[0]["done"])
         self.assertIn("goal 1 ticked", a.do({"tool": "goal_done", "id": 1}))
+        self.assertEqual(len(t.junior.sent), 1)  # asked once: the coder's call after that
 
     def test_the_helper_failing_never_stops_the_coder(self):
         a, t = self.pair([], [RuntimeError("no server"), RuntimeError("no server")])
         with open(os.path.join(self.root, "notes.txt"), "w") as f:
             f.write("x\n")
-        self.assertIn("error: the helper couldn't do it", a.do({"tool": "ask_helper", "source": "notes.txt",
-                                                               "question": "what's in it?"}))
+        self.assertIn("error: the helper couldn't do it", t.read("notes.txt", "what's in it?"))
+        a.flagged = set()
         a.verify = lambda: (True, "test_x.py: passed")
         self.assertIn("goal 1 ticked", a.do({"tool": "goal_done", "id": 1}))  # no review answer: the checks decide
+
+    def test_an_errand_is_a_read_or_a_look(self):
+        a, t = self.pair([])
+        self.assertIn("an errand is read", a.do({"tool": "errand", "kind": "write", "source": "", "question": "x"}))
+        self.assertIn("isn't a file in the project", a.do({"tool": "errand", "kind": "read", "source": "../x",
+                                                            "question": "x"}))
 
     def test_the_coders_question_goes_to_the_person(self):
         _, t = self.pair([step("", tool="ask", question="pygame or pygame-ce?")])
@@ -138,7 +157,8 @@ class TandemTest(Base):
 
     def test_alone_there_is_no_helper(self):
         a = self.agent()
-        self.assertIn("no helper is running here", a.do({"tool": "ask_helper", "source": "gui.py", "question": "?"}))
+        self.assertIn("no helper is running here", a.do({"tool": "errand", "kind": "read", "source": "gui.py",
+                                                         "question": "?"}))
 
 
 class CoderChecks(Base):
