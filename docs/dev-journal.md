@@ -1587,3 +1587,53 @@ left memory-mapped on the NVMe), 512 experts (43 GiB, ~0.9 GB read per token —
 backbone read every token, which wants the card. So the coder steps down to a dense model that leaves room for it:
 Qwen3.5-9B (32K, ~36 tokens a second, beside ~4.4 GB of Flash-Next), chosen over a squeezed 14B coder. Both are on
 Ian's NVMe with their checksums matching Hugging Face; the measurement comes next.
+
+## 2026-10-08 (night) to 2026-10-09 — the closures, looking, the Team Table as the engine, a day of patches, and the flip
+
+**The closures, built (night of the 8th).** What Ian had asked for — "this has to be generalized for function" —
+went in as general mechanisms instead of special cases: a contract for every move, each goal's place in the habit
+cycle, one rule for progress, and Ian's project environments (a project token and a `.venv` that starts as a header,
+built by AICUI with the person's OK once the AI has said what it needs). Ian then defined progress itself: "The only
+4 things that qualify as an action that counts as progress is pass, fail, write, delete. Accept, reject, create,
+destroy." Reading, listing, searching, fetching and looking gather; they no longer reset the stuck counter.
+
+**One way of looking (the look closure).** Ian: "When a tool call for a screenshot is called, this is the process. So
+it doesn't matter if it's a UI, or trying to get stuff off the web, or just seeing where the screen is at." One `look`
+tool for the program being built, a web page or the person's screen: allowed by its target (the program runs in the
+AI's sandbox, in a virtual display the size of the person's screen at their scaling; a page is asked; the person's
+screen is asked twice and shown first), facts by code (windows, sizes, whether it's running, what it printed, whether
+anything moved between two pictures), one question to a picture model, everything kept. The first real look said by
+code what a person would see: the program's window was 10 % of a 4K screen's width.
+
+**The Team Table becomes the engine.** Ian asked whether AICUI was still on the Team Table — it wasn't; the tandem
+kept its moves in memory. "Team table was the multi model engine." `cin_minai/engine.py` now drives it: members per
+project with their context size, model and where they run (Ian: "you and any other cloud model can work at team
+table also, for 3 agents at the project" — nothing assumes a member is local), a request as a task, every hand-off a
+child task closed with its verdict, Stop cancelling the tree, all of it in the Requests view. The first build left
+the new file out of every package and AICUI didn't start; the packaging test now reads every import form, and every
+build is imported from its unpacked packages before it goes to Ian.
+
+**A day of patches.** On Ian's PC the organizer (the 4B) chose every move for the coder (the 27B), and it was weak at
+that: it made up web addresses, looked at "a page" with no address, sent "add a goal" when it meant "work on it" four
+times in a row, read build output as "still compiling". Each log check brought a fix and a build — about twenty in a
+day. Some were real: addresses must come from the person, a search or a kept page (the coder had invented image
+links and fetched one seven times); a pytest-style test file run as a script "passed" without running a test; the
+checks had flagged a downloaded web page's HTML as broken project code; C++ headers were compiled as C. Most were
+guards around the organizer's mistakes. Ian stopped it: "I dont like this habit weve developed where we spot patch
+for a hole… we should have this setup simple. Not with this huge amount of micromanaging… right now you are telling
+it how to build this specifically and thats not the goal at all."
+
+**The flip.** "Flip the tandem and roll back the patches." The coding model now leads every request with its own
+judgement, as it does alone; the guide is its helper, for what would spend the coder's context or needs a second
+model — it reads a long file in parts for one question and keeps the answer, reviews a goal before it's ticked (never
+the model that did the work), and answers a look's picture question. The organizer and the patches made for it are
+gone; the general pieces stayed (PLAN §1b). On the first run after the flip the coder found on its own that two
+halves of an engine had been written for different interfaces, rewrote one to match, fixed what the compiler named,
+wrote a test program that found two functions declared but never written, and wrote them. The reviewer then said "no
+engine code exists" with 407 lines of it on disk — the review sees only Python tests; noted, not patched.
+
+**Where that leaves AICUI.** Ian, at the end: "We never aimed to make a full coding agent capable of this kind of
+work, only a simple entry point to building your own software with AI and I think we have that here overall, we just
+need to work on specifics here and there. The process, the OS, the vision, it all works and that's why I am on AICUI
+right now haggling with you about getting the model to do what I want." From here, specifics go on a list and are
+fixed in batches decided together; the design stays simple: the coder leads, the guide helps.

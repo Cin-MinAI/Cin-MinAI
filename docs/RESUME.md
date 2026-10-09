@@ -1,10 +1,29 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-08** (latest: journal "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-09** (latest: journal "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-09) — the tandem flipped: the coder leads, the guide helps
+
+- **Pushed with this entry:** the closures (move contract, goal cycle, four kinds of progress, project environments),
+  the look tool (SPEC §22 / PLAN §1b look closure), `cin_minai/engine.py` (the Team Table drives the models; ships in
+  cinminai-daemon), and the flip (`aicui/tandem.py`): the coding model leads every request; the guide is its helper —
+  `ask_helper` reads a long file for one question (answer kept in `.cinminai/helper/`), it reviews a goal before a
+  tick, and answers a look's picture question. Every request is the coder's task on the Team Table.
+- **Rolled back, not pushed:** a day of ~20 spot patches around the old organizer; they're on the local branch
+  `backup/2026-10-09-patches` (not pushed). The general pieces were kept (PLAN §1b, "The tandem flipped").
+- **Ian's PC runs build `…162051`** (the flip). Builds go to `~/cinminai-debs`, each with a dated entry appended to the
+  desktop `prompts.txt`.
+- **How we work now** (Ian): AICUI is "a simple entry point to building your own software with AI", not a full coding
+  agent. When a run shows a problem: report it and stop; specifics go on a list and are fixed in batches decided with
+  Ian — no patch-and-build per log check.
+- **The specifics list so far:** the goal review sees only Python tests (it said "no engine code" with a 407-line C++
+  engine and a C++ test on disk); the no-progress note still says "decline the task" (the decline tool is gone).
+- **Next, when Ian picks it:** the rest of update 6 (SPEC §22.8), the D97 fill, tandem round 4 (9B + Flash-Next /
+  9B + 35B-A3B as coder + helper), members working at the same time on the engine.
 
 ## Where we stopped (2026-10-08, evening) — the AICUI tandem live; next build = the closures; Flash-Next next
 
