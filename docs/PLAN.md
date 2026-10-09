@@ -361,6 +361,16 @@ the smaller model in charge of the bigger one — the root of a day of patches.)
 
 Switching models or styles is a matter of who holds which card; the mechanics are the same.
 
+**Style B starts with the skeleton** (Ian: "MoE should be able to fill out a whole file structure and plan for the
+project then send 9b on scripts one at a time while doing work itself in other places. If it does all the imports
+and classes and dependencies and binaries first, the small model has a domain to work in and should hallucinate less
+and make less mistakes"). The Senior's first work is the project's frame, checked by code before any Junior task:
+every file, with its imports, classes and function signatures (bodies left as clearly marked stubs), the shared
+types and constants, the dependencies declared, the build files (Makefile, run.sh), and it compiles. Then each
+Junior task is one file — or one stub — inside that frame: fixed names, fixed signatures, nothing to invent. (It is
+"contracts first" from the 2026-10-08 senior/junior measurement — two models chose different exceptions for one rule,
+and a file re-implemented another's functions — made the Senior's first job.)
+
 **To build (with Ian's go):** style A first — the Junior's review a flag and the Senior's word final; every exchange
 shown in the chat; the Junior's queue running beside the Senior; files held per task. Style B when round 4 runs.
 
