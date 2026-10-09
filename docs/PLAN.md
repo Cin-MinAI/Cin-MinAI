@@ -400,6 +400,25 @@ their answers come at the next request), or the helper only (its tasks are cance
 on). The helper obeys the table — a cancelled task is skipped or stopped at its next part — so a Stop on one task in
 the sidebar's Requests view works the same way.
 
+### The web through tools only, and AICUI's top bar (Ian, 2026-10-09) — built
+
+**The web through tools only** (Ian: "How do we change no network to fetch tools only? So instead of building a
+safeguard to cover all tools, we build safeguards into every tool." — option 1 of two; option 2, a network gate for
+commands, would change D1). The coder's commands keep no network; every way to the web is a tool with its own
+safeguards: `web_search` (asked; only the query goes out), `fetch` (asked; https; an address from the person, a search
+or a kept page; size cap; kept with its origin) and new `download` (many such files with one approval, each address
+checked the same way, kept under `assets/<folder>/`, 300 files / 300 MB at most). The coder's rules now say so
+plainly — it had concluded it "can't download in the sandbox" and began generating stand-in pictures.
+
+**AICUI's top bar** (Ian: "a top options menu… with a file open function, a save function for state and flow
+progress recording, maybe even continuity function… if I could save and shutdown during storms that would be useful.
+Also Id like to get the Cloud model and GitHub buttons reserved up top"): File → Open project folder…, Open file…,
+Save progress (a restore point of where the AI stands, put on the disk), Save and shut down… (stops the AI, saves,
+then closes AICUI or shuts the computer down), Resume where it left off; **continuity**: the agent records the
+request, its state, step, last thoughts and changed files after every step (`.cinminai/checkpoint.json`, written
+atomically), and AICUI offers to resume on the next open after a power cut or a save-and-shut-down; Cloud models and
+GitHub buttons reserved at the top right (disabled, "coming soon").
+
 ### The tandem flipped, and a day of patches rolled back (Ian, 2026-10-09)
 
 The first engine-driven tandem put the guide (the 4B) in front of every request, choosing each move for the coder.

@@ -43,6 +43,8 @@ RUN_TIMEOUT = 120
 ANSWER_TOKENS = 1800   # room for one step's answer at 8K (thinking + an action); 16K gets 4096 (see Agent)
 TOKENS_A_LINE = 25     # a code line in a JSON string, escapes included: the size of one write part
 EVENT_LOCK = threading.Lock()  # events come from the coder's loop and the helper's thread
+DOWNLOAD_MAX = 300   # files in one download (one approval; each address checked as a fetch)
+DOWNLOAD_BYTES = 300 << 20
 TICK_S = 1.5           # how often the progress of a step goes to AICUI (busy events)
 
 STR = {"type": "string"}
@@ -57,6 +59,7 @@ ACTIONS = [
     {"tool": "run", "command": STR},
     {"tool": "web_search", "query": STR},
     {"tool": "fetch", "url": STR},
+    {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR},
     {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR,
      "goal": {"type": "integer"}},
     {"tool": "goal_add", "text": STR},
@@ -87,8 +90,9 @@ You work step by step. Each step: your thinking (short), then exactly one action
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
 - edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
   append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
-- run (a shell command in the project folder{sandbox})
-- web_search (a `query`), fetch (an https `url` from the user, a search or a kept page); both asked first
+- run (a shell command in the project folder{sandbox}; the web only through the tools below)
+- web_search (a `query`), fetch (an https `url` from the user, a search or a kept page), download (many such
+  `urls` into a `folder` under assets/, one approval); each asked first
 - errand (your helper's side job while you work on: `kind` read a long `source` for your `question`, or look)
 - goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
 - need (a package the project needs: the person agrees, AICUI installs it)
@@ -854,10 +858,38 @@ class Agent:
     def turn(self, text: str, cancel: threading.Event | None = None) -> str:
         self.event("user", text=text)
         self.given(text)
+        self.checkpoint(text, "working")
+        ended = "stopped"
         try:
-            return self.work(text, cancel)
+            out = self.work(text, cancel)
+            ended = "finished"
+            return out
         finally:
+            self.checkpoint(text, ended)
             self.event("idle")  # AICUI's indicator goes away, also after Stop (Ctrl+C) or an error
+
+    def checkpoint(self, request: str, state: str, steps: list | None = None) -> None:
+        """Where the AI stands, for AICUI's Resume (Ian, 2026-10-09: power cuts from storms): the request, its state
+        (working / stopped / finished), the step, its last thoughts and the files it changed in this task. Written
+        after every step, atomically; a cut loses at most the step in flight."""
+        steps = steps if steps is not None else getattr(self, "steps", [])
+        thoughts = [s["did"].get("thinking", "") for s in steps if isinstance(s, dict) and s.get("did")][-4:]
+        changed = sorted({s["did"]["action"].get("path", "") for s in steps if isinstance(s, dict) and s.get("did")
+                          and s["did"].get("action", {}).get("tool") in ("write", "append", "edit", "replace_lines")}
+                         - {""})
+        data = {"request": request, "state": state, "step": len(steps), "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "thoughts": [t[:300] for t in thoughts if t], "changed": changed[:30],
+                "goals": [{"id": g["id"], "done": g["done"], "text": g["text"][:120]} for g in self.goals.load()]}
+        path = os.path.join(self.root, ".cinminai", "checkpoint.json")
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(path + ".tmp", path)
+        except OSError:
+            pass
 
     def work(self, text: str, cancel: threading.Event | None) -> str:
         self.task_drafts: set[str] = set()  # drafts this task started or added to
@@ -950,6 +982,7 @@ class Agent:
             self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
+            self.checkpoint(text, "working", steps)
             if self.progressed(act, result):
                 last_progress = n
                 self.kinds_done.append(act["tool"])
@@ -1145,6 +1178,63 @@ class Agent:
         """The addresses in the person's own request: theirs to fetch (the model's memory of addresses doesn't count)."""
         self.known_urls |= {intake.clean_url(u) for u in intake.URL.findall(request)}
 
+    def download(self, urls: list, folder: str) -> str:
+        """Many files at once, one approval (Ian, 2026-10-09: the web through tools only, each with its own
+        safeguards): every address checked as a fetch's — https, from the person, a search or a kept page, not a
+        stand-in site — then kept under assets/ with its origin."""
+        from urllib.parse import urlsplit
+        folder = "assets/" + re.sub(r"[^\w/-]+", "-", (folder or "").replace("\\", "/")).strip("/-").removeprefix(
+            "assets").strip("/")
+        folder = folder.rstrip("/") or "assets"
+        if ".." in folder.split("/"):
+            return "error: the folder is under assets/"
+        ok, refused = [], []
+        for raw in urls[:DOWNLOAD_MAX]:
+            url = intake.clean_url(str(raw).strip())
+            host = urlsplit(url).hostname or ""
+            if not url.startswith("https://") or not host:
+                refused.append(f"{url[:80]}: not an https address")
+            elif any(host == h or host.endswith("." + h) for h in intake.STAND_INS):
+                refused.append(f"{url[:80]}: a stand-in site")
+            elif not self.known_address(url):
+                refused.append(f"{url[:80]}: didn't come from anywhere here (not the person, a search or a kept page)")
+            elif url not in ok:
+                ok.append(url)
+        if not ok:
+            return "nothing downloaded — " + ("; ".join(refused[:5]) or "no addresses given")
+        hosts = sorted({urlsplit(u).hostname for u in ok})
+        if not self.fetch_ok:
+            self.event("busy", doing="waiting for your answer in the terminal",
+                       asking=f"download {len(ok)} files from {', '.join(hosts)[:80]}")
+            reply = self.ask(f"\033[1mDownload {len(ok)} files from {', '.join(hosts)} into {folder}/ ? This sends "
+                             "their addresses, nothing else. [y]es / [n]o / [a]lways this session: \033[0m"
+                             ).strip().lower()
+            if reply[:1] not in ("y", "a"):
+                return f"the person said no to downloading {len(ok)} files"
+            self.fetch_ok = reply.startswith("a")
+        saved, failed, total = [], [], 0
+        for url in ok:
+            self.event("busy", doing=f"downloading {len(saved) + len(failed) + 1} of {len(ok)}", tokens=0)
+            try:
+                data, kind = intake.get(url)
+            except intake.IntakeError as e:
+                failed.append(f"{url[:80]}: {e}")
+                continue
+            total += len(data)
+            if total > DOWNLOAD_BYTES:
+                failed.append(f"{url[:80]}: over {DOWNLOAD_BYTES >> 20} MB in this download — stopped here")
+                break
+            kept = intake.save(self.root, url, data, kind or "application/octet-stream", folder)
+            self.fetched[url] = f"saved as {kept['files'][0]}"
+            saved.append(kept["files"][0])
+        self.event("fetch", url=f"download: {len(saved)} files into {folder}/")
+        out = [f"downloaded {len(saved)} of {len(urls)} into {folder}/ ({total >> 10} KB)"]
+        if refused:
+            out.append(f"refused {len(refused)}: " + "; ".join(refused[:5]))
+        if failed:
+            out.append(f"failed {len(failed)}: " + "; ".join(failed[:5]))
+        return "\n".join(out)
+
     def known_address(self, url: str) -> bool:
         """Did this address come from somewhere: the person, a search result, a page kept in sources/ (it lists its
         links and pictures)? Code checks it; the model's memory of addresses isn't a source."""
@@ -1314,6 +1404,8 @@ class Agent:
                 return self.fetch(a.get("url", ""))
             if t == "web_search":
                 return self.web_search(a.get("query", ""))
+            if t == "download":
+                return self.download(a.get("urls") or [], a.get("folder", ""))
             if t == "errand":  # the tandem's Junior (tandem.py), working while this model does; alone, there's none
                 errand = getattr(self, "errand", None)
                 if not callable(errand):

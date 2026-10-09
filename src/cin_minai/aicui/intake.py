@@ -122,7 +122,7 @@ def page_text(html: str, base: str = "") -> str:
     return text
 
 
-def save(root: str, url: str, data: bytes, kind: str) -> dict:
+def save(root: str, url: str, data: bytes, kind: str, folder: str = "assets") -> dict:
     """Keep what came: a page as sources/<name>.txt + .html, anything else as assets/<name>. {"kind", "files",
     "lines", "text"} — "text" is the page's text (for the model's first look), "" for a file."""
     name = name_for(url)
@@ -143,8 +143,8 @@ def save(root: str, url: str, data: bytes, kind: str) -> dict:
                 f.write(page)
             files.append(stem + ".html")
         return {"kind": "page", "files": files, "lines": text.count("\n") + 1, "text": text}
-    os.makedirs(os.path.join(root, "assets"), exist_ok=True)
-    rel = os.path.join("assets", name)
+    os.makedirs(os.path.join(root, folder), exist_ok=True)
+    rel = f"{folder}/{name}"
     with open(os.path.join(root, rel), "wb") as f:
         f.write(data)
     return {"kind": "file", "files": [rel], "lines": 0, "text": ""}

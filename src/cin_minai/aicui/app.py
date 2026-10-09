@@ -184,6 +184,7 @@ class Workspace(Gtk.ApplicationWindow):
         bottom.pack_end(self.perms, False, False, 0)
 
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        page.pack_start(self.top_bar(), False, False, 0)
         page.pack_start(outer, True, True, 0)
         page.pack_end(bottom, False, False, 0)
         self.add(page)
@@ -192,6 +193,7 @@ class Workspace(Gtk.ApplicationWindow):
         self.load_changes()
         self.building = False
         GLib.idle_add(self.offer_project)
+        GLib.idle_add(self.offer_resume)
 
     # --- the agent in the terminal -----------------------------------------------------------------------
     def agent_command(self) -> str:
@@ -453,6 +455,138 @@ class Workspace(Gtk.ApplicationWindow):
             return
         button.set_sensitive(False)
         self.term.feed_child((" ".join(report.splitlines()) + "\n").encode())
+
+    # --- the top bar: File (open, save, save and shut down, resume), Cloud models and GitHub (reserved) --------------
+    def top_bar(self) -> Gtk.Box:
+        """Ian, 2026-10-09: "a top options menu… with a file open function, a save function for state and flow progress
+        recording, maybe even continuity… if I could save and shutdown during storms… Cloud model and GitHub buttons
+        reserved up top"."""
+        menu = Gtk.Menu()
+        for entry in (("Open project folder…", self.open_project), ("Open file…", self.open_any_file), None,
+                      ("Save progress", self.save_progress), ("Save and shut down…", self.save_and_shutdown), None,
+                      ("Resume where it left off", self.resume), None, ("Close", lambda: self.close())):
+            if entry is None:
+                menu.append(Gtk.SeparatorMenuItem())
+                continue
+            label, act = entry
+            item = Gtk.MenuItem(label=label)
+            item.connect("activate", lambda w, f=act: f())
+            menu.append(item)
+        file_item = Gtk.MenuItem(label="File")
+        file_item.set_submenu(menu)
+        bar = Gtk.MenuBar()
+        bar.append(file_item)
+        box = Gtk.Box(spacing=6)
+        box.pack_start(bar, False, False, 0)
+        for label, tip in (("GitHub", "Coming soon: your project on GitHub — push, pull and share it from here"),
+                           ("Cloud models", "Coming soon: connect a cloud model (OpenAI, Anthropic) with your own key")):
+            b = Gtk.Button(label=label, sensitive=False)
+            b.set_tooltip_text(tip)
+            box.pack_end(b, False, False, 4)
+        return box
+
+    def open_project(self) -> None:
+        d = Gtk.FileChooserNative(title="Open a project folder", action=Gtk.FileChooserAction.SELECT_FOLDER,
+                                  transient_for=self)
+        if d.run() == Gtk.ResponseType.ACCEPT:
+            Workspace(self.get_application(), project_root(d.get_filename())).show_all()
+        d.destroy()
+
+    def open_any_file(self) -> None:
+        d = Gtk.FileChooserNative(title="Open a file", action=Gtk.FileChooserAction.OPEN, transient_for=self)
+        d.set_current_folder(self.root)
+        if d.run() == Gtk.ResponseType.ACCEPT:
+            Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(d.get_filename()).get_uri(), None)
+        d.destroy()
+
+    def checkpoint(self) -> dict:
+        try:
+            with open(os.path.join(self.root, ".cinminai", "checkpoint.json"), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return {}
+
+    def save_progress(self, quiet: bool = False) -> str:
+        """Every file the AI changes is saved as it goes; this keeps a restore point of where it stands — the request,
+        its step, its last thoughts, the goals — and puts everything on the disk now."""
+        cp = dict(self.checkpoint(), saved=time.strftime("%Y-%m-%d %H:%M:%S"))
+        folder = os.path.join(self.root, ".cinminai", "saves")
+        os.makedirs(folder, exist_ok=True)
+        rel = os.path.join(".cinminai", "saves", time.strftime("%Y%m%d-%H%M%S") + ".json")
+        with open(os.path.join(self.root, rel), "w", encoding="utf-8") as f:
+            json.dump(cp, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.sync()
+        if not quiet:
+            where = (f" The AI was {cp.get('state', 'idle')} on: {cp['request'][:120]}" if cp.get("request") else "")
+            self.bubble("ai", f"Progress saved ({rel}).{where}")
+        return rel
+
+    def save_and_shutdown(self) -> None:
+        """For storms: stop the AI at once, save where it stands, then close AICUI or shut the computer down."""
+        keep = os.path.join(self.root, ".cinminai", "keep-errands")
+        if os.path.exists(keep):
+            os.remove(keep)
+        if self.busy is not None:
+            self.term.feed_child(b"\x03")  # everything stops: the coder and the helper's errands
+        waited = [0]
+
+        def when_idle() -> bool:
+            waited[0] += 1
+            if self.busy is not None and waited[0] < 40:  # up to 20 s for the AI to stop and say where it stands
+                return True
+            cp = self.checkpoint()
+            if cp.get("request"):  # stopped for a shutdown: offered again on the next open
+                cp["shutdown"] = True
+                path = os.path.join(self.root, ".cinminai", "checkpoint.json")
+                with open(path + ".tmp", "w", encoding="utf-8") as f:
+                    json.dump(cp, f, ensure_ascii=False, indent=1)
+                os.replace(path + ".tmp", path)
+            rel = self.save_progress(quiet=True)
+            d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,
+                                  buttons=Gtk.ButtonsType.NONE, text="Saved. Shut down now?")
+            d.format_secondary_text(f"Where the AI stands is saved ({rel}), and every file is on the disk. Next time "
+                                    "you open this project, AICUI offers to resume where it left off.")
+            d.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Close AICUI", 1, "Shut down the computer", 2)
+            choice = d.run()
+            d.destroy()
+            if choice == 2:
+                try:
+                    Gio.Subprocess.new(["systemctl", "poweroff"], Gio.SubprocessFlags.NONE)
+                except GLib.Error as e:
+                    self.bubble("ai", f"The computer couldn't be shut down from here ({e.message}); everything is "
+                                      "saved — use the system menu.")
+            if choice in (1, 2):
+                self.close()
+            return False
+        GLib.timeout_add(500, when_idle)
+
+    def offer_resume(self) -> bool:
+        """Opened after a power cut (the request was still "working") or a Save and shut down mid-request: offer to
+        pick up where it left off. A Stop the person pressed isn't offered again."""
+        cp = self.checkpoint()
+        if cp.get("request") and (cp.get("state") == "working" or cp.get("shutdown")):
+            how = "was cut off" if cp["state"] == "working" else "was stopped for a shutdown"
+            if self.yes_no("Resume where the AI left off?",
+                           f"On {cp.get('time', '')} the AI {how} while working on:\n\n{cp['request'][:300]}\n\n"
+                           f"(step {cp.get('step', 0)}" + (f"; it had changed {', '.join(cp['changed'][:6])}"
+                                                           if cp.get("changed") else "") + ")"):
+                self.resume()
+        return False
+
+    def resume(self) -> None:
+        cp = self.checkpoint()
+        if not cp.get("request"):
+            self.bubble("ai", "Nothing to resume: no request was left unfinished.")
+            return
+        last = " / ".join(cp.get("thoughts", [])[-2:])
+        text = (f"Resume where you left off. The request was: {cp['request'][:600]} — it stopped at step "
+                f"{cp.get('step', 0)}" + (f", after changing {', '.join(cp.get('changed', [])[:10])}"
+                                          if cp.get("changed") else "")
+                + (f". Your last thoughts: {last[:500]}" if last else "")
+                + ". Pick up from the files, the changelog and the goals as they are now.")
+        self.term.feed_child((" ".join(text.splitlines()) + "\n").encode())
 
     def send(self, entry: Gtk.Entry) -> None:
         text = entry.get_text().strip()

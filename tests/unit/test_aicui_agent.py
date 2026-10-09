@@ -201,7 +201,7 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "errand", "goal_add", "goal_done", "need", "look", "ask",
+                                 "web_search", "fetch", "download", "errand", "goal_add", "goal_done", "need", "look", "ask",
                                  "answer"])
 
     def cut_write(self, path, lines, tool="write"):
@@ -365,6 +365,42 @@ class AgentTest(unittest.TestCase):
             again = a.fetch("https://pictures.example/img/lake.jpg")
         self.assertEqual(got.call_count, 2)
         self.assertIn("already fetched", again)
+
+    def test_download_checks_every_address_and_asks_once(self):
+        """Ian, 2026-10-09: the web through tools only, each with its own safeguards. Many files, one approval; each
+        address checked as a fetch's; kept under assets/ in the folder asked for."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        asked = []
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append,
+                  ask=lambda p: (asked.append(p), "y")[1])
+        a.given("the pictures: https://pics.example/a.jpg and https://pics.example/b.jpg")
+        urls = ["https://pics.example/a.jpg", "https://pics.example/b.jpg", "https://made.up.example/c.jpg",
+                "http://pics.example/d.jpg", "https://via.placeholder.com/1.png"]
+        with mock.patch.object(intake, "get", side_effect=lambda u: (b"JFIF" + u.encode(), "image/jpeg")):
+            said = a.do({"tool": "download", "urls": urls, "folder": "cards"})
+        self.assertEqual(len(asked), 1)
+        self.assertIn("Download 2 files from pics.example into assets/cards/", asked[0])
+        self.assertIn("downloaded 2 of 5 into assets/cards/", said)
+        self.assertIn("refused 3", said)
+        self.assertIn("didn't come from anywhere here", said)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.root, "assets", "cards"))), ["a.jpg", "b.jpg"])
+        nothing = a.do({"tool": "download", "urls": ["https://made.up.example/c.jpg"], "folder": "../../etc"})
+        self.assertIn("nothing downloaded", nothing)
+
+    def test_where_the_ai_stands_is_kept_after_every_step(self):
+        """Ian, 2026-10-09: power cuts from storms. The request, its state and its last steps are on disk after every
+        step; a finished request says so; one cut off mid-way still says "working"."""
+        a = Agent(self.root, Scripted([step("Fix it.", tool="write", path="b.py", content="x = 1\n"),
+                                       step("", tool="answer", text="done")]), "m", "auto", say=self.said.append)
+        a.turn("make b.py")
+        with open(os.path.join(self.root, ".cinminai", "checkpoint.json")) as f:
+            cp = json.load(f)
+        self.assertEqual((cp["request"], cp["state"], cp["changed"]), ("make b.py", "finished", ["b.py"]))
+        self.assertIn("Fix it.", cp["thoughts"])
+        a.checkpoint("the next request", "working", [])
+        with open(os.path.join(self.root, ".cinminai", "checkpoint.json")) as f:
+            self.assertEqual(json.load(f)["state"], "working")  # what AICUI finds after a power cut
 
     def test_pytest_style_tests_are_never_passed_unrun(self):
         """Run as a script, a file of bare test_ functions defines them and exits 0: that isn't a pass."""
