@@ -342,6 +342,10 @@ A request for a picture from the web, and a look at the program. Built the same 
 6. **Tests that never ran don't pass**: run as a script, a pytest-style file only defines its tests and exits 0; the
    goal check runs pytest when the environment has it, and otherwise reports such a file as not run. A project with
    tests gets pytest in its environment when it's built.
+7. **Kept material isn't code** (found in the test of the build above). The checks scanned a fetched page's HTML,
+   named its "unclosed script tag", and the coder was sent to fix the kept page instead of taking a picture from it.
+   `sources/` and `assets/` are left out of the checks, the map and the goal check, and can't be edited (what came
+   stays as it came). A gathering step that was refused or failed is recorded as "not done", not "fetched".
 
 **Next (v2, on the same engine):** members at the same time — the organizer preparing the next order while the coder
 works (Ian's "nitrous": more information per unit); round 4's senior and junior as members (the script in shared

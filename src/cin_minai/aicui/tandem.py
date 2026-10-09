@@ -101,6 +101,15 @@ def token_cap(coder_ctx: int) -> int:
     return int(coder_ctx * 0.05 * 3)
 
 
+def gathered(result: str, verdict: str) -> tuple[str, str]:
+    """A gathering step's outcome and verdict: refused, said no or failed, it says so."""
+    if result.startswith("error"):
+        return result, "not done"
+    if result.startswith(("the person said no", "the user said no")):
+        return result, "the person said no"
+    return result, verdict
+
+
 def uses(move: dict, given: dict) -> bool:
     """Does a move work on something the person gave? A link by its address, a file by its path."""
     said = " ".join(str(move.get(k, "")) for k in ("url", "address", "task", "acts_on", "question"))
@@ -346,13 +355,14 @@ class Tandem:
                 self.agent.event("handoff", by="organizer", to="look", text=f"{target}: {question}")
                 record.step("look", self.organizer_name, f"look at the {target}: {question}"[:200],
                             f"{target}: {question}" + (f"\n{move['address']}" if move.get("address") else ""), "",
-                            lambda _c: (self.agent.look(target, question, move.get("address", "")), "looked"))
+                            lambda _c: gathered(self.agent.look(target, question, move.get("address", "")),
+                                                "looked"))
                 continue
             if kind == "search":
                 query = move.get("query", "").strip()
                 self.agent.event("handoff", by="organizer", to="search", text=query)
                 record.step("search", self.organizer_name, f"search the web: {query}"[:200], query, "",
-                            lambda _c: (self.agent.web_search(query), "searched"))
+                            lambda _c: gathered(self.agent.web_search(query), "searched"))
                 continue
             if kind == "fetch":
                 url = move.get("url", "").strip()
@@ -362,7 +372,7 @@ class Tandem:
                                                    "project are the coder's to read and change: give the coder a task")
                 else:
                     record.step("fetch", self.organizer_name, f"fetch {url}"[:200], url, "",
-                                lambda _c: (self.fetch(url), "fetched"))
+                                lambda _c: gathered(self.fetch(url), "fetched"))
                 continue
             task = (move.get("task") or "").strip()
             if rounds and task == rounds[-1]["task"]:  # a loop between the two: the person decides

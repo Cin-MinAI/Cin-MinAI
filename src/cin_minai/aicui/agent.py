@@ -520,6 +520,13 @@ def venv_packages(venv: str) -> list[str]:
     return found[:20]
 
 
+def kept_material(rel: str) -> bool:
+    """sources/ and assets/: what came from the web or the person, kept as it came — material, not the project's code
+    (2026-10-09: the checks found an "unclosed script tag" in a saved web page, and the coder was sent to fix it)."""
+    top = rel.replace(os.sep, "/").lstrip("./").split("/", 1)[0]
+    return top in ("sources", "assets")
+
+
 def pytest_style(full: str) -> bool:
     """Tests written for pytest (bare test_ functions, no unittest runner): run as a script, they never run."""
     try:
@@ -615,7 +622,7 @@ class Agent:
         found = []
         for rel, is_dir, _ in tree(self.root)[:80]:
             full = os.path.join(self.root, rel)
-            if not is_dir and os.path.getsize(full) <= 400_000:
+            if not is_dir and not kept_material(rel) and os.path.getsize(full) <= 400_000:
                 problem = check_file(full)
                 if problem:
                     found.append(f"{rel}: {problem}")
@@ -629,7 +636,7 @@ class Agent:
         budget = 600 * (self.ctx // 8192) + (900 if self.ctx >= 16384 else 0)  # 8K: 600 chars, 16K: 2,100, 32K: 3,300
         shapes, problems = [], []
         for rel, is_dir, _ in tree(self.root)[:80]:
-            if is_dir:
+            if is_dir or kept_material(rel):
                 continue
             full = os.path.join(self.root, rel)
             try:
@@ -1276,6 +1283,9 @@ class Agent:
                         pass
                 return "\n".join(hits[:60]) or "no matches"
             if t in ("edit", "replace_lines", "write", "append"):
+                if kept_material(a.get("path", "")):  # what came stays as it came: the evidence, and what scripts read
+                    return (f"error: {a.get('path')} is kept material (sources/ and assets/ stay as they came). Nothing "
+                            "in it needs fixing; put what you make from it in the project's own files.")
                 return self.change(a)
             if t == "look":
                 return self.look(a.get("target", "program"), a.get("question", ""), a.get("address", ""))
@@ -1477,8 +1487,8 @@ class Agent:
             ok &= started
             lines.append(f"{entry}: " + ("started" + (" and kept running" if code == 124 else " and finished")
                                          if started else f"CRASHED (exit {code})\n" + out[-800:]))
-        page = next((rel for rel, is_dir, _ in tree(self.root)
-                     if not is_dir and rel.lower().endswith((".html", ".htm")) and rel.count(os.sep) <= 2), None)
+        page = next((rel for rel, is_dir, _ in tree(self.root) if not is_dir and not kept_material(rel)
+                     and rel.lower().endswith((".html", ".htm")) and rel.count(os.sep) <= 2), None)
         if page:  # a web page: its tags, and the names its CSS and script use
             problems = [p for p in (check_file(os.path.join(self.root, page)), web_names(self.root)) if p]
             ok &= not problems

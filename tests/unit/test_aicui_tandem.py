@@ -306,6 +306,24 @@ class TandemTest(unittest.TestCase):
         kinds = [c["kind"] for c in self.engine.summary(self.engine.db.list_tasks()[0]["id"])]
         self.assertEqual(kinds, ["search"])
 
+    def test_a_kept_page_is_material_not_code(self):
+        """2026-10-09: a fetched page's own HTML had an "unclosed script tag"; the checks named it, the organizer sent
+        the coder to fix it, and the coder edited the kept page instead of taking a picture from it."""
+        os.makedirs(os.path.join(self.root, "sources"))
+        with open(os.path.join(self.root, "sources", "gallery.html"), "w", encoding="utf-8") as f:
+            f.write("<html><body><script>x()</script></script></body></html>\n")
+        a, t = self.pair([], [move("done", summary="ok")])
+        self.assertNotIn("gallery.html", "\n".join(a.problems()))
+        self.assertNotIn("gallery.html", a.project_map())
+        said = a.do({"tool": "replace_lines", "path": "sources/gallery.html", "first": 1, "last": 1, "new": ""})
+        self.assertIn("is kept material", said)
+
+    def test_a_refused_fetch_is_recorded_as_not_done(self):
+        a, t = self.pair([], [move("fetch", url="https://made.up.example/a.jpg"), move("done", summary="ok")])
+        t.turn("a picture please")
+        (child,) = self.engine.summary(self.engine.db.list_tasks()[0]["id"])
+        self.assertEqual((child["kind"], child["verdict"]), ("fetch", "not done"))
+
     def test_a_page_is_fetched_with_permission_and_kept(self):
         a, t = self.pair([], [move("fetch", url="https://example.org/set-list"), move("done", summary="Saved.")])
         got = []
