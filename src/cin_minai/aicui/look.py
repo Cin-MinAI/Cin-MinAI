@@ -156,9 +156,12 @@ def report(facts: dict, problems: list[str], answer: str) -> str:
              f"screen {s['width']}x{s['height']} at {s['scale']}x scaling"]
     for w in facts.get("windows", []):
         lines.append(f"window \"{w['name']}\": {w['width']}x{w['height']} at {w['x']},{w['y']}")
-    if facts.get("program"):
-        lines.append("the program was " + ("still running" if facts.get("running") else "stopped") + " after "
-                     f"{WAIT_S} s" + (f"; it printed: {facts['output'][-400:]}" if facts.get("output") else ""))
+    if facts.get("program"):  # the state first, in words (2026-10-09: build output in the middle read as "compiling")
+        state = ("UP: running, its window open" if facts.get("running") and facts.get("windows") else
+                 "running, with no window" if facts.get("running") else "STOPPED")
+        lines.append(f"the program after {WAIT_S} s: {state}" + (
+            f". What it printed while starting (its build included; finished): {facts['output'][-400:]}"
+            if facts.get("output") else ""))
     if "moved" in facts.get("motion", {}):
         m = facts["motion"]
         lines.append(f"between two pictures {APART_S} s apart: " + (
