@@ -54,7 +54,8 @@ def windows(tree_text: str, screen: tuple[int, int, int]) -> list[dict]:
     out = []
     for indent, m in found:
         w, h = int(m.group("w")), int(m.group("h"))
-        if indent != top or (w, h) == screen[:2] or w < 40 or h < 40:
+        name = m.group("name")  # a fullscreen window is screen-sized too (2026-10-09: "opened no window")
+        if indent != top or ((w, h) == screen[:2] and not name) or w < 40 or h < 40:
             continue
         out.append({"name": m.group("name"), "width": w, "height": h, "x": int(m.group("x")), "y": int(m.group("y"))})
     return out

@@ -103,8 +103,8 @@ and scope and write them as goals; once work
 starts, work the goals as your to-do list. Answer in the user's language.
 One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
 the first part, then append the rest, one part per step, each under {write_lines} lines.
-You can't see the screen: graphical programs run here without a window (SDL's dummy video and audio drivers) and web
-pages aren't shown. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
+Your commands run graphical programs windowless (SDL's dummy drivers); look shows them for real, at the
+user's screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
 loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
 button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
 project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
@@ -1317,6 +1317,11 @@ class Agent:
                     ok = False
                     report += ("\n" if report else "") + "not checked by any test: " + ", ".join(unchecked) + \
                         " — a test should read it and compare it with its source (e.g. how many it should hold)"
+                if ok and goal and callable(getattr(self, "reviewer", None)):  # D96 review: another model
+                    said = self.reviewer(goal, report)
+                    if said and not said[0]:
+                        ok = False
+                        report += ("\n" if report else "") + "review (another model): not covered yet — " + said[1]
                 if not ok:  # the user can still tick it by hand in AICUI
                     return (f"goal {a['id']} NOT ticked — the checks failed:\n{report}\nFix this, then tick the goal "
                             "again.")

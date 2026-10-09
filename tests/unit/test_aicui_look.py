@@ -55,6 +55,8 @@ class Facts(unittest.TestCase):
     def test_the_windows_from_the_tree(self):
         self.assertEqual(look.windows(TREE, SCREEN),
                          [{"name": "pygame window", "width": 1280, "height": 720, "x": 0, "y": 0}])
+        full = '     0x400007 "Duel": ("pygame" "pygame")  4095x2160+0+0  +0+0\n'  # fullscreen: screen-sized, named
+        self.assertEqual(look.windows(full, SCREEN), [{"name": "Duel", "width": 4095, "height": 2160, "x": 0, "y": 0}])
 
     def test_what_code_finds_before_any_model_looks(self):
         facts = {"screen": {"width": 4095, "height": 2160, "scale": 3}, "program": "run.sh", "running": True,
