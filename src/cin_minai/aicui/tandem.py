@@ -19,17 +19,24 @@ and there was nothing else to do."
   - the same task twice in a row, or twice "changed nothing" or "declined", goes to the person.
 * **Stuck:** one hint (made by code from the problems when the checks name any), then the person. The coder's own
   question and an honest "I can't know this" go to the person at once.
-* Every task is a turn token on the coder (D95): at most 5 % of its context.
+* **On the Team Table** (D95; Ian, 2026-10-09: "team table was the multi model engine"): the request is a task for
+  the organizer, every move a child task for whoever does it — a work order for the coder with its one kind of action
+  (write, delete or check) and the files or lines it acts on, filled in by code as references; a look or a fetch for
+  the organizer. Each member claims its task from the table and closes it with a verdict; Stop cancels the request's
+  tree. A task is at most 5 % of its member's context; the bulk goes by reference (cin_minai.engine).
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
 
+from cin_minai import engine as engine_mod
+
 from . import intake
-from .project import goal_stages
+from .project import goal_stages, token_of
 
 MAX_ROUNDS = 20          # tasks per request before the organizer hands back to the person
 SUMMARY_CHARS = 500      # what the organizer hears of each task's outcome
@@ -40,9 +47,10 @@ you choose what it does next, one task at a time. You never write code yourself.
 You get the person's request (and anything they gave with it), the goals with where each stands, the problems the
 checks find in the files and the project's map — all made from the code, so trust them — and what the coder did.
 Your reply: a short thinking (a sentence), then one move:
-- coder: one task: `task` (what to change, in which file and lines — concrete and small, at most {cap} characters),
-  `acts_on` (the files, lines or the person's input it works on) and `proof` (what shows it's done: a build, a test,
-  a run, a source's count).
+- coder: one task of one kind: `kind` (write: add or change; delete: remove; check: a test or run that gives a
+  verdict), `task` (what to do, in which file and lines — concrete and small, at most {cap} characters), `acts_on`
+  (the files and lines it works on, like game.py:40-62 — they're given to the coder as they are now — or the
+  person's input) and `proof` (what shows it's done: a build, a test, a run, a source's count).
 - fetch: a web page or file the work needs (one the person named first); it's kept in the project for the coder.
 - look: see the program running (target "program"), a page ("page", with its `address`) or the person's screen
   ("screen", asked first) — facts read by code, and your one `question` answered by a picture model.
@@ -70,8 +78,8 @@ def plan_schema(cap: int) -> dict:
     s, said = {"type": "string"}, {"type": "string", "minLength": 2, "maxLength": 300}
     return {"type": "object", "additionalProperties": False, "required": ["thinking", "next"], "properties": {
         "thinking": {"type": "string", "maxLength": 400},
-        "next": {"anyOf": [move("coder", task={"type": "string", "minLength": 8, "maxLength": cap}, acts_on=said,
-                                proof=said),
+        "next": {"anyOf": [move("coder", kind={"enum": list(engine_mod.KINDS)},
+                                task={"type": "string", "minLength": 8, "maxLength": cap}, acts_on=said, proof=said),
                            move("fetch", url=s), move("look", target={"enum": ["program", "page", "screen"]},
                                                       question=s, address=s),
                            move("ask", question=s), move("done", summary=s)]}}}
@@ -96,13 +104,87 @@ def uses(move: dict, given: dict) -> bool:
                                       given["value"].rstrip("/"))
 
 
-class Tandem:
-    """One request worked by the organizer and the coder in turns. agent: the coder's Agent; junior: the organizer's
-    chat (messages, schema=, max_tokens=, cancel=) -> (text, timings)."""
+class Record:
+    """One request on the Team Table: the organizer's root task, a child task per move, each claimed by its member and
+    closed with a verdict (cin_minai.engine). Without the table (it couldn't be opened) the same steps run unrecorded.
+    `rounds` is what the organizer reads back: the moves and how they went, the contract's refusals too."""
 
-    def __init__(self, agent, junior, say=print) -> None:
+    def __init__(self, engine, request: str, organizer: str, coder: str, models: dict, event) -> None:
+        self.engine, self.organizer, self.coder, self.models, self.event = engine, organizer, coder, models, event
+        self.rounds: list[dict] = []
+        self.root = None
+        if engine is not None:
+            try:
+                self.root = engine.request(request, organizer)
+            except Exception as e:  # the record failing never loses the request
+                self.engine = None
+                event("note", text=f"The Team Table couldn't take this request ({str(e)[:160]}); it goes on unrecorded.")
+
+    def refused(self, task: str, why: str) -> None:
+        """A move the contract turned back: no task was given; the organizer hears why."""
+        self.rounds.append({"task": task[:300], "kind": "", "verdict": "not given", "outcome": why})
+
+    def step(self, kind: str, who: str, title: str, text: str, acts_on: str, run) -> tuple[str, str]:
+        """Give a task to a member and run it: run(what the member reads) -> (outcome, verdict)."""
+        task, content = None, text
+        if self.engine is not None:
+            refs = self.engine.references(acts_on) if kind in engine_mod.KINDS else []
+            try:
+                task = self.engine.order(self.root["id"], self.organizer, who, title, text, kind, refs)
+            except engine_mod.EngineError as e:  # too big for its member, the budget spent: back to the organizer
+                self.refused(title, f"not given: {e}")
+                return f"not given: {e}", "not given"
+            claimed = self.engine.claim(who)
+            task = claimed if claimed and claimed.get("id") == task["id"] else task
+            content = self.engine.content(task, limit=self.engine.cap(who) * 5)
+        outcome, verdict = run(content)
+        if task is not None:
+            self.engine.finish(task, who, self.models.get(who, ""), verdict, outcome)
+            self.engine.claim(self.organizer)  # the request again: its child is closed
+        self.rounds.append({"task": title, "kind": kind, "verdict": verdict, "outcome": outcome})
+        return outcome, verdict
+
+    def close(self, text: str, verdict: str) -> None:
+        """The request ends: done when the organizer says so, blocked when it waits for the person."""
+        if self.engine is not None and self.root:
+            state = "done" if verdict == "done" else "blocked"
+            self.engine.finish(self.root, self.organizer, self.models.get(self.organizer, ""), verdict, text, state)
+
+    def cancel(self) -> None:
+        if self.engine is not None and self.root:
+            self.engine.cancel(self.root["id"])
+
+    def stopped_elsewhere(self) -> bool:
+        """Stop pressed in the sidebar's Requests view: the request is cancelled on the table."""
+        if self.engine is None or not self.root:
+            return False
+        try:
+            return (self.engine.db.task_tree(self.root["id"]) or {}).get("status") == "cancelled"
+        except Exception:
+            return False
+
+
+class Tandem:
+    """One request worked by the organizer and the coder in turns, on the Team Table. agent: the coder's Agent;
+    junior: the organizer's chat (messages, schema=, max_tokens=, cancel=) -> (text, timings); engine: the table
+    (cin_minai.engine.Engine), opened for the project when not given; None when it can't be."""
+
+    def __init__(self, agent, junior, say=print, engine=False, junior_model: str = "Cin-MinAI guide",
+                 where: str = "local") -> None:
         self.agent, self.junior, self.say = agent, junior, say
         self.cap = token_cap(agent.ctx)
+        if engine is False:
+            project = token_of(agent.root) or hashlib.sha1(os.path.realpath(agent.root).encode()).hexdigest()
+            engine = engine_mod.open_engine(project, agent.root)
+            if engine is not None:
+                engine.close_stale()
+        self.engine = engine
+        self.models = {}
+        self.organizer_name, self.coder_name = "organizer", "coder"
+        if engine is not None:
+            self.organizer_name = engine.member("organizer", JUNIOR_CONTEXT, junior_model, "local")
+            self.coder_name = engine.member("coder", agent.ctx, getattr(agent, "model_name", ""), where)
+            self.models = {self.organizer_name: junior_model, self.coder_name: getattr(agent, "model_name", "")}
 
     # --- what the organizer sees --------------------------------------------------------------------------------
     def situation(self, request: str, rounds: list[dict], given: list[dict]) -> str:
@@ -110,8 +192,8 @@ class Tandem:
         for g in self.agent.goals.load():
             goals.append(f"  {g['id']}. [{'x' if g['done'] else ' '}] {g['text']}")
             goals += [f"       {line}" for line in goal_stages(self.agent.root, g)["lines"]]
-        done = "\n".join(f"  {i}. {r['task'][:200]} → {r['outcome'][:SUMMARY_CHARS]}"
-                         for i, r in enumerate(rounds, 1)) or "  (nothing yet)"
+        done = "\n".join(f"  {i}. {(r.get('kind') or 'move') + ': ' if r.get('kind') else ''}{r['task'][:200]} → "
+                         f"{r['outcome'][:SUMMARY_CHARS]}" for i, r in enumerate(rounds, 1)) or "  (nothing yet)"
         brought = "".join(f"\n  - {'a link' if x['kind'] == 'link' else 'a file'}: {x['value']}" for x in given)
         return (f"The person's request: {request}" + (f"\nWhat they gave, not used yet:{brought}" if given else "")
                 + "\n\nGoals:\n" + ("\n".join(goals) or "  (none)") + self.agent.project_map()
@@ -155,21 +237,45 @@ class Tandem:
         venv = os.path.join(self.agent.root, ".venv", "cinminai-env.json")
         return changes, count("sources"), count("assets"), goals, os.path.getmtime(venv) if os.path.exists(venv) else 0
 
-    def coder(self, request: str, move: dict, cancel) -> str:
+    def order_text(self, move: dict) -> str:
+        """A work order in words: its kind, the task, what it acts on, what proves it."""
+        kind = move.get("kind") or "write"
+        return (f"[{kind}] {move['task'].strip()}" + (f"\nWorks on: {move['acts_on']}" if move.get("acts_on") else "")
+                + (f"\nDone when: {move['proof']}" if move.get("proof") else ""))
+
+    def coder(self, request: str, move: dict, cancel, record: Record | None = None) -> str:
+        """The coder works one order. Through the record: as a task on the table, the lines it acts on attached."""
+        text = self.order_text(move)
         task = move["task"].strip()
-        text = task + (f"\nWorks on: {move['acts_on']}" if move.get("acts_on") else "") + \
-            (f"\nDone when: {move['proof']}" if move.get("proof") else "")
         self.agent.event("handoff", by="organizer", to="coder", text=text)
         self.say(f"\033[36m(organizer → coder) {task}\033[0m")
-        return self.agent.work(f"A task from the organizer, part of the person's request \"{request[:200]}\":\n{text}\n"
-                               "If it doesn't apply (it's already done, or it can't be done here), decline it with "
-                               "your reason.", cancel)
+
+        def run(content: str) -> tuple[str, str]:
+            before = self.state()
+            outcome = self.agent.work(f"A task from the organizer, part of the person's request \"{request[:200]}\":\n"
+                                      f"{content}\nDo this one kind of action only. If it doesn't apply (it's already "
+                                      "done, or it can't be done here), decline it with your reason.", cancel)
+            return outcome, self.verdict(move.get("kind") or "write", before)
+        if record is None:
+            return run(text)[0]
+        return record.step(move.get("kind") or "write", self.coder_name, task, text, move.get("acts_on", ""), run)[0]
+
+    def verdict(self, kind: str, before: tuple) -> str:
+        """How a work order ended, by code: the coder's own stop, else what changed (a check: a new verdict)."""
+        stopped = self.agent.stopped
+        if stopped in ("ask", "error", "stuck", "declined"):
+            return {"ask": "asks the person", "error": "error", "stuck": "stuck", "declined": "declined"}[stopped]
+        if kind == "check" and any(t in ("run", "goal_done") for t in getattr(self.agent, "kinds_done", [])):
+            return "checked"
+        return "changed" if self.state() != before else "changed nothing"
 
     def fetch(self, url: str) -> str:
         self.agent.event("handoff", by="organizer", to="fetch", text=url)
         return self.agent.fetch(url)  # asks the person first, always (D86); kept whole under sources/ or assets/
 
-    def finish(self, text: str) -> str:
+    def finish(self, text: str, record: Record | None = None, verdict: str = "done") -> str:
+        if record is not None:
+            record.close(text, verdict)
         self.agent.event("answer", text=text)
         self.say(text)
         return text
@@ -184,7 +290,15 @@ class Tandem:
             self.agent.event("idle")
 
     def work(self, request: str, cancel: threading.Event) -> str:
-        rounds: list[dict] = []
+        record = Record(self.engine, request, self.organizer_name, self.coder_name, self.models, self.agent.event)
+        try:
+            return self.moves(request, cancel, record)
+        except BaseException:  # Stop (Ctrl+C) or a failure: the request's tree is cancelled, not left open
+            record.cancel()
+            raise
+
+    def moves(self, request: str, cancel: threading.Event, record: Record) -> str:
+        rounds = record.rounds
         hinted, refused, idle = False, 0, 0
         given = []  # what the person brought: links and project files to use first; pasted material kept as a source
         for item in intake.person_inputs(request, self.agent.root):
@@ -192,52 +306,55 @@ class Tandem:
                 item = {"kind": "file", "value": intake.keep_pasted(self.agent.root, item["value"])}
             given.append(item)
         for _ in range(MAX_ROUNDS):
-            if cancel.is_set():
+            if cancel.is_set() or record.stopped_elsewhere():
+                record.cancel()
                 return self.finish("Stopped. What's done is saved and in the changelog.")
             move = self.next_move(request, rounds, given, cancel)
             if move is None:  # the organizer is out: the coder takes the request as it is
-                return self.agent.work(request, cancel)
+                out = self.agent.work(request, cancel)
+                record.close(out, "the coder alone")
+                return out
             kind = move.get("move")
             if kind == "done":
-                return self.finish(move.get("summary") or "Done.")
+                return self.finish(move.get("summary") or "Done.", record)
             if kind == "ask":
                 self.agent.event("handoff", by="organizer", to="person", text=move.get("question", ""))
-                return self.finish(move.get("question") or "What should happen next?")
+                return self.finish(move.get("question") or "What should happen next?", record, "asks the person")
             if given and not any(uses(move, g) for g in given):  # the contract: the person's input comes first
                 refused += 1
                 what = ", ".join(g["value"] for g in given)
                 if refused > 1:
                     return self.finish(f"The organizer didn't use what you gave ({what}), so I've stopped here. Tell "
-                                       "me what to do with it.")
-                rounds.append({"task": f"{kind}: {move.get('task') or move.get('url', '')}"[:300],
-                               "outcome": f"not done: the person gave {what} — use it first"})
+                                       "me what to do with it.", record, "asks the person")
+                record.refused(f"{kind}: {move.get('task') or move.get('url', '')}",
+                               f"not done: the person gave {what} — use it first")
                 self.agent.event("note", text=f"The organizer's move didn't use what you gave ({what}); asked again.")
                 continue
             given = [g for g in given if not uses(move, g)]
             if kind == "look":
-                self.agent.event("handoff", by="organizer", to="look", text=f"{move.get('target')}: "
-                                                                         f"{move.get('question', '')}")
-                rounds.append({"task": f"look at the {move.get('target', 'program')}: {move.get('question', '')}",
-                               "outcome": self.agent.look(move.get("target", "program"), move.get("question", ""),
-                                                          move.get("address", ""))})
+                target, question = move.get("target", "program"), move.get("question", "")
+                self.agent.event("handoff", by="organizer", to="look", text=f"{target}: {question}")
+                record.step("look", self.organizer_name, f"look at the {target}: {question}"[:200],
+                            f"{target}: {question}" + (f"\n{move['address']}" if move.get("address") else ""), "",
+                            lambda _c: (self.agent.look(target, question, move.get("address", "")), "looked"))
                 continue
             if kind == "fetch":
                 url = move.get("url", "").strip()
                 if not url.startswith("https://"):  # the contract: a fetch acts on a web address (the 4B "fetched"
                     # gui.py, then asked the person for "the correct URL")
-                    outcome = (f"not done: {url or 'that'} isn't a web address — files in the project are the coder's "
-                               "to read and change: give the coder a task")
+                    record.refused(f"fetch {url}", f"not done: {url or 'that'} isn't a web address — files in the "
+                                                   "project are the coder's to read and change: give the coder a task")
                 else:
-                    outcome = self.fetch(url)
-                rounds.append({"task": f"fetch {url}", "outcome": outcome})
+                    record.step("fetch", self.organizer_name, f"fetch {url}"[:200], url, "",
+                                lambda _c: (self.fetch(url), "fetched"))
                 continue
             task = (move.get("task") or "").strip()
             if rounds and task == rounds[-1]["task"]:  # a loop between the two: the person decides
                 return self.finish("The organizer gave the coder the same task twice in a row, so I've stopped here. "
-                                   f"The task was: {task}\nTell me how to go on.")
-            before = self.state()
-            outcome = self.coder(request, move, cancel)
+                                   f"The task was: {task}\nTell me how to go on.", record, "asks the person")
+            outcome = self.coder(request, move, cancel, record)
             if self.agent.stopped in ("ask", "error"):  # the coder needs the person, or couldn't go on: theirs now
+                record.close(outcome, "asks the person" if self.agent.stopped == "ask" else "error")
                 return outcome
             stopped = self.agent.stopped == "stuck"
             if stopped and not hinted:  # one hint, then the person
@@ -246,33 +363,33 @@ class Tandem:
                     hint = {"move": "hint", "hint": "Act on what the checks find now, with replace_lines (bottom first) "
                             "or edit — don't read further: " + "; ".join(problems)[:600]}
                 else:
-                    hint = self.hint(request, rounds + [{"task": task, "outcome": outcome}], outcome, cancel)
+                    hint = self.hint(request, rounds, outcome, cancel)
                 if hint and hint.get("move") == "hint" and hint.get("hint"):
                     hinted = True
                     self.agent.event("handoff", by="organizer", to="coder", text=f"Hint: {hint['hint']}")
-                    outcome = self.coder(request, {"task": f"Hint from the organizer: {hint['hint']}\n(The task it's "
-                                                           f"for: {task[:400]} — its line numbers may have moved "
-                                                           "since; the problems and the map above are current.)"},
-                                         cancel)
+                    outcome = self.coder(request, {"kind": move.get("kind") or "write", "acts_on": move.get("acts_on", ""),
+                                                   "task": f"Hint from the organizer: {hint['hint']}\n(The task it's for: "
+                                                           f"{task[:400]} — its line numbers may have moved since; the "
+                                                           "problems and the map above are current.)"},
+                                         cancel, record)
                     stopped = self.agent.stopped == "stuck"
                 elif hint and hint.get("move") == "ask":
-                    return self.finish(hint.get("question") or outcome)
+                    return self.finish(hint.get("question") or outcome, record, "asks the person")
             if stopped:
-                return self.finish(outcome)
-            if self.agent.stopped == "declined":
-                outcome = f"declined by the coder — {outcome}"
-            elif self.state() == before:  # the contract: a task changes something
-                outcome = f"changed nothing (no file, source, goal or environment): {outcome}"
-            if outcome.startswith(("declined", "changed nothing")):
+                return self.finish(outcome, record, "stuck")
+            verdict = rounds[-1]["verdict"] if rounds else ""
+            if verdict in ("declined", "changed nothing"):
+                rounds[-1]["outcome"] = (f"declined by the coder — {outcome}" if verdict == "declined" else
+                                         f"changed nothing (no file, source, goal or environment): {outcome}")
                 idle += 1
                 if idle > 1:
                     return self.finish(f"Two tasks in a row changed nothing, so I've stopped here.\nThe last: {task}\n"
-                                       f"{outcome[:600]}\nTell me how to go on.")
+                                       f"{outcome[:600]}\nTell me how to go on.", record, "asks the person")
             else:
                 idle = 0
-            rounds.append({"task": task, "outcome": outcome})
         return self.finish(f"I've stopped after {MAX_ROUNDS} tasks for this request; what's done is saved. "
-                           "Tell me to continue and the organizer picks up from the files and the goals.")
+                           "Tell me to continue and the organizer picks up from the files and the goals.", record,
+                           "round limit")
 
 
 def guide_projector() -> str:

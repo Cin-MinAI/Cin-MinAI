@@ -824,6 +824,7 @@ class Agent:
         self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
         self.stopped = ""  # how it ended: "answer", "ask", "declined", "stuck", "limit", "error" (the organizer reads it)
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
+        self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
         last_progress = 0
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
@@ -876,6 +877,7 @@ class Agent:
             steps.append({"did": step, "result": result[:self.obs_chars]})
             if self.progressed(act, result):
                 last_progress = n
+                self.kinds_done.append(act["tool"])
             elif n - last_progress in (NUDGE_STEPS, NUDGE_STEPS * 2):  # the one progress rule: said, then said again
                 self.note(steps, f"No progress in the last {n - last_progress} steps: no file changed, no new result, "
                                  "no goal moved. Make the change now (lines the checks or the map name can go by number "

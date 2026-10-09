@@ -2078,6 +2078,21 @@ as such, and two in a row go to the person; the coder may decline a task with it
 problems when the checks name any), then the person. Ian: "We can't just auto code what to do. This has to be
 generalized for function."
 
+**On the Team Table (2026-10-09; `cin_minai/engine.py`).** Ian: "team table was the multi model engine" — the table
+drives the models, not only records them. Every member that works a project is on it under the project's name
+("coder.4182ec9f") with its context size, its model and where it runs — a local model, a cloud model through an API
+or sign-in the person allowed, an outside agent through Team Table's MCP server on the same file (Ian: "you and any
+other cloud model can work at team table also, for 3 agents at the project"). The person's request is the organizer's
+task; every move is a child task for whoever does it: a **work order** for the coder with its one kind of action
+(write, delete or check), the task, the proof, and the files or lines it acts on, which code attaches as references
+(their content as it is at that moment, in shared context; the coder reads them instead of reading the files); a look
+or a fetch for the organizer itself. Each member claims its task from the table; while a child is open the request
+waits; each task closes with the model that did it and its **verdict** (changed something, changed nothing, checked,
+declined, stuck, asks the person). The Requests view shows the tree with each verdict; Stop there, or in AICUI,
+cancels the whole tree, and AICUI stops before its next move. A task over 5 % of its member's context comes back to
+the organizer with the reason; a request may spawn 100 tasks. Sequential first; members working at the same time
+(§22.4) are the next step.
+
 ### 22.6 Admin, and the key
 
 Admin actions go through the guide and cinminai-admin's typed verbs, every one recorded (D85). Built 2026-10-08:

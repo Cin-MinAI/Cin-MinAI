@@ -15,15 +15,17 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(ROOT, "third_party", "team-table", "src"))  # the pinned submodule
 
 from test_aicui_agent import Scripted, step  # noqa: E402
 
+from cin_minai import engine  # noqa: E402
 from cin_minai.aicui import tandem  # noqa: E402
 from cin_minai.aicui.agent import STUCK_STEPS, Agent  # noqa: E402
 
 
-def move(kind, thinking="", **fields):
-    return {"thinking": thinking, "next": {"move": kind, **fields}}
+def move(name, thinking="", **fields):
+    return {"thinking": thinking, "next": {"move": name, **fields}}
 
 
 class Junior(Scripted):
@@ -48,7 +50,9 @@ class TandemTest(unittest.TestCase):
     def pair(self, coder_steps, junior_moves, ctx=32768):
         a = Agent(self.root, Scripted(coder_steps), "Qwen3.8-27B", "auto", say=self.said.append, ctx=ctx)
         a.goals.add("A round runs", by="user")
-        return a, tandem.Tandem(a, Junior(junior_moves), say=self.said.append)
+        self.engine = engine.Engine("test0001", self.root, db_path=os.path.join(self.root, ".table.db"))
+        self.addCleanup(self.engine.db.close)
+        return a, tandem.Tandem(a, Junior(junior_moves), say=self.said.append, engine=self.engine)
 
     def events(self):
         with open(os.path.join(self.root, ".cinminai", "events.jsonl"), encoding="utf-8") as f:
@@ -142,7 +146,7 @@ class TandemTest(unittest.TestCase):
                          [move("coder", task="In gui.py, keep lines 641-654."), move("done", summary="ok")])
         t.turn("continue")
         sent = a.chat.sent[STUCK_STEPS][-1]["content"]
-        self.assertTrue(sent.split("\n", 1)[1].startswith("Hint from the organizer:"), sent[:200])
+        self.assertTrue(sent.split("\n", 1)[1].startswith("[write] Hint from the organizer:"), sent[:200])
         self.assertIn("its line numbers may have moved since", sent)
 
     def test_a_task_that_changes_nothing_comes_back(self):
@@ -295,6 +299,50 @@ class TandemTest(unittest.TestCase):
         self.assertEqual(t.turn("get the set list"), "Saved.")
         self.assertEqual(got, ["https://example.org/set-list"])  # the agent's fetch: asks, then keeps it whole
         self.assertIn("saved https://example.org/set-list as sources/set-list.txt", t.junior.sent[1][1]["content"])
+
+    def test_the_request_runs_on_the_team_table(self):
+        """D95: the request is the organizer's task, the move a child task the coder claims — the lines it acts on
+        attached by code — closed with its verdict; the request closes when the organizer says done."""
+        a, t = self.pair([step("Delete the old one.", tool="replace_lines", path="gui.py", first=2, last=4, new=""),
+                          step("", tool="answer", text="Removed the old run().")],
+                         [move("coder", task="Delete the first run() in gui.py.", kind="delete",
+                               acts_on="gui.py:2-4", proof="gui.py compiles"),
+                          move("done", summary="The duplicate is gone.")])
+        t.turn("continue")
+        sent = a.chat.sent[0][-1]["content"]
+        self.assertIn("[delete] Delete the first run()", sent)
+        self.assertIn("gui.py lines 2-4, as they were when the task was given", sent)
+        self.assertIn("    2     def run(self):", sent)  # the coder doesn't have to read them
+        (root,) = [r for r in self.engine.db.list_tasks() if r["parent_id"] is None]
+        tree = self.engine.db.task_tree(root["id"])
+        self.assertEqual((tree["assignee"], tree["status"], tree["origin"]), (t.organizer_name, "done", "person"))
+        (child,) = tree["children"]
+        self.assertEqual((child["assignee"], child["kind"], child["status"]), (t.coder_name, "delete", "done"))
+        result = json.loads(child["result"])
+        self.assertEqual((result["model"], result["verdict"]), ("Qwen3.8-27B", "changed"))
+
+    def test_stop_cancels_the_request_on_the_table(self):
+        a, t = self.pair([], [move("coder", task="Delete the first run() in gui.py.", kind="delete")])
+        a.chat = lambda *args, **kw: (_ for _ in ()).throw(KeyboardInterrupt())  # Stop while the coder works
+        with self.assertRaises(KeyboardInterrupt):
+            t.turn("continue")
+        statuses = {r["status"] for r in self.engine.db.list_tasks()}
+        self.assertEqual(statuses, {"cancelled"})
+
+    def test_stop_in_the_requests_view_stops_aicui(self):
+        a, t = self.pair([step("", tool="answer", text="Removed it.")],
+                         [move("coder", task="Delete the first run() in gui.py.", kind="delete"),
+                          move("coder", task="Now fix main() in gui.py.", kind="write")])
+        work = a.work
+
+        def work_then_stop(text, cancel):  # the person presses Stop in the sidebar while the coder works
+            out = work(text, cancel)
+            root = [r for r in self.engine.db.list_tasks() if r["parent_id"] is None][0]
+            self.engine.cancel(root["id"])
+            return out
+        a.work = work_then_stop
+        self.assertEqual(t.turn("continue"), "Stopped. What's done is saved and in the changelog.")
+        self.assertEqual(len(t.junior.sent), 1)  # no second move was asked for
 
 
 if __name__ == "__main__":

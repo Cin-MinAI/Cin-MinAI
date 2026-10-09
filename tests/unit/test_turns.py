@@ -26,6 +26,7 @@ class Table(unittest.TestCase):
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
         self.t = turns.Turns(os.path.join(d.name, "table.db"), guide_context=8192)
+        self.addCleanup(self.t.db.close)  # before the folder goes (Windows won't delete an open file)
 
     def test_a_question_is_the_persons_request_for_the_guide(self):
         tid = self.t.request("How do I install VLC?")

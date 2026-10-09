@@ -245,7 +245,7 @@ row when work lands. D87 was never adopted.
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; models in parts, sign-in repos, the setup helper not built |
 | D94 | partly | the guide holds system tools and organizes AICUI; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
-| D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem with the move contract (2026-10-08) |
+| D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem with the move contract (2026-10-08); the tandem runs on the Team Table as the engine (2026-10-09) |
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
 
@@ -301,6 +301,30 @@ properly while also instructing properly in order to assist 9b map the same scri
 - **Code checks the contract:** a step's result is of its declared kind (a write step changed a file; a pass/fail step
   produced a verdict), and the script's steps name their kind and their files.
 - The guide (4B) keeps the system and admin tools outside AICUI (D94); in round 4 it organizes nothing.
+
+### The engine overhaul (Ian, 2026-10-09) — fills D95, no new decision (D97)
+
+Ian: "Were still using the team table setup right?" — AICUI's tandem wasn't: it kept its moves in a list in memory.
+"Ok well we need to do an overhaul because team table was the multi model engine." And: "Yes, thats what we will use
+also with api and oauth access thats allowed. You and any other cloud model can work at team table also, for 3 agents
+at the project and we will make it so the whole thing is organized properly to increase efficiency and project scope."
+
+**Built 2026-10-09, v1 (sequential)** — `cin_minai/engine.py`, the tandem in `aicui/tandem.py` on it (SPEC §22.5):
+
+- **Members** per project ("<role>.<project token>") with context size, model and where they run (`where:local`,
+  `where:cloud:anthropic`, …): nothing in the engine assumes a member is local.
+- **The request** is a root task (origin person) for the organizer; **every move a child task**: a work order (one
+  kind: write / delete / check; the organizer's move now names its kind) or gathering (look / fetch).
+- **References by code:** the files and lines a move acts on (`game.py:40-62`) go into shared context under the
+  engine's own key; the coder reads them with its order (at most 4 an order, a quarter of its context together).
+- **Verdicts by code** close each task (a check counts its new pass/fail; a write or delete what changed); the
+  Requests view shows them in the six languages.
+- **Stop** anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it opens.
+
+**Next (v2, on the same engine):** members at the same time — the organizer preparing the next order while the coder
+works (Ian's "nitrous": more information per unit); round 4's senior and junior as members (the script in shared
+context, review with `review_task`); cloud and outside members claiming orders assigned to them (the MCP server on
+the same file, with its tokens).
 
 ### The closures and fixes of 2026-10-08 — built the same night (Ian, 2026-10-08)
 

@@ -157,7 +157,7 @@ def keep_pasted(root: str, material: str) -> str:
     n = 1
     while os.path.exists(os.path.join(root, "sources", f"pasted-{n}.txt")):
         n += 1
-    rel = os.path.join("sources", f"pasted-{n}.txt")
+    rel = f"sources/pasted-{n}.txt"  # as the project names it, on any system
     with open(os.path.join(root, rel), "w", encoding="utf-8") as f:
         f.write(material if material.endswith("\n") else material + "\n")
     return rel
