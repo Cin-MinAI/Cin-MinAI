@@ -138,13 +138,13 @@ class Looking(unittest.TestCase):
             out = a.do({"tool": "look", "target": "program", "question": "Are the buttons visible?", "address": ""})
         self.assertTrue(out.startswith("Looked at program"))
         self.assertIn('window "pygame window": 1280x720 at 0,0', out)
-        self.assertIn("pygame window is small on this screen: 1280x720 is 31% of its width", out)
+        self.assertIn("pygame window is 1280x720: 31% of the screen's width", out)
         self.assertIn("the program after 4 s: UP: running, its window open", out)
         self.assertIn('asked "Are the buttons visible?": No: the buttons are cut off.', out)
         self.assertEqual(self.asked, [])  # its own output: no question
         sent = questions[0][0]["content"]
         self.assertEqual(sent[0]["type"], "image_url")  # the window itself, cropped
-        self.assertIn("Code already found: pygame window is small on this screen: 1280x720", sent[1]["text"])
+        self.assertIn("Code already found: pygame window is 1280x720", sent[1]["text"])
         saved = [f for f in os.listdir(os.path.join(self.root, ".cinminai", "looks")) if f.endswith(".json")]
         with open(os.path.join(self.root, ".cinminai", "looks", saved[0])) as f:
             facts = json.load(f)

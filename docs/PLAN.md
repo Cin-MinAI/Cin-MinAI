@@ -245,7 +245,7 @@ row when work lands. D87 was never adopted.
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; models in parts, sign-in repos, the setup helper not built |
 | D94 | partly | the guide holds system tools and organizes AICUI; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
-| D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem with the move contract (2026-10-08); the tandem runs on the Team Table as the engine (2026-10-09) |
+| D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem on the Team Table, the coder leading and the guide helping (2026-10-09) |
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
 
@@ -309,48 +309,44 @@ Ian: "Were still using the team table setup right?" — AICUI's tandem wasn't: i
 also with api and oauth access thats allowed. You and any other cloud model can work at team table also, for 3 agents
 at the project and we will make it so the whole thing is organized properly to increase efficiency and project scope."
 
-**Built 2026-10-09, v1 (sequential)** — `cin_minai/engine.py`, the tandem in `aicui/tandem.py` on it (SPEC §22.5):
+**Built 2026-10-09** — `cin_minai/engine.py`: members per project ("<role>.<project token>") with context size,
+model and where they run (`where:local`, `where:cloud:anthropic`, …; nothing assumes a member is local); a request is
+a root task (origin person) for its lead; helper jobs are child tasks with their kind and verdict; references by code
+into shared context; Stop anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it
+opens. The Requests view shows each task with its kind, model and verdict in the six languages.
 
-- **Members** per project ("<role>.<project token>") with context size, model and where they run (`where:local`,
-  `where:cloud:anthropic`, …): nothing in the engine assumes a member is local.
-- **The request** is a root task (origin person) for the organizer; **every move a child task**: a work order (one
-  kind: write / delete / check; the organizer's move now names its kind) or gathering (look / fetch).
-- **References by code:** the files and lines a move acts on (`game.py:40-62`) go into shared context under the
-  engine's own key; the coder reads them with its order (at most 4 an order, a quarter of its context together).
-- **Verdicts by code** close each task (a check counts its new pass/fail; a write or delete what changed); the
-  Requests view shows them in the six languages.
-- **Stop** anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it opens.
+### The tandem flipped, and a day of patches rolled back (Ian, 2026-10-09)
 
-### Fixes from the test of 2026-10-09 (evening) — fill D86, D96, D64; no new decision
+The first engine-driven tandem put the guide (the 4B) in front of every request, choosing each move for the coder.
+It was weak at that, and a day of runs went into patching its mistakes — about twenty small fixes, one a log check,
+each a new build. Ian: "I dont like this habit weve developed where we spot patch for a hole… we should have this
+setup simple. Not with this huge amount of micromanaging… right now you are telling it how to build this
+specifically and thats not the goal at all." Then: "flip the tandem and roll back the patches."
 
-A request for a picture from the web, and a look at the program. Built the same night, to ship after the test:
+**The flip** (`aicui/tandem.py`, SPEC §22.5): the coding model leads every request with its own judgement, as it does
+alone. The guide is its helper, for jobs that spend the coder's context or need a second model — never deciding what
+the coder does: **read** (the coder's `ask_helper`: a long file read in parts for one question, the answer kept
+under `.cinminai/helper/`), **review** (before a goal is ticked, another model says whether the facts cover every
+part of it — D94, D96), **pictures** (a look's one question). Each request is the coder's task on the Team Table and
+each helper job its child task.
 
-1. **An address comes from somewhere** (D96 fetch; D86). The coder made up picture addresses from memory and fetched
-   one seven times in a row. A fetch's address must come from the person's request, a search result or a page kept in
-   `sources/` — checked by code; otherwise it's refused with "search for it, or ask the person". New: a `web_search`
-   tool for the coder and a `search` move for the organizer (the assistant's own search, D55: DuckDuckGo, then Bing;
-   asked first like a fetch; results kept as `sources/search-….txt`); a kept page lists its pictures and links as
-   full addresses, so a picture found on a page can be fetched.
-2. **The same fetch twice** gives the first answer instead of fetching again.
-3. **No stand-ins** (§22.7 honesty): sites that make placeholder pictures are refused; the coder's rules say a
-   stand-in is never used for what the person asked for — it asks.
-4. **Motion by code** (the look closure): two pictures half a second apart, compared pixel by pixel — "something
-   moved, in WxH at x,y" or "nothing moved" — in the facts and told to the picture model. The picture model had
-   given two opposite answers with no change between.
-5. **The organizer's reply**: every text field bounded (an unbounded one ran past the reply's limit and didn't parse);
-   one more try before the coder goes on alone.
-6. **Tests that never ran don't pass**: run as a script, a pytest-style file only defines its tests and exits 0; the
-   goal check runs pytest when the environment has it, and otherwise reports such a file as not run. A project with
-   tests gets pytest in its environment when it's built.
-7. **Kept material isn't code** (found in the test of the build above). The checks scanned a fetched page's HTML,
-   named its "unclosed script tag", and the coder was sent to fix the kept page instead of taking a picture from it.
-   `sources/` and `assets/` are left out of the checks, the map and the goal check, and can't be edited (what came
-   stays as it came). A gathering step that was refused or failed is recorded as "not done", not "fetched".
+**Rolled back** (kept on the branch `backup/2026-10-09-patches`): the organizer's moves and contract, the goal-move
+conversions, the loop and repeat guards, the "data by script" and draft rules, the size wording, the stand-in site
+list, and the like. **Kept**, as general principles that hold in any design:
 
-**Next (v2, on the same engine):** members at the same time — the organizer preparing the next order while the coder
-works (Ian's "nitrous": more information per unit); round 4's senior and junior as members (the script in shared
-context, review with `review_task`); cloud and outside members claiming orders assigned to them (the MCP server on
-the same file, with its tokens).
+- an address is fetched only if it came from somewhere (the person, a search result, a kept page — the coder made
+  them up from memory); the coder's `web_search` (the assistant's own search, asked first); a kept page lists its
+  pictures and links as full addresses; the same fetch twice gives the first answer;
+- tests that never ran don't pass (a pytest-style file run as a script only defines its tests); pytest comes with a
+  project's environment when it has tests;
+- kept material (`sources/`, `assets/`) isn't checked, mapped or edited as the project's code;
+- the look: motion by code (two pictures half a second apart), the program's state first in words, only the
+  project's own program is run, a fullscreen window is a window;
+- a C++ header is checked as C++ before the project has a Makefile;
+- the engine ships in cinminai-daemon, and the packaging test reads every import form.
+
+**Next:** measure on Ian's test projects as they are, version against version, before any further change; members
+at the same time (the helper preparing while the coder works) once the simple form holds.
 
 ### The closures and fixes of 2026-10-08 — built the same night (Ian, 2026-10-08)
 

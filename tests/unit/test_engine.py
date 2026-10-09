@@ -77,7 +77,7 @@ class EngineTest(unittest.TestCase):
             self.e.order(root["id"], self.org, self.coder, "big", "x" * 4950, "write")
         self.assertIn("Too big", str(cm.exception))
         with self.assertRaises(engine.EngineError):
-            self.e.order(root["id"], self.org, self.coder, "review", "just look", "review")
+            self.e.order(root["id"], self.org, self.coder, "plan", "just think", "plan")
 
     def test_a_long_request_goes_by_reference(self):
         root = self.e.request("do this:\n" + "detail " * 600, self.org)

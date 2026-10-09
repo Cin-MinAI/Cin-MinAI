@@ -194,7 +194,8 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "goal_add", "goal_done", "need", "look", "decline", "ask", "answer"])
+                                 "web_search", "fetch", "ask_helper", "goal_add", "goal_done", "need", "look", "ask",
+                                 "answer"])
 
     def cut_write(self, path, lines, tool="write"):
         """What the server sends when a write runs into the token limit: JSON that stops inside the content."""

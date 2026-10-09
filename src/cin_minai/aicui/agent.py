@@ -56,11 +56,11 @@ ACTIONS = [
     {"tool": "run", "command": STR},
     {"tool": "web_search", "query": STR},
     {"tool": "fetch", "url": STR},
+    {"tool": "ask_helper", "source": STR, "question": STR},
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
     {"tool": "need", "package": STR, "why": STR},
     {"tool": "look", "target": {"enum": ["program", "page", "screen"]}, "question": STR, "address": STR},
-    {"tool": "decline", "reason": STR},
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
 ]
@@ -87,12 +87,13 @@ You work step by step. Each step: your thinking (short), then exactly one action
   append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
 - run (a shell command in the project folder{sandbox})
 - web_search (a `query`), fetch (an https `url` from the user, a search or a kept page); both asked first
+- ask_helper (a second model reads a long `source` file for your `question`)
 - goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
-- need (a package the project needs: the person agrees, AICUI installs it), decline (the task doesn't apply: why)
+- need (a package the project needs: the person agrees, AICUI installs it)
 - look (see the program, a page or the screen: facts, and your `question` answered)
 - ask (a question for the user), answer (tell the user something; ends your turn)
-Your thinking is a sentence or two about your next move — never a copy of the user's message or of an error; the
-user sees it in the chat.
+Your thinking: a sentence or two about your next move, never a copy of the user's message or an error (the user
+sees it).
 Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change, check it (run the tests or
 the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
 haven't read. Data or a source the user gives you (pasted or fetched) beats your memory: use it as given; if it
@@ -197,10 +198,10 @@ def doing(raw: str) -> str:
     tool = re.search(r'"tool"\s*:\s*"(\w+)"', raw)
     if not tool:
         return "thinking"
-    what = re.search(r'"(?:path|command|pattern|url|query)"\s*:\s*"((?:[^"\\]|\\.){0,60})', raw)
+    what = re.search(r'"(?:path|command|pattern|url|query|source)"\s*:\s*"((?:[^"\\]|\\.){0,60})', raw)
     verb = {"write": "writing", "append": "writing", "edit": "editing", "replace_lines": "editing", "read": "reading", "run": "running",
             "list": "looking in", "search": "searching", "answer": "answering", "ask": "asking",
-            "fetch": "fetching", "web_search": "searching the web for"}.get(tool.group(1),
+            "fetch": "fetching", "web_search": "searching the web for", "ask_helper": "asking the helper about"}.get(tool.group(1),
                                                                                                     tool.group(1))
     return f"{verb} {what.group(1)}" if what else verb
 
@@ -866,7 +867,7 @@ class Agent:
     def steps_of(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
         self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
-        self.stopped = ""  # how it ended: "answer", "ask", "declined", "stuck", "limit", "error" (the organizer reads it)
+        self.stopped = ""  # how it ended: "answer", "ask", "declined", "stuck", "limit", "error" (the table records it)
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
         last_progress = 0
@@ -905,7 +906,7 @@ class Agent:
             if act["tool"] == "decline":  # the task doesn't apply: a valid outcome, back to whoever gave it
                 msg = f"I'm not doing this task: {act.get('reason') or 'it does not apply'}"
                 self.stopped = "declined"
-                self.event("handoff", by="coder", to="organizer", text=msg)
+                self.event("handoff", by="coder", to="person", text=msg)
                 self.say(msg)
                 self.history.append({"user": text, "answer": msg})
                 return msg
@@ -1111,7 +1112,7 @@ class Agent:
                 + "\nIts text begins:\n" + body[:min(1500, self.obs_chars - 400)])
 
     def given(self, request: str) -> None:
-        """The addresses in the person's own request: theirs to fetch (an order the organizer wrote doesn't count)."""
+        """The addresses in the person's own request: theirs to fetch (the model's memory of addresses doesn't count)."""
         self.known_urls |= {intake.clean_url(u) for u in intake.URL.findall(request)}
 
     def known_address(self, url: str) -> bool:
@@ -1283,6 +1284,11 @@ class Agent:
                 return self.fetch(a.get("url", ""))
             if t == "web_search":
                 return self.web_search(a.get("query", ""))
+            if t == "ask_helper":  # the tandem's helper (tandem.py); alone, there's none
+                helper = getattr(self, "helper", None)
+                if not callable(helper):
+                    return "no helper is running here: read the file yourself, in parts"
+                return helper(a.get("source", ""), a.get("question", ""))
             if t == "read":
                 full = self.path(a["path"])
                 with open(full, encoding="utf-8", errors="replace") as f:
@@ -1619,7 +1625,7 @@ def main(argv=None) -> int:
                     help="no questions and no sandbox — strongly advised against until the model is tested")
     ap.add_argument("--admin", action="store_true", help="allow administrator commands")
     ap.add_argument("--solo", action="store_true",
-                    help="the coding model alone, without the guide organizing on the processor (SPEC 22.5)")
+                    help="the coding model alone, without the guide helping on the processor (SPEC 22.5)")
     a = ap.parse_args(argv)
     mode = "none" if a.no_permissions else "auto" if a.auto else "ask"
     root = project_root(a.folder)
@@ -1654,10 +1660,10 @@ def main(argv=None) -> int:
                 print(f"\033[33mThe guide couldn't start ({e}); the coding model works alone.\033[0m")
         return pair["junior"]
 
-    def organizer():
-        """The guide organizes every request (2026-10-09: tied to open goals, it sat out a project whose one goal was
-        ticked, and the requests ran on the coder alone); --solo turns it off; if it can't start, the coder works
-        alone and says so."""
+    def tandem():
+        """The coder leads every request; the guide on the processor is its helper (reading, reviews, pictures) and
+        every request is a task on the Team Table (Ian, 2026-10-09: "flip the tandem"). --solo: the coder alone; if
+        the guide can't start, the coder works alone and says so."""
         if a.solo or guide() is None:
             return None
         if pair["tandem"] is None:
@@ -1679,7 +1685,7 @@ def main(argv=None) -> int:
             if text:
                 cancel = threading.Event()
                 try:
-                    (organizer() or agent).turn(text, cancel)
+                    (tandem() or agent).turn(text, cancel)
                 except KeyboardInterrupt:  # AICUI's Stop button sends Ctrl+C; the server stops when we hang up
                     cancel.set()
                     print("\r\033[K(stopped — what's done is saved and in the changelog)")

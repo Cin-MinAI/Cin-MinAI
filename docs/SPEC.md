@@ -2069,29 +2069,21 @@ failed, cancelled) and its result. Every token is written to the record.
 - **Cloud models by choice** as the final check or the whole job (OpenAI and Anthropic now; Gemini and Grok later);
   their keys through the key card into the login keyring; what's sent shown first.
 
-**As built in AICUI (2026-10-08, slice 3).** The guide organizes on the processor beside the coding model on the
-card; it never reads code, but the map, the problems the checks find, each goal's cycle state and short summaries of
-what the coder did. Every move follows one contract, checked by code rather than by its wording: it says what it acts
-on, and a task also what proves it's done; what the person just gave (a link, a project file, pasted material — kept
-as a source) is used first, or the move goes back once and then to the person; a task that changed nothing comes back
-as such, and two in a row go to the person; the coder may decline a task with its reason. Stuck: one hint (from the
-problems when the checks name any), then the person. Ian: "We can't just auto code what to do. This has to be
-generalized for function."
+**As built in AICUI (2026-10-09): the coder leads, the guide helps.** Ian: "flip the tandem." The coding model works
+the person's request with its own judgement, as it does alone. The guide, on the processor, is its helper for jobs that
+would spend the coder's context or need a second model, and never decides what the coder does: it reads a long file
+in parts for one question and keeps its answer (the coder's `ask_helper`: the bulk stays out of the coder's context),
+reviews a goal before it's ticked (D94: never the model that did the work), and answers a look's picture question.
+(The first version, 2026-10-08, had the guide organize every move for the coder; it was weak at that, and the patches
+it needed were rolled back — PLAN §1b.)
 
-**On the Team Table (2026-10-09; `cin_minai/engine.py`).** Ian: "team table was the multi model engine" — the table
-drives the models, not only records them. Every member that works a project is on it under the project's name
-("coder.4182ec9f") with its context size, its model and where it runs — a local model, a cloud model through an API
-or sign-in the person allowed, an outside agent through Team Table's MCP server on the same file (Ian: "you and any
-other cloud model can work at team table also, for 3 agents at the project"). The person's request is the organizer's
-task; every move is a child task for whoever does it: a **work order** for the coder with its one kind of action
-(write, delete or check), the task, the proof, and the files or lines it acts on, which code attaches as references
-(their content as it is at that moment, in shared context; the coder reads them instead of reading the files); a look
-or a fetch for the organizer itself. Each member claims its task from the table; while a child is open the request
-waits; each task closes with the model that did it and its **verdict** (changed something, changed nothing, checked,
-declined, stuck, asks the person). The Requests view shows the tree with each verdict; Stop there, or in AICUI,
-cancels the whole tree, and AICUI stops before its next move. A task over 5 % of its member's context comes back to
-the organizer with the reason; a request may spawn 100 tasks. Sequential first; members working at the same time
-(§22.4) are the next step.
+**On the Team Table (`cin_minai/engine.py`).** Ian: "team table was the multi model engine." Every member that works a
+project is on it under the project's name ("coder.4182ec9f") with its context size, its model and where it runs — a
+local model, a cloud model through an API or sign-in the person allowed, an outside agent through Team Table's MCP
+server on the same file (Ian: "you and any other cloud model can work at team table also, for 3 agents at the
+project"). The person's request is the coder's task; each helper job is its child task, closed with the model that
+did it and its verdict (answered, covered, not covered). The Requests view shows the tree; Stop cancels it. Sequential
+first; members working at the same time (§22.4) come once the simple form holds.
 
 ### 22.6 Admin, and the key
 

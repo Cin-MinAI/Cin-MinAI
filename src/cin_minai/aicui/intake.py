@@ -8,7 +8,7 @@ material for code to structure — and the model is told where it is; it never d
   with titles; the text kept 7 of 126 entries).
 * **A file** (an image, a PDF, a sheet) is saved as it came under `assets/`.
 * **The person's input** — the links, the project files and the pasted material in their message — is listed for the
-  organizer, who must use it first (the move contract); pasted material is saved under `sources/` by code.
+  coder; pasted material is saved under `sources/` by code.
 
 Nothing is fetched without the person's yes (D86): the agent asks before calling `get`.
 """
