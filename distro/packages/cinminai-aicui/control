@@ -4,7 +4,8 @@ Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: devel
 Priority: optional
-Depends: python3 (>= 3.12), python3-venv, python3-gi, gir1.2-gtk-3.0, gir1.2-vte-2.91, git, bubblewrap,
+Depends: python3 (>= 3.12), python3-venv, python3-gi, python3-pil, gir1.2-gtk-3.0, gir1.2-vte-2.91, git,
+ bubblewrap, xvfb, x11-utils, wmctrl, ffmpeg,
  cinminai-daemon (>= @RELEASE@)
 Description: AICUI, the Cin-MinAI coding workspace
  A simple workspace for coding with AI: the chat history, the project's files,

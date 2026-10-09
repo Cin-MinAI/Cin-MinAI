@@ -264,14 +264,32 @@ class Tandem:
                            "Tell me to continue and the organizer picks up from the files and the goals.")
 
 
+def guide_projector() -> str:
+    """The guide's picture reader in the model store ("" when it isn't there)."""
+    from cin_minai.daemon.models import ModelStore
+    from cin_minai.inference import matcher
+    proj = matcher.PROJECTORS.get(matcher.CATALOG["help"][0].file)
+    store = ModelStore()
+    return store.path(proj.file) if proj and store.has(proj.file) else ""
+
+
+def reads_pictures() -> bool:
+    try:
+        return bool(guide_projector())
+    except Exception:
+        return False
+
+
 def junior_backend(log=None):
     """The guide on the processor, beside the coding model on the card: its own server and socket; it never takes
-    the card (the processor is its only rung)."""
+    the card (the processor is its only rung). With its picture reader when that's here (look.py's questions)."""
     from cin_minai.daemon import config
     from cin_minai.inference.llamacpp import LlamaCppBackend
     cfg = dict(config.load()["inference"])
     if not cfg.get("model") or not os.path.isfile(cfg["model"]):
         return None
+    projector = guide_projector()
     cfg.update(build="cpu", context=JUNIOR_CONTEXT, cpu_context=JUNIOR_CONTEXT, cache_type="q8_0",
-               socket_name="llama-junior.sock", model_name="Cin-MinAI guide (organizer)", extra_args=[])
+               socket_name="llama-junior.sock", model_name="Cin-MinAI guide (organizer)",
+               extra_args=["--mmproj", projector, "--no-mmproj-offload"] if projector else [])
     return LlamaCppBackend(cfg, log or (lambda m: None))

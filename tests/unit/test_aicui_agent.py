@@ -147,8 +147,9 @@ class AgentTest(unittest.TestCase):
         a = Agent(self.root, Scripted(steps), "m", "ask", ask=lambda p: "y", say=self.said.append, ctx=2400)
         a.turn("read a lot")
         last = a.chat.sent[-1]
-        # the system text is ~2,300 characters with the tools of 2026-10-08 (need, decline, replace_lines)
-        self.assertLessEqual(sum(len(m["content"]) for m in last), (2400 - 1800 - 300) * 3.3 + 2300)
+        # the system text is ~2,400 characters with the tools of 2026-10-08/09 (need, decline, replace_lines, look);
+        # what this checks is the history shrinking, at a context no setup of ours uses (the floor is 8K)
+        self.assertLessEqual(sum(len(m["content"]) for m in last), (2400 - 1800 - 300) * 3.3 + 2400)
         self.assertTrue(any(m["content"].startswith("Earlier in this task:") for m in last))
 
     def test_a_model_error_is_answered_not_a_crash(self):
@@ -193,7 +194,7 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run", "fetch",
-                                 "goal_add", "goal_done", "need", "decline", "ask", "answer"])
+                                 "goal_add", "goal_done", "need", "look", "decline", "ask", "answer"])
 
     def cut_write(self, path, lines, tool="write"):
         """What the server sends when a write runs into the token limit: JSON that stops inside the content."""

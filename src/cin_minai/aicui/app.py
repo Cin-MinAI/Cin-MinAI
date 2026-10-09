@@ -255,6 +255,8 @@ class Workspace(Gtk.ApplicationWindow):
                 who = {"coder": "Organizer → coder", "fetch": "Organizer → fetch", "person": "Organizer → you",
                        "organizer": "Coder → organizer"}
                 self.thought(e.get("text", ""), who.get(e.get("to", ""), "Organizer"))
+            elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
+                self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
             elif e["kind"] == "env_request":  # the AI declared a package the work needs: the person decides
                 self.offer_build()
             elif e["kind"] == "check":  # a problem found in a file the AI just changed
@@ -471,6 +473,31 @@ class Workspace(Gtk.ApplicationWindow):
             for path in gone:
                 shutil.rmtree(path, ignore_errors=True)
         return False
+
+    def show_look(self, path: str, target: str, problems: list) -> None:
+        """A look in the chat: the picture, small (click to open it full size), and what code found in it."""
+        try:
+            from gi.repository import GdkPixbuf
+            pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 300, 200, True)
+        except Exception:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin=4)
+        title = {"screen": "Your screen — the AI asks to look at this", "page": "A page, as the AI saw it",
+                 "program": "The program, as the AI saw it"}.get(target, "A look")
+        box.pack_start(Gtk.Label(label=title, xalign=0), False, False, 0)
+        button = Gtk.Button()
+        button.set_relief(Gtk.ReliefStyle.NONE)
+        button.add(Gtk.Image.new_from_pixbuf(pb))
+        button.connect("clicked", lambda b: Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(path).get_uri(),
+                                                                               None))
+        box.pack_start(button, False, False, 0)
+        if problems:
+            box.pack_start(Gtk.Label(label="Found: " + "; ".join(problems), xalign=0, wrap=True, max_width_chars=48),
+                           False, False, 0)
+        row = Gtk.ListBoxRow()
+        row.add(box)
+        self.chat.add(row)
+        row.show_all()
 
     def yes_no(self, question: str, detail: str) -> bool:
         d = Gtk.MessageDialog(transient_for=self, modal=True, message_type=Gtk.MessageType.QUESTION,

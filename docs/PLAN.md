@@ -215,7 +215,7 @@ row when work lands. D87 was never adopted.
 | D61 | partly | AICUI slices 1-2, the checks from code, the one progress rule, the project token and environment header (built 2026-10-08 night); file-watching changelog, goals interview, cloud not built |
 | D62 | open | publishing to GitHub Pages from AICUI not built |
 | D63 | open | cloud senior not built (local hand-offs are D94/D95) |
-| D64 | filled | update 3 |
+| D64 | filled | update 3; in AICUI, looks at a program, a page or the screen (2026-10-09) |
 | D65 | filled | standing rule |
 | D66 | open | memory and personality (M4b) |
 | D67 | partly | action record and walls (M4 slices 1-3); memory atoms not built |
@@ -249,7 +249,9 @@ row when work lands. D87 was never adopted.
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
 
-### Queued: the look closure (Ian, 2026-10-09) — built after his current test
+### The look closure (Ian, 2026-10-09) — built the same day
+
+**Built 2026-10-09** (`aicui/look.py`, the `look` tool in `aicui/agent.py`, the chat's picture in `aicui/app.py`; `cinminai-aicui` depends on xvfb, x11-utils, wmctrl, ffmpeg, python3-pil): the steps below as written; the picture model is the guide with its picture reader, until round 4 brings the bigger readers.
 
 Ian: "When a tool call for a screenshot is called, this is the process. So it doesn't matter if it's a UI, or trying
 to get stuff off the web, or just seeing where the screen is at." One `look` tool, for any target, through the D96

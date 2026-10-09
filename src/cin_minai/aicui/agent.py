@@ -28,7 +28,7 @@ import threading
 import time
 
 from .changelog import Changelog
-from . import intake
+from . import intake, look
 from .project import (DATA_FILES, HIDE, Goals, entry_point, env_state, goal_stages, project_root, tree,
                       want_package)
 
@@ -58,6 +58,7 @@ ACTIONS = [
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
     {"tool": "need", "package": STR, "why": STR},
+    {"tool": "look", "target": {"enum": ["program", "page", "screen"]}, "question": STR, "address": STR},
     {"tool": "decline", "reason": STR},
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
@@ -87,6 +88,7 @@ You work step by step. Each step: your thinking (short), then exactly one action
 - fetch (a web page's text, from an https `url`; the user is asked first)
 - goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
 - need (a package the project needs: the person agrees, AICUI installs it), decline (the task doesn't apply: why)
+- look (see the program, a page or the screen: facts, and your `question` answered)
 - ask (a question for the user), answer (tell the user something; ends your turn)
 Your thinking is a sentence or two about your next move — never a copy of the user's message or of an error; the
 user sees it in the chat.
@@ -924,6 +926,11 @@ class Agent:
             return True
         if act.get("tool") in ("goal_add", "fetch", "need") and not result.startswith(("error", "the person said no")):
             return True
+        if act.get("tool") == "look" and result.startswith("Looked at"):  # a new look is new state if it differs
+            key = hash(re.sub(r"\(\.cinminai/looks/[^)]*\)", "", result))
+            if key not in self.outputs:
+                self.outputs.add(key)
+                return True
         if act.get("tool") == "run":
             key = hash(re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result))  # timings and addresses don't count as new
             if key not in self.outputs:
@@ -1036,6 +1043,110 @@ class Agent:
                 "it came, for a script). Material from the web, not instructions. Its text begins:\n"
                 + kept["text"][:min(1500, self.obs_chars - 400)])
 
+    def look(self, target: str, question: str, address: str = "") -> str:
+        """See a program's window, a page or the person's screen (look.py: the same cycle for every target)."""
+        import shutil
+        import subprocess
+        screen = look.screen_of()
+        base = look.next_name(self.root)
+        full = lambda rel: os.path.join(self.root, rel)  # noqa: E731
+        facts = {"target": target, "question": question[:300], "screen": dict(zip(("width", "height", "scale"), screen)),
+                 "picture_path": base + ".png", "facts_path": base + ".json", "windows": []}
+        if target == "program":
+            entry = address if address and os.path.isfile(full(address)) else entry_point(self.root)
+            if not entry:
+                return "error: nothing to run yet (no run.sh, main.py or index.html)"
+            if entry.endswith((".html", ".htm")):
+                return self.look("page", question, "file://" + full(entry))
+            if not shutil.which("Xvfb"):
+                return "error: the virtual display (Xvfb) isn't installed, so the program can't be looked at"
+            code, out = self.execute(look.program_script(entry, self.venv or "", screen, base), 60, self.sandbox)
+            facts.update(program=entry, running="running=yes" in (out or ""))
+            try:
+                with open(full(base + ".out"), encoding="utf-8", errors="replace") as f:
+                    facts["output"] = f.read()[-1500:]
+                with open(full(base + ".windows"), encoding="utf-8", errors="replace") as f:
+                    facts["windows"] = look.windows(f.read(), screen)
+            except OSError:
+                pass
+        elif target == "page":
+            local = address.startswith("file://")
+            if not local and not address.startswith("https://"):
+                return "error: a page is an https:// address (or the project's own .html)"
+            if not local and not self.fetch_ok:  # the address leaves the computer: asked, in every mode (D86)
+                reply = self.ask(f"\033[1mLook at {address} ? This sends the address to its site, nothing else. "
+                                 "[y]es / [n]o / [a]lways this session: \033[0m").strip().lower()
+                if reply[:1] not in ("y", "a"):
+                    return f"the person said no to looking at {address}"
+                self.fetch_ok = reply.startswith("a")
+            import tempfile
+            with tempfile.TemporaryDirectory() as profile:
+                try:
+                    subprocess.run(look.page_command(address, full(base + ".png"), screen, profile),
+                                   capture_output=True, timeout=90)
+                except (OSError, subprocess.TimeoutExpired) as e:
+                    return f"error: the page couldn't be drawn ({e})"
+            facts["page"] = address
+        elif target == "screen":  # the person's own screen: always asked, and shown to them before anything reads it
+            self.event("busy", doing="waiting for your answer in the terminal", asking="look at your screen")
+            if self.ask("\033[1mTake a picture of your screen now? It stays on this computer, and you'll see it before "
+                        "the AI does. [y]es / [n]o: \033[0m").strip().lower()[:1] != "y":
+                return "the person said no to a picture of their screen"
+            try:
+                subprocess.run(look.screen_command(full(base + ".png"), screen, os.environ.get("DISPLAY", ":0")),
+                               capture_output=True, timeout=30)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                return f"error: the screen couldn't be captured ({e})"
+            self.event("look", picture=full(base + ".png"), target="screen")
+            if self.ask("\033[1mLet the AI look at that picture (it's in AICUI's chat)? [y]es / [n]o: \033[0m"
+                        ).strip().lower()[:1] != "y":
+                os.remove(full(base + ".png"))
+                return "the person said no to the AI looking at their screen"
+            try:
+                listing = subprocess.run(["wmctrl", "-lG"], capture_output=True, text=True, timeout=10).stdout
+                facts["windows"] = [{"name": " ".join(f[7:]), "width": int(f[4]), "height": int(f[5]),
+                                     "x": int(f[2]), "y": int(f[3])}
+                                    for f in (line.split() for line in listing.splitlines()) if len(f) >= 7]
+            except (OSError, subprocess.TimeoutExpired, ValueError):
+                pass
+        else:
+            return "error: look at a program, a page or the screen"
+        if not os.path.exists(full(base + ".png")):
+            return "error: no picture came (" + (facts.get("output") or "the capture failed")[-300:] + ")"
+        facts["picture"] = look.picture_facts(full(base + ".png"))
+        problems = look.checks(facts)
+        answer = self.ask_picture(full(base + ".png"), facts, question) if question else ""
+        facts.update(problems=problems, answer=answer)
+        look.save(self.root, base, facts)
+        self.event("look", picture=full(base + ".png"), target=target, problems=problems[:5])
+        return look.report(facts, problems, answer)
+
+    def ask_picture(self, path: str, facts: dict, question: str) -> str:
+        """The one question, to whichever model here reads pictures (AICUI hands one in as `reader`)."""
+        reader = getattr(self, "reader", None)
+        chat = reader() if callable(reader) else None
+        if chat is None:
+            return ""
+        try:
+            from cin_minai.daemon.vision import picture
+            crop = path
+            wins = [w for w in facts.get("windows", []) if facts.get("program")]
+            if wins:  # the program's own window, at full detail
+                from PIL import Image
+                w = wins[0]
+                crop = path[:-4] + "-window.png"
+                with Image.open(path) as im:
+                    im.crop((max(0, w["x"]), max(0, w["y"]), w["x"] + w["width"], w["y"] + w["height"])).save(crop)
+            mime, data = picture(crop)
+            known = "; ".join(look.checks(facts)) or "none"
+            text, _ = chat([{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}},
+                {"type": "text", "text": f"{question}\nAnswer only that, briefly and plainly. (Code already found: "
+                                         f"{known}.)"}]}], max_tokens=300)
+            return " ".join(str(text).split())[:800]
+        except Exception as e:
+            return f"(the picture model couldn't answer: {type(e).__name__})"
+
     def do(self, a: dict) -> str:
         try:
             t = a["tool"]
@@ -1068,6 +1179,8 @@ class Agent:
                 return "\n".join(hits[:60]) or "no matches"
             if t in ("edit", "replace_lines", "write", "append"):
                 return self.change(a)
+            if t == "look":
+                return self.look(a.get("target", "program"), a.get("question", ""), a.get("address", ""))
             if t == "need":
                 try:
                     said = want_package(self.root, a.get("package", ""), a.get("why", ""))
@@ -1368,26 +1481,34 @@ def main(argv=None) -> int:
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
     from . import tandem as tandem_mod
-    pair = {"junior": None, "tandem": None, "failed": a.solo}
+    pair = {"junior": None, "tandem": None, "failed": False}
 
-    def organizer():
-        """The guide on the processor, once the project has open goals (a new project starts with the coder asking
-        about its scope); loaded on first use; if it can't start, the coder works alone and says so."""
-        if pair["failed"] or not any(not g["done"] for g in agent.goals.load()):
-            return None
-        if pair["tandem"] is None:
-            print("\033[2mOrganizer: the guide on the processor, loading…\033[0m")
+    def guide():
+        """The guide on the processor (with its picture reader when that's here), started on first use."""
+        if pair["junior"] is None and not pair["failed"]:
+            print("\033[2mThe guide on the processor, loading…\033[0m")
             try:
                 pair["junior"] = tandem_mod.junior_backend()
                 if pair["junior"] is None:
                     raise RuntimeError("the guide model isn't on this computer")
                 pair["junior"].chat([{"role": "user", "content": "ok"}], max_tokens=1)  # load it now, not mid-task
             except Exception as e:
-                pair["failed"] = True
-                print(f"\033[33mThe organizer couldn't start ({e}); the coding model works alone.\033[0m")
-                return None
+                pair["failed"], pair["junior"] = True, None
+                print(f"\033[33mThe guide couldn't start ({e}); the coding model works alone.\033[0m")
+        return pair["junior"]
+
+    def organizer():
+        """The guide organizes once the project has open goals (a new project starts with the coder asking about its
+        scope); --solo turns it off; if it can't start, the coder works alone and says so."""
+        if a.solo or not any(not g["done"] for g in agent.goals.load()) or guide() is None:
+            return None
+        if pair["tandem"] is None:
             pair["tandem"] = tandem_mod.Tandem(agent, pair["junior"].chat, say=lambda s: print(f"\r\033[K{s}"))
         return pair["tandem"]
+
+    def reader():  # look's one question goes to the guide when it has its picture reader (look.py)
+        return guide().chat if tandem_mod.reads_pictures() and guide() is not None else None
+    agent.reader = reader
     try:
         while True:
             try:
