@@ -361,6 +361,19 @@ the smaller model in charge of the bigger one — the root of a day of patches.)
 
 Switching models or styles is a matter of who holds which card; the mechanics are the same.
 
+**Style A, with the 4B: an errand intern** (Ian: "the coder gets the input, breaks it down by the session goals in
+the project, focuses specifically on the input so if its "continue" it just continues or if its "look at x" it looks
+at x, then gives the assistant work based on the input and the session goals together. If it doesnt have any more
+than 1 task for this input it will just do it itself, or if it is all coding tasks it will not give anything to 4b. 4b
+is an assistant and doesnt have to be used, but will be used when it will make things go faster. With 4b its almost
+an errand intern. With the 9b setup we aim for a real jr/Sr developer setup."):
+- the coder (Senior) takes the person's input as it is — "continue" continues, "look at x" looks at x — and breaks it
+  down against the session goals;
+- one task for this input, or only coding tasks: it does them itself, and the 4B gets nothing;
+- several tasks with errands among them (reading a long page, fetching and structuring material, gathering assets, a
+  look): the errands go to the 4B's queue and run while the coder codes; results come back between its steps;
+- the 4B is optional: used when it makes things faster, never required, never in the way.
+
 **Style B starts with the skeleton** (Ian: "MoE should be able to fill out a whole file structure and plan for the
 project then send 9b on scripts one at a time while doing work itself in other places. If it does all the imports
 and classes and dependencies and binaries first, the small model has a domain to work in and should hallucinate less
