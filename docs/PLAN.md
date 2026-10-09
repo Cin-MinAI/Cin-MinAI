@@ -249,6 +249,42 @@ row when work lands. D87 was never adopted.
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
 
+### Queued: the look closure (Ian, 2026-10-09) — built after his current test
+
+Ian: "When a tool call for a screenshot is called, this is the process. So it doesn't matter if it's a UI, or trying
+to get stuff off the web, or just seeing where the screen is at." One `look` tool, for any target, through the D96
+cycle — closes the screenshot part of D64 for AICUI, with D61, D86, D96:
+
+1. **Allowed** by the target: the program the AI is building (its own output, local, sandboxed: no question); a web
+   page (the address leaves the computer: asked, D86); the person's screen (always asked, and the capture is shown to
+   them before anything reads it — what's seen is shown first).
+2. **Capture, by code:** the picture and every fact code can read without a model — window, screen and scaling; for
+   its own program, run in a virtual display at the person's screen size and scaling (`xvfb`, a new dependency); for a
+   page, each element's place and text from the page itself; for the screen, the windows and their titles.
+3. **Structure:** the facts as JSON beside the picture under `.cinminai/looks/`, kept like sources.
+4. **Check, by code:** against what's expected — the window fits the screen, every control is inside it, no text
+   overlaps or runs off. ("I can't see any buttons" is a fact here before any model looks.)
+5. **Use:** the coder gets the facts and the picture model's answer to one specific question ("are the four buttons
+   visible and readable?") — never "describe the picture".
+6. **Review and record:** every look in the record; the person can open the picture.
+
+Structure first, pixels second: the lesson of the gallery page, and the screen-size fact of 2026-10-08 (read by code,
+not guessed) was its first piece.
+
+### Queued measurement: which pair codes and sees best (Ian, 2026-10-09)
+
+Ian: "we will still try the 35b moe with 9b coder and the 35b will have the screenshots and picture reader this time
+so we will have to compare how they perform for those tasks also." Tandem round 4, the same tasks for each pair —
+coding (time to passing tests, stuck stops, changes that hold) and looking (the look tasks above, picture questions):
+
+| Pair | Coder (card) | Big model | Picture reader |
+|---|---|---|---|
+| A (2026-10-08) | Qwen3.8-27B IQ3_XXS, 32K | — (the 4B organizes) | the 4B's |
+| B | Qwen3.5-9B Q4_K_M, 32K | Flash-Next: backbone on the card, experts in RAM/NVMe | Flash-Next's (mmproj-F16, on Ian's NVMe) |
+| C | Qwen3.5-9B Q4_K_M, 32K | Qwen3.6-35B-A3B: experts in RAM | the 35B's (ggml-org repo, pinned: mmproj Q8_0 586 MiB / BF16 861 MiB) |
+
+The 35B-A3B (20 GB) is on Ian's USB drive; its picture reader is fetched from the pinned repository with its checksum.
+
 ### The closures and fixes of 2026-10-08 — built the same night (Ian, 2026-10-08)
 
 **Built 2026-10-08 night** (`aicui/tandem.py`, `aicui/intake.py`, `aicui/project.py`, `aicui/agent.py`, `aicui/app.py`): all four closures and every fix below; the day's special cases are gone (the review word list, the code-written goal task, the plan-opening key, the read, listing and re-read counters). Checked on the page that kept 7 entries in the afternoon: kept whole, its text now holds all 103 the page lists.
