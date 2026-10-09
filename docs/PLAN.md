@@ -244,7 +244,7 @@ row when work lands. D87 was never adopted.
 | D91 | partly | chains for video and news; other successive actions not built |
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; models in parts, sign-in repos, the setup helper not built |
-| D94 | partly | the guide holds system tools and organizes AICUI; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
+| D94 | partly | the two cards, Senior and Junior, designed (PLAN §1b, 2026-10-09); the guide holds system tools; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
 | D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem on the Team Table, the coder leading and the guide helping (2026-10-09) |
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
@@ -314,6 +314,55 @@ model and where they run (`where:local`, `where:cloud:anthropic`, …; nothing a
 a root task (origin person) for its lead; helper jobs are child tasks with their kind and verdict; references by code
 into shared context; Stop anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it
 opens. The Requests view shows each task with its kind, model and verdict in the six languages.
+
+### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
+
+Ian, after a run where the 4B's review blocked a goal five times and overruled the coder and the person: "The
+assistant isnt the final word. The Coder is the Sr here. I think thats what we need to make general. What the Sr and
+Jr roles are and how they interact… The bigger model is always the Sr, but not always the coder… We want to
+generalize 2 cards for this operational style basically. That makes it easy to start somewhere with 2 agents
+interacting on a project." And: "Jr can still let tasks stack and Sr will let Jr do them one at a time while focusing
+on other work for the project. When there are 2 agents capable of coding they can both work on code but not on the
+same script at one time."
+
+**The rule:** the bigger model holds the Senior card; who writes code is a separate assignment. (The first tandem put
+the smaller model in charge of the bigger one — the root of a day of patches.)
+
+**Senior card** (the bigger model):
+- holds the aggregate: the goals, the plan of steps (the script), the names the parts share;
+- has the final word on the work: accepts or rejects a Junior's result, decides when a goal is met, patches what
+  matters itself;
+- gives the Junior one step at a time — one kind of action, what it acts on, what proves it — and keeps working on
+  other parts of the project while the Junior works;
+- goes to the person for choices only the person can make, or a disagreement it can't settle.
+
+**Junior card** (the smaller model):
+- has a queue: tasks stack, and it does them one at a time, one kind of action each, reporting each result with its
+  evidence;
+- flags, never decides: its review or objection goes to the Senior as advice, with its reason;
+- may ask the Senior, and may say a step doesn't fit the script.
+
+**How they interact** (both styles, on the Team Table):
+- every message between them is a task: from, to, kind, result, verdict; the chat shows each one plainly
+  ("Senior → Junior: …", "Junior → Senior: …"); the Requests view shows the tree;
+- **at the same time:** the Junior works its queue while the Senior works; a finished Junior task reaches the Senior
+  between its own steps (accept / reject / next);
+- **one writer per file:** when both can code, both may work on code, but never on the same file at once — a task
+  names the files it writes, the table holds them for it until it closes, and a task needing a held file waits;
+- **the person above both:** accepts, rejects or redirects at any point; the person's word ends a disagreement.
+
+**Two styles, the same cards:**
+
+| | A — the coder is the Senior (now: 27B + 4B) | B — the coder is the Junior (round 4: 35B-A3B or Flash-Next + 9B) |
+|---|---|---|
+| Senior | the 27B: plans and codes, decides ticks | the big MoE: writes the script, reviews each step, patches, looks |
+| Junior | the 4B: reads long material, gathers assets, looks, a second-opinion review (a flag) | the 9B: codes one step at a time from the script |
+| Who codes | the Senior (the Junior only on files the Senior isn't writing, if it can) | the Junior; the Senior patches |
+
+Switching models or styles is a matter of who holds which card; the mechanics are the same.
+
+**To build (with Ian's go):** style A first — the Junior's review a flag and the Senior's word final; every exchange
+shown in the chat; the Junior's queue running beside the Senior; files held per task. Style B when round 4 runs.
 
 ### The tandem flipped, and a day of patches rolled back (Ian, 2026-10-09)
 

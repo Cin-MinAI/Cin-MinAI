@@ -2077,6 +2077,13 @@ reviews a goal before it's ticked (D94: never the model that did the work), and 
 (The first version, 2026-10-08, had the guide organize every move for the coder; it was weak at that, and the patches
 it needed were rolled back — PLAN §1b.)
 
+**Roles as two cards (designed 2026-10-09, PLAN §1b).** The bigger model holds the Senior card — the plan, the final
+word on the work, the patches that matter — and the smaller the Junior card: a queue of one-step tasks, done one at a
+time while the Senior works on, its reviews flags, never verdicts. Who writes code is assigned separately: the coder
+is the Senior when the helper is the 4B (style A), the Junior when a bigger MoE leads a 9B (style B). Both may code,
+never on the same file at once; every exchange is a task on the Team Table and shown in the chat; the person is above
+both.
+
 **On the Team Table (`cin_minai/engine.py`).** Ian: "team table was the multi model engine." Every member that works a
 project is on it under the project's name ("coder.4182ec9f") with its context size, its model and where it runs — a
 local model, a cloud model through an API or sign-in the person allowed, an outside agent through Team Table's MCP
