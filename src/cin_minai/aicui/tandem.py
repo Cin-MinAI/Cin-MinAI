@@ -211,7 +211,14 @@ class Tandem:
                 continue
             given = [g for g in given if not uses(move, g)]
             if kind == "fetch":
-                rounds.append({"task": f"fetch {move.get('url', '')}", "outcome": self.fetch(move.get("url", ""))})
+                url = move.get("url", "").strip()
+                if not url.startswith("https://"):  # the contract: a fetch acts on a web address (the 4B "fetched"
+                    # gui.py, then asked the person for "the correct URL")
+                    outcome = (f"not done: {url or 'that'} isn't a web address — files in the project are the coder's "
+                               "to read and change: give the coder a task")
+                else:
+                    outcome = self.fetch(url)
+                rounds.append({"task": f"fetch {url}", "outcome": outcome})
                 continue
             task = (move.get("task") or "").strip()
             if rounds and task == rounds[-1]["task"]:  # a loop between the two: the person decides

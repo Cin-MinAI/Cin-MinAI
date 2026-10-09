@@ -187,6 +187,22 @@ class TandemTest(unittest.TestCase):
                               move("coder", task="Add a menu.", acts_on="gui.py", proof="runs")])
         self.assertIn("didn't use what you gave", t.turn(f"use {link}"))
 
+    def test_a_fetch_is_a_web_address_and_the_coder_knows_the_screen(self):
+        """2026-10-08: the 4B "fetched" gui.py, then asked the person for "the correct URL"; and the coder, without a
+        display, couldn't know that a 1280x720 window on a 4K screen at 3x scaling is a third of its width."""
+        from unittest import mock
+        a, t = self.pair([], [move("fetch", url="gui.py"), move("done", summary="ok")])
+        a.fetch = lambda url: self.fail("fetch called for a file")
+        t.turn("the window is too small")
+        self.assertIn("not done: gui.py isn't a web address — files in the project are the coder's",
+                      t.junior.sent[1][1]["content"])
+        with mock.patch.dict(os.environ, {"CINMINAI_SCREEN": "3840x2160@3"}):
+            shown = a.system()
+        self.assertIn("The person's screen is 3840x2160 pixels at 3x scaling", shown)
+        self.assertIn("shows a 1280x720 window at the size other windows have", shown)
+        with mock.patch.dict(os.environ, {"CINMINAI_SCREEN": ""}):
+            self.assertNotIn("person's screen", a.system())
+
     def test_pasted_material_is_kept_as_a_source(self):
         a, t = self.pair([], [move("done", summary="ok")])
         rows = "".join(f"item {i}, {i * 10}\n" for i in range(12))

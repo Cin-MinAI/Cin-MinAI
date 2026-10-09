@@ -113,6 +113,9 @@ class Workspace(Gtk.ApplicationWindow):
         self.term.set_scrollback_lines(10000)
         env = [f"CINMINAI_PROJECT={root}"] + ([f"PYTHONPATH={os.environ['PYTHONPATH']}"]
                                               if os.environ.get("PYTHONPATH") else [])
+        screen = screen_fact()
+        if screen:  # the AI runs without a display: what the person's screen is, read here (2026-10-08: a 1280x720
+            env.append(f"CINMINAI_SCREEN={screen}")  # window on a 4K screen at 3x scaling was a third of its width)
         # the agent starts in the terminal; leaving it (Ctrl+D) leaves a normal shell in the project folder
         shell = os.environ.get("SHELL", "/bin/bash")
         self.term.spawn_async(Vte.PtyFlags.DEFAULT, root, [shell, "-c", f"{self.agent_command()}; exec {shell}"],
@@ -538,6 +541,17 @@ class Workspace(Gtk.ApplicationWindow):
             self.goals.add(entry.get_text())
             entry.set_text("")
             self.load_goals()
+
+
+def screen_fact() -> str:
+    """The person's main screen as "WIDTHxHEIGHT@SCALE" in real pixels ("" if unknown)."""
+    try:
+        display = Gdk.Display.get_default()
+        mon = display.get_primary_monitor() or display.get_monitor(0)
+        g, scale = mon.get_geometry(), mon.get_scale_factor()
+        return f"{g.width * scale}x{g.height * scale}@{scale}"
+    except Exception:
+        return ""
 
 
 class App(Gtk.Application):

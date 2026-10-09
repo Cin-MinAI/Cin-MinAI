@@ -584,6 +584,12 @@ class Agent:
         elif env_state(self.root) == "declared":
             venv = ("\nThe project has an environment that isn't built yet: when the work needs a package, use need "
                     "(never pip); AICUI asks the person and builds it as .venv/.")
+        screen = re.fullmatch(r"(\d+)x(\d+)@(\d+)", os.environ.get("CINMINAI_SCREEN", ""))
+        if screen:  # you run without a display; the person's screen, as AICUI read it
+            w, h, k = (int(x) for x in screen.groups())
+            venv += (f"\nThe person's screen is {w}x{h} pixels" + (f" at {k}x scaling: a program that draws in pixels "
+                     f"(pygame, SDL) shows a {w // k}x{h // k} window at the size other windows have" if k > 1 else "")
+                     + ". Size a program's window for this screen, or make it resizable.")
         return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
                              answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                              sandbox=", sandboxed without network" if self.sandbox else "")
