@@ -1637,3 +1637,43 @@ work, only a simple entry point to building your own software with AI and I thin
 need to work on specifics here and there. The process, the OS, the vision, it all works and that's why I am on AICUI
 right now haggling with you about getting the model to do what I want." From here, specifics go on a list and are
 fixed in batches decided together; the design stays simple: the coder leads, the guide helps.
+
+## 2026-10-09 (evening) to 2026-10-10 — two cards, style A finished, the web through tools, and a save button for storms
+
+**Two cards.** After the flip, the 4B's goal review still had the last word: it said "no engine code exists" five
+times over a 400-line engine, over the coder and over Ian. Ian named the general rule: "The assistant isnt the final
+word. The Coder is the Sr here… The bigger model is always the Sr, but not always the coder." Two role cards came out
+of it (PLAN §1b): the **Senior** — the bigger model — holds the plan and the final word and patches what matters; the
+**Junior** works a queue of one-step tasks, one at a time, while the Senior works on, and its reviews are flags, never
+verdicts. Both may code, never on the same file at once; the person is above both. Style A puts the coder in the
+Senior card with the 4B as "almost an errand intern… used when it will make things go faster"; style B, for round
+4, puts a big MoE in the Senior card, which first lays the whole skeleton — files, imports, classes, signatures,
+build — so the 9B Junior "has a domain to work in and should hallucinate less."
+
+**Style A, built and finished.** The coder hands the 4B errands (read a long file for a question, look at the
+program) that run on their own thread while it works; their answers come between its steps; the 4B's review comes
+back once as a flag, and the coder's second tick goes through. Ian's next ask made Stop honest about the two of them:
+"a pop up asking if the user wants the task to continue in the background… It falls back to team tables tokens. Stop
+both or just one?" Every errand is now a task on the Team Table from the moment it's queued, listed at Stop with the
+session goal it serves; the person stops both, the coder only, or the helper only, and the helper obeys the table —
+so a Stop on one task in the sidebar's Requests view works the same way.
+
+**The web through tools only.** The coder decided it "can't download in the sandbox" and started generating stand-in
+pictures. Its commands do have no network — that's D1 — but Ian asked for the rule the other way round: "So instead
+of building a safeguard to cover all tools, we build safeguards into every tool." Commands keep no network; every way
+to the web is a tool with its own checks — search, fetch, and now download (many files, one approval, each address
+checked as a fetch's) — and the coder's rules say so. The next run fetched 126 real images in one approval.
+
+**A save button for storms.** Ian: "One of the things I've run into in the middle of a project is potential power
+outages from weather so if I could save and shutdown during storms that would be useful." AICUI has a top bar now:
+open a project or a file, save progress, save and shut down, resume; the agent writes where it stands after every step,
+and AICUI offers to pick up after a power cut. Cloud models and GitHub have their buttons reserved. The menu was tried
+in a virtual display on Ian's machine before it shipped — and the trial caught a bug that would have kept AICUI from
+opening.
+
+**Test A, wrapped.** On Ian's 2014 PC the coder and its helper built a working program from goals: a C++ rules engine
+behind a C bridge, a Python GUI over it, the data fetched and checked, the real images downloaded and shown — about
+2,000 lines with their tests. Ian: "it worked and I'd say that's a bit above what you'd expect to be able to do on that
+machine." What it lacked was the rules themselves: nobody gave it the full rulebook, and a model's weights don't hold
+one accurately. The next test, style B with a MoE Senior and the 9B coding, starts by getting the full ruleset
+offline as a source.

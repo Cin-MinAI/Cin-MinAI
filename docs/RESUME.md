@@ -1,10 +1,25 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-09** (latest: journal "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-10** (latest: journal "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-10) — style A done; next: style B
+
+- **Built since the last push (local, not pushed):** the two cards (PLAN §1b); style A (the coder Senior, the 4B an
+  errand intern on its own thread, its review a flag); Stop on the Team Table's tokens (stop both / the coder / the
+  helper); the web through tools only (`download`: many files, one approval, each address checked); AICUI's top bar
+  (open, save progress, save and shut down, resume; checkpoint after every step; Cloud models and GitHub reserved).
+- **Ian's PC runs `…231926`.** Test A is wrapped: a working program of ~2,000 lines on the 27B + 4B; the gap was the
+  ruleset, not the models.
+- **Next — style B** (Ian's order): build the mechanics (the MoE Senior lays the skeleton first; the 9B Junior codes
+  one file at a time from its queue; files held per task; the Senior reviews and patches); a PDF reader in intake so a
+  rulebook can come in as a source; then measure 35B-A3B (experts in RAM, backbone on the card) beside the 9B on the
+  1080 Ti. Flash-Next second (it needs the newer llama.cpp in `~/cinminai-flash`).
+- **The specifics list:** the review sees only Python tests; the coder doesn't tick goals after verifying; a goal was
+  ticked while placeholder images were in use (the check for that was rolled back); long rereads on "continue".
 
 ## Where we stopped (2026-10-09) — the tandem flipped: the coder leads, the guide helps
 
