@@ -52,10 +52,9 @@ class Sidebar(unittest.TestCase):
             self.assertIn("Mastodon", note)
             self.assertIn("Linux Mint", words.standing_head({"topic": "Linux Mint", "new": 2}, lang))
             self.assertIn("the test office", words.key_head({"name": "the test office", "use": "records"}, lang))
-        self.assertEqual(words.search_note({"provider": "DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)"}, "de"),
-                         "Nur diese Wörter werden gesendet, an DuckDuckGo (oder Bing, wenn DuckDuckGo um eine Pause "
-                         "bittet). Die gefundenen Seiten werden gelesen, um Ihnen zu antworten. Nichts über Sie oder "
-                         "diesen Computer wird gesendet.")
+        self.assertEqual(words.search_note({"provider": "DuckDuckGo and Bing"}, "de"),
+                         "Nur diese Wörter werden gesendet, an DuckDuckGo und Bing. Die gefundenen Seiten werden "
+                         "gelesen, um Ihnen zu antworten. Nichts über Sie oder diesen Computer wird gesendet.")
 
     def test_the_examples_in_the_empty_list_really_set_up_a_watch(self):
         # "Ask for one in your own words, for example: …" — each example must be recognized in its language

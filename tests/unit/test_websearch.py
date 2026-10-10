@@ -43,6 +43,12 @@ PAGE = """<html><head><script>var x = "ignore";</script><style>p{}</style></head
 
 
 class Parse(unittest.TestCase):
+    def setUp(self):  # the direct way (DuckDuckGo, then Bing): no own search here
+        for patcher in (mock.patch.dict(os.environ, {"CINMINAI_SEARCH_SOCKET": "/nonexistent/search.sock"}),
+                        mock.patch.object(websearch, "SEARCH_UNIT_FILE", "/nonexistent/cinminai-search.service")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def test_results_unwrapped_https_no_ads(self):
         with mock.patch.object(websearch, "_get", return_value=(DDG, "text/html")):
             r = websearch.search("why did world war 2 start")
@@ -139,6 +145,143 @@ class NothingSentBeforeSearch(unittest.TestCase):
         self.assertEqual(g.history[-1]["content"], out["reply"])
         with self.assertRaises(Exception):
             g.search(offer, "", lambda t: None, lambda *a: None, threading.Event())  # once only
+
+
+class FakeSearch:
+    """Cin-MinAI's search (cinminai-search) as a stand-in: a JSON answer on a private socket, like SearXNG's."""
+
+    def __init__(self, answer: dict):
+        import socketserver
+        import tempfile
+        from http.server import BaseHTTPRequestHandler
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "search.sock")
+        self.asked: list[str] = []
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                fake.asked.append(self.path)
+                body = json.dumps(answer).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+            def address_string(self):
+                return "local"
+
+        class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+            daemon_threads = True
+        self.server = Server(self.path, Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        import shutil
+        self.server.shutdown()
+        self.server.server_close()
+        shutil.rmtree(self.dir, True)
+
+
+@unittest.skipUnless(hasattr(__import__("socket"), "AF_UNIX"), "a private socket")
+class OwnSearch(unittest.TestCase):
+    """2026-10-10 (test5): after a burst of searches DuckDuckGo paused us and Bing's feed answered a site: search with
+    budgeting ads. Cin-MinAI's own search (SearXNG on this computer) asks DuckDuckGo and Bing at once, first."""
+
+    def fake(self, answer):
+        f = FakeSearch(answer)
+        self.addCleanup(f.close)
+        patcher = mock.patch.dict(os.environ, {"CINMINAI_SEARCH_SOCKET": f.path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return f
+
+    def test_own_search_first_and_it_says_who_answered(self):
+        f = self.fake({"results": [
+            {"title": "Starter Set: Alpha (TCG) - Card Set", "url": "https://cards.example/pack/Starter%20Set%3A%20Alpha/",
+             "content": "Every card in the deck.", "engines": ["bing", "duckduckgo"]},
+            {"title": "An http page", "url": "http://cards.example/old", "content": "", "engines": ["bing"]}],
+            "unresponsive_engines": []})
+        with mock.patch.object(websearch, "_get") as direct:
+            r = websearch.search("Starter Set Alpha card list", recent="w")
+        direct.assert_not_called()  # nothing went the direct way
+        self.assertIn("time_range=week", f.asked[0])
+        self.assertEqual([x["url"] for x in r], ["https://cards.example/pack/Starter%20Set%3A%20Alpha/",
+                                                "https://cards.example/old"])
+        self.assertEqual(r[0]["via"], "Cin-MinAI search (bing, duckduckgo)")
+
+    def test_without_it_the_direct_way(self):
+        with mock.patch.dict(os.environ, {"CINMINAI_SEARCH_SOCKET": "/nonexistent/search.sock"}), \
+                mock.patch.object(websearch, "SEARCH_UNIT_FILE", "/nonexistent/cinminai-search.service"), \
+                mock.patch.object(websearch, "_get", return_value=(DDG, "text/html")):
+            r = websearch.search("world war 2")
+        self.assertEqual(r[0]["via"], "DuckDuckGo")
+
+    def test_every_engine_set_aside_falls_through_too(self):
+        self.fake({"results": [], "unresponsive_engines": [["duckduckgo", "access denied"], ["bing", "timeout"]]})
+        with mock.patch.object(websearch, "_get", return_value=(DDG, "text/html")):
+            self.assertEqual(websearch.search("world war 2")[0]["via"], "DuckDuckGo")
+        with self.assertRaises(websearch.SearchError) as e:
+            websearch.images("anything")
+        self.assertIn("set aside: duckduckgo (access denied)", str(e.exception))
+
+    def test_pictures_once_each_no_thumbnails_with_their_page(self):
+        self.fake({"results": [
+            {"title": "Stone Giant", "img_src": "https://img.example/cards/1.jpg", "url": "https://cards.example/c/1",
+             "resolution": "813×1185", "engines": ["bing images", "duckduckgo images"]},
+            {"title": "Stone Giant again", "img_src": "https://img.example/cards/1.jpg", "url": "https://x.example/",
+             "resolution": "813×1185", "engines": ["bing images"]},
+            {"title": "an icon", "img_src": "https://img.example/icon.png", "url": "https://x.example/",
+             "resolution": "64x64", "engines": ["bing images"]},
+            {"title": "no scheme", "img_src": "//img.example/cards/2.jpg", "url": "https://cards.example/c/2",
+             "resolution": "", "engines": ["duckduckgo images"]}]})
+        pics = websearch.images("Stone Giant card")
+        self.assertEqual([(p["url"], p["size"], p["page"]) for p in pics],
+                         [("https://img.example/cards/1.jpg", "813x1185", "https://cards.example/c/1"),
+                          ("https://img.example/cards/2.jpg", "", "https://cards.example/c/2")])
+        self.assertEqual(pics[0]["via"], "bing images, duckduckgo images")
+
+
+class Launcher(unittest.TestCase):
+    """cinminai-search's launcher: the person's own settings on first start (a secret of its own, this user only), the
+    engines that answer honest requests, and SearXNG told not to disguise itself as a browser."""
+
+    def load(self):
+        from importlib.machinery import SourceFileLoader
+        path = os.path.join(ROOT, "distro", "packages", "cinminai-search", "root", "usr", "lib", "cinminai", "searxng",
+                            "run")
+        return SourceFileLoader("cinminai_search_run", path).load_module()
+
+    def test_settings_made_once_private_with_the_engines(self):
+        import tempfile
+        run = self.load()
+        conf = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, conf, True)
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": conf}):
+            path = run.settings_path()
+            with open(path) as f:
+                first = f.read()
+            self.assertEqual(run.settings_path(), path)
+            with open(path) as f:
+                self.assertEqual(f.read(), first)  # made once: the secret stays
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        for engine in ("    - duckduckgo\n", "    - bing\n", "    - duckduckgo images\n", "    - bing images\n"):
+            self.assertIn(engine, first)
+        self.assertNotIn("google", first)
+        self.assertRegex(first, r'secret_key: "[0-9a-f]{64}"')
+        self.assertIn("formats: [json]", first)
+
+    def test_no_disguise(self):
+        with open(os.path.join(ROOT, "distro", "packages", "cinminai-search", "root", "usr", "lib", "cinminai",
+                               "searxng", "run"), encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("client.DEFAULT_IMPERSONATE = network.DEFAULT_IMPERSONATE = client.NO_IMPERSONATE", text)
+        self.assertIn("searx.utils.gen_useragent = lambda os_string=None: USER_AGENT", text)
+        self.assertIn('USER_AGENT = "Cin-MinAI-search/', text)
 
 
 if __name__ == "__main__":

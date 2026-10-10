@@ -57,7 +57,7 @@ ACTIONS = [
     {"tool": "write", "path": STR, "content": STR},
     {"tool": "append", "path": STR, "content": STR},
     {"tool": "run", "command": STR},
-    {"tool": "web_search", "query": STR},
+    {"tool": "web_search", "query": STR, "kind": {"enum": ["pages", "images"]}},
     {"tool": "fetch", "url": STR},
     {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR},
     {"tool": "distill", "sources": {"type": "array", "items": STR, "maxItems": 12}, "intent": STR, "into": STR,
@@ -73,7 +73,7 @@ ACTIONS = [
     {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
-OPTIONAL = {"start", "goal", "into", "format"}
+OPTIONAL = {"start", "goal", "into", "format", "kind"}
 SENIOR_ONLY = {"assign", "review_task"}           # style B's Senior (PLAN §1b, two cards)
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
@@ -168,7 +168,7 @@ You work step by step. Each step: your thinking (short), then exactly one action
 - edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
   append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
 - run (a shell command in the project folder{sandbox}; the web only through the tools below)
-- web_search (a `query`), fetch (an https `url` from the user, a search, a kept page, or a site you've fetched
+- web_search (a `query`; `kind` images for pictures), fetch (an https `url` from the user, a search, a kept page, or a site you've fetched
   from), download (many such `urls` into a `folder` under assets/, one approval); each asked first
 - distill (read `sources` for an `intent`: what it names is kept with where it stood, as a gathered record, and
   written `into` a data file; `format` json, text, or files: the pictures a page names, downloaded into a folder
@@ -1533,7 +1533,7 @@ class Agent:
                 pass
         return False
 
-    def web_search(self, query: str) -> str:
+    def web_search(self, query: str, kind: str = "pages") -> str:
         """Pages for a query, through the assistant's own search (D55: DuckDuckGo, then Bing) — the query leaves the
         computer, so it's asked like a fetch (D86). Kept as sources/search-….txt; its addresses can then be fetched."""
         query = " ".join(query.split())[:200]
@@ -1549,15 +1549,32 @@ class Agent:
         self.event("fetch", url=f"search: {query}")
         try:
             from cin_minai.daemon import websearch
-            results = websearch.search(query)
+            results = websearch.images(query) if kind == "images" else websearch.search(query)
         except Exception as e:
             return f"error: the search didn't work ({str(e)[:200]})"
         if not results:
             return f"no results for {query}"
+        if kind == "images":
+            return self.picture_results(query, results)
         rel = intake.keep_search(self.root, query, results)
         lines = [f"{i}. {r.get('title', '')[:120]} — {r.get('url', '')}\n   {r.get('snippet', '')[:200]}"
                  for i, r in enumerate(results[:8], 1)]
         return f"results for \"{query}\" (kept as {rel}; fetch a page to see its pictures and links):\n" + "\n".join(lines)
+
+    def picture_results(self, query: str, results: list[dict]) -> str:
+        """Pictures found by an image search: pictures from sites the project already fetched from first (a set's own
+        site keeps its look), each with its size and page; kept as a source, so download may take their addresses."""
+        from urllib.parse import urlsplit
+        sites = {urlsplit(str(o.get("from", ""))).hostname for o in intake.origins(self.root).values()}
+        results = sorted(results, key=lambda r: (urlsplit(r.get("page", "")).hostname not in sites and
+                                                 urlsplit(r["url"]).hostname not in sites))
+        kept = [{"title": r["title"], "url": r["url"],
+                 "snippet": f"picture {r.get('size') or '(size unknown)'} on {r.get('page', '')} ({r.get('via', '')})"}
+                for r in results]
+        rel = intake.keep_search(self.root, query, kept, kind="images")
+        lines = [f"{i}. {r['title'][:90]} — {r['url']}\n   {r['snippet'][:200]}" for i, r in enumerate(kept[:10], 1)]
+        return (f"pictures for \"{query}\" (kept as {rel}; download takes these addresses; for a whole set, distill the "
+                "pictures from the set's own page instead, format files):\n" + "\n".join(lines))
 
     def look(self, target: str, question: str, address: str = "") -> str:
         """See a program's window, a page or the person's screen (look.py: the same cycle for every target)."""
@@ -1681,7 +1698,7 @@ class Agent:
             if t == "fetch":
                 return self.fetch(a.get("url", ""))
             if t == "web_search":
-                return self.web_search(a.get("query", ""))
+                return self.web_search(a.get("query", ""), a.get("kind") or "pages")
             if t == "download":
                 return self.download(a.get("urls") or [], a.get("folder", ""))
             if t in ("assign", "review_task"):  # style B's Senior (pair.py)

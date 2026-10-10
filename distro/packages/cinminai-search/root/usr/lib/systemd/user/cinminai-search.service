@@ -1,0 +1,14 @@
+[Unit]
+Description=Cin-MinAI search (SearXNG, for the assistant)
+Documentation=https://github.com/Cin-MinAI/Cin-MinAI
+# started by the assistant when it searches; it stops itself after 15 minutes without a search
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/cinminai/searxng/run
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=yes

@@ -1,0 +1,100 @@
+#!/usr/bin/python3 -P
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""cinminai-search: the assistant's own search on this computer (SearXNG, pinned; PLAN D55/D68).
+
+Started on demand by the assistant's web_search (systemctl --user start cinminai-search), it answers only on a private
+socket, $XDG_RUNTIME_DIR/cinminai/search.sock, and stops itself after IDLE_SECONDS without a search.
+
+Two changes to SearXNG as it ships, both made here before it starts:
+* no disguise: SearXNG presents every request as a Chrome browser (curl_cffi "impersonate"), a way around the engines'
+  bot checks. Cin-MinAI never gets around bot checks: requests go out as what they are, and an engine that refuses
+  them is set aside (SearXNG suspends it) instead of fooled.
+* the person's own settings file, made on first start with a secret of its own: ~/.config/cinminai/search/settings.yml.
+"""
+import os
+import secrets
+import sys
+import threading
+import time
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path[:0] = [os.path.join(HERE, "app"), os.path.join(HERE, "lib")]
+IDLE_SECONDS = 15 * 60
+USER_AGENT = "Cin-MinAI-search/1 (the assistant's own search on a person's computer; https://cin-minai.github.io)"
+# the engines that answer requests that say what they are (tried 2026-10-10): Google's refused them (timeouts) and
+# Wikipedia's engine refused too (the assistant searches Wikipedia through its own API instead)
+ENGINES = ["duckduckgo", "bing",                     # pages
+           "duckduckgo images", "bing images"]       # pictures
+
+
+def settings_path() -> str:
+    conf = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "cinminai", "search")
+    path = os.path.join(conf, "settings.yml")
+    if not os.path.exists(path):
+        os.makedirs(conf, mode=0o700, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(SETTINGS.format(secret=secrets.token_hex(32), engines="\n".join(f"    - {e}" for e in ENGINES)))
+    return path
+
+
+SETTINGS = """# Cin-MinAI's search (SearXNG), made on first start. Engines that stay on; the rest of SearXNG's defaults hold.
+use_default_settings:
+  engines:
+    keep_only:
+{engines}
+engines:
+  - name: bing
+    disabled: false
+general:
+  instance_name: Cin-MinAI search
+  enable_metrics: false
+server:
+  secret_key: "{secret}"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 10.0
+search:
+  formats: [json]
+  safe_search: 0
+ui:
+  static_use_hash: false
+"""
+
+
+def main() -> None:
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    sock = os.environ.get("CINMINAI_SEARCH_SOCKET") or os.path.join(runtime, "cinminai", "search.sock")
+    os.makedirs(os.path.dirname(sock), mode=0o700, exist_ok=True)
+    if os.path.exists(sock):
+        os.unlink(sock)
+    os.environ["SEARXNG_SETTINGS_PATH"] = settings_path()
+
+    from searx.network import client, network  # no disguise (see above), before any engine makes a client
+    client.DEFAULT_IMPERSONATE = network.DEFAULT_IMPERSONATE = client.NO_IMPERSONATE
+    import searx.utils  # nor a random browser's name: requests say what they are, as Wikipedia's rules ask
+    searx.utils.gen_useragent = lambda os_string=None: USER_AGENT
+
+    from searx import webapp
+    last = [time.monotonic()]
+
+    @webapp.app.before_request
+    def _seen():
+        last[0] = time.monotonic()
+
+    def idle():
+        while time.monotonic() - last[0] < IDLE_SECONDS:
+            time.sleep(30)
+        os._exit(0)
+    threading.Thread(target=idle, daemon=True).start()
+
+    from werkzeug.serving import run_simple
+    os.umask(0o077)  # the socket: this user only
+    run_simple("unix://" + sock, 0, webapp.app, threaded=True)
+
+
+if __name__ == "__main__":
+    main()

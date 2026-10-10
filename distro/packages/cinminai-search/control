@@ -1,0 +1,15 @@
+Package: cinminai-search
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
+Section: misc
+Priority: optional
+Depends: python3 (>= 3.12), python3 (<< 3.13)
+Description: the Cin-MinAI assistant's own search (SearXNG)
+ The pinned SearXNG metasearch, run on this computer for the assistant's web
+ search: it asks DuckDuckGo and Bing at once, for pages and for pictures, and
+ gives the assistant one clean list. It answers only on a private socket for
+ this user, starts when the assistant searches and stops after 15 minutes
+ without a search. Every search is still asked first. Requests go out as what
+ they are: no disguise as a browser, and an engine that refuses is set aside,
+ never fooled. How it was built: /usr/share/doc/cinminai-search/BUILDINFO.

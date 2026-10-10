@@ -652,22 +652,21 @@ T = {
 
 # the search providers, as the daemon names them (websearch.PROVIDER, newsscan.PROVIDERS*), in each language
 PROVIDERS = {
-    "es": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo (o Bing, si DuckDuckGo pide una pausa)",
+    "es": {"DuckDuckGo and Bing": "DuckDuckGo y Bing",
            "Google News and Bing News": "Google News y Bing News",
            "Google News, Bing (news and web), Reddit and Mastodon": "Google News, Bing (noticias y web), Reddit y Mastodon"},
-    "pt": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo (ou Bing, se o DuckDuckGo pedir uma pausa)",
+    "pt": {"DuckDuckGo and Bing": "DuckDuckGo e Bing",
            "Google News and Bing News": "Google News e Bing News",
            "Google News, Bing (news and web), Reddit and Mastodon": "Google News, Bing (notícias e web), Reddit e Mastodon"},
-    "fr": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo (ou Bing, si DuckDuckGo demande une pause)",
+    "fr": {"DuckDuckGo and Bing": "DuckDuckGo et Bing",
            "Google News and Bing News": "Google News et Bing News",
            "Google News, Bing (news and web), Reddit and Mastodon":
                "Google News, Bing (actualités et web), Reddit et Mastodon"},
-    "de": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)":
-               "DuckDuckGo (oder Bing, wenn DuckDuckGo um eine Pause bittet)",
+    "de": {"DuckDuckGo and Bing": "DuckDuckGo und Bing",
            "Google News and Bing News": "Google News und Bing News",
            "Google News, Bing (news and web), Reddit and Mastodon":
                "Google News, Bing (Nachrichten und Web), Reddit und Mastodon"},
-    "ja": {"DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)": "DuckDuckGo（DuckDuckGoが休止を求めた場合はBing）",
+    "ja": {"DuckDuckGo and Bing": "DuckDuckGoとBing",
            "Google News and Bing News": "Google NewsとBing News",
            "Google News, Bing (news and web), Reddit and Mastodon": "Google News、Bing（ニュースとウェブ）、Reddit、Mastodon"},
 }

@@ -585,6 +585,25 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(a.known_address("https://cards.example/pack/Starter%20Deck"))
         self.assertFalse(a.known_address("https://made.up.example/pack/Starter%20Deck"))
 
+    def test_a_picture_search_puts_the_projects_own_sites_first(self):
+        """Image search (Cin-MinAI's own search): each picture's address, size and page; pictures from a site the project
+        already fetched from first (a set keeps its look); kept as a source, so download may take the addresses."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        from cin_minai.daemon import websearch
+        intake.save(self.root, "https://cards.example/pack/Set%20One", b"<html><body>one</body></html>", "text/html")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: "y")
+        found = [{"title": "Stone Giant (resold)", "url": "https://shop.example/giant.jpg", "page": "https://shop.example/",
+                  "size": "958x1600", "via": "bing images"},
+                 {"title": "Stone Giant", "url": "https://img.cards.example/giant.jpg", "page": "https://cards.example/c/1",
+                  "size": "813x1185", "via": "duckduckgo images"}]
+        with mock.patch.object(websearch, "images", return_value=found):
+            said = a.do({"tool": "web_search", "query": "Stone Giant card", "kind": "images"})
+        self.assertLess(said.index("img.cards.example"), said.index("shop.example"))
+        self.assertIn("picture 813x1185 on https://cards.example/c/1", said)
+        self.assertIn("kept as sources/search-images-stone-giant-card.txt", said)
+        self.assertTrue(a.known_address("https://shop.example/giant.jpg"))  # it came from a search
+
     def test_different_addresses_never_write_over_each_other(self):
         """2026-10-10 (test5): three card lists, card_search.action?pid=…, each wrote over the last as one source."""
         from cin_minai.aicui import intake

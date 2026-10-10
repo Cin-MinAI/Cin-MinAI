@@ -94,7 +94,7 @@ class _DDG(HTMLParser):
 # Bing is the backup (Ian, 2026-10-07): DuckDuckGo blocked this connection for hours after a day of testing, and
 # ordinary searches failed. Bing's published results feed (format=rss), the same kind of feed as Bing News; named on
 # every search card beforehand, so the person knows where the words may go.
-PROVIDER = "DuckDuckGo (or Bing, if DuckDuckGo asks for a pause)"
+PROVIDER = "DuckDuckGo and Bing"  # together through Cin-MinAI's own search; without it, one after the other
 BING_MARKET = {"en": "en-US", "es": "es-ES", "pt": "pt-BR", "fr": "fr-FR", "de": "de-DE", "ja": "ja-JP"}
 BING_RECENT = {"d": 'ex1:"ez1"', "w": 'ex1:"ez2"', "m": 'ex1:"ez3"'}
 
@@ -127,15 +127,114 @@ def bing(query: str, lang: str = "en", recent: str = "") -> list[dict]:
                     "snippet": html.unescape(it.findtext("description") or "")} for it in items], "Bing", "bing.com")
 
 
-def search(query: str, lang: str = "en", recent: str = "", first: str = "duckduckgo") -> list[dict]:
-    """recent: "d", "w" or "m" — only results from the past day, week or month (the news chain, D91). DuckDuckGo
-    first; Bing when DuckDuckGo asks for a pause (first="bing": Bing only — the news scan's official pages)."""
+def search(query: str, lang: str = "en", recent: str = "", first: str = "local") -> list[dict]:
+    """recent: "d", "w" or "m" — only results from the past day, week or month (the news chain, D91). Cin-MinAI's own
+    search first (cinminai-search: SearXNG on this computer, asking DuckDuckGo and Bing at once; 2026-10-10, after a
+    run's searches fell back to Bing's feed and came back as ads); without it, DuckDuckGo, then Bing when DuckDuckGo
+    asks for a pause (first="bing": Bing only — the news scan's official pages)."""
     if first == "bing":
         return bing(query, lang, recent)
+    if first == "local":
+        try:
+            found = searxng(query, lang, recent)
+            if found:
+                return found
+        except SearchError:
+            pass  # not installed, not starting, or every engine set aside: the direct way below
     try:
         return duckduckgo(query, lang, recent)
     except Throttled:
         return bing(query, lang, recent)
+
+
+# --- Cin-MinAI's own search (cinminai-search) ------------------------------------------------------------------
+
+SEARCH_UNIT = "cinminai-search.service"
+SEARCH_UNIT_FILE = "/usr/lib/systemd/user/" + SEARCH_UNIT
+SEARXNG_RECENT = {"d": "day", "w": "week", "m": "month"}
+PICTURES = 20
+SMALLEST = 200  # pixels: a picture smaller both ways is a thumbnail or an icon
+
+
+def search_socket() -> str:
+    import os
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    return os.environ.get("CINMINAI_SEARCH_SOCKET") or os.path.join(runtime, "cinminai", "search.sock")
+
+
+def _local(params: dict, wait: float = 20.0) -> dict:
+    """One request to the search service on its private socket; started (systemd --user) if it isn't running."""
+    import os
+    import subprocess
+    import time
+    from cin_minai.inference.llamacpp import UnixHTTPConnection
+    path = search_socket()
+
+    def ask() -> dict:
+        conn = UnixHTTPConnection(path, timeout=30)
+        try:
+            conn.request("GET", "/search?" + urllib.parse.urlencode({**params, "format": "json"}))
+            r = conn.getresponse()
+            if r.status != 200:
+                raise SearchError(f"Cin-MinAI's search answered {r.status}")
+            return json.loads(r.read())
+        finally:
+            conn.close()
+    try:
+        return ask()
+    except (FileNotFoundError, ConnectionRefusedError):
+        if not os.path.exists(SEARCH_UNIT_FILE):
+            raise SearchError("Cin-MinAI's search isn't installed (cinminai-search)") from None
+    subprocess.run(["systemctl", "--user", "start", "--no-block", SEARCH_UNIT], capture_output=True, timeout=10)
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        time.sleep(0.5)
+        try:
+            return ask()
+        except (FileNotFoundError, ConnectionRefusedError):
+            continue
+    raise SearchError("Cin-MinAI's search didn't start")
+
+
+def _answered_by(results: list[dict]) -> str:
+    engines = sorted({e for r in results for e in r.get("engines", [])})
+    return "Cin-MinAI search (" + ", ".join(engines) + ")" if engines else "Cin-MinAI search"
+
+
+def searxng(query: str, lang: str = "en", recent: str = "") -> list[dict]:
+    data = _local({"q": query, "language": lang, **({"time_range": SEARXNG_RECENT[recent]} if recent in
+                                                    SEARXNG_RECENT else {})})
+    raw = data.get("results", [])
+    if not raw:
+        down = "; ".join(f"{e} ({why})" for e, why in data.get("unresponsive_engines", [])[:4])
+        raise SearchError("no results" + (f" — set aside: {down}" if down else ""))
+    return _clean([{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")}
+                   for r in raw], _answered_by(raw), "\0")
+
+
+def images(query: str, lang: str = "en") -> list[dict]:
+    """Pictures for a query: each one's own address, its size, the page it's on and who found it — only through
+    Cin-MinAI's own search (the direct ways have no picture search). The same picture once; thumbnails and icons out."""
+    data = _local({"q": query, "language": lang, "categories": "images"})
+    out, seen = [], set()
+    for r in data.get("results", []):
+        src = str(r.get("img_src") or "")
+        if src.startswith("//"):
+            src = "https:" + src
+        if not src.startswith("https://") or src in seen:
+            continue
+        size = re.findall(r"\d+", str(r.get("resolution") or ""))
+        w, h = (int(size[0]), int(size[1])) if len(size) >= 2 else (0, 0)
+        if w and h and w < SMALLEST and h < SMALLEST:
+            continue
+        seen.add(src)
+        out.append({"title": re.sub(r"\s+", " ", str(r.get("title", ""))).strip(), "url": src,
+                    "page": str(r.get("url", "")), "size": f"{w}x{h}" if w and h else "",
+                    "via": ", ".join(r.get("engines", []))})
+    if not out:
+        down = "; ".join(f"{e} ({why})" for e, why in data.get("unresponsive_engines", [])[:4])
+        raise SearchError("no pictures" + (f" — set aside: {down}" if down else ""))
+    return out[:PICTURES]
 
 
 class Throttled(SearchError):
