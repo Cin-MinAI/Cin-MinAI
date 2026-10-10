@@ -143,15 +143,17 @@ class AgentTest(unittest.TestCase):
         self.assertNotIn('"content"', second)  # nothing that looks like file content to imitate
 
     def test_the_system_text_leaves_room_at_8k(self):
-        """The coder's rules and tools, before the project's files: a fifth of the smallest context we run (8K, ~24,000
-        characters). 3,156 on 2026-10-09; 4,304 on 2026-10-10, when fetch, distill and compile were described in full
-        (Ian: "be elaborate about how you describe fetch distill and compile"). More than 4,800 needs a reason."""
+        """The coder's tools and rules, before the project's files: a list of tools, never a procedure (2026-10-10: written
+        as "three steps" and a numbered method, the Senior recited the plan as its thinking every step; test4's tool
+        list got a new thought each step). 3,156 on 2026-10-09; 3,689 with distill and the facts rule."""
         from cin_minai.aicui.agent import JUNIOR_SYSTEM, SENIOR_B, SYSTEM
-        self.assertLessEqual(len(SYSTEM), 4800)
-        self.assertLessEqual(len(SYSTEM) + len(SENIOR_B), 6000)
-        self.assertLessEqual(len(JUNIOR_SYSTEM), 2000)
-        for words in ("FETCH:", "DISTILL:", "COMPILE:", "never type facts from memory", "they work"):
+        self.assertLessEqual(len(SYSTEM), 4000)
+        self.assertLessEqual(len(SENIOR_B), 800)
+        self.assertLessEqual(len(JUNIOR_SYSTEM), 1400)
+        for words in ("- distill (", "never type them from memory", "a site you've fetched"):
             self.assertIn(words, SYSTEM)
+        for words in ("FETCH:", "three steps", "1. "):
+            self.assertNotIn(words, SYSTEM + SENIOR_B)
 
     def test_a_small_context_shrinks_the_history(self):
         steps = [step(f"Look {i}.", tool="read", path="app.py") for i in range(8)] + [step("", tool="answer", text="ok")]
@@ -574,15 +576,14 @@ class AgentTest(unittest.TestCase):
         self.assertIn("</div> on line 6 closes nothing", r)
         self.assertNotIn("Check", a.change({"tool": "write", "path": "notes.txt", "content": "hi\n"}))
 
-    def test_an_open_goal_added_again_is_not_a_new_goal(self):
-        """2026-10-10 (test5): the Senior added the same seven goals three times, and each add counted as progress."""
+    def test_an_address_may_follow_the_pattern_of_a_site_already_fetched(self):
+        """Ian, 2026-10-10: "let it find patterns." Fetched /pack/<one set>, a model may try /pack/<another set> on the same
+        site; an address on a site nothing came from is still one from memory."""
+        from cin_minai.aicui import intake
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
-        first = a.do({"tool": "goal_add", "text": "Fetch the official card lists"})
-        self.assertTrue(a.progressed({"tool": "goal_add"}, first))
-        again = a.do({"tool": "goal_add", "text": "fetch the official card lists."})
-        self.assertIn("already goal 1, open", again)
-        self.assertFalse(a.progressed({"tool": "goal_add"}, again))
-        self.assertEqual(len(a.goals.load()), 1)
+        intake.save(self.root, "https://cards.example/pack/Set%20One", b"<html><body>one</body></html>", "text/html")
+        self.assertTrue(a.known_address("https://cards.example/pack/Starter%20Deck"))
+        self.assertFalse(a.known_address("https://made.up.example/pack/Starter%20Deck"))
 
     def test_different_addresses_never_write_over_each_other(self):
         """2026-10-10 (test5): three card lists, card_search.action?pid=…, each wrote over the last as one source."""

@@ -279,10 +279,15 @@ class CoderChecks(Base):
 
     def test_progress_is_four_kinds_of_action(self):
         """Ian, 2026-10-09: "The only 4 things that qualify as an action that counts as progress is pass, fail,
-        write, delete. Accept, reject, create, destroy." Gathering isn't progress."""
+        write, delete. Accept, reject, create, destroy." Gathering isn't progress — but a new source kept in the project
+        is a create (Ian, 2026-10-10: "new source is progress"); the same address again isn't."""
         a = self.agent()
         a.outputs = set()
-        gathering = [({"tool": "fetch"}, "saved https://x.org/a.jpg as assets/a.jpg (503 bytes)"),
+        self.assertTrue(a.progressed({"tool": "fetch"}, "saved https://x.org/a.jpg as assets/a.jpg (503 bytes)"))
+        self.assertTrue(a.progressed({"tool": "download"}, "downloaded 3 of 3 into assets/cards/ (40 KB)"))
+        gathering = [({"tool": "fetch"}, "already fetched https://x.org/a.jpg in this session — it gave: saved as a"),
+                     ({"tool": "download"}, "downloaded 0 of 2 into assets/cards/ (0 KB)"),
+                     ({"tool": "web_search"}, "Results for \"cards\" (kept as sources/search-cards.txt)"),
                      ({"tool": "look"}, "Looked at program (…)\nwindow \"Ball\": 400x300"),
                      ({"tool": "read"}, "    1 import pygame"), ({"tool": "list"}, "main.py  (1 bytes)"),
                      ({"tool": "search"}, "main.py:1: import pygame")]

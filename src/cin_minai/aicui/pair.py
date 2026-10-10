@@ -64,6 +64,7 @@ class Pair:
         senior.errands_pending = lambda: self.out > 0
         senior.assign_fn = self.assign
         senior.distiller = self.distill
+        senior.first_reader = self.first_read  # team B: what the senior fetches, the junior reads first
         senior.review_task_fn = self.review
         senior.may_write = self.senior_may_write
         junior.may_write = self.junior_may_write
@@ -209,6 +210,25 @@ class Pair:
         spec = json.dumps({"sources": list(sources)[:12], "intent": intent, "into": into, "format": fmt})
         hold = into.rstrip("/") + "/index.json" if into and fmt == "files" else into  # pictures: the index is written
         return self.queue(hold, spec, "distill", f"distill for: {intent}"[:200])
+
+    def first_read(self, rel: str, url: str) -> str:
+        """Ian, 2026-10-10: "Jr should do first reading and hand to senior and hold notes." A page or a PDF's text the
+        Senior fetches goes to the Junior, which reads it for what the Senior was after (its thinking at that step and
+        the goal) and keeps notes in notes/ — the source's own words, with where they stood; they come back between
+        the Senior's steps."""
+        goal = self.senior.goals.current()
+        wanted = " ".join(str(getattr(self.senior, "last_thinking", "")).split())[:300]
+        intent = (f"what this source holds for: {goal['text'][:150]}" if goal else "what this source holds") + \
+            (f" (your senior was after: {wanted})" if wanted else "")
+        name = os.path.splitext(os.path.basename(rel))[0]
+        n = 1
+        into = f"notes/{name}.md"
+        while into in self.held or os.path.exists(os.path.join(self.senior.root, into)):
+            n += 1
+            into = f"notes/{name}-{n}.md"
+        said = self.distill([rel], intent, into, "text")
+        return (f"Your junior reads it first and keeps notes in {into}; they come to you between steps (read {rel} "
+                f"yourself only for what the notes don't hold). " + said.split("\n")[0])
 
     def review(self, n: int, accept: bool, note: str = "") -> str:
         """The Senior's word on a finished task: accepted, or back to the Junior with the note."""

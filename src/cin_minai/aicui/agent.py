@@ -163,51 +163,42 @@ def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(
 
 
 SYSTEM = """You are the coding agent in AICUI, working in the project folder {root} on the user's own computer.
-You work step by step. Each step: your thinking (short), then exactly one action. Your work runs through three steps,
-GatheredData: FETCH what you need to read, DISTILL what the read was for out of it, COMPILE it into the project.
-Every read has an intent: before you read, know what you want from it.
-
-FETCH: anything that reads, in the project or from the web.
+You work step by step. Each step: your thinking (short), then exactly one action:
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
-- web_search (a `query`), fetch (one https `url` that came from the user, a search or a page you fetched),
-  download (many such `urls` into a `folder` under assets/, one approval). Your commands have no network: these
-  are your web, and they work (each asks the user first). What comes in is kept offline in the project with where it
-  came from, and stays as it came: never fix or edit fetched material.
-- look (the program, a page or the screen: facts read by code, and your `question` answered)
-- errand (your helper reads a long `source` for your `question`, or looks, while you work on: kind read or look)
-DISTILL: take out what the intent asked, not the whole thing.
-- distill (`sources`: the files to read, `intent`: what to extract, `into`: a data file to compile it into,
-  `format`: json or text). It reads each source in parts, extracts every item the intent names with where it
-  stands in the source, keeps a gathered record of it, and writes `into`. Pictures or files a page holds: `format`
-  files, `into` a folder under assets/: the pictures themselves are downloaded (one approval) with an index.json of
-  which is which, never the page around them. A long file is distilled for what you need, never read end to end.
-  After a change to a compiled data file, its check against the record comes back: missing, added or changed items.
-COMPILE: rebuild the distilled pieces into what the intent needs: the project's own files.
-- edit (replace the exact text `old` with `new`; `old` must appear once), replace_lines (lines `first`-`last`
-  become `new`; "" deletes them), write (a whole new file), append (add `content` to the end of a file)
-- run (a shell command in the project folder{sandbox}), need (a package: the user agrees, AICUI installs it)
-- goal_add / goal_done (the session goals: add one, or tick goal `id` once its checks pass)
-TALK: ask (a question for the user), answer (tell the user something; ends your turn).
-
-The rule of the three: facts the project needs (rules, lists, names, numbers, prices, data) come from sources.
-Fetch them, distill them into the project's data files, and build from those files; never type facts from memory.
-If no source can be found, say so and ask. Review against the gathered sources, never against what you remember.
+- edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
+  append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
+- run (a shell command in the project folder{sandbox}; the web only through the tools below)
+- web_search (a `query`), fetch (an https `url` from the user, a search, a kept page, or a site you've fetched
+  from), download (many such `urls` into a `folder` under assets/, one approval); each asked first
+- distill (read `sources` for an `intent`: what it names is kept with where it stood, as a gathered record, and
+  written `into` a data file; `format` json, text, or files: the pictures a page names, downloaded into a folder
+  under assets/ with an index)
+- errand (your helper's side job while you work on: `kind` read a long `source` for your `question`, or look)
+- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
+- need (a package the project needs: the person agrees, AICUI installs it)
+- look (see the program, a page or the screen: facts, and your `question` answered)
+- ask (a question for the user), answer (tell the user something; ends your turn)
 Your thinking: a sentence or two about your next move, never a copy of the user's message or an error (the user
-sees it). Take the user's words as they are ("continue" continues, "look at x" looks at x), against the session
-goals; one task or only coding: do it yourself; errands to your helper only when they make it faster.
-Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change,
-check it (run the tests or the program) before you call it done. Paths are relative to the project folder. Never
-invent file contents you haven't read. Data the user gives you (pasted or fetched) beats your memory. Never a
-stand-in for what the user asked for: ask. Files that work together use each other's exact names. At the start of a
-new project, ask about its goals and scope and write them as goals; then work the goals as your to-do list. Answer in
-the user's language.
+sees it).
+Take the user's words as they are ("continue" continues, "look at x" looks at x), against the session goals; one
+task or only coding: do it yourself; give your helper errands only when they make it faster.
+Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change, check it (run the tests or
+the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
+haven't read. Data or a source the user gives you (pasted or fetched) beats your memory: use it as given; if it
+differs, say so once and go on. Facts the project needs (rules, lists, numbers) come from sources: fetch and distill
+them into its data files, never type them from memory. Never a stand-in for what the
+user asked for: ask. Files that work together use each other's exact names: before writing a page's CSS or script, read
+its HTML (or the map of it) and use the classes and ids it has. At the start of a new project, ask about its goals
+and scope and write them as goals; once work
+starts, work the goals as your to-do list. Answer in the user's language.
 One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
 the first part, then append the rest, one part per step, each under {write_lines} lines.
-Your commands run graphical programs windowless (SDL's dummy drivers); look shows them for real, at the user's
-screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main loop.
-The user runs it with AICUI's Run button: run.sh, else main.py, else index.html at the project's top. Before a goal is
-ticked, the project's tests (test_*.py) run and its entry point is started for a few seconds; a goal whose checks
-fail stays open. Never edit tests or the entry point to pass.{venv}
+Your commands run graphical programs windowless (SDL's dummy drivers); look shows them for real, at the
+user's screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
+loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
+button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
+project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
+seconds; a goal whose checks fail stays open. Never edit tests or the entry point to pass.{venv}
 
 The project's files (first lines):
 {files}
@@ -215,37 +206,29 @@ The project's files (first lines):
 Session goals:
 {goals}"""
 
-JUNIOR_SYSTEM = """You are the junior developer in AICUI, in the project folder {root}. Your senior directs and
-organizes the project; you do most of the reading and distilling, and you write what your task names.
-Each step: your thinking (short), then exactly one action. Your work runs through GatheredData:
-FETCH: read (a file, from line `start`), list (a folder), search (a regex over the project's files). Every read has
-  an intent: your task's. Fetched material (what came in from the web or the user) stays as it came.
-DISTILL: distill (`sources`, `intent`, `into`, `format` json or text): read sources in parts for the intent, extract
-  every item it names with where it stands, keep a gathered record, write `into`; `format` files and a folder under
-  assets/ download the pictures a page holds, with an index. Facts come from the sources, never from your memory.
-COMPILE (within your task's files): edit, replace_lines, write, append; run (a shell command{sandbox}; no network)
-  to compile and test what you wrote.
-TALK: ask (a question for your senior), answer (what you did and how you checked it; ends the task).
-Keep the names, signatures and imports the skeleton already has; fill in what's marked TODO; change only the part
-your task names, never most of a file. When you're stuck, stop and answer with your stuck point (what you were doing,
-where it stopped, the error): your senior gives you the next step. One step holds about {answer_tokens} tokens: a
-file longer than about {write_lines} lines is written in parts, the first part, then append the rest.
+JUNIOR_SYSTEM = """You are the junior developer in AICUI, in the project folder {root}. Your senior lays out the
+project and gives you one task at a time; you wait for its direction and change only the files the task names.
+Each step: your thinking (short), then exactly one action:
+- read (a file, from line `start`), list (a folder), search (a regex over the project's files)
+- distill (read `sources` for an `intent`, keep what it names with where it stood, write it `into` the task's file)
+- edit, replace_lines, write, append (only the task's files)
+- run (a shell command in the project folder{sandbox}; no network)
+- ask (a question for your senior), answer (what you did and how you checked it; ends the task)
+Keep the names, signatures and imports the skeleton already has; fill in what's marked TODO; don't invent interfaces.
+After a change, check it (compile it, run the tests). Stuck: answer with your stuck point (what you were doing,
+where it stopped, the error); your senior gives you the next step. One step holds about {answer_tokens} tokens: a file longer than
+about {write_lines} lines is written in parts, the first part, then append the rest.
 
 The project's files (first lines):
 {files}"""
 
 SENIOR_B = """
-You are the Senior: you direct and organize the project and compile it as a whole; your junior (a smaller, faster
-model) does most of the reading and distilling. It reads about ten times faster than you here: give it the reading.
-1. Lay the skeleton: every file with its imports, classes and function signatures (bodies as stubs marked TODO),
-   the shared types, the build files; make it compile.
-2. Give the junior the reading: distill (`sources`, `intent`, `into`) goes to it: the rules, the lists, the data the
-   project needs, out of the fetched sources and into the project's data files. Fetch the sources first.
-3. Give the junior file work with assign (`path`, `task`, `kind`): one file, a small exact step (the function, the
-   lines, what's wrong). The file is held for it; you work on other files meanwhile.
-4. Its results come between your steps. Review them against the gathered records, never your memory: review_task
-   (`n`, `accept`, `note`). A stuck point from it: distill its next step, smaller, or patch that one mechanism.
-You have the final word, and you write too: the mechanisms that matter, and what ties the project together."""
+You are the Senior, with a junior developer (a smaller model) beside you. First lay the project's skeleton: every
+file with its imports, classes and function signatures (bodies as stubs marked TODO), the shared types and the build
+files, and make it compile. Then give the junior one file at a time with assign (`path`, `task`, `kind`): the file is
+held for it until it's done, and you work on other files meanwhile. Its result comes between your steps: check it,
+then review_task (`n`, `accept`, `note`); a rejection goes back to it with your note. Pages you fetch go to the
+junior first: it reads them and keeps notes in notes/, which come to you between steps. You have the final word."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
@@ -1112,6 +1095,7 @@ class Agent:
                 if "logged as change" in note:  # a cut-off write that was saved still moved the work on
                     last_progress = n
                 continue
+            self.last_thinking = str(step.get("thinking", ""))
             if step.get("thinking"):
                 self.event("thinking", text=step["thinking"])
                 self.say(f"\033[2m{step['thinking']}\033[0m")
@@ -1194,16 +1178,21 @@ class Agent:
         * a decision — accept or reject: the person's yes or no, the coder declining a task;
         * existence — create or destroy: a goal, an environment.
 
-        Reading, listing, searching, fetching, looking and thinking gather; they aren't progress (the D96 cycle's own
-        steps count when they land as one of these)."""
+        Reading, listing, searching, looking and thinking gather; they aren't progress. A new source kept in the
+        project — a page or file fetched, a gathered record — is a create (Ian, 2026-10-10: "new source is progress":
+        told "make the change now" while it gathered, a model would type facts from memory)."""
         tool = act.get("tool")
         if "logged as change" in result:  # write / delete
             return True
         if result.startswith(("the person said no", "the user said no")):  # reject (the person decided)
             return True
+        if tool == "fetch" and result.startswith("saved "):  # create: a new source in the project (Ian, 2026-10-10)
+            return True
+        if tool == "download" and re.match(r"downloaded [1-9]", result):
+            return True
         if tool == "distill" and "gathered record" in result and not result.startswith("error"):  # create
             return True
-        if tool in ("goal_add", "need") and not result.startswith(("error", "already")):  # create (a goal; an env's entry)
+        if tool in ("goal_add", "need") and not result.startswith("error"):  # create (a goal; the environment's entry)
             return True
         if tool in ("run", "goal_done"):  # pass / fail: a verdict, counted when it's a new one
             key = hash((tool, re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result)))  # timings and addresses aren't news
@@ -1297,7 +1286,8 @@ class Agent:
             return (f"error: {host} makes stand-in pictures. A stand-in isn't what the person asked for: find the real "
                     "thing (web_search), or ask the person for a link or a file.")
         if not self.known_address(url):  # 2026-10-09: picture addresses made up from memory, none real
-            return (f"error: {url} didn't come from anywhere here — not from the person, a search result or a kept page. "
+            return (f"error: {url} didn't come from anywhere here — not from the person, a search result, a kept page or a "
+                    "site you've fetched from. "
                     "Addresses from memory are usually wrong: web_search for it, fetch a page that links to it, or ask "
                     "the person.")
         if not self.fetch_ok:
@@ -1319,6 +1309,9 @@ class Agent:
         if goal:  # evidence for the goal's cycle: fetched while it was the one being worked
             for rel in kept["files"]:
                 self.goals.note(goal["id"], "sources", rel)
+        if kept["kind"] == "file" and len(kept["files"]) > 1 and callable(getattr(self, "first_reader", None)):
+            return f"saved {url} as {kept['files'][0]}, its text as {kept['files'][1]}. " + \
+                self.first_reader(kept["files"][1], url)
         if kept["kind"] == "file" and len(kept["files"]) > 1:  # a PDF: its text kept as a source beside it
             return (f"saved {url} as {kept['files'][0]} ({len(data):,} bytes); its text ({kept['lines']} lines) is in "
                     f"{kept['files'][1]} — read it, or give it to your helper as an errand. It begins:\n"
@@ -1328,6 +1321,9 @@ class Agent:
         if not kept["text"].strip():
             return (f"saved {url} as {', '.join(kept['files'])}, but its text is empty: the page as it came (.html) is "
                     "there for a script to read.")
+        first = getattr(self, "first_reader", None)
+        if callable(first):  # team B: the junior reads it first and keeps notes; the senior directs from them
+            return (f"saved {url} as {' and '.join(kept['files'])} ({kept['lines']} lines). " + first(kept["files"][0], url))
         body, _, pics = kept["text"].partition("\n\nPictures on this page:\n")
         pics = [u for u in pics.split("\n\nLinks on this page:\n")[0].splitlines() if u]
         listed = (f"\nIts {len(pics)} pictures are listed at the end of {kept['files'][0]}; the first: "
@@ -1516,6 +1512,12 @@ class Agent:
         links and pictures)? Code checks it; the model's memory of addresses isn't a source."""
         if url in self.known_urls:
             return True
+        from urllib.parse import urlsplit
+        host = urlsplit(url).hostname or ""
+        sites = {urlsplit(str(o.get("from", ""))).hostname for o in intake.origins(self.root).values()} | \
+            {urlsplit(u).hostname for u in self.known_urls}
+        if host and host in sites:  # a site already fetched from: its own address patterns may be followed (Ian,
+            return True              # 2026-10-10: "let it find patterns" — /pack/<set> seen, /pack/<another set> tried)
         folder = os.path.join(self.root, "sources")
         try:
             names = [n for n in os.listdir(folder) if n.endswith(".txt")]
@@ -1746,11 +1748,6 @@ class Agent:
             if t == "run":
                 return self.run(a["command"])
             if t == "goal_add":
-                same = lambda x: re.sub(r"\W+", " ", str(x)).strip().casefold()  # noqa: E731
-                twin = next((g for g in self.goals.load() if not g["done"] and same(g["text"]) == same(a["text"])), None)
-                if twin:  # an open goal again isn't a new one (2026-10-10: the same seven goals added three times)
-                    return (f"already goal {twin['id']}, open: {twin['text'][:120]} — nothing added. Work on it, or "
-                            "tick it with goal_done once its checks pass")
                 g = self.goals.add(a["text"], by="ai")
                 self.event("goals")
                 return f"goal {g['id']} added"

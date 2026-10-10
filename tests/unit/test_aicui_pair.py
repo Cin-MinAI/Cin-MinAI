@@ -281,6 +281,31 @@ class PairTest(unittest.TestCase):
             self.wait(p)
         self.assertIn("compiled into assets/cards/index.json", senior.inbox[0][2])
 
+    def test_in_team_b_the_junior_reads_what_the_senior_fetches_first(self):
+        """Ian, 2026-10-10: "Jr should do first reading and hand to senior and hold notes… we want Jr waiting on Sr
+        direction." The Senior's fetch keeps the page and gives it to the Junior; the Senior gets the notes, not the page."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        senior, junior, p = self.pair()
+        senior.fetch_ok = True
+        senior.given("the rules: https://rules.example/rulebook")
+        senior.last_thinking = "I need the rules of the Battle Phase."
+        junior.chat = lambda messages, **kw: ("## sources/rulebook.txt, part 1\nBattle Phase: each monster attacks once.",
+                                              {})
+        with mock.patch.object(intake, "get", return_value=(b"<html><body><p>Battle Phase: each monster attacks once."
+                                                             b"</p><p>Lots more.</p></body></html>", "text/html")):
+            said = senior.do({"tool": "fetch", "url": "https://rules.example/rulebook"})
+        self.assertIn("Your junior reads it first and keeps notes in notes/rulebook.md", said)
+        self.assertNotIn("Lots more", said)  # the page goes to the junior, not into the senior's context
+        self.assertTrue(senior.progressed({"tool": "fetch"}, said))  # a new source
+        self.wait(p)
+        ((n, kind, result),) = senior.inbox
+        self.assertIn("(distill, by your junior)", result)
+        with open(os.path.join(self.root, "notes", "rulebook.md"), encoding="utf-8") as f:
+            self.assertIn("Battle Phase: each monster attacks once.", f.read())
+        with open(os.path.join(self.root, ".cinminai", "gathered", "1.json"), encoding="utf-8") as f:
+            self.assertIn("I need the rules of the Battle Phase.", json.load(f)["intent"])  # read for what it was after
+
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P
         self.assertEqual(P.team_of(self.root), "A")  # nothing chosen: team A

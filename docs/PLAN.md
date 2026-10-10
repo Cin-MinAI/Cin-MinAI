@@ -368,6 +368,13 @@ Open, for Ian: the Senior's thinking repeats word for word from step to step (15
 same thought several steps running as stuck, or earlier thinking resent shortened. Seen too: that card database puts
 its card pictures in by script, so its pages hold names but no picture addresses.
 
+**The regroup** (Ian, 2026-10-10, after reading the machine): every rule a model works under is listed in
+`docs/aicui-rules.md` — in a tool (the boundaries, Ian's plan) or on the model (instructions and loop notes), with
+where they collided. Decided and built: the instructions back to a tool list (written as a procedure, they were
+recited as the plan every step); a new source is progress; an address may follow the pattern of a site already
+fetched from; the duplicate-goal check removed; in team B the Junior reads what the Senior fetches first and keeps
+notes, and waits on the Senior's direction. Search engines: open.
+
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 
 Ian, after a run where the 4B's review blocked a goal five times and overruled the coder and the person: "The
