@@ -1,10 +1,22 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-10** (latest: journal "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-10** (latest: journal "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-10, later) — style B run, GatheredData built; next: test5
+
+- **Built since the last push (local, not pushed):** style B (the MoE Senior lays the skeleton and assigns files; the
+  9B Junior codes them, each file held, on its own thread; PDF text as a source); GatheredData (SPEC §23.5, PLAN §1b):
+  origins and protection by origin, the `distill` tool and gathered records (`.cinminai/gathered/`), compiled data
+  files checked against their records, the instructions sorted into FETCH / DISTILL / COMPILE / TALK; the Junior
+  stops at any step, sends its stuck point to the Senior, and can't replace most of a file.
+- **Test4 (team B)** built a ~1,800-line engine that compiles; the Junior's loop and a 1,088→77-line draft were undone
+  from the changelog. Findings in PLAN §1b.
+- **Next — test5**, team B, the full ruleset fetched offline first; the build and starter request are in `prompts.txt`.
+  Flash-Next as Senior after (needs llama.cpp 0.6.0 from `~/cinminai-flash`).
 
 ## Where we stopped (2026-10-10) — style A done; next: style B
 

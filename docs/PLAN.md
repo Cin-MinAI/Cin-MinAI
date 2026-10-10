@@ -244,7 +244,7 @@ row when work lands. D87 was never adopted.
 | D91 | partly | chains for video and news; other successive actions not built |
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; models in parts, sign-in repos, the setup helper not built |
-| D94 | partly | the two cards, Senior and Junior, designed (PLAN §1b, 2026-10-09); the guide holds system tools; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
+| D94 | partly | the two cards, Senior and Junior, built (styles A and B, PLAN §1b, 2026-10-09/10; GatheredData 2026-10-10); the guide holds system tools; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
 | D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem on the Team Table, the coder leading and the guide helping (2026-10-09) |
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
@@ -315,7 +315,7 @@ a root task (origin person) for its lead; helper jobs are child tasks with their
 into shared context; Stop anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it
 opens. The Requests view shows each task with its kind, model and verdict in the six languages.
 
-### GatheredData, and test4's findings (Ian, 2026-10-10) — fills D96 and D94; designed, to build before test5
+### GatheredData, and test4's findings (Ian, 2026-10-10) — fills D96 and D94; built 2026-10-10, test5 next
 
 SPEC §23.5. The design in one line: every read has an intent; fetch reads it (within boundaries, kept with its
 origin), distill extracts what the intent asked (a gathered record with its sources), compile rebuilds it into the
@@ -348,6 +348,15 @@ directs and compiles the project; both write; the Junior's stuck point goes to t
    the web and the Junior; the Junior's with reading and distilling.
 3. Compile checked against the sources: tests that compare a data file with its gathered record; reviews against the
    records, not memory.
+
+**Built** (2026-10-10, all three slices in one build; SPEC §23.5 "as built"): origins and protection by origin;
+Stop every step and from an idle prompt; the stuck point to the Senior; the Junior's shrink guard (under 40 % of a
+file of 80+ lines goes up); the `distill` tool with gathered records, queued to the Junior in style B; compiled data
+files written by code and checked against their records before a goal is ticked; every model's instructions sorted
+into FETCH / DISTILL / COMPILE / TALK with the rule of the three. The context-fit rule now leaves the instructions
+whole and keeps the history under 60 % of the room left after them (the instructions grew by ~1,000 characters).
+Not built: a review that diffs a data file against its record item by item (the check counts and compares; the
+Senior reads the record); distilling pictures out of a page (the picture is still fetched by `download`).
 
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 

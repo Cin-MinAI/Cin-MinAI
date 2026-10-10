@@ -58,7 +58,8 @@ class PairTest(unittest.TestCase):
         tools = lambda a: {v["properties"]["tool"]["const"] for v in schema(None, a.excluded())["properties"]["action"]["anyOf"]}  # noqa: E731,E501
         self.assertIn("assign", tools(senior))
         self.assertIn("review_task", tools(senior))
-        self.assertEqual(tools(junior), {"read", "list", "search", "edit", "replace_lines", "write", "append", "run",
+        self.assertEqual(tools(junior), {"read", "list", "search", "distill", "edit", "replace_lines", "write",
+                                         "append", "run",
                                          "ask", "answer"})
         self.assertIn("You are the Senior", senior.system())
         self.assertIn("You are the junior developer", junior.system())
@@ -113,6 +114,98 @@ class PairTest(unittest.TestCase):
         self.assertEqual(senior.do({"tool": "review_task", "n": 2, "accept": True, "note": ""}), "task 2 accepted")
         first = next(c for c in self.engine.db.task_tree(p.root["id"])["children"] if "Rework" not in c["title"])
         self.assertEqual(json.loads(first["result"])["verdict"], "rejected")
+
+    def test_protected_by_origin_not_by_folder(self):
+        """2026-10-10: the project's own assets/decks/*.json was refused as kept material, so the decks went into C++.
+        What came in from outside stays as it came; the project's own files, in any folder, are its own."""
+        from cin_minai.aicui import intake
+        senior, _, _ = self.pair()
+        intake.save(self.root, "https://cards.example/img/blue.jpg", b"JFIF", "image/jpeg", "assets/cards")
+        refused = senior.do({"tool": "write", "path": "assets/cards/blue.jpg", "content": "x\n"})
+        self.assertIn("is gathered material: it came in from outside", refused)
+        own = senior.do({"tool": "write", "path": "assets/decks/starter.json", "content": '{"cards": []}\n'})
+        self.assertIn("logged as change", own)
+        self.assertEqual(intake.origins(self.root)["assets/cards/blue.jpg"]["from"], "https://cards.example/img/blue.jpg")
+
+    def test_a_junior_never_replaces_most_of_a_file(self):
+        """2026-10-10: a finished draft replaced 1,088 of 1,136 lines. The new version is kept aside; the Senior decides."""
+        _, junior, p = self.pair()
+        with open(os.path.join(self.root, "decks.cpp"), "w") as f:
+            f.write("".join(f"// card {i}\n" for i in range(200)))
+        p.current = {"decks.cpp"}
+        said = junior.do({"tool": "write", "path": "decks.cpp", "content": "// short\n" * 10})
+        self.assertIn("this would replace most of decks.cpp (200 lines → 10); that's your senior's call", said)
+        with open(os.path.join(self.root, "decks.cpp")) as f:
+            self.assertEqual(f.read().count("\n"), 200)
+        self.assertTrue(os.listdir(os.path.join(self.root, ".cinminai", "drafts-stale")))
+
+    def test_the_juniors_stuck_point_goes_up_and_stop_reaches_it(self):
+        """Ian, 2026-10-10: "the jr writes, reads, writes, reads, gets stuck, sends to sr, sr reads, distills next step,
+        gives to jr." Its stuck point, with its last steps, goes to the Senior; and Stop reaches it every step."""
+        from cin_minai.aicui.agent import STUCK_STEPS
+        senior, junior, p = self.pair(junior_steps=[step("Looking.", tool="list", path=".")
+                                                    for _ in range(STUCK_STEPS)])
+        senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw(): take the top card", "kind": "write"})
+        self.wait(p)
+        ((n, kind, result),) = senior.inbox
+        self.assertIn("task 1 (write rules.py) — STUCK POINT from your junior", result)
+        self.assertIn("Its last steps:\n- Looking.", result)
+        self.assertIn("Distill its next step: a smaller, exact task", result)
+        senior.inbox.clear()
+        junior.chat = Scripted([step("Looking.", tool="list", path=".") for _ in range(50)])
+        senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw() again please", "kind": "write"})
+        p.stop_junior.set()  # Stop, while it works
+        self.wait(p)
+        self.assertIn("stopped by the person", senior.inbox[0][2])
+
+    def test_distill_reads_the_sources_for_an_intent_and_compiles_by_code(self):
+        """GatheredData (SPEC §23.5): fetch read it, distill extracts what the intent asked with where it stands, a
+        gathered record keeps it, and compile writes the data file by code — nothing is retyped from memory."""
+        from cin_minai.aicui import intake
+        senior, _, _ = self.pair()
+        intake.save(self.root, "https://cards.example/set", b"<html><body><table><tr><td>Stone Giant</td><td>3000"
+                                                            b"</td></tr></table></body></html>", "text/html")
+        solo = Agent(self.root, Scripted([({"items": [{"name": "Stone Giant", "atk": 3000, "where": "row 1"}]}, {})]),
+                     "m", "auto", say=lambda s: None, ctx=32768)
+        solo.chat = lambda messages, **kw: (json.dumps({"items": [{"name": "Stone Giant", "atk": 3000,
+                                                                     "where": "row 1"}]}), {})
+        said = solo.do({"tool": "distill", "sources": ["sources/set.html"], "intent": "each card's name and ATK",
+                        "into": "data/cards.json", "format": "json"})
+        self.assertIn('distilled 1 items for "each card\'s name and ATK" from sources/set.txt (1 parts) — gathered '
+                      "record 1", said)
+        self.assertIn("compiled into data/cards.json", said)
+        with open(os.path.join(self.root, "data", "cards.json")) as f:
+            self.assertEqual(json.load(f), [{"name": "Stone Giant", "atk": 3000, "where": "row 1",
+                                             "source": "sources/set.txt"}])
+        with open(os.path.join(self.root, ".cinminai", "gathered", "1.json")) as f:
+            record = json.load(f)
+        self.assertEqual((record["intent"], record["sources"][0]["from"]), ("each card's name and ATK",
+                                                                          "https://cards.example/set"))
+        self.assertEqual(intake.origins(self.root)["data/cards.json"]["kind"], "compiled")  # the project's own
+        self.assertIn("data/cards.json: compiled from gathered record 1 (sources/set.txt) — 1 items, as distilled",
+                      "\n".join(solo.compiled_check()))
+        with open(os.path.join(self.root, "data", "cards.json"), "w") as f:
+            f.write("[]\n")
+        self.assertIn("0 items now, 1 in the record: changed since it was compiled", "\n".join(solo.compiled_check()))
+
+    def test_in_team_b_the_seniors_reading_goes_to_the_junior(self):
+        """Ian, 2026-10-10: "Jr should do mostly reading and distilling, Sr should do mostly direction and organizing."
+        The Senior's distill is queued for the Junior (it reads ~10x faster here); the record comes back between steps."""
+        from cin_minai.aicui import intake
+        senior, junior, p = self.pair()
+        intake.save(self.root, "https://rules.example/rules", b"<html><body><p>Draw Phase: draw one card.</p>"
+                                                              b"</body></html>", "text/html")
+        junior.chat = lambda messages, **kw: (json.dumps({"items": [{"phase": "Draw", "rule": "draw one card",
+                                                                       "where": "p1"}]}), {})
+        said = senior.do({"tool": "distill", "sources": ["sources/rules.html"], "intent": "the rule of each phase",
+                          "into": "data/rules.json", "format": "json"})
+        self.assertIn("given to your junior (distill into data/rules.json, held for it)", said)
+        self.wait(p)
+        ((n, kind, result),) = senior.inbox
+        self.assertIn("(distill, by your junior) — distilled 1 items for \"the rule of each phase\"", result)
+        self.assertTrue(os.path.exists(os.path.join(self.root, "data", "rules.json")))
+        self.assertNotIn("errand", {v["properties"]["tool"]["const"] for v in
+                                    schema(None, senior.excluded())["properties"]["action"]["anyOf"]})
 
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P

@@ -1683,3 +1683,37 @@ page that had it and saved it. The checks then scanned the saved page as if it w
 script tag" in it, and the coder dutifully set about repairing someone else's website — instead of taking the picture.
 Ian, later, naming the fix as a principle (GatheredData, being designed): reading a web image "grabs the image instead
 of trying to fix a website."
+
+## 2026-10-10 — style B, a draft that ate a file, and GatheredData: fetch, distill, compile
+
+**Style B, run.** A 35B MoE Senior (its experts in RAM, the rest on the card) and the 9B Junior both fit on the 1080
+Ti at once, 5.8 and 4.6 GB. The Junior read about ten times faster than the Senior (510 tokens a second against 47);
+writing, they were close. Together they built a rules engine of ~1,800 lines that compiles. Ian, mid-run: "Possibly
+better than the other team."
+
+**Then the Junior looped and couldn't be stopped.** Every task it had was "write this whole file", so it redrafted the
+whole file again and again, and one finished draft replaced 1,088 lines with 77. Stop only worked between tasks, and
+Ctrl+C at an idle prompt reached nothing. The changelog undid the change in one step: the file came back whole and
+built. Ian named the rule: "We honestly just need the jr to follow the same rules as sr and send the stuck point back
+to the sr… We pad the jr with the sr's ability. Thats part of distillation."
+
+**Why does AICUI treat a folder any sort of way?** The project's own data files were refused because they sat in
+`assets/`, so the models typed the data into code instead, from memory. The source files they'd fetched were never
+read. Ian: "Im just asking why we would." We wouldn't: what came in from outside stays as it came because of where it
+came *from*, not where it sits.
+
+**GatheredData.** Ian's three words for what every model in AICUI does with what it reads. **Fetch**: "anything
+involving read function", within boundaries. **Distill**: "extract the intended anything from the read function"; a
+web image "grabs the image instead of trying to fix a website". **Compile**: "reconstruct the information that was
+fetched and extracted to compile it into the intention of the read function originally." The roles: "Jr should do
+mostly reading and distilling, Sr should do mostly direction and organizing. Both do write… Sr is the main compiler
+for the project while Jr can compile for a file."
+
+**Built the same day** (SPEC §23.5 "as built"). Everything that comes in is kept with its origin, and only fetched
+material is protected. A `distill` tool reads sources in parts for one intent and keeps a gathered record of every
+item with where it stood. Code, not a model, writes the record into the project's data file, and before a goal is
+ticked that file is checked against its record. In style B the Senior's reading goes to the faster Junior. The
+Junior stops at any step. A stuck Junior goes up to the Senior with its stuck point, and a Junior change that would
+throw away most of a file goes up too. Every model's tools are now sorted under FETCH, DISTILL and COMPILE, with one
+rule over them: facts come from sources, never from memory. Next: test5, team B, with the full ruleset fetched
+offline first.

@@ -60,6 +60,8 @@ ACTIONS = [
     {"tool": "web_search", "query": STR},
     {"tool": "fetch", "url": STR},
     {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR},
+    {"tool": "distill", "sources": {"type": "array", "items": STR, "maxItems": 12}, "intent": STR, "into": STR,
+     "format": {"enum": ["json", "text"]}},
     {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR,
      "goal": {"type": "integer"}},
     {"tool": "goal_add", "text": STR},
@@ -71,9 +73,18 @@ ACTIONS = [
     {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
-OPTIONAL = {"start", "goal"}
+OPTIONAL = {"start", "goal", "into", "format"}
 SENIOR_ONLY = {"assign", "review_task"}           # style B's Senior (PLAN §1b, two cards)
-JUNIOR_TOOLS = {"read", "list", "search", "edit", "replace_lines", "write", "append", "run", "ask", "answer"}
+JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
+                "answer"}
+GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
+DISTILL_PART = """You distill for this intent: {intent}
+From the part below only ({source}, part {n} of {total}), extract every item the intent asks for, exactly as it
+stands (names, numbers, wording). Never add what isn't in this part."""
+DISTILL_JSON = """Reply as JSON: {"items": [ ... ]}, one object per item, with the fields the intent names and
+"where": a short place in this part (a heading, a page, the line it starts). {"items": []} when the part has none."""
+DISTILL_TEXT = """Reply with the extracted text, as it stands, each piece headed by where it is; "nothing here" when the
+part has none."""
 
 
 def _asked(ask, prompt: str) -> str:
@@ -97,38 +108,49 @@ def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(
 
 
 SYSTEM = """You are the coding agent in AICUI, working in the project folder {root} on the user's own computer.
-You work step by step. Each step: your thinking (short), then exactly one action:
+You work step by step. Each step: your thinking (short), then exactly one action. Your work runs through three steps,
+GatheredData: FETCH what you need to read, DISTILL what the read was for out of it, COMPILE it into the project.
+Every read has an intent: before you read, know what you want from it.
+
+FETCH: anything that reads, in the project or from the web.
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
-- edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
-  append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
-- run (a shell command in the project folder{sandbox}; the web only through the tools below)
-- web_search (a `query`), fetch (an https `url` from the user, a search or a kept page), download (many such
-  `urls` into a `folder` under assets/, one approval); each asked first
-- errand (your helper's side job while you work on: `kind` read a long `source` for your `question`, or look)
-- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
-- need (a package the project needs: the person agrees, AICUI installs it)
-- look (see the program, a page or the screen: facts, and your `question` answered)
-- ask (a question for the user), answer (tell the user something; ends your turn)
+- web_search (a `query`), fetch (one https `url` that came from the user, a search or a page you fetched),
+  download (many such `urls` into a `folder` under assets/, one approval). Your commands have no network: these
+  are your web, and they work (each asks the user first). What comes in is kept offline in the project with where it
+  came from, and stays as it came: never fix or edit fetched material.
+- look (the program, a page or the screen: facts read by code, and your `question` answered)
+- errand (your helper reads a long `source` for your `question`, or looks, while you work on: kind read or look)
+DISTILL: take out what the intent asked, not the whole thing.
+- distill (`sources`: the files to read, `intent`: what to extract, `into`: a data file to compile it into,
+  `format`: json or text). It reads each source in parts, extracts every item the intent names with where it
+  stands in the source, keeps a gathered record of it, and writes `into`. A picture in a page is fetched as the
+  picture; a long file is distilled for what you need, never read end to end in parts.
+COMPILE: rebuild the distilled pieces into what the intent needs: the project's own files.
+- edit (replace the exact text `old` with `new`; `old` must appear once), replace_lines (lines `first`-`last`
+  become `new`; "" deletes them), write (a whole new file), append (add `content` to the end of a file)
+- run (a shell command in the project folder{sandbox}), need (a package: the user agrees, AICUI installs it)
+- goal_add / goal_done (the session goals: add one, or tick goal `id` once its checks pass)
+TALK: ask (a question for the user), answer (tell the user something; ends your turn).
+
+The rule of the three: facts the project needs (rules, lists, names, numbers, prices, data) come from sources.
+Fetch them, distill them into the project's data files, and build from those files; never type facts from memory.
+If no source can be found, say so and ask. Review against the gathered sources, never against what you remember.
 Your thinking: a sentence or two about your next move, never a copy of the user's message or an error (the user
-sees it).
-Take the user's words as they are ("continue" continues, "look at x" looks at x), against the session goals; one
-task or only coding: do it yourself; give your helper errands only when they make it faster.
-Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change, check it (run the tests or
-the program) before you call it done. Paths are relative to the project folder. Never invent file contents you
-haven't read. Data or a source the user gives you (pasted or fetched) beats your memory: use it as given; if it
-differs, say so once and go on. Never a stand-in for what the
-user asked for: ask. Files that work together use each other's exact names: before writing a page's CSS or script, read
-its HTML (or the map of it) and use the classes and ids it has. At the start of a new project, ask about its goals
-and scope and write them as goals; once work
-starts, work the goals as your to-do list. Answer in the user's language.
+sees it). Take the user's words as they are ("continue" continues, "look at x" looks at x), against the session
+goals; one task or only coding: do it yourself; errands to your helper only when they make it faster.
+Rules: read before you edit (not lines the checks name); make the smallest change that does the job; after a change,
+check it (run the tests or the program) before you call it done. Paths are relative to the project folder. Never
+invent file contents you haven't read. Data the user gives you (pasted or fetched) beats your memory. Never a
+stand-in for what the user asked for: ask. Files that work together use each other's exact names. At the start of a
+new project, ask about its goals and scope and write them as goals; then work the goals as your to-do list. Answer in
+the user's language.
 One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
 the first part, then append the rest, one part per step, each under {write_lines} lines.
-Your commands run graphical programs windowless (SDL's dummy drivers); look shows them for real, at the
-user's screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
-loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
-button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
-project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
-seconds; a goal whose checks fail stays open. Never edit tests or the entry point to pass.{venv}
+Your commands run graphical programs windowless (SDL's dummy drivers); look shows them for real, at the user's
+screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main loop.
+The user runs it with AICUI's Run button: run.sh, else main.py, else index.html at the project's top. Before a goal is
+ticked, the project's tests (test_*.py) run and its entry point is started for a few seconds; a goal whose checks
+fail stays open. Never edit tests or the entry point to pass.{venv}
 
 The project's files (first lines):
 {files}
@@ -136,27 +158,37 @@ The project's files (first lines):
 Session goals:
 {goals}"""
 
-
-JUNIOR_SYSTEM = """You are the junior developer in AICUI, in the project folder {root}. Your senior lays out the
-project and gives you one task at a time; you change only the files the task names.
-Each step: your thinking (short), then exactly one action:
-- read (a file, from line `start`), list (a folder), search (a regex over the project's files)
-- edit, replace_lines, write, append (only the task's files)
-- run (a shell command in the project folder{sandbox}; no network)
-- ask (a question for your senior), answer (what you did and how you checked it; ends the task)
-Keep the names, signatures and imports the skeleton already has; fill in what's marked TODO; don't invent interfaces.
-After a change, check it (compile it, run the tests). One step holds about {answer_tokens} tokens: a file longer than
-about {write_lines} lines is written in parts, the first part, then append the rest.
+JUNIOR_SYSTEM = """You are the junior developer in AICUI, in the project folder {root}. Your senior directs and
+organizes the project; you do most of the reading and distilling, and you write what your task names.
+Each step: your thinking (short), then exactly one action. Your work runs through GatheredData:
+FETCH: read (a file, from line `start`), list (a folder), search (a regex over the project's files). Every read has
+  an intent: your task's. Fetched material (what came in from the web or the user) stays as it came.
+DISTILL: distill (`sources`, `intent`, `into`, `format` json or text): read sources in parts for the intent, extract
+  every item it names with where it stands, keep a gathered record, write `into`. Facts come from the sources, never
+  from your memory.
+COMPILE (within your task's files): edit, replace_lines, write, append; run (a shell command{sandbox}; no network)
+  to compile and test what you wrote.
+TALK: ask (a question for your senior), answer (what you did and how you checked it; ends the task).
+Keep the names, signatures and imports the skeleton already has; fill in what's marked TODO; change only the part
+your task names, never most of a file. When you're stuck, stop and answer with your stuck point (what you were doing,
+where it stopped, the error): your senior gives you the next step. One step holds about {answer_tokens} tokens: a
+file longer than about {write_lines} lines is written in parts, the first part, then append the rest.
 
 The project's files (first lines):
 {files}"""
 
 SENIOR_B = """
-You are the Senior, with a junior developer (a smaller model) beside you. First lay the project's skeleton: every
-file with its imports, classes and function signatures (bodies as stubs marked TODO), the shared types and the build
-files, and make it compile. Then give the junior one file at a time with assign (`path`, `task`, `kind`): the file is
-held for it until it's done, and you work on other files meanwhile. Its result comes between your steps: check it,
-then review_task (`n`, `accept`, `note`); a rejection goes back to it with your note. You have the final word."""
+You are the Senior: you direct and organize the project and compile it as a whole; your junior (a smaller, faster
+model) does most of the reading and distilling. It reads about ten times faster than you here: give it the reading.
+1. Lay the skeleton: every file with its imports, classes and function signatures (bodies as stubs marked TODO),
+   the shared types, the build files; make it compile.
+2. Give the junior the reading: distill (`sources`, `intent`, `into`) goes to it: the rules, the lists, the data the
+   project needs, out of the fetched sources and into the project's data files. Fetch the sources first.
+3. Give the junior file work with assign (`path`, `task`, `kind`): one file, a small exact step (the function, the
+   lines, what's wrong). The file is held for it; you work on other files meanwhile.
+4. Its results come between your steps. Review them against the gathered records, never your memory: review_task
+   (`n`, `accept`, `note`). A stuck point from it: distill its next step, smaller, or patch that one mechanism.
+You have the final word, and you write too: the mechanisms that matter, and what ties the project together."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
@@ -587,11 +619,13 @@ def venv_packages(venv: str) -> list[str]:
     return found[:20]
 
 
-def kept_material(rel: str) -> bool:
-    """sources/ and assets/: what came from the web or the person, kept as it came — material, not the project's code
-    (2026-10-09: the checks found an "unclosed script tag" in a saved web page, and the coder was sent to fix it)."""
-    top = rel.replace(os.sep, "/").lstrip("./").split("/", 1)[0]
-    return top in ("sources", "assets")
+def kept_material(rel: str, root: str = "") -> bool:
+    """Fetched material, kept as it came — not the project's code (2026-10-09: the checks found an "unclosed script
+    tag" in a saved web page, and the coder was sent to fix it): by its recorded origin (intake.came_in); without a
+    project to ask, AICUI's own fetch folder."""
+    if root:
+        return intake.came_in(root, rel)
+    return rel.replace(os.sep, "/").lstrip("./").split("/", 1)[0] == "sources"
 
 
 def pytest_style(full: str) -> bool:
@@ -654,7 +688,7 @@ class Agent:
     def excluded(self) -> set:
         """The tools this agent's card doesn't have."""
         if self.role == "senior":
-            return set()
+            return {"errand"}  # its reading goes to the Junior (distill, assign)
         if self.role == "junior":
             return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS
         return set(SENIOR_ONLY)
@@ -727,7 +761,7 @@ class Agent:
         found = []
         for rel, is_dir, _ in tree(self.root)[:80]:
             full = os.path.join(self.root, rel)
-            if not is_dir and not kept_material(rel) and os.path.getsize(full) <= 400_000:
+            if not is_dir and not kept_material(rel, self.root) and os.path.getsize(full) <= 400_000:
                 problem = check_file(full)
                 if problem:
                     found.append(f"{rel}: {problem}")
@@ -741,7 +775,7 @@ class Agent:
         budget = 600 * (self.ctx // 8192) + (900 if self.ctx >= 16384 else 0)  # 8K: 600 chars, 16K: 2,100, 32K: 3,300
         shapes, problems = [], []
         for rel, is_dir, _ in tree(self.root)[:80]:
-            if is_dir or kept_material(rel):
+            if is_dir or kept_material(rel, self.root):
                 continue
             full = os.path.join(self.root, rel)
             try:
@@ -811,6 +845,10 @@ class Agent:
         m = self.messages(text, steps, self.cut, self.lite)
         if size(m) <= budget:
             return m
+        # ~60 % of the room the history has: the rules and tools (the system text) count in full, the history shrinks
+        # (2026-10-10: with the instructions a quarter of an 8K context, 60 % of the whole squeezed the history twice)
+        fixed = len(m[0]["content"]) if m and m[0].get("role") == "system" else 0
+        target = fixed + max(0.0, budget - fixed) * 0.6
         # first the old reads become maps (file contents are most of the weight, and the rest of the reasoning
         # stays whole); the last two reads stay in full
         reads = [i for i, s in enumerate(steps) if "did" in s and s["did"].get("action", {}).get("tool") == "read"]
@@ -818,11 +856,11 @@ class Agent:
         if lite > self.lite:
             m = self.messages(text, steps, self.cut, lite)
             self.lite = lite
-            if size(m) <= budget * 0.6:
+            if size(m) <= target:
                 return m
         for cut in range(self.cut + 1, len(steps) + 1):
             m = self.messages(text, steps, cut, self.lite)
-            if size(m) <= budget * 0.6:
+            if size(m) <= target:
                 break
         self.cut = cut
         return m
@@ -987,6 +1025,10 @@ class Agent:
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
         for n in range(1, self.max_steps + 1):
+            halt = getattr(self, "halt", None)
+            if callable(halt) and halt():  # stopped by the person (as a whole, or this one task on the table)
+                self.stopped = "stopped"
+                return "not done: stopped by the person"
             self.deliver(steps)  # the helper's answers, as soon as they're back
             try:
                 raw, t = self.generate(self.fit(text, steps), n, cancel)
@@ -1101,6 +1143,8 @@ class Agent:
         if "logged as change" in result:  # write / delete
             return True
         if result.startswith(("the person said no", "the user said no")):  # reject (the person decided)
+            return True
+        if tool == "distill" and "gathered record" in result and not result.startswith("error"):  # create
             return True
         if tool in ("goal_add", "need") and not result.startswith("error"):  # create (a goal; the environment's entry)
             return True
@@ -1296,6 +1340,94 @@ class Agent:
             out.append(f"failed {len(failed)}: " + "; ".join(failed[:5]))
         return "\n".join(out)
 
+    def distill_now(self, sources: list, intent: str, into: str = "", fmt: str = "json") -> str:
+        """GatheredData's distill (SPEC §23.5): read each source in parts for the intent, with this agent's own model;
+        extract the items the intent names, each with where it stands; keep a gathered record (the intent, the sources
+        with their origins, the items, who, when); compile `into` the project's data file when asked — by code, so
+        nothing is retyped. The compiled file's origin is the record: the project's own, traceable."""
+        intent = " ".join(str(intent).split())
+        if len(intent) < 6:
+            return "error: say what to extract (the intent), e.g. \"each card's name, type, ATK and DEF\""
+        base = os.path.realpath(self.root)
+        files, missing = [], []
+        for src in sources[:12]:
+            full = os.path.realpath(os.path.join(base, str(src)))
+            if full.lower().endswith((".html", ".htm")) and os.path.isfile(os.path.splitext(full)[0] + ".txt"):
+                full = os.path.splitext(full)[0] + ".txt"  # the page's text, with its pictures and links listed
+            if full.lower().endswith(".pdf") and not os.path.isfile(full + ".txt"):
+                twin = os.path.join(base, "sources", os.path.splitext(os.path.basename(full))[0] + ".txt")
+                full = twin if os.path.isfile(twin) else full
+            if not full.startswith(base + os.sep) or not os.path.isfile(full):
+                missing.append(str(src))
+            else:
+                files.append(full)
+        if not files:
+            return "error: none of the sources is a file in the project" + (f" ({', '.join(missing)})" if missing else "")
+        dest = ""
+        if into:
+            dest_full = os.path.realpath(os.path.join(base, into))
+            if not dest_full.startswith(base + os.sep):
+                return f"error: {into} isn't in the project"
+            dest = os.path.relpath(dest_full, base).replace(os.sep, "/")
+            if intake.came_in(self.root, dest):
+                return f"error: {dest} is gathered material; compile into a file of the project's own"
+        part_chars = max(3000, min(12000, self.ctx * 3 // 4))
+        items, texts, used = [], [], []
+        for full in files:
+            rel = os.path.relpath(full, base).replace(os.sep, "/")
+            with open(full, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            parts = [text[i:i + part_chars] for i in range(0, len(text), part_chars)] or [""]
+            used.append({"path": rel, "from": intake.origins(self.root).get(rel, {}).get("from", "the project"),
+                         "parts": len(parts)})
+            for n, part in enumerate(parts, 1):
+                halt = getattr(self, "halt", None)
+                if callable(halt) and halt():
+                    return "not done: stopped by the person"
+                self.event("busy", doing=f"distilling {rel}, part {n} of {len(parts)}", tokens=0)
+                ask = DISTILL_PART.format(intent=intent, source=rel, n=n, total=len(parts)) + "\n" + \
+                    (DISTILL_JSON if fmt == "json" else DISTILL_TEXT)
+                try:
+                    raw, _ = self.chat([{"role": "system", "content": ask}, {"role": "user", "content": part}],
+                                       schema={"type": "object", "required": ["items"], "properties": {
+                                           "items": {"type": "array", "items": {"type": "object"}}}}
+                                       if fmt == "json" else None, max_tokens=self.answer_tokens)
+                except Exception as e:
+                    return f"error: the model couldn't distill {rel} ({type(e).__name__}); nothing was kept"
+                if fmt == "json":
+                    try:
+                        got = json.loads(raw).get("items", [])
+                    except (ValueError, AttributeError):
+                        got = []
+                    for it in got:
+                        if isinstance(it, dict) and it:
+                            items.append({**it, "source": rel})
+                elif raw.strip() and not raw.strip().lower().startswith("nothing here"):
+                    texts.append(f"## {rel}, part {n}\n{raw.strip()}")
+        os.makedirs(os.path.join(base, GATHERED), exist_ok=True)
+        n = len([f for f in os.listdir(os.path.join(base, GATHERED)) if f.endswith(".json")]) + 1
+        record = f"{GATHERED}/{n}.json".replace(os.sep, "/")
+        with open(os.path.join(base, record), "w", encoding="utf-8") as f:
+            json.dump({"id": n, "intent": intent, "format": fmt, "sources": used, "items": items, "text": texts,
+                       "into": dest, "by": self.model_name, "time": time.strftime("%Y-%m-%d %H:%M:%S")}, f,
+                      ensure_ascii=False, indent=1)
+        count = len(items) if fmt == "json" else len(texts)
+        out = (f"distilled {count} {'items' if fmt == 'json' else 'pieces'} for \"{intent}\" from "
+               + ", ".join(f"{u['path']} ({u['parts']} parts)" for u in used) + f" — gathered record {n} ({record})")
+        if missing:
+            out += f"; not found: {', '.join(missing)}"
+        if dest:
+            body = (json.dumps(items, ensure_ascii=False, indent=1) + "\n") if fmt == "json" else \
+                ("\n\n".join(texts) + "\n")
+            wrote = self.change({"tool": "write", "path": dest, "content": body}, filled=False)
+            if "logged as change" not in wrote:
+                return out + f"\nCompiling into {dest} didn't go through: {wrote}"
+            intake.record_origin(self.root, dest, f"gathered record {n}", kind="compiled")
+            out += f"\ncompiled into {dest} ({wrote.split(',')[0]})"
+        preview = json.dumps(items[:3], ensure_ascii=False)[:700] if fmt == "json" else "\n".join(texts)[:700]
+        return out + ("\nThe first: " + preview if count else "\nNothing in the sources matched the intent — check "
+                      "the intent, or fetch a better source.")
+
     def known_address(self, url: str) -> bool:
         """Did this address come from somewhere: the person, a search result, a page kept in sources/ (it lists its
         links and pictures)? Code checks it; the model's memory of addresses isn't a source."""
@@ -1355,7 +1487,7 @@ class Agent:
             # only the project's own program: 2026-10-09, a look's facts file (.cinminai/looks/….json) was handed in as
             # the address and run as Python
             own = address and os.path.isfile(full(address)) and address.endswith((".py", ".sh", ".html", ".htm")) \
-                and not kept_material(address) and not address.replace(os.sep, "/").lstrip("./").startswith(".")
+                and not kept_material(address, self.root) and not address.replace(os.sep, "/").lstrip("./").startswith(".")
             entry = address if own else entry_point(self.root)
             if not entry:
                 return "error: nothing to run yet (no run.sh, main.py or index.html)"
@@ -1473,6 +1605,10 @@ class Agent:
                     return "no junior is working with you here"
                 return (fn(a.get("path", ""), a.get("task", ""), a.get("kind", "write")) if t == "assign" else
                         fn(int(a.get("n") or 0), bool(a.get("accept")), a.get("note", "")))
+            if t == "distill":  # GatheredData: in team B the Senior's reading goes to the Junior (pair.py)
+                delegate = getattr(self, "distiller", None)
+                args = (a.get("sources") or [], a.get("intent", ""), a.get("into", ""), a.get("format") or "json")
+                return delegate(*args) if callable(delegate) else self.distill_now(*args)
             if t == "errand":  # the tandem's Junior (tandem.py), working while this model does; alone, there's none
                 errand = getattr(self, "errand", None)
                 if not callable(errand):
@@ -1504,9 +1640,9 @@ class Agent:
                         pass
                 return "\n".join(hits[:60]) or "no matches"
             if t in ("edit", "replace_lines", "write", "append"):
-                if kept_material(a.get("path", "")):  # what came stays as it came: the evidence, and what scripts read
-                    return (f"error: {a.get('path')} is kept material (sources/ and assets/ stay as they came). Nothing "
-                            "in it needs fixing; put what you make from it in the project's own files.")
+                if kept_material(a.get("path", ""), self.root):  # what came in stays as it came
+                    return (f"error: {a.get('path')} is gathered material: it came in from outside and stays as it came. "
+                            "Nothing in it needs fixing — distill what you need from it into the project's own files.")
                 return self.change(a)
             if t == "look":
                 return self.look(a.get("target", "program"), a.get("question", ""), a.get("address", ""))
@@ -1567,6 +1703,20 @@ class Agent:
         with CHANGE_LOCK:
             return self._change(a, filled)
 
+    def shrinks(self, rel: str, old: str, new: str) -> str:
+        """The Junior (style B) never replaces most of a file on its own (2026-10-10: a finished draft replaced 1,088 of
+        1,136 lines): the new version is kept aside and the change goes to the Senior."""
+        before, after = old.count("\n"), new.count("\n")
+        if self.role != "junior" or before < 80 or after >= before * 0.4:
+            return ""
+        aside = os.path.join(self.root, ".cinminai", "drafts-stale", rel + time.strftime("-refused-%Y%m%d-%H%M%S"))
+        os.makedirs(os.path.dirname(aside), exist_ok=True)
+        with open(aside, "w", encoding="utf-8") as f:
+            f.write(new)
+        return (f"error: this would replace most of {rel} ({before} lines → {after}); that's your senior's call. The "
+                f"new version is kept aside ({os.path.relpath(aside, self.root)}). Answer with what you want to change "
+                "and why — or change only the part your task names.")
+
     def _change(self, a: dict, filled: bool | None = None) -> str:
         rel = os.path.relpath(self.path(a["path"]), self.root)
         full = os.path.join(self.root, rel)
@@ -1619,6 +1769,9 @@ class Agent:
             new = old + ("\n" if old and not old.endswith("\n") else "") + a["content"]
         else:
             new = a["content"]
+        shrunk = self.shrinks(rel, old, new)
+        if shrunk:
+            return shrunk
         text = a.get("new", "") if a["tool"] in ("edit", "replace_lines") else a["content"]
         if a["tool"] in ("write", "append") and PLACEHOLDER.match(text):  # never a stand-in for real code (see slim)
             return (f"error: that isn't file content ({text.strip()[:40]!r}). Write the complete, real contents of "
@@ -1696,6 +1849,35 @@ class Agent:
         return r.returncode, (r.stdout + r.stderr).strip()
 
     # --- checks: after every change, and before a goal is ticked ---------------------------------------------
+    def compiled_check(self) -> list[str]:
+        """Each data file compiled from a gathered record, against that record (SPEC §23.5, compile): still what was
+        distilled, or changed since — said, so a review compares with the sources, never with memory."""
+        out = []
+        for rel, o in sorted(intake.origins(self.root).items()):
+            if o.get("kind") != "compiled" or not str(o.get("from", "")).startswith("gathered record "):
+                continue
+            n = str(o["from"]).split()[-1]
+            try:
+                with open(os.path.join(self.root, GATHERED, f"{n}.json"), encoding="utf-8") as f:
+                    record = json.load(f)
+                with open(os.path.join(self.root, rel), encoding="utf-8") as f:
+                    now = f.read()
+            except (OSError, ValueError):
+                out.append(f"{rel}: compiled from gathered record {n}, but the file or its record is gone")
+                continue
+            if record.get("format") == "json":
+                try:
+                    have = len(json.loads(now))
+                except (ValueError, TypeError):
+                    have = -1
+                want = len(record.get("items", []))
+                srcs = ", ".join(s["path"] for s in record.get("sources", []))
+                out.append(f"{rel}: compiled from gathered record {n} ({srcs}) — " + (
+                    f"{want} items, as distilled" if have == want else
+                    f"{have if have >= 0 else 'unreadable'} items now, {want} in the record: changed since it was "
+                    "compiled (if on purpose, say why; else distill it again)"))
+        return out
+
     def verify(self) -> tuple[bool, str]:
         """Before a goal is ticked: the project's tests, and its entry point started for a few seconds the way the
         user would start it — the agent's "it works" isn't evidence (2026-10-03: "all four tests pass" with one of
@@ -1728,7 +1910,7 @@ class Agent:
             ok &= started
             lines.append(f"{entry}: " + ("started" + (" and kept running" if code == 124 else " and finished")
                                          if started else f"CRASHED (exit {code})\n" + out[-800:]))
-        page = next((rel for rel, is_dir, _ in tree(self.root) if not is_dir and not kept_material(rel)
+        page = next((rel for rel, is_dir, _ in tree(self.root) if not is_dir and not kept_material(rel, self.root)
                      and rel.lower().endswith((".html", ".htm")) and rel.count(os.sep) <= 2), None)
         if page:  # a web page: its tags, and the names its CSS and script use
             problems = [p for p in (check_file(os.path.join(self.root, page)), web_names(self.root)) if p]
@@ -1743,6 +1925,7 @@ class Agent:
                 ok &= not bad
                 lines.append(f"{entry} as seen ({seen.get('picture_path', '')}): " +
                              ("; ".join(seen.get("problems", [])) or "fits the screen, something drawn"))
+        lines += self.compiled_check()  # GatheredData: data files against the records they were compiled from
         if not tests and not page:  # a start alone proves little (2026-10-08: run.sh built the C++, found no pygame,
             # printed how to install it and exited 0 — and the engine goal was ticked with nothing testing its rules)
             ok = False
@@ -1903,8 +2086,11 @@ def main(argv=None) -> int:
                 text = input("\033[1;34myou>\033[0m ").strip()
             except EOFError:
                 break
-            except KeyboardInterrupt:  # Stop while nothing runs: a fresh prompt, not the end of the agent
+            except KeyboardInterrupt:  # Stop while nothing runs: a fresh prompt — and the background work, as chosen
                 print()
+                bg = team_b or pair.get("tandem")
+                if bg is not None and getattr(bg, "out", 0) > 0:
+                    bg.stopped()  # AICUI's question set what stops: both, or one (keep-errands)
                 continue
             if text:
                 cancel = threading.Event()

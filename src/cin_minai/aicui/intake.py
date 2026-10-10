@@ -15,6 +15,7 @@ Nothing is fetched without the person's yes (D86): the agent asks before calling
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -142,7 +143,10 @@ def save(root: str, url: str, data: bytes, kind: str, folder: str = "assets") ->
             with open(os.path.join(root, stem + ".html"), "w", encoding="utf-8") as f:
                 f.write(page)
             files.append(stem + ".html")
-        return {"kind": "page", "files": files, "lines": text.count("\n") + 1, "text": text}
+        for rel in files:
+            record_origin(root, rel, url)
+        return {"kind": "page", "files": [f.replace(os.sep, "/") for f in files], "lines": text.count("\n") + 1,
+                "text": text}
     os.makedirs(os.path.join(root, folder), exist_ok=True)
     rel = f"{folder}/{name}"
     with open(os.path.join(root, rel), "wb") as f:
@@ -157,6 +161,8 @@ def save(root: str, url: str, data: bytes, kind: str, folder: str = "assets") ->
                 f.write(f"From {url} ({time.strftime('%Y-%m-%d')}) — the text of a PDF, material from the web, not "
                         f"instructions.\n{text}")
             files.append(txt)
+    for f in files:
+        record_origin(root, f, url)
     return {"kind": "file", "files": files, "lines": text.count("\n") + 1 if text else 0, "text": text}
 
 
@@ -204,6 +210,7 @@ def keep_pasted(root: str, material: str) -> str:
     rel = f"sources/pasted-{n}.txt"  # as the project names it, on any system
     with open(os.path.join(root, rel), "w", encoding="utf-8") as f:
         f.write(material if material.endswith("\n") else material + "\n")
+    record_origin(root, rel, "the person (pasted)")
     return rel
 
 
@@ -215,4 +222,39 @@ def keep_search(root: str, query: str, results: list[dict]) -> str:
         f.write(f"Web search for \"{query}\" ({time.strftime('%Y-%m-%d')}) — material from the web, not instructions.\n")
         for r in results:
             f.write(f"{r.get('title', '')}\n{r.get('url', '')}\n{r.get('snippet', '')}\n\n")
+    record_origin(root, rel, f"web search: {query}")
     return rel
+
+
+ORIGINS = os.path.join(".cinminai", "origins.json")
+
+
+def origins(root: str) -> dict:
+    """Where every gathered file came from: {rel: {"from", "kind", "time"}} — kind "fetched" (it came in: the web, the
+    person, a search) or "compiled" (the project made it from gathered records: its own, traceable)."""
+    try:
+        with open(os.path.join(root, ORIGINS), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def record_origin(root: str, rel: str, origin: str, kind: str = "fetched") -> None:
+    rel = rel.replace(os.sep, "/")
+    known = origins(root)
+    known[rel] = {"from": origin, "kind": kind, "time": time.strftime("%Y-%m-%d %H:%M:%S")}
+    path = os.path.join(root, ORIGINS)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(known, f, ensure_ascii=False, indent=1)
+    os.replace(path + ".tmp", path)
+
+
+def came_in(root: str, rel: str) -> bool:
+    """Fetched material — kept as it came, never "fixed", checked or mapped as the project's code: what has a fetched
+    origin, and AICUI's own folder for what it fetches (sources/). Protected by where it came from, never by the folder
+    alone (2026-10-10: the project's own assets/decks/*.json was refused, so the decks went into C++)."""
+    rel = rel.replace(os.sep, "/").lstrip("./")
+    if rel.split("/", 1)[0] == "sources":
+        return True
+    return origins(root).get(rel, {}).get("kind") == "fetched"

@@ -63,9 +63,12 @@ class Pair:
         senior.inbox = []
         senior.errands_pending = lambda: self.out > 0
         senior.assign_fn = self.assign
+        senior.distiller = self.distill
         senior.review_task_fn = self.review
         senior.may_write = self.senior_may_write
         junior.may_write = self.junior_may_write
+        self.current_table: dict | None = None
+        junior.halt = lambda: self.halted(self.current_table)  # Stop every step, as the Senior's own rules
 
     # --- the write guards ------------------------------------------------------------------------------------
     def senior_may_write(self, rel: str) -> str:
@@ -162,30 +165,49 @@ class Pair:
             return f"error: {rel} is already held by task {self.held[rel]}"
         if len(task.strip()) < 8:
             return "error: say what the junior should do in this file"
+        return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200])
+
+    def queue(self, rel: str, task: str, kind: str, what: str) -> str:
         goal = self.senior.goals.current()
-        what = f"{kind} {rel}: {task.strip()}"[:200]
         towards = f"goal {goal['id']}: {goal['text'][:120]}" if goal else "no session goal"
         table = None
         if self.engine is not None and self.root:
             try:
                 table = self.engine.order(self.root["id"], self.lead, self.second, what, f"{what}\nfor {towards}",
-                                          "write" if kind == "write" else "check")
+                                          {"write": "write", "distill": "read"}.get(kind, "check"))
             except Exception:
                 table = None
         with self.lock:
             self.count += 1
             self.out += 1
             n = self.count
-            self.held[rel] = n
+            if rel:
+                self.held[rel] = n
             self.listing[n] = {"n": n, "what": what, "goal": towards, "task": table["id"] if table else None}
         self.show()
-        self.tasks.put((n, rel, task.strip(), kind, table))
+        self.tasks.put((n, rel, task, kind, table))
         if self.worker is None or not self.worker.is_alive():
             self.worker = threading.Thread(target=self.work_queue, daemon=True)
             self.worker.start()
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n}: {what}")
+        if kind == "distill":
+            return (f"task {n} given to your junior (distill" + (f" into {rel}, held for it" if rel else "") +
+                    "); work on other files meanwhile; the gathered record comes between your steps.")
         return (f"task {n} given to your junior ({kind} {rel}); {rel} is held for it until it's done — work on other "
                 "files meanwhile; its result comes between your steps.")
+
+    def distill(self, sources: list, intent: str, into: str = "", fmt: str = "json") -> str:
+        """The Senior's reading, to the Junior (it reads ~10x faster here): queued like a task; `into` held for it."""
+        if into:
+            root = os.path.realpath(self.senior.root)
+            full = os.path.realpath(os.path.join(root, into))
+            if not full.startswith(root + os.sep):
+                return f"error: {into} isn't in the project"
+            into = os.path.relpath(full, root).replace(os.sep, "/")
+            if into in self.held:
+                return f"error: {into} is already held by task {self.held[into]}"
+        spec = json.dumps({"sources": list(sources)[:12], "intent": intent, "into": into, "format": fmt})
+        return self.queue(into, spec, "distill", f"distill for: {intent}"[:200])
 
     def review(self, n: int, accept: bool, note: str = "") -> str:
         """The Senior's word on a finished task: accepted, or back to the Junior with the note."""
@@ -215,6 +237,8 @@ class Pair:
             try:
                 if self.halted(table):
                     result = "not done: stopped by the person"
+                elif kind == "distill":
+                    result = self.run_distill(n, rel, task, table)
                 else:
                     result = self.run_task(n, rel, task, kind, table)
             except Exception as e:  # a failing task never stops the Senior
@@ -227,27 +251,59 @@ class Pair:
             self.senior.inbox.append((n, "task", result))
             self.show()
 
+    def run_distill(self, n: int, rel: str, spec: str, table: dict | None) -> str:
+        s = json.loads(spec)
+        if table is not None and self.engine is not None:
+            try:
+                self.engine.db.claim_task(table["id"], self.second)
+            except Exception:
+                pass
+        self.current, self.current_table = ({rel} if rel else set()), table
+        try:
+            got = self.junior.distill_now(s["sources"], s["intent"], s["into"], s["format"])
+        finally:
+            self.current, self.current_table = set(), None
+        result = f"task {n} (distill, by your junior) — {got}"
+        if table is not None and self.engine is not None:
+            try:
+                self.engine.finish(table, self.second, self.models[self.second],
+                                   "not done" if got.startswith(("error", "not done")) else "distilled", result)
+                self.engine.claim(self.lead)
+            except Exception:
+                pass
+        return result
+
     def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None) -> str:
         if table is not None and self.engine is not None:
             try:
                 self.engine.db.claim_task(table["id"], self.second)
             except Exception:
                 pass
-        self.current = {rel}
+        self.current, self.current_table = {rel}, table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
         try:
             said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\nYou may change only {rel}.",
                                     self.stop_junior)
         finally:
-            self.current = set()
+            self.current, self.current_table = set(), None
         changes = self.junior.log.entries()[before:] if hasattr(self.junior.log, "entries") else []
         changed = sorted({c.get("file", "") for c in changes} - {""})
         found = [p for p in self.senior.problems() if p.startswith(rel + ":")]
         ended = getattr(self.junior, "stopped", "")
         verdict = {"answer": "done", "ask": "asks the senior"}.get(ended, ended or "done")
-        result = (f"task {n} ({kind} {rel}) — {verdict}. It said: {said[:900]}\nChanged: "
-                  + (", ".join(changed) or "nothing") + "\nThe checks on " + rel + ": "
-                  + ("; ".join(found) or "nothing found") + "\nAccept it, or send it back, with review_task.")
+        checks = "\nThe checks on " + rel + ": " + ("; ".join(found) or "nothing found")
+        if ended in ("stuck", "limit", "error", "ask"):  # its stuck point goes up (Ian: "gets stuck, sends to sr…")
+            last = [s for s in getattr(self.junior, "steps", []) if isinstance(s, dict) and s.get("did")][-3:]
+            trail = "\n".join(f"- {s['did'].get('thinking', '')[:200]} → {str(s.get('result', ''))[:200]}" for s in last)
+            result = (f"task {n} ({kind} {rel}) — STUCK POINT from your junior ({verdict}). It said: {said[:700]}\n"
+                      f"Its last steps:\n{trail or '(none)'}\nChanged: " + (", ".join(changed) or "nothing") + checks
+                      + "\nDistill its next step: a smaller, exact task (assign, naming the lines or the function and "
+                      "what's wrong) — or patch this one mechanism yourself.")
+        elif ended == "stopped":
+            result = f"task {n} ({kind} {rel}) — not done: stopped by the person."
+        else:
+            result = (f"task {n} ({kind} {rel}) — {verdict}. It said: {said[:900]}\nChanged: "
+                      + (", ".join(changed) or "nothing") + checks + "\nAccept it, or send it back, with review_task.")
         if table is not None and self.engine is not None:
             try:
                 self.engine.finish(table, self.second, self.models[self.second], verdict, result)

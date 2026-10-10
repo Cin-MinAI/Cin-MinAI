@@ -2201,7 +2201,7 @@ the Requests view shows it.
   cycle's own steps count when they land as one of the four. Six steps without one are said (and recorded), again at
   twelve; fifteen stop the task — a hint, then the person.
 
-### 23.5 GatheredData: fetch, distill, compile (designed 2026-10-10)
+### 23.5 GatheredData: fetch, distill, compile (designed and built 2026-10-10)
 
 A system for every model in AICUI, in Ian's words: **fetch** is "anything involving read function", **distill** is
 "extract the intended anything from the read function", **compile** is "structure a proper information format /
@@ -2242,6 +2242,46 @@ sr reads, distills next step, gives to jr." The Junior works under the Senior's 
 Stop honored every step); its stuck point — what it was doing, where it stopped, the last error — goes to the Senior,
 which distills a smaller next step or patches that one mechanism itself. A Junior change that would replace most of
 a file goes to the Senior before it lands.
+
+**As built in AICUI (2026-10-10).** How each part works, tool by tool:
+
+- **The tools, sorted into the three.** Every model's instructions now list its tools under FETCH, DISTILL, COMPILE
+  and TALK, not as one long list, and start with the rule of the three: *facts the project needs (rules, lists,
+  names, numbers, prices, data) come from sources; fetch them, distill them into the project's data files, and build
+  from those files; never type facts from memory; if no source can be found, say so and ask; review against the
+  gathered sources, never against memory.* The web tools say plainly that the commands have no network and that
+  these tools are the web, and that they work, because in test4 the Senior said "I cannot browse the live web" while
+  it held the tools.
+- **Fetch.** `read`, `list`, `search` in the project; `web_search`, `fetch`, `download` (each asks first) and `look`
+  outside it; `errand` hands a long read or a look to style A's helper. Whatever comes in is written to
+  `.cinminai/origins.json` with where it came from and when: a page (its text and its HTML), a downloaded file, a
+  PDF's text, a pasted block ("the person (pasted)"), a search ("web search: …"). **Protection follows the origin:**
+  a file whose origin is *fetched* (and anything in `sources/`) can't be edited, overwritten or deleted by a model,
+  wherever it sits; the refusal says to distill what's needed into the project's own files. A project's own
+  `assets/decks/*.json` is its own and is written like any other file.
+- **Distill.** The `distill` tool takes `sources` (up to 12 files), an `intent` (what to extract), an optional `into`
+  (the data file to compile it into) and a `format` (json or text). A web page's HTML is read through its text twin
+  and a PDF through its kept text. Each source is read in parts sized to the model's context (3,000-12,000
+  characters), and each part gets one request: extract every item the intent names, exactly as it stands, with where
+  it stands, and never add what isn't in that part. The answer is held to a JSON schema (a list of items), so a part
+  without matches gives an empty list rather than a guess. The items are kept as a **gathered record**,
+  `.cinminai/gathered/N.json`: the intent, the items, the sources and the places in them, the model and the time.
+  In style B the Senior's `distill` goes to the Junior's queue (it reads ~10× faster) and the `into` file is held
+  for it, as with `assign`; solo and the Junior distill themselves.
+- **Compile.** With `into`, the record's items are written by code into the data file (JSON, or text one item per
+  line), not retyped by a model, and that file's origin is recorded as *compiled* from record N, so it stays the
+  project's own and can be edited. From there the models compile it further with `edit`/`write`/`append`: the code
+  reads the data file instead of carrying it. **The check:** before a goal is ticked, every compiled data file is
+  compared with its record, next to the tests and the entry point: a JSON file's item count against the record's
+  ("cards.json: compiled from gathered record 3 (sources/cards.txt) — 412 items, as distilled", or "390 items now,
+  412 in the record: changed since it was compiled (if on purpose, say why; else distill it again)"); a review by the Senior is told to compare
+  against the records.
+- **The Junior goes up.** The Junior runs under the Senior's rules and is stopped between any two steps (the Stop
+  button, Ctrl+C at an idle prompt). A task that ends stuck, at the step limit, on an error or a question comes back
+  to the Senior as a **stuck point**: the task, the last three steps (thinking and result) and "distill its next step:
+  a smaller, exact task, or patch this one mechanism yourself". A Junior change that would leave less than 40 % of a
+  file of 80 lines or more isn't applied; it's kept in `.cinminai/drafts-stale/` and the Junior is told it's the
+  Senior's call. Unfinished drafts don't count as progress.
 
 ### 23.4 Build order
 

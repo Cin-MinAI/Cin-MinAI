@@ -327,7 +327,7 @@ class CoderChecks(Base):
         self.assertNotIn("gallery.html", "\n".join(a.problems()))
         self.assertNotIn("gallery.html", a.project_map())
         said = a.do({"tool": "replace_lines", "path": "sources/gallery.html", "first": 1, "last": 1, "new": ""})
-        self.assertIn("is kept material", said)
+        self.assertIn("is gathered material", said)
 
 
 if __name__ == "__main__":

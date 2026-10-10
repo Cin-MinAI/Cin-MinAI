@@ -143,10 +143,15 @@ class AgentTest(unittest.TestCase):
         self.assertNotIn('"content"', second)  # nothing that looks like file content to imitate
 
     def test_the_system_text_leaves_room_at_8k(self):
-        """The coder's rules and tools, before the project's files: about a tenth of the smallest context we run (8K,
-        ~24,000 characters) — 3,156 on 2026-10-09; more than 3,600 needs a reason."""
-        from cin_minai.aicui.agent import SYSTEM
-        self.assertLessEqual(len(SYSTEM), 3600)
+        """The coder's rules and tools, before the project's files: a fifth of the smallest context we run (8K, ~24,000
+        characters). 3,156 on 2026-10-09; 4,304 on 2026-10-10, when fetch, distill and compile were described in full
+        (Ian: "be elaborate about how you describe fetch distill and compile"). More than 4,800 needs a reason."""
+        from cin_minai.aicui.agent import JUNIOR_SYSTEM, SENIOR_B, SYSTEM
+        self.assertLessEqual(len(SYSTEM), 4800)
+        self.assertLessEqual(len(SYSTEM) + len(SENIOR_B), 6000)
+        self.assertLessEqual(len(JUNIOR_SYSTEM), 2000)
+        for words in ("FETCH:", "DISTILL:", "COMPILE:", "never type facts from memory", "they work"):
+            self.assertIn(words, SYSTEM)
 
     def test_a_small_context_shrinks_the_history(self):
         steps = [step(f"Look {i}.", tool="read", path="app.py") for i in range(8)] + [step("", tool="answer", text="ok")]
@@ -201,7 +206,7 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "download", "errand", "goal_add", "goal_done", "need", "look", "ask",
+                                 "web_search", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "need", "look", "ask",
                                  "answer"])
 
     def cut_write(self, path, lines, tool="write"):
@@ -526,7 +531,7 @@ class AgentTest(unittest.TestCase):
         """2026-10-03: a whole project didn't fit 16K, and compaction dropped every read; now the oldest reads
         become their maps first, the reasoning stays, and the last two reads stay whole."""
         body = "\n".join([f"def f{i}():\n    return {i}" + ("\n    # pad " + "x" * 25) * 30 for i in range(12)])
-        for i in range(7):  # 7 reads overflow 8K; 2 whole reads and 5 maps fit under 60 %
+        for i in range(7):  # 7 reads overflow 8K; 2 whole reads and 5 maps fit under 60 % of the history's room
             with open(os.path.join(self.root, f"m{i}.py"), "w", encoding="utf-8") as f:
                 f.write(body)
         steps = [step(f"Read m{i}.", tool="read", path=f"m{i}.py") for i in range(7)] + \
