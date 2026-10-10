@@ -386,6 +386,15 @@ and distill take `goal` N); the junior's goals go to it once their needs are in,
 skeleton" is out of the Senior's text: the skeleton is a goal in the plan like any other. Known limit: a need counts
 as in when as many pages, files or records came in for the goal as it has needs — the count, not their content.
 
+**LFD, Large File Distillation** (Ian, 2026-10-10, after test9's Senior read fifteen files itself at ~20 tokens a
+second — its experts in RAM — while the junior, ~25x faster at reading, sat idle): its own function for taking in a
+large codebase (`aicui/lfd.py`). The Senior starts the shared summary (`notes/project-summary.md`, with what it's for);
+the project's own files go in a list by size; the Junior summarizes from the smallest up, the Senior from the largest
+down, each file in a fresh context of its own, appended by code; they meet in the middle. Then the Senior's working
+context is dumped: it goes on with only the request and the summary, makes the plan for moving forward (roles for both;
+the open goals give way, the ticked ones stay), and works it. With it, `brief (files, question)`: the Junior reads
+files and answers the Senior between its steps; a brief arriving counts as progress.
+
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 
 Ian, after a run where the 4B's review blocked a goal five times and overruled the coder and the person: "The

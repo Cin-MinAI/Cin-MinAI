@@ -87,10 +87,12 @@ ACTIONS = [
             "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
     {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
     {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
+    {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR},
+    {"tool": "lfd", "focus": STR},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
 OPTIONAL = {"start", "goal", "into", "format", "kind", "network"}
-SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up"}   # style B's Senior (PLAN §1b, two cards)
+SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd"}   # style B's Senior (PLAN §1b)
 BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
@@ -256,7 +258,9 @@ itself is never in it), its `files`, and `who` does it (you, or the junior).
 The person sees it once. Fetch a goal's needs with `goal` N; the junior's goals go to it once their needs are in, or
 give it one file with assign (`path`, `task`, `kind`). Its results come between your steps: review_task (`n`,
 `accept`, `note`); a task that's taking long gets a progress report: let it work, or direct it with follow_up (`n`,
-`note`). Pages you fetch go to the junior first; its notes (notes/) come to you. You have the final word."""
+`note`). It reads ~25x faster than you: brief (`files`, `question`) has it read files and answer you; lfd (`focus`,
+Large File Distillation) has you both summarize every file of a project you don't have in mind, then you plan from
+the summary. Pages you fetch go to the junior first; its notes (notes/) come to you. You have the final word."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
@@ -784,15 +788,19 @@ class Agent:
             self.event("busy", doing="waiting for the helper's errand", tokens=0)
             time.sleep(2)
 
-    def deliver(self, steps: list[dict]) -> None:
-        """What the helper finished since the last step, as notes the model reads now."""
+    def deliver(self, steps: list[dict]) -> bool:
+        """What the helper finished since the last step, as notes the model reads now. True when one of them is a
+        junior's brief or gathered record: new knowledge for the project, a create (Ian, 2026-10-10)."""
         inbox = getattr(self, "inbox", None)
+        got = False
         while inbox:
             n, kind, text = inbox.pop(0)
+            got = got or (kind == "task" and ("(brief, by your junior)" in text or "gathered record" in text))
             self.note(steps, f"Task {n} is back from your junior:\n{text}" if kind == "task" else
                       f"Task {n} is still with your junior — how it's going:\n{text}" if kind == "progress" else
                       f"Your senior's direction on task {n}:\n{text}" if kind == "direction" else
                       f"Errand {n} ({kind}) is back from your helper:\n{text}")
+        return got
 
     # --- the loop -------------------------------------------------------------------------------------------
     def system(self) -> str:
@@ -1062,6 +1070,7 @@ class Agent:
             pass
 
     def work(self, text: str, cancel: threading.Event | None) -> str:
+        self.cancel_event = cancel  # LFD's long call stops with the rest
         self.task_drafts: set[str] = set()  # drafts this task started or added to
         msg = self.steps_of(text, cancel)
         stale = self.set_aside_drafts()
@@ -1107,7 +1116,8 @@ class Agent:
             hook = getattr(self, "each_step", None)
             if callable(hook):
                 hook()  # team B: a junior goal whose needs came in goes to the junior
-            self.deliver(steps)  # the helper's answers, as soon as they're back
+            if self.deliver(steps):  # the helper's answers, as soon as they're back; a brief or a record: progress
+                last_progress = n
             try:
                 raw, t = self.generate(self.fit(text, steps), n, cancel)
             except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
@@ -1160,6 +1170,11 @@ class Agent:
             self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
+            dump = getattr(self, "dump_context", None)
+            if dump:  # LFD (Ian, 2026-10-10): the context dumped, the summary kept, the plan next
+                self.dump_context = None
+                steps[:] = [{"note": dump}]
+                self.cut, self.lite, self.reads = 0, 0, {}
             refused = (json.dumps(act, sort_keys=True), result) if result.startswith("error") else None
             if refused and refused == getattr(self, "last_refused", None):
                 # 2026-10-10 (test7): the same refused step, fifteen times — a model that doesn't change course after
@@ -1237,6 +1252,8 @@ class Agent:
         if "logged as change" in result:  # write / delete
             return True
         if result.startswith(("the person said no", "the user said no")):  # reject (the person decided)
+            return True
+        if tool == "lfd" and result.startswith("Large File Distillation done"):  # create: the project's summary
             return True
         if tool == "fetch" and result.startswith("saved "):  # create: a new source in the project (Ian, 2026-10-10)
             return True
@@ -1583,7 +1600,8 @@ class Agent:
         """The person's request as goals (Ian, 2026-10-10: the Senior "didnt search, didnt use the junior, and didnt
         really make a plan"): each with what must come from outside, its files and who does it; the person sees it
         once and says OK or what to change."""
-        if self.goals.load():
+        replan = getattr(self, "replan_ok", False) and self.goals.load()  # after LFD: the plan for moving forward
+        if self.goals.load() and not replan:
             return "error: this project has its goals already; add one with goal_add"
         goals = []
         for it in items[:PLAN_MAX]:
@@ -1617,6 +1635,11 @@ class Agent:
             return "the person said no to the plan — ask what they want instead"
         if reply.lower() not in ("y", "yes", "ok", "a"):
             return f"the person wants changes to the plan: {reply[:500]} — make the plan again with them"
+        if replan:  # the open goals give way to the new plan; the ticked ones stay
+            for g in self.goals.load():
+                if not g["done"]:
+                    self.goals.remove(g["id"])
+            self.replan_ok = False
         made = [self.goals.add(g["text"], by="ai", from_outside=g["from_outside"], files=g["files"], who=g["who"])
                 for g in goals]
         self.event("goals")
@@ -1898,6 +1921,12 @@ class Agent:
                 return self.web_search(a.get("query", ""), a.get("kind") or "pages")
             if t == "download":
                 return self.download(a.get("urls") or [], a.get("folder", ""), a.get("goal"))
+            if t in ("brief", "lfd"):  # style B's Senior: the junior reads for it (pair.py, lfd.py)
+                fn = getattr(self, t + "_fn", None)
+                if not callable(fn):
+                    return "no junior is working with you here"
+                return fn(a.get("files") or [], str(a.get("question", ""))) if t == "brief" else \
+                    fn(str(a.get("focus", "")))
             if t == "follow_up":  # style B's Senior: direction for a junior's task while it works (pair.py)
                 fn = getattr(self, "follow_up_fn", None)
                 if not callable(fn):

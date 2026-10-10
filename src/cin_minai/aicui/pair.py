@@ -68,6 +68,8 @@ class Pair:
         senior.planned = self.release_goals  # the plan's junior goals, once their needs are in
         senior.each_step = self.between_steps   # and, between the senior's steps, a word on a junior task that's long
         senior.follow_up_fn = self.follow_up
+        senior.brief_fn = self.brief
+        senior.lfd_fn = self.lfd
         junior.inbox = []                       # the senior's direction, read at the junior's next step
         self.running: dict | None = None        # the junior's task now: {"n", "what", "since", "log0", "kinds"}
         self.pending_notes: dict[int, list[str]] = {}  # direction for a task that hasn't started
@@ -182,7 +184,7 @@ class Pair:
         if self.engine is not None and self.root:
             try:
                 table = self.engine.order(self.root["id"], self.lead, self.second, what, f"{what}\nfor {towards}",
-                                          {"write": "write", "distill": "read"}.get(kind, "check"))
+                                          {"write": "write", "distill": "read", "brief": "read"}.get(kind, "check"))
             except Exception:
                 table = None
         with self.lock:
@@ -200,6 +202,8 @@ class Pair:
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n}: {what}")
         if kind == "goal":
             return f"task {n} given to your junior ({what}); its files are held for it until it's done."
+        if kind == "brief":
+            return f"task {n} given to your junior ({what}); its answer comes between your steps — work on meanwhile."
         if kind == "distill":
             return (f"task {n} given to your junior (distill" + (f" into {rel}, held for it" if rel else "") +
                     "); work on other files meanwhile; the gathered record comes between your steps.")
@@ -247,6 +251,73 @@ class Pair:
                      f"({r['n']}, note) — what's wrong and the next small step; if it's on the right track, let it work."))
         r["since"], r["kinds"] = done, len(kinds)
         self.senior.inbox.append((r["n"], "progress", report))
+
+    def brief(self, files: list, question: str) -> str:
+        """The Senior asks the Junior about some files (Ian, 2026-10-10: "have your assistant scan each file and
+        summarize to you"): it reads them, each in a fresh context, and answers between the Senior's steps."""
+        root = os.path.realpath(self.senior.root)
+        found, missing = [], []
+        for f in files[:20]:
+            full = os.path.realpath(os.path.join(root, str(f)))
+            (found if full.startswith(root + os.sep) and os.path.isfile(full) else missing).append(
+                os.path.relpath(full, root).replace(os.sep, "/") if full.startswith(root + os.sep) else str(f))
+        if not found:
+            return "error: none of these is a file in the project" + (f" ({', '.join(missing)})" if missing else "")
+        if len(question.split()) < 3:
+            return "error: say what you want to know from them (the question)"
+        spec = json.dumps({"files": found, "question": question})
+        said = self.queue("", spec, "brief", f"brief: {', '.join(found)[:120]} — {question}"[:200], hold=[])
+        return said + (f" (not files here: {', '.join(missing)})" if missing else "")
+
+    def run_brief(self, n: int, spec: str, table: dict | None) -> str:
+        from . import lfd
+        s = json.loads(spec)
+        stop = lambda: self.halted(table)  # noqa: E731
+        parts = []
+        for rel in s["files"]:
+            if stop():
+                break
+            self.junior.event("busy", doing=f"brief: reading {rel}", tokens=0)
+            parts.append(f"## {rel}\n{lfd.summarize(self.junior, rel, s['question'], stop)}")
+        os.makedirs(os.path.join(self.senior.root, ".cinminai", "briefs"), exist_ok=True)
+        kept = f".cinminai/briefs/{n}.md"
+        answer = "\n\n".join(parts)
+        with open(os.path.join(self.senior.root, kept), "w", encoding="utf-8") as f:
+            f.write(f"# {s['question']}\n\n{answer}\n")
+        result = (f"task {n} (brief, by your junior) — {s['question']}\n{answer[:3500]}"
+                  + (f"\n… the rest is kept in {kept}" if len(answer) > 3500 else ""))
+        if table is not None and self.engine is not None:
+            try:
+                self.engine.finish(table, self.second, self.models[self.second], "briefed", result)
+                self.engine.claim(self.lead)
+            except Exception:
+                pass
+        return result
+
+    def lfd(self, focus: str) -> str:
+        """Large File Distillation (lfd.py): both cards summarize the whole project from opposite ends; then the
+        Senior's context is dumped and it plans from the summary."""
+        from . import lfd
+        focus = " ".join(focus.split()) or "what each part does and what's left to do"
+        cancel = getattr(self.senior, "cancel_event", None)
+        stop = lambda: self.stop_junior.is_set() or bool(cancel is not None and cancel.is_set())  # noqa: E731
+        self.senior.event("handoff", by="senior", to="junior", text=f"Large File Distillation: {focus}")
+        r = lfd.run(self.senior, self.junior, focus, stop)
+        if r["stopped"]:
+            return (f"Large File Distillation stopped by the person: {r['by_junior'] + r['by_senior']} of {r['files']} "
+                    f"files summarized so far, in {r['path']}")
+        limit = int(getattr(self.senior, "ctx", 32768) * getattr(self.senior, "cpt", 3.0) * 0.4)
+        text = r["text"] if len(r["text"]) <= limit else r["text"][:limit] + f"\n… (the rest is in {r['path']})"
+        self.senior.dump_context = (
+            f"Large File Distillation is done: {r['files']} files, {r['by_junior']} summarized by your junior (from the "
+            f"smallest), {r['by_senior']} by you (from the largest), in {r['path']}. Your earlier steps in this request "
+            "are cleared, so your context is fresh. The project summary:\n\n" + text + "\n\nNow make the plan for "
+            "moving forward with plan — roles for you and your assistant; the open goals give way to it, the ticked ones "
+            "stay — then work it.")
+        self.senior.replan_ok = True
+        return (f"Large File Distillation done: {r['files']} files in {r['seconds']} s — {r['by_junior']} by your "
+                f"junior, {r['by_senior']} by you — into {r['path']}. Your context is cleared next; the summary comes "
+                "with it.")
 
     def follow_up(self, n: int, note: str) -> str:
         """The Senior's direction for a Junior task: read at the Junior's next step if it's working on it, or given
@@ -338,6 +409,8 @@ class Pair:
                     result = "not done: stopped by the person"
                 elif kind == "distill":
                     result = self.run_distill(n, rel, task, table)
+                elif kind == "brief":
+                    result = self.run_brief(n, task, table)
                 elif kind == "goal":
                     spec = json.loads(task)
                     result = self.run_task(n, ", ".join(spec["files"]) or f"goal {spec['goal']}", spec["text"], kind,

@@ -46,6 +46,8 @@ So each rule is one of two kinds:
 | A27 | plan, the needs gate | each outside item has a kind (text, pictures, sound, file); each is met by one source of its kind; a page counts once, by its text | today (test8: one page's .txt and .html met "the card lists" and "the card images") |
 | A28 | team B | after the Senior moves on 3 times while a task is still with the Junior, a word on how it's going (its steps, changes, moving or not); follow_up gives the Junior direction mid-task, or with the task if it hasn't started | today (Ian: "task follow up") |
 | A29 | run | Ask: commands never reach the internet (the web through fetch, download, web_search); Auto: a command with `network` true asks the person once for the session; No permissions: no sandbox (the person's choice) | today (Ian, after test9's own downloader in No permissions) |
+| A30 | brief (team B's Senior) | the junior reads the files named and answers the question between the senior's steps; a brief arriving is progress (a create) | today (test9: the senior read fifteen files itself at ~20 tokens a second, one of them five minutes) |
+| A31 | lfd (team B's Senior) | Large File Distillation: the project's own files by size, the junior from the smallest, the senior from the largest, each file in a fresh context, appended to notes/project-summary.md by code, meeting in the middle; then the senior's context is dumped and it plans from the summary (the open goals give way, the ticked stay) | today (Ian) |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model

@@ -455,6 +455,64 @@ class PairTest(unittest.TestCase):
         self.assertIn("isn't with your junior", senior.do({"tool": "follow_up", "n": 9, "note": "Do it differently."}))
         self.assertIn("follow_up (`n`,", senior.system())
 
+    def test_large_file_distillation_meets_in_the_middle_then_the_senior_plans_fresh(self):
+        """Ian, 2026-10-10: LFD — "The Sr picks the smallest file in the project by size and puts the Jr on summarizing
+        it. It goes to the largest file in the project and does the same. They both write to a common summary… meet in
+        the middle… It must dump its context in between… so it can process the summarized information into a plan." """
+        from cin_minai.aicui import lfd
+        senior, junior, p = self.pair()
+        sizes = {"a.py": 10, "b.py": 200, "c.py": 3000, "d.py": 9000}
+        for rel, n in sizes.items():
+            with open(os.path.join(self.root, rel), "w") as f:
+                f.write("#" * n + "\n")
+        os.makedirs(os.path.join(self.root, "sources"))
+        with open(os.path.join(self.root, "sources", "page.txt"), "w") as f:
+            f.write("fetched, not the codebase\n")
+        self.assertEqual([r for r, _ in lfd.project_files(self.root)], ["a.py", "rules.py", "b.py", "c.py", "d.py"])
+        steps = iter([step("Take the project in.", tool="lfd", focus="what's left for each goal"),
+                      step("Plan from the summary.", tool="plan", goals=[
+                          {"text": "Finish the rules from the summary", "from_outside": [], "files": ["rules.py"],
+                           "who": "senior"}]),
+                      step("", tool="answer", text="planned")])
+        sent = []
+
+        def senior_chat(messages, **kw):
+            if messages[0]["content"].startswith("You summarize"):
+                return "SENIOR read " + messages[0]["content"].split("This is ")[1].split(".")[0], {}
+            sent.append(messages)
+            return json.dumps(next(steps)), {}
+        senior.chat = senior_chat
+        junior.chat = lambda messages, **kw: (
+            "JUNIOR read " + messages[0]["content"].split("This is ")[1].split(".")[0], {})
+        senior.ask = lambda prompt: "y"
+        senior.goals.add("an old open goal", by="ai")
+        senior.turn("pick the project up")
+        with open(os.path.join(self.root, "notes", "project-summary.md")) as f:
+            summary = f.read()
+        self.assertIn("For: what's left for each goal", summary)
+        self.assertIn("## a.py (11 bytes, by the junior)", summary)  # the junior took the small end
+        self.assertIn("## d.py (9,001 bytes, by the senior)", summary)  # the senior the large one
+        self.assertLess(summary.index("## a.py"), summary.index("## d.py"))  # in size order
+        planning = " ".join(m["content"] for m in sent[1])
+        self.assertIn("Large File Distillation is done: 5 files", planning)
+        self.assertIn("your context is fresh", planning)
+        self.assertNotIn("Take the project in.", planning)  # the dumped steps are gone
+        self.assertEqual([g["text"] for g in senior.goals.load()], ["Finish the rules from the summary"])
+
+    def test_a_brief_has_the_junior_read_files_and_answer_between_steps(self):
+        """Ian, 2026-10-10 (test9): "Have your assistant scan each file and summarize to you" — the Senior read fifteen
+        files itself at ~20 tokens a second (one of them five minutes); a junior's brief counts as progress."""
+        senior, junior, p = self.pair()
+        junior.chat = lambda messages, **kw: ("draw() is a stub marked TODO", {})
+        said = senior.do({"tool": "brief", "files": ["rules.py", "nope.py"], "question": "what is left to do here?"})
+        self.assertIn("given to your junior (brief: rules.py", said)
+        self.assertIn("not files here: nope.py", said)
+        self.wait(p)
+        steps = []
+        self.assertTrue(senior.deliver(steps))  # a brief arriving is progress
+        self.assertIn("(brief, by your junior) — what is left to do here?\n## rules.py\ndraw() is a stub marked TODO",
+                      steps[-1]["note"])
+
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P
         self.assertEqual(P.team_of(self.root), "A")  # nothing chosen: team A

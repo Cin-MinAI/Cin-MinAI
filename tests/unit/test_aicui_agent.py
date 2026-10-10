@@ -148,7 +148,7 @@ class AgentTest(unittest.TestCase):
         list got a new thought each step). 3,156 on 2026-10-09; 3,689 with distill and the facts rule."""
         from cin_minai.aicui.agent import JUNIOR_SYSTEM, SENIOR_B, SYSTEM
         self.assertLessEqual(len(SYSTEM), 4000)
-        self.assertLessEqual(len(SENIOR_B), 900)  # 871 with follow_up (a tool line, not a step to follow)
+        self.assertLessEqual(len(SENIOR_B), 1200)  # 1,106 with follow_up, brief and lfd (tool lines, not steps)
         self.assertLessEqual(len(JUNIOR_SYSTEM), 1400)
         for words in ("- distill (", "never type them from memory", "a site you've fetched"):
             self.assertIn(words, SYSTEM)
