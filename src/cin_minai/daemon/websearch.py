@@ -99,8 +99,21 @@ BING_MARKET = {"en": "en-US", "es": "es-ES", "pt": "pt-BR", "fr": "fr-FR", "de":
 BING_RECENT = {"d": 'ex1:"ez1"', "w": 'ex1:"ez2"', "m": 'ex1:"ez3"'}
 
 
-def _clean(results: list[dict], via: str, skip_host: str) -> list[dict]:
+AD_PARAMS = {"adset_id", "gclid", "msclkid", "fbclid", "utm_source", "utm_medium", "utm_campaign", "utm_subcampaign",
+             "targetid"}  # an address carrying these is an advertisement's landing page
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]{3,}", text.lower()) if w not in ("the", "and", "for", "site", "com", "www")}
+
+
+def _clean(results: list[dict], via: str, skip_host: str, query: str = "") -> list[dict]:
+    """Results the person can use: https, each once; never the engine's own pages, an ad (an address with ad-tracking
+    parameters), or — with the query given — a page that shares no word with it (2026-10-10: a search engine answered
+    'site:… "Starter Set: Beta"' with four pages of budgeting-app ads). A query in a script without spaces
+    between words (Japanese) isn't checked word by word."""
     out, seen = [], set()
+    wanted = _words(query)
     for r in results:
         url = r["url"]
         if url.startswith("http://"):
@@ -108,6 +121,10 @@ def _clean(results: list[dict], via: str, skip_host: str) -> list[dict]:
         host = urllib.parse.urlsplit(url).hostname or ""
         if not url.startswith("https://") or skip_host in host or url in seen:
             continue  # ads and the engine's own pages
+        if AD_PARAMS & set(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)):
+            continue
+        if wanted and not wanted & _words(" ".join((r["title"], urllib.parse.unquote(url), r["snippet"]))):
+            continue
         seen.add(url)
         out.append({"title": re.sub(r"\s+", " ", r["title"]).strip(), "url": url,
                     "snippet": re.sub(r"\s+", " ", r["snippet"]).strip(), "via": via})
@@ -124,7 +141,8 @@ def bing(query: str, lang: str = "en", recent: str = "") -> list[dict]:
     except ET.ParseError as e:
         raise SearchError("Bing's results couldn't be read") from e
     return _clean([{"title": it.findtext("title") or "", "url": (it.findtext("link") or "").strip(),
-                    "snippet": html.unescape(it.findtext("description") or "")} for it in items], "Bing", "bing.com")
+                    "snippet": html.unescape(it.findtext("description") or "")} for it in items], "Bing", "bing.com",
+                  query)
 
 
 def search(query: str, lang: str = "en", recent: str = "", first: str = "local") -> list[dict]:
@@ -208,8 +226,11 @@ def searxng(query: str, lang: str = "en", recent: str = "") -> list[dict]:
     if not raw:
         down = "; ".join(f"{e} ({why})" for e, why in data.get("unresponsive_engines", [])[:4])
         raise SearchError("no results" + (f" — set aside: {down}" if down else ""))
-    return _clean([{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")}
-                   for r in raw], _answered_by(raw), "\0")
+    found = _clean([{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")}
+                    for r in raw], _answered_by(raw), "\0", query)
+    if not found:
+        raise SearchError("nothing that matches the search")
+    return found
 
 
 def images(query: str, lang: str = "en") -> list[dict]:
@@ -251,7 +272,7 @@ def duckduckgo(query: str, lang: str = "en", recent: str = "") -> list[dict]:
         raise Throttled("the search engine wants a short pause after many searches; try again in a few minutes")
     p = _DDG()
     p.feed(page)
-    return _clean(p.results, "DuckDuckGo", "duckduckgo.com")
+    return _clean(p.results, "DuckDuckGo", "duckduckgo.com", query)
 
 
 # --- reading a page ------------------------------------------------------------------------------------------

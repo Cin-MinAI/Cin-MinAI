@@ -24,7 +24,7 @@ from tests.unit.test_guide import DATA, FakeTools, Scripted  # noqa: E402
 DDG = """<html><body>
 <div class="result results_links"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.britannica.com%2Fevent%2FWorld-War-II&rut=x">World War II | Britannica</a>
 <a class="result__snippet" href="x">World War II began when Germany invaded Poland in 1939.</a></div>
-<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=http%3A%2F%2Fexample.org%2Fww2&rut=y">An http page</a></div>
+<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=http%3A%2F%2Fexample.org%2Fww2&rut=y">World War II, an http page</a></div>
 <div class="result"><a class="result__a" href="https://duckduckgo.com/y.js?ad_provider=x">An ad</a></div>
 </body></html>"""
 
@@ -204,7 +204,7 @@ class OwnSearch(unittest.TestCase):
         f = self.fake({"results": [
             {"title": "Starter Set: Alpha (TCG) - Card Set", "url": "https://cards.example/pack/Starter%20Set%3A%20Alpha/",
              "content": "Every card in the deck.", "engines": ["bing", "duckduckgo"]},
-            {"title": "An http page", "url": "http://cards.example/old", "content": "", "engines": ["bing"]}],
+            {"title": "Alpha, an http page", "url": "http://cards.example/old", "content": "", "engines": ["bing"]}],
             "unresponsive_engines": []})
         with mock.patch.object(websearch, "_get") as direct:
             r = websearch.search("Starter Set Alpha card list", recent="w")
@@ -228,6 +228,23 @@ class OwnSearch(unittest.TestCase):
         with self.assertRaises(websearch.SearchError) as e:
             websearch.images("anything")
         self.assertIn("set aside: duckduckgo (access denied)", str(e.exception))
+
+    def test_ads_and_pages_that_share_no_word_with_the_search_are_not_results(self):
+        """test5, 2026-10-10: 'site:… "Starter Set: Beta"' came back as four budgeting-app ads, from Bing's feed
+        and again from Bing through SearXNG while DuckDuckGo was set aside. Nothing usable: the direct way's turn."""
+        ads = [{"title": "Budgeting Tools - Monarch Money", "engines": ["bing"],
+                "url": "https://www.monarchmoney.com/landing/budgeting-tools?agency=tiger-tracks&utm_subcampaign=13&adset_id=13",
+                "content": "Monarch offers two ways to budget, so you can have the flexibility or structure you need."},
+               {"title": "You're invited to join Monarch", "url": "https://www.monarchmoney.com/referral?code=c3cfz43vz0",
+                "content": "The modern way to manage your money.", "engines": ["bing"]},
+               {"title": "Starter Set: Beta (TCG) - Card Set", "engines": ["bing"],
+                "url": "https://cards.example/pack/Starter%20Set%3A%20Beta/", "content": ""}]
+        self.fake({"results": ads, "unresponsive_engines": [["duckduckgo", "Suspended: access denied"]]})
+        r = websearch.search('site:cards.example "Starter Set: Beta"')
+        self.assertEqual([x["url"] for x in r], ["https://cards.example/pack/Starter%20Set%3A%20Beta/"])
+        self.fake({"results": ads[:2], "unresponsive_engines": []})
+        with mock.patch.object(websearch, "_get", return_value=(DDG, "text/html")):
+            self.assertEqual(websearch.search("world war 2")[0]["via"], "DuckDuckGo")  # only ads: the direct way
 
     def test_pictures_once_each_no_thumbnails_with_their_page(self):
         self.fake({"results": [
