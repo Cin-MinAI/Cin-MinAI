@@ -1203,7 +1203,7 @@ class Agent:
             return True
         if tool == "distill" and "gathered record" in result and not result.startswith("error"):  # create
             return True
-        if tool in ("goal_add", "need") and not result.startswith("error"):  # create (a goal; the environment's entry)
+        if tool in ("goal_add", "need") and not result.startswith(("error", "already")):  # create (a goal; an env's entry)
             return True
         if tool in ("run", "goal_done"):  # pass / fail: a verdict, counted when it's a new one
             key = hash((tool, re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result)))  # timings and addresses aren't news
@@ -1746,6 +1746,11 @@ class Agent:
             if t == "run":
                 return self.run(a["command"])
             if t == "goal_add":
+                same = lambda x: re.sub(r"\W+", " ", str(x)).strip().casefold()  # noqa: E731
+                twin = next((g for g in self.goals.load() if not g["done"] and same(g["text"]) == same(a["text"])), None)
+                if twin:  # an open goal again isn't a new one (2026-10-10: the same seven goals added three times)
+                    return (f"already goal {twin['id']}, open: {twin['text'][:120]} — nothing added. Work on it, or "
+                            "tick it with goal_done once its checks pass")
                 g = self.goals.add(a["text"], by="ai")
                 self.event("goals")
                 return f"goal {g['id']} added"

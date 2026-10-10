@@ -574,6 +574,36 @@ class AgentTest(unittest.TestCase):
         self.assertIn("</div> on line 6 closes nothing", r)
         self.assertNotIn("Check", a.change({"tool": "write", "path": "notes.txt", "content": "hi\n"}))
 
+    def test_an_open_goal_added_again_is_not_a_new_goal(self):
+        """2026-10-10 (test5): the Senior added the same seven goals three times, and each add counted as progress."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        first = a.do({"tool": "goal_add", "text": "Fetch the official card lists"})
+        self.assertTrue(a.progressed({"tool": "goal_add"}, first))
+        again = a.do({"tool": "goal_add", "text": "fetch the official card lists."})
+        self.assertIn("already goal 1, open", again)
+        self.assertFalse(a.progressed({"tool": "goal_add"}, again))
+        self.assertEqual(len(a.goals.load()), 1)
+
+    def test_different_addresses_never_write_over_each_other(self):
+        """2026-10-10 (test5): three card lists, card_search.action?pid=…, each wrote over the last as one source."""
+        from cin_minai.aicui import intake
+        page = lambda s: f"<html><body><p>{s}</p></body></html>".encode()  # noqa: E731
+        one = intake.save(self.root, "https://db.example/card_search.action?pid=111", page("set one"), "text/html")
+        two = intake.save(self.root, "https://db.example/card_search.action?pid=222", page("set two"), "text/html")
+        again = intake.save(self.root, "https://db.example/card_search.action?pid=111", page("set one, new"), "text/html")
+        self.assertEqual(one["files"], ["sources/card_search.txt", "sources/card_search.html"])
+        self.assertEqual(two["files"], ["sources/card_search-222.txt", "sources/card_search-222.html"])
+        self.assertEqual(again["files"], one["files"])  # the same address takes its own file again
+        with open(os.path.join(self.root, "sources", "card_search-222.txt"), encoding="utf-8") as f:
+            self.assertIn("set two", f.read())
+        os.makedirs(os.path.join(self.root, "assets", "cards"))
+        with open(os.path.join(self.root, "assets", "cards", "back.png"), "wb") as f:
+            f.write(b"the project's own")
+        got = intake.save(self.root, "https://pics.example/back.png", b"PNG", "image/png", "assets/cards")
+        self.assertNotEqual(got["files"], ["assets/cards/back.png"])  # a project's own file is never written over
+        with open(os.path.join(self.root, "assets", "cards", "back.png"), "rb") as f:
+            self.assertEqual(f.read(), b"the project's own")
+
     @unittest.skipUnless(shutil.which("bash") and os.name == "posix", "runs commands")
     def test_a_goal_is_ticked_only_when_the_checks_pass(self):
         """2026-10-03: "all four split tests pass" with one never run; tests green while the game crashed at start."""

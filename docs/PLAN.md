@@ -360,6 +360,14 @@ added, changed field by field, and after every change to a compiled file, not on
 distilled as the pictures (`format` files: the page's own addresses beside their words, kept only if the source
 holds them, downloaded with one approval, an `index.json` of which is which compiled by code).
 
+**Test5's first findings** (2026-10-10, team B): the Senior added the same seven goals three times, and each add
+counted as progress → an open goal added again is refused ("already goal N") and isn't progress. Three card lists from
+one address with different queries were saved as one source, each over the last → a different address never takes a
+name another address holds (a tag from its query, else a short hash), and a project's own file is never written over.
+Open, for Ian: the Senior's thinking repeats word for word from step to step (15 steps, 6 distinct thoughts); the
+same thought several steps running as stuck, or earlier thinking resent shortened. Seen too: that card database puts
+its card pictures in by script, so its pages hold names but no picture addresses.
+
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 
 Ian, after a run where the 4B's review blocked a goal five times and overruled the coder and the person: "The
