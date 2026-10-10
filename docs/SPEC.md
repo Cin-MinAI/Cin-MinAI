@@ -2201,6 +2201,48 @@ the Requests view shows it.
   cycle's own steps count when they land as one of the four. Six steps without one are said (and recorded), again at
   twelve; fifteen stop the task — a hint, then the person.
 
+### 23.5 GatheredData: fetch, distill, compile (designed 2026-10-10)
+
+A system for every model in AICUI, in Ian's words: **fetch** is "anything involving read function", **distill** is
+"extract the intended anything from the read function", **compile** is "structure a proper information format /
+understanding… reconstruct the information that was fetched and extracted to compile it into the intention of the
+read function originally. That's how we tie it back together." It sharpens the first half of §23 (fetch, structure,
+check) for AICUI.
+
+**Every read has an intent**, and the intent travels with it: what the model wants from the read, in a sentence ("the
+rules of the Battle Phase", "each card's name, type, ATK and DEF", "where `currentPlayer` is set"). A read without an
+intent is a look around, and stays one.
+
+1. **Fetch — anything that reads.** Opening a file, listing, searching the project, a long code file, a page or a
+   file from the web, a PDF, a look at the screen or the program. One step, one set of boundaries: inside the project,
+   free; leaving the computer, asked first (D86); a web address only if it came from somewhere (the person, a search,
+   a page already fetched); everything that comes in is kept with **its origin** — the address and the date, or "the
+   person gave it" — offline, in the project. What came in from outside stays as it came, **protected by its
+   origin**, never by the folder it's in: a project's own files in `assets/` are its own.
+2. **Distill — extract what the intent asked.** Not the whole thing: the intended thing. A long file read part by part
+   and extracted piece by piece; a web page that holds the picture yields the picture, not a repair of the website; a
+   rulebook yields the rules the intent named, each with where it came from (page, section). What's distilled is
+   kept as a **gathered record** — the intent, the extracted content (text or structured), its sources with their
+   places, which model distilled it and when — so a later step can trust it and trace it.
+3. **Compile — rebuild it into the form the intent needed.** The distilled pieces reassembled into the project's own
+   structure: a rules table, a card list, a deck file, a function that does what the rules say. Compiling is checked
+   against the intent and the sources: a test that the card list holds as many entries as its source, a review that
+   compares a deck with the card list it came from — never against a model's memory.
+
+**Two levels of compile, and the two cards** (§22.5, PLAN §1b). Ian: "Jr should do mostly reading and distilling, Sr
+should do mostly direction and organizing. Both do write… Sr is the main compiler for the project while Jr can
+compile for a file." The Junior fetches and distills — reading is cheap for it (measured 2026-10-10: the 9B whole on
+the card read ~10× faster than the 35B-A3B with its experts in RAM, 510 vs 47 tokens a second) — and compiles within
+a file. The Senior directs (what to read, and the intent of each read), compiles the project (the plan, the
+structure, how the files fit), writes the mechanisms that matter, and reviews against the gathered records. Both
+write.
+
+**When the Junior is stuck, it goes up, not out.** Ian: "the jr writes, reads, writes, reads, gets stuck, sends to sr,
+sr reads, distills next step, gives to jr." The Junior works under the Senior's own rules (the nudges, the stuck limit,
+Stop honored every step); its stuck point — what it was doing, where it stopped, the last error — goes to the Senior,
+which distills a smaller next step or patches that one mechanism itself. A Junior change that would replace most of
+a file goes to the Senior before it lands.
+
 ### 23.4 Build order
 
 1. **AICUI, data from scripts:** a list over ~30 items comes from a script into a data file and is checked before

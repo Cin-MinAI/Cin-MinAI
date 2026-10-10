@@ -315,6 +315,40 @@ a root task (origin person) for its lead; helper jobs are child tasks with their
 into shared context; Stop anywhere cancels the tree; a run left open by a closed AICUI is cancelled the next time it
 opens. The Requests view shows each task with its kind, model and verdict in the six languages.
 
+### GatheredData, and test4's findings (Ian, 2026-10-10) — fills D96 and D94; designed, to build before test5
+
+SPEC §23.5. The design in one line: every read has an intent; fetch reads it (within boundaries, kept with its
+origin), distill extracts what the intent asked (a gathered record with its sources), compile rebuilds it into the
+form the intent needed (checked against the sources); the Junior reads and distills and compiles a file, the Senior
+directs and compiles the project; both write; the Junior's stuck point goes to the Senior.
+
+**What test4 showed** (team B, 35B-A3B Senior + 9B Junior on the 1080 Ti; both on the card at 5.8 + 4.6 GB; Senior
+~21 tok/s writing, 47 reading; Junior ~32 writing, 510 reading; a 1,800-line C++ engine that builds):
+1. Facts from memory, not sources: the rulebook (its text kept by the new PDF reader) and a card list were fetched
+   and never read; the Senior rejected the Junior three times with deck lists from memory; ~1,100 lines of decks
+   hard-coded in C++; no images. → distill and compile from the sources; review against them.
+2. Protection by folder: the project's own `assets/decks/*.json` was refused as kept material, so the data went into
+   code. → protection by origin.
+3. Tasks too big, nothing caught a destructive write: every task was "write src/DeckLoader.cpp"; the Junior redrafted
+   the whole file (58 draft notes) and a finished draft replaced 1,088 lines with 77 (undone from the changelog). →
+   the Senior distills small steps; a change that replaces most of a file goes up first; unfinished drafts aren't
+   progress.
+4. The Junior never escalated and couldn't be stopped (Stop only between tasks; Ctrl+C at an idle prompt reached
+   nothing). → the Senior's rules for the Junior; its stuck point up; Stop every step.
+5. The Senior didn't use what it had until told ("I cannot browse the live web"; no handoff until "use your
+   assistant"). → the web tools and the Junior first in its instructions; skeleton, then delegate the reading.
+6. The Senior repeated one thought to the stuck limit twice. → with escalation, a stuck Senior goes to the person
+   with its stuck point, as now.
+
+**Slices** (one build, in this order, each with its tests):
+1. Origins and protection by origin; Stop every step for the Junior and from an idle prompt; the Junior's stuck point
+   to the Senior; unfinished drafts aren't progress; a mostly-replacing Junior change goes up first.
+2. Reads with an intent and gathered records: the Junior's distill task (read these sources for this intent, write
+   the gathered record and, if asked, the data file it compiles to); the Senior's instructions lead with direction,
+   the web and the Junior; the Junior's with reading and distilling.
+3. Compile checked against the sources: tests that compare a data file with its gathered record; reviews against the
+   records, not memory.
+
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 
 Ian, after a run where the 4B's review blocked a goal five times and overruled the coder and the person: "The
