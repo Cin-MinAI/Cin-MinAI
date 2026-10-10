@@ -513,6 +513,45 @@ class PairTest(unittest.TestCase):
         self.assertIn("(brief, by your junior) — what is left to do here?\n## rules.py\ndraw() is a stub marked TODO",
                       steps[-1]["note"])
 
+    def test_the_juniors_question_goes_to_the_person_and_the_senior_first_answer_wins(self):
+        """Ian, 2026-10-10: "If jr asks both user and sr can click yes or no." (That day the senior's progress line wiped
+        the junior's question off the screen and both waited.)"""
+        import threading
+        from cin_minai.aicui import agent as A
+        senior, junior, p = self.pair()
+        junior.mode = senior.mode = "ask"
+        junior.refresh = senior.refresh = lambda: None
+        p.terminal = lambda prompt, q: (q["event"].wait(5), q["answer"])[1]  # the person doesn't answer: the senior does
+        got = {}
+        t = threading.Thread(target=lambda: got.setdefault("ok", junior.allowed(
+            "edit", "- old\n+ new", "src/engine/Game.cpp")))
+        t.start()
+        for _ in range(100):
+            if senior.inbox:
+                break
+            time.sleep(0.02)
+        ((n, kind, text),) = senior.inbox
+        self.assertEqual(kind, "question")
+        self.assertIn("edit src/engine/Game.cpp", text)
+        self.assertIn("+ new", text)  # the senior sees the change it's asked about
+        steps = []
+        senior.deliver(steps)
+        self.assertIn(f"Your junior asks (question {n}): may it edit src/engine/Game.cpp", steps[-1]["note"])
+        self.assertIn("told your junior: yes", senior.do({"tool": "permit", "n": n, "allow": True}))
+        t.join(5)
+        self.assertTrue(got["ok"])
+        self.assertIn("answered already (yes, by the senior)", senior.do({"tool": "permit", "n": n, "allow": False}))
+        p.terminal = lambda prompt, q: "n"  # the person answers first
+        self.assertFalse(junior.allowed("run", "$ rm -rf build", "rm -rf build"))
+        self.assertIn("answered already (no, by the person)", senior.do({"tool": "permit", "n": n + 1, "allow": True}))
+        seen = []
+        asker = Agent(self.root, Scripted([]), "m", "ask", say=lambda s: None,
+                      ask=lambda prompt: (seen.append(A.PENDING["prompt"]), "y")[1])
+        asker.refresh = lambda: None
+        asker.allowed("edit", "+ x", "app.py")
+        self.assertIn("Allow edit app.py?", seen[0])  # the question is on screen while it waits, saying what for
+        self.assertEqual(A.PENDING["prompt"], "")
+
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P
         self.assertEqual(P.team_of(self.root), "A")  # nothing chosen: team A

@@ -89,10 +89,11 @@ ACTIONS = [
     {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
     {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR},
     {"tool": "lfd", "focus": STR},
+    {"tool": "permit", "n": {"type": "integer"}, "allow": {"type": "boolean"}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
 OPTIONAL = {"start", "goal", "into", "format", "kind", "network"}
-SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd"}   # style B's Senior (PLAN §1b)
+SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit"}  # style B's Senior
 BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
@@ -173,7 +174,11 @@ def compare_items(want: list, have: list) -> list[str]:
 
 def _asked(ask, prompt: str) -> str:
     with ASK_LOCK:
-        return ask(prompt)
+        PENDING["prompt"] = prompt
+        try:
+            return ask(prompt)
+        finally:
+            PENDING["prompt"] = ""
 
 
 def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(SENIOR_ONLY)) -> dict:
@@ -260,10 +265,15 @@ give it one file with assign (`path`, `task`, `kind`). Its results come between 
 `accept`, `note`); a task that's taking long gets a progress report: let it work, or direct it with follow_up (`n`,
 `note`). It reads ~25x faster than you: brief (`files`, `question`) has it read files and answer you; lfd (`focus`,
 Large File Distillation) has you both summarize every file of a project you don't have in mind, then you plan from
-the summary. Pages you fetch go to the junior first; its notes (notes/) come to you. You have the final word."""
+the summary. Its questions (may it change a file, run a command) come to you too: permit (`n`, `allow`), or leave
+them to the person. Pages you fetch go to the junior first; its notes come to you. You have the final word."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
+# the question the person sees now: the progress line pauses for it, and anything said meanwhile goes above it, the
+# question shown again below (2026-10-10: the senior's progress line wiped the junior's question off the screen, and
+# both waited for an answer nobody could see)
+PENDING = {"prompt": ""}
 
 
 def slim(step: dict) -> str:
@@ -745,6 +755,7 @@ class Agent:
         self.venv = venv_of(root)
         self.mode, self.admin, self.say = mode, admin, say
         self.ask = lambda prompt: _asked(ask, prompt)  # one question at a time, whichever agent asks
+        self.raw_ask = ask
         self.role = "solo"  # "senior" / "junior" in style B (pair.py); solo and style A use the coder's tools
         self.tick = tick  # tick(text): the terminal's progress line while a step is generated
         self.goals, self.log = Goals(root), Changelog(root)
@@ -799,6 +810,8 @@ class Agent:
             self.note(steps, f"Task {n} is back from your junior:\n{text}" if kind == "task" else
                       f"Task {n} is still with your junior — how it's going:\n{text}" if kind == "progress" else
                       f"Your senior's direction on task {n}:\n{text}" if kind == "direction" else
+                      f"Your junior asks (question {n}): may it {text}\nAnswer with permit (n {n}, allow true or false), "
+                      "or leave it to the person, who sees it too." if kind == "question" else
                       f"Errand {n} ({kind}) is back from your helper:\n{text}")
         return got
 
@@ -1334,7 +1347,11 @@ class Agent:
             return True
         self.say(show)
         self.event("busy", doing="waiting for your answer in the terminal", asking=f"{tool} {what}".strip()[:120])
-        reply = self.ask(f"\033[1mAllow {tool}? [y]es / [n]o / [a]lways (auto from now on): \033[0m").strip().lower()
+        about = f" {what.strip()[:80]}" if what.strip() else ""
+        either = getattr(self, "ask_permission", None)  # team B's junior: the person or its senior answers
+        reply = (either(tool, show, about) if callable(either) else self.ask(
+            f"\r\033[K\033[1m{'(junior) ' if self.role == 'junior' else ''}Allow {tool}{about}? [y]es / [n]o / "
+            "[a]lways (auto from now on): \033[0m")).strip().lower()
         if reply.startswith("a"):
             self.mode = "auto"
             self.save_session()  # AICUI's permission choice follows
@@ -1921,6 +1938,11 @@ class Agent:
                 return self.web_search(a.get("query", ""), a.get("kind") or "pages")
             if t == "download":
                 return self.download(a.get("urls") or [], a.get("folder", ""), a.get("goal"))
+            if t == "permit":  # style B's Senior answers its junior's question (the person may answer first)
+                fn = getattr(self, "permit_fn", None)
+                if not callable(fn):
+                    return "no junior is working with you here"
+                return fn(int(a.get("n") or 0), bool(a.get("allow")))
             if t in ("brief", "lfd"):  # style B's Senior: the junior reads for it (pair.py, lfd.py)
                 fn = getattr(self, t + "_fn", None)
                 if not callable(fn):
@@ -2409,19 +2431,27 @@ def main(argv=None) -> int:
         backend, name = local_backend()
 
     def tick(text: str) -> None:  # one progress line, rewritten in place; anything said after it starts clean
+        if PENDING["prompt"]:
+            return  # a question is on screen: the progress line waits
         sys.stdout.write(f"\r\033[2m… {text}\033[0m\033[K")
         sys.stdout.flush()
 
+    def said(text: str) -> None:  # a line said; a question waiting is shown again below it
+        print(f"\r\033[K{text}")
+        if PENDING["prompt"]:
+            sys.stdout.write(PENDING["prompt"])
+            sys.stdout.flush()
+
     agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)),
-                  say=lambda s: print(f"\r\033[K{s}"), tick=tick)
+                  say=said, tick=tick)
     agent.chat = card_minded(backend, agent.event, agent.say)
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     team_b = None
     if both:  # style B: this agent is the Senior; the 9B Junior codes beside it (pair.py)
         junior = Agent(root, junior_backend.chat, junior_name, mode, a.admin,
                        ctx=int(junior_backend.cfg.get("context", 8192)),
-                       say=lambda s: print(f"\r\033[K\033[2m(junior) {s}\033[0m"))
-        team_b = pair_mod.Pair(agent, junior, say=lambda s: print(f"\r\033[K{s}"))
+                       say=lambda s: said(f"\033[2m(junior) {s}\033[0m"))
+        team_b = pair_mod.Pair(agent, junior, say=said)
         if senior_sees:
             agent.reader = lambda: agent.chat
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "

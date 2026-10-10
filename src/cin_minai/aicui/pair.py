@@ -70,6 +70,10 @@ class Pair:
         senior.follow_up_fn = self.follow_up
         senior.brief_fn = self.brief
         senior.lfd_fn = self.lfd
+        senior.permit_fn = self.permit
+        junior.ask_permission = self.junior_permission  # its questions: to the person and to the senior
+        self.questions: dict[int, dict] = {}
+        self.asked = 0
         junior.inbox = []                       # the senior's direction, read at the junior's next step
         self.running: dict | None = None        # the junior's task now: {"n", "what", "since", "log0", "kinds"}
         self.pending_notes: dict[int, list[str]] = {}  # direction for a task that hasn't started
@@ -318,6 +322,60 @@ class Pair:
         return (f"Large File Distillation done: {r['files']} files in {r['seconds']} s — {r['by_junior']} by your "
                 f"junior, {r['by_senior']} by you — into {r['path']}. Your context is cleared next; the summary comes "
                 "with it.")
+
+    def junior_permission(self, tool: str, show: str, about: str) -> str:
+        """Ian, 2026-10-10: "If jr asks both user and sr can click yes or no." The question goes to the terminal and to
+        the Senior between its steps; whichever answers first decides."""
+        with self.lock:
+            self.asked += 1
+            k = self.asked
+        q = {"n": k, "event": threading.Event(), "answer": "", "by": ""}
+        self.questions[k] = q
+        self.senior.inbox.append((k, "question", f"{tool}{about}:\n{show[:800]}"))
+        reply = self.terminal(f"\r\033[K\033[1m(junior) Allow {tool}{about}? [y]es / [n]o / [a]lways — or your "
+                              "senior answers: \033[0m", q)
+        if not q["event"].is_set():
+            q["answer"], q["by"] = reply.strip().lower(), "person"
+            q["event"].set()
+        self.senior.event("handoff", by=q["by"], to="junior",
+                          text=f"question {k}: {tool}{about} — {'yes' if q['answer'][:1] in ('y', 'a') else 'no'}")
+        return q["answer"]
+
+    def terminal(self, prompt: str, q: dict) -> str:
+        """The question on screen, its answer from the keyboard — or from the senior while it waits."""
+        import select
+        import sys
+        from .agent import ASK_LOCK, PENDING
+        with ASK_LOCK:
+            if q["event"].is_set():
+                return q["answer"]
+            if not sys.stdin.isatty():
+                return self.junior.raw_ask(prompt)
+            PENDING["prompt"] = prompt
+            try:
+                sys.stdout.write(prompt)
+                sys.stdout.flush()
+                while True:
+                    ready, _, _ = select.select([sys.stdin], [], [], 0.5)
+                    if ready:
+                        return sys.stdin.readline().strip()
+                    if q["event"].is_set():
+                        sys.stdout.write(f"\r\033[K(the junior's question was answered by your senior: "
+                                         f"{'yes' if q['answer'] == 'y' else 'no'})\n")
+                        sys.stdout.flush()
+                        return q["answer"]
+            finally:
+                PENDING["prompt"] = ""
+
+    def permit(self, n: int, allow: bool) -> str:
+        q = self.questions.get(n)
+        if q is None:
+            return f"error: there's no question {n} from your junior"
+        if q["event"].is_set():
+            return f"question {n} is answered already ({'yes' if q['answer'][:1] in ('y', 'a') else 'no'}, by the {q['by']})"
+        q["answer"], q["by"] = ("y" if allow else "n"), "senior"
+        q["event"].set()
+        return f"told your junior: {'yes' if allow else 'no'} (question {n})"
 
     def follow_up(self, n: int, note: str) -> str:
         """The Senior's direction for a Junior task: read at the Junior's next step if it's working on it, or given

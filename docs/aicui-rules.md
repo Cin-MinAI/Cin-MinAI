@@ -48,6 +48,8 @@ So each rule is one of two kinds:
 | A29 | run | Ask: commands never reach the internet (the web through fetch, download, web_search); Auto: a command with `network` true asks the person once for the session; No permissions: no sandbox (the person's choice) | today (Ian, after test9's own downloader in No permissions) |
 | A30 | brief (team B's Senior) | the junior reads the files named and answers the question between the senior's steps; a brief arriving is progress (a create) | today (test9: the senior read fifteen files itself at ~20 tokens a second, one of them five minutes) |
 | A31 | lfd (team B's Senior) | Large File Distillation: the project's own files by size, the junior from the smallest, the senior from the largest, each file in a fresh context, appended to notes/project-summary.md by code, meeting in the middle; then the senior's context is dumped and it plans from the summary (the open goals give way, the ticked stay) | today (Ian) |
+| A32 | every question | the progress line pauses while a question waits; what's said meanwhile goes above it and the question is shown again; it says who asks and for what | today (the senior's progress line wiped the junior's question; both waited) |
+| A33 | team B | the junior's permission questions go to the person and to the senior (permit n, allow); the first answer decides, the terminal says who answered | today (Ian: "If jr asks both user and sr can click yes or no") |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model
