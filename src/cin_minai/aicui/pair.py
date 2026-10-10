@@ -65,7 +65,12 @@ class Pair:
         senior.assign_fn = self.assign
         senior.distiller = self.distill
         senior.first_reader = self.first_read  # team B: what the senior fetches, the junior reads first
-        senior.planned = senior.each_step = self.release_goals  # the plan's junior goals, once their needs are in
+        senior.planned = self.release_goals  # the plan's junior goals, once their needs are in
+        senior.each_step = self.between_steps   # and, between the senior's steps, a word on a junior task that's long
+        senior.follow_up_fn = self.follow_up
+        junior.inbox = []                       # the senior's direction, read at the junior's next step
+        self.running: dict | None = None        # the junior's task now: {"n", "what", "since", "log0", "kinds"}
+        self.pending_notes: dict[int, list[str]] = {}  # direction for a task that hasn't started
         senior.review_task_fn = self.review
         senior.may_write = self.senior_may_write
         junior.may_write = self.junior_may_write
@@ -215,6 +220,52 @@ class Pair:
         hold = into.rstrip("/") + "/index.json" if into and fmt == "files" else into  # pictures: the index is written
         return self.queue(hold, spec, "distill", f"distill for: {intent}"[:200])
 
+    def between_steps(self) -> None:
+        self.release_goals()
+        self.check_in()
+
+    def check_in(self) -> None:
+        """Ian, 2026-10-10: "after completing a few of its tasks it can check on Jr's progress if none has been shown
+        yet. If there is progress and its just taking awhile Sr will wait. If Jr is stuck, Sr will provide further
+        direction." After the Senior has moved on FOLLOW_UP times while a task is still with the Junior, a report."""
+        r = self.running
+        done = getattr(self.senior, "progress_total", 0)
+        if not r or done - r["since"] < FOLLOW_UP:
+            return
+        steps = [x for x in list(getattr(self.junior, "steps", []) or []) if isinstance(x, dict) and x.get("did")]
+        kinds = list(getattr(self.junior, "kinds_done", []) or [])
+        entries = self.junior.log.entries() if hasattr(self.junior.log, "entries") else []
+        changed = sorted({c.get("file", "") for c in entries[r["log0"]:]} - {""})
+        moved = len(kinds) > r["kinds"]
+        trail = "\n".join(f"- {x['did'].get('thinking', '')[:160]} → {str(x.get('result', ''))[:160]}"
+                          for x in steps[-3:])
+        report = (f"task {r['n']} ({r['what'][:120]}): {len(steps)} steps so far, progress {len(kinds)} times"
+                  + (f" ({', '.join(kinds[-6:])})" if kinds else "") + "; changed: " + (", ".join(changed) or "nothing")
+                  + f"\nIts last steps:\n{trail or '(none yet)'}\n"
+                  + ("It's moving since the last word: let it work." if moved else
+                     "No progress since the last word. If it's stuck or going the wrong way, direct it with follow_up "
+                     f"({r['n']}, note) — what's wrong and the next small step; if it's on the right track, let it work."))
+        r["since"], r["kinds"] = done, len(kinds)
+        self.senior.inbox.append((r["n"], "progress", report))
+
+    def follow_up(self, n: int, note: str) -> str:
+        """The Senior's direction for a Junior task: read at the Junior's next step if it's working on it, or given
+        with the task if it hasn't started."""
+        note = " ".join(note.split())
+        if len(note) < 8:
+            return "error: say what the junior should do differently"
+        if self.running and self.running["n"] == n:
+            self.junior.inbox.append((n, "direction", note))
+            self.senior.event("handoff", by="senior", to="junior", text=f"task {n}: {note}")
+            return f"sent to your junior: it reads it at its next step on task {n}"
+        with self.lock:
+            waiting = n in self.listing
+            if waiting:
+                self.pending_notes.setdefault(n, []).append(note)
+        if waiting:
+            return f"task {n} hasn't started: your junior gets this with it"
+        return f"error: task {n} isn't with your junior (finished, or never given) — give a new task with assign"
+
     def release_goals(self) -> None:
         """The plan's goals for the Junior (Ian, 2026-10-10): each goes to it once what it needs from outside is in,
         with its files held for it; one at a time per file. The Junior waits for these — it starts nothing itself."""
@@ -231,7 +282,7 @@ class Pair:
             task = json.dumps({"goal": g["id"], "files": files, "text": (
                 f"Goal {g['id']}: {g['text']}\n"
                 + (f"Its files: {', '.join(files)}.\n" if files else "")
-                + (f"What came in for it: {', '.join(have)}.\n" if have else "")
+                + (f"What came in for it: {', '.join(f'{w} ({h})' for w, h in have)}.\n" if have else "")
                 + (f"Notes kept so far: {', '.join(notes[:12])}.\n" if notes else "")
                 + "Facts come from these sources only. Work the goal in small steps; when it's done, answer with what "
                   "you did and how you checked it.")})
@@ -334,11 +385,17 @@ class Pair:
                 pass
         self.current, self.current_table = (set(files) if files is not None else {rel}), table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
+        self.running = {"n": n, "what": f"{kind} {rel}", "since": getattr(self.senior, "progress_total", 0),
+                        "log0": before, "kinds": 0}
+        notes = self.pending_notes.pop(n, [])
+        if notes:
+            task += "\nYour senior adds: " + " ".join(notes)
         try:
             said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\nYou may change only {rel}.",
                                     self.stop_junior)
         finally:
-            self.current, self.current_table = set(), None
+            self.current, self.current_table, self.running = set(), None, None
+            self.junior.inbox.clear()
         changes = self.junior.log.entries()[before:] if hasattr(self.junior.log, "entries") else []
         changed = sorted({c.get("file", "") for c in changes} - {""})
         found = [p for p in self.senior.problems() if any(p.startswith(f + ":") for f in (files or [rel]))]
@@ -366,6 +423,7 @@ class Pair:
         return result
 
 
+FOLLOW_UP = 3   # the Senior's steps of progress while a task is with the Junior before a word on how it's going
 TEAM = os.path.join(".cinminai", "team.json")   # {"team": "A" | "B"} — chosen in AICUI's top bar
 JUNIOR_FILE = "Qwen3.5-9B-Q4_K_M.gguf"          # the 9B coder, whole on the card
 SENIOR_FILE = "Qwen3.6-35B-A3B-Q4_K_M.gguf"     # the MoE Senior, its experts in RAM (Flash-Next comes second)

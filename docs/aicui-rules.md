@@ -42,6 +42,9 @@ So each rule is one of two kinds:
 | A22 | plan | the person's request as goals, each with what it needs from outside, its files and who does it; the person sees it once and says OK or what to change; a goal for the junior names its files | today (test6) |
 | A23 | edit, write… and goal_done | a goal's files aren't written, and it isn't ticked, until what it takes `from_outside` is in (named `needs` until test8, where the model listed the project's own work there and goals waited for themselves) (pages, files or records fetched or distilled for it, as many as it has needs) | today (test6: 300 lines of card data typed from memory) |
 | A24 | team B | the junior's goals go to it once their needs are in, with their files held for it; it starts nothing itself | today |
+| A26 | fetch, download, the file list | every kept file says what it holds and what it's for: page text (read and distill this), page markup (for a script), document, document text, picture, sound, data, search results | today (Ian: "classifiers for both of those files") |
+| A27 | plan, the needs gate | each outside item has a kind (text, pictures, sound, file); each is met by one source of its kind; a page counts once, by its text | today (test8: one page's .txt and .html met "the card lists" and "the card images") |
+| A28 | team B | after the Senior moves on 3 times while a task is still with the Junior, a word on how it's going (its steps, changes, moving or not); follow_up gives the Junior direction mid-task, or with the task if it hasn't started | today (Ian: "task follow up") |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model

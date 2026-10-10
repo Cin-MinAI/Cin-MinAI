@@ -326,16 +326,16 @@ class PairTest(unittest.TestCase):
              "who": "junior"},
             {"text": "The engine's skeleton", "from_outside": [], "files": ["engine.py"], "who": "senior"}]})
         self.assertIn("the plan is in: goals 1–3", said)
-        self.assertIn("2. [your assistant] The card list as data\n       from outside: the official card list",
+        self.assertIn("2. [your assistant] The card list as data\n       from outside: the official card list (text)",
                       shown[0])
         goals = senior.goals.load()
         self.assertEqual([(g["who"], g["from_outside"], g["files"]) for g in goals],
-                         [("senior", ["the official rulebook"], ["data/rules.json"]),
-                          ("junior", ["the official card list"], ["data/cards.json"]),
+                         [("senior", [{"what": "the official rulebook", "kind": "text"}], ["data/rules.json"]),
+                          ("junior", [{"what": "the official card list", "kind": "text"}], ["data/cards.json"]),
                           ("senior", [], ["engine.py"])])
         blocked = senior.do({"tool": "write", "path": "data/rules.json", "content": "[]\n"})
         self.assertIn("belongs to goal 1", blocked)
-        self.assertIn("takes from outside the official rulebook — in so far: 0 of 1", blocked)
+        self.assertIn("takes from outside the official rulebook (text) — still missing: the official rulebook (text)", blocked)
         self.assertIn("logged as change", senior.do({"tool": "write", "path": "engine.py", "content": "x = 1\n"}))
         self.assertIn("NOT ticked — what it takes from outside isn't in yet", senior.do({"tool": "goal_done", "id": 1}))
         self.assertFalse(p.out)  # nothing for the junior yet: its goal waits for its card list
@@ -385,6 +385,75 @@ class PairTest(unittest.TestCase):
         self.assertIn("I tried the same step twice and it was refused the same way", said)
         self.assertEqual(senior.stopped, "stuck")
         self.assertEqual(len(senior.chat.steps), 1)  # it stopped after the second refusal
+
+    def test_kept_files_say_what_they_hold_and_needs_are_met_by_their_kind(self):
+        """Ian, 2026-10-10 (test8): "classifiers for both of those files that allow the model to know what to pick from
+        which file, html or txt. It shouldnt count txt as images for a goal." One card-list page (its .txt and .html)
+        met both "the card lists" and "the card images"."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        senior, junior, p = self.pair()
+        senior.goals.remove(1)
+        senior.ask = lambda prompt: "y"
+        senior.fetch_ok = True
+        senior.first_reader = None  # this test reads the kinds, not the junior's notes
+        senior.do({"tool": "plan", "goals": [{"text": "The cards, as data and pictures", "who": "senior",
+                                              "files": ["data/cards.json"], "from_outside": [
+                                                  {"what": "the card list", "kind": "text"},
+                                                  {"what": "the card pictures", "kind": "pictures"}]}]})
+        senior.given("https://cards.example/list https://img.example/a.jpg https://img.example/b.jpg "
+                     "https://rules.example/rules.pdf")
+        with mock.patch.object(intake, "get", return_value=(b"<html><body><p>Stone Giant</p></body></html>",
+                                                             "text/html")):
+            said = senior.do({"tool": "fetch", "url": "https://cards.example/list", "goal": 1})
+        self.assertIn("sources/list.txt (page text: read and distill this)", said)
+        self.assertIn("sources/list.html (page markup: for a script, not for reading)", said)
+        self.assertIn("still missing: the card pictures (pictures)",
+                      senior.do({"tool": "write", "path": "data/cards.json", "content": "[]\n"}))  # a page isn't pictures
+        with mock.patch.object(intake, "get", side_effect=lambda u: (b"JFIF", "image/jpeg")):
+            senior.do({"tool": "download", "urls": ["https://img.example/a.jpg", "https://img.example/b.jpg"],
+                       "folder": "cards", "goal": 1})
+        self.assertIn("logged as change", senior.do({"tool": "write", "path": "data/cards.json", "content": "[]\n"}))
+        self.assertIn("  sources/list.txt", senior.system())
+        self.assertIn("[page text]", senior.system())  # the file list says what kept files hold
+        with mock.patch.object(intake, "get", return_value=(b"%PDF-1.4", "application/pdf")), \
+                mock.patch.object(intake, "pdf_text", return_value="Draw Phase: draw one card."):
+            pdf = senior.do({"tool": "fetch", "url": "https://rules.example/rules.pdf"})
+        self.assertIn("assets/rules.pdf (document)", pdf)
+        self.assertIn("sources/rules.txt (document text: read and distill this)", pdf)
+        self.assertEqual(intake.holds(self.root, "assets/cards/a.jpg"), "picture")
+
+    def test_the_senior_checks_on_a_long_junior_task_and_can_direct_it(self):
+        """Ian, 2026-10-10: "after completing a few of its tasks it can check on Jr's progress if none has been shown
+        yet. If there is progress and its just taking awhile Sr will wait. If Jr is stuck, Sr will provide further
+        direction, hopefully correcting any previous mistakes." """
+        from cin_minai.aicui import pair as P
+        senior, junior, p = self.pair()
+        p.running = {"n": 4, "what": "goal src/engine/Battle.cpp", "since": 0, "log0": 0, "kinds": 0}
+        junior.steps = [{"did": {"thinking": "Read the battle rules.", "action": {"tool": "read"}}, "result": "..."}]
+        junior.kinds_done = []
+        senior.progress_total = P.FOLLOW_UP - 1
+        p.check_in()
+        self.assertEqual(senior.inbox, [])  # too soon: the senior hasn't moved on enough yet
+        senior.progress_total = P.FOLLOW_UP
+        p.check_in()
+        ((n, kind, report),) = senior.inbox
+        self.assertEqual((n, kind), (4, "progress"))
+        self.assertIn("1 steps so far, progress 0 times", report)
+        self.assertIn("No progress since the last word. If it's stuck or going the wrong way, direct it with follow_up "
+                      "(4, note)", report)
+        senior.inbox.clear()
+        junior.kinds_done = ["write"]
+        senior.progress_total = 2 * P.FOLLOW_UP
+        p.check_in()
+        self.assertIn("It's moving since the last word: let it work.", senior.inbox[0][2])
+        said = senior.do({"tool": "follow_up", "n": 4, "note": "Use the damage table in notes/rules.md, not memory."})
+        self.assertIn("it reads it at its next step on task 4", said)
+        steps = []
+        junior.deliver(steps)
+        self.assertIn("Your senior's direction on task 4:\nUse the damage table in notes/rules.md", steps[-1]["note"])
+        self.assertIn("isn't with your junior", senior.do({"tool": "follow_up", "n": 9, "note": "Do it differently."}))
+        self.assertIn("follow_up (`n`,", senior.system())
 
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P

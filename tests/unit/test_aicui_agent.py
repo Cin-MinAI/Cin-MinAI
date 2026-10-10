@@ -148,7 +148,7 @@ class AgentTest(unittest.TestCase):
         list got a new thought each step). 3,156 on 2026-10-09; 3,689 with distill and the facts rule."""
         from cin_minai.aicui.agent import JUNIOR_SYSTEM, SENIOR_B, SYSTEM
         self.assertLessEqual(len(SYSTEM), 4000)
-        self.assertLessEqual(len(SENIOR_B), 800)
+        self.assertLessEqual(len(SENIOR_B), 900)  # 871 with follow_up (a tool line, not a step to follow)
         self.assertLessEqual(len(JUNIOR_SYSTEM), 1400)
         for words in ("- distill (", "never type them from memory", "a site you've fetched"):
             self.assertIn(words, SYSTEM)
@@ -336,7 +336,8 @@ class AgentTest(unittest.TestCase):
             r = a.fetch("https://example.org/list.")          # "always": this session; the sentence's dot isn't the URL's
             r2 = a.fetch("https://example.org/he.png")          # not asked again
         self.assertEqual(got.call_count, 2)
-        self.assertIn("saved https://example.org/list as sources/list.txt and sources/list.html", r)
+        self.assertIn("saved https://example.org/list as sources/list.txt (page text: read and distill this) and "
+                      "sources/list.html (page markup: for a script, not for reading)", r)
         self.assertIn("Hydrogen", r)
         with open(os.path.join(self.root, "sources", "list.html"), encoding="utf-8") as f:
             self.assertIn("alt='Helium'", f.read())  # what the text loses, the page keeps

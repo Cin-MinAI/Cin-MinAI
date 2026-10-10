@@ -284,6 +284,48 @@ def record_origin(root: str, rel: str, origin: str, kind: str = "fetched") -> No
     os.replace(path + ".tmp", path)
 
 
+PICTURE_EXT = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".svg")
+SOUND_EXT = (".wav", ".ogg", ".mp3", ".flac", ".m4a", ".opus")
+DATA_EXT = (".json", ".csv", ".tsv", ".yaml", ".yml", ".xml")
+# what each kept file holds, and what it's for (Ian, 2026-10-10: "classifiers for both of those files that allow the
+# model to know what to pick from which file, html or txt")
+HOLDS = {"page text": "the page's words and tables, its pictures and links listed: read and distill this",
+         "page markup": "the page as it came (HTML): for a script, not for reading",
+         "search results": "a search's list of pages: fetch one of them",
+         "document": "a PDF as it came", "document text": "the PDF's text: read and distill this",
+         "picture": "a picture", "sound": "a sound", "data": "data", "file": "a file"}
+
+
+def holds(root: str, rel: str) -> str:
+    """What a kept file holds (a key of HOLDS): from its name and where it came from."""
+    rel = rel.replace(os.sep, "/")
+    low = rel.lower()
+    name = os.path.basename(low)
+    if low.startswith("sources/"):
+        if name.startswith(("search-", "search-images-")):
+            return "search results"
+        if low.endswith((".html", ".htm")):
+            return "page markup"
+        if low.endswith(".txt"):
+            source = str(origins(root).get(rel, {}).get("from", ""))
+            return "document text" if urllib.parse.urlsplit(source).path.lower().endswith(".pdf") else "page text"
+    if low.endswith(".pdf"):
+        return "document"
+    if low.endswith(PICTURE_EXT):
+        return "picture"
+    if low.endswith(SOUND_EXT):
+        return "sound"
+    if low.endswith(DATA_EXT):
+        return "data"
+    return "file"
+
+
+def labelled(root: str, rel: str) -> str:
+    """A kept file with what it holds and what it's for: "sources/a.txt (page text: read and distill this)"."""
+    h = holds(root, rel)
+    return f"{rel} ({h}: {HOLDS[h].split(': ', 1)[-1]})" if ": " in HOLDS[h] else f"{rel} ({h})"
+
+
 def came_in(root: str, rel: str) -> bool:
     """Fetched material — kept as it came, never "fixed", checked or mapped as the project's code: what has a fetched
     origin, and AICUI's own folder for what it fetches (sources/). Protected by where it came from, never by the folder
