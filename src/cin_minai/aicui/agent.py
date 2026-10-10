@@ -46,6 +46,7 @@ EVENT_LOCK = threading.Lock()  # events come from the coder's loop and the helpe
 DOWNLOAD_MAX = 300   # files in one download (one approval; each address checked as a fetch)
 CHANGES = ("edit", "replace_lines", "write", "append")
 PLAN_MAX = 12        # goals in one plan (team B's Senior)
+NET_LINE = "; `network` true for a command that needs the internet: the person is asked once"  # Auto only
 # what a plan's outside item is, and which kept files meet it (intake.holds): a page counts once, by its text; a list of
 # search results isn't a source; pictures are met only by pictures (2026-10-10: a page's .html and .txt counted as two,
 # so one card-list page met "the card lists" and "the card images")
@@ -63,7 +64,7 @@ ACTIONS = [
     {"tool": "replace_lines", "path": STR, "first": {"type": "integer"}, "last": {"type": "integer"}, "new": STR},
     {"tool": "write", "path": STR, "content": STR},
     {"tool": "append", "path": STR, "content": STR},
-    {"tool": "run", "command": STR},
+    {"tool": "run", "command": STR, "network": {"type": "boolean"}},
     {"tool": "web_search", "query": STR, "kind": {"enum": ["pages", "images"]}},
     {"tool": "fetch", "url": STR, "goal": {"type": "integer"}},
     {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR,
@@ -88,7 +89,7 @@ ACTIONS = [
     {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
-OPTIONAL = {"start", "goal", "into", "format", "kind"}
+OPTIONAL = {"start", "goal", "into", "format", "kind", "network"}
 SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up"}   # style B's Senior (PLAN §1b, two cards)
 BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
@@ -193,7 +194,7 @@ You work step by step. Each step: your thinking (short), then exactly one action
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
 - edit (replace the exact text `old` with `new` in a file; `old` must appear once), write (a whole new file),
   append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
-- run (a shell command in the project folder{sandbox}; the web only through the tools below)
+- run (a shell command in the project folder{sandbox}; the web only through the tools below{net})
 - web_search (a `query`; `kind` images for pictures), fetch (an https `url` from the user, a search, a kept page, or a site you've fetched
   from), download (many such `urls` into a `folder` under assets/, one approval); each asked first
 - distill (read `sources` for an `intent`: what it names is kept with where it stood, as a gathered record, and
@@ -746,6 +747,7 @@ class Agent:
         self.history: list[dict] = []   # earlier turns: the user's message and the final answer
         self.events = os.path.join(root, ".cinminai", "events.jsonl")
         self.fetch_ok = False  # "always" for fetching pages: this session only (D86)
+        self.net_ok = False    # Auto: the person let commands use the internet, this session only
         self.fetched: dict[str, str] = {}  # address -> what came back, this session (the same fetch twice isn't news)
         self.known_urls: set[str] = set()  # addresses the person gave (pages kept and searches made count too)
         self.bwrap = shutil.which("bwrap") is not None
@@ -823,7 +825,8 @@ class Agent:
         parts = dict(root=self.root, files=files or "  (empty)", goals=goals, venv=venv, goal_tools=goal_tools,
                      goal_rule=goal_rule,
                      answer_tokens=self.answer_tokens, write_lines=self.write_lines,
-                     sandbox=", sandboxed without network" if self.sandbox else "")
+                     sandbox=", sandboxed without network" if self.sandbox else "",
+                     net=NET_LINE if self.sandbox and self.mode == "auto" and self.role != "junior" else "")
         if self.role == "junior":
             return JUNIOR_SYSTEM.format(**parts)
         return SYSTEM.format(**parts) + (SENIOR_B if self.role == "senior" else "")
@@ -1968,7 +1971,7 @@ class Agent:
                 return (f"Asked for {a['package']}: AICUI asks the person and installs it in the project's environment "
                         "(.venv). Go on with other work meanwhile; it's there once they agree.")
             if t == "run":
-                return self.run(a["command"])
+                return self.run(a["command"], bool(a.get("network")))
             if t == "goal_add":
                 g = self.goals.add(a["text"], by="ai")
                 self.event("goals")
@@ -2130,20 +2133,33 @@ class Agent:
             return f"{done}. Check: {problem}{later}."
         return done + (". Check: compiles, nothing defined twice." if rel.endswith(".py") else "")
 
-    def run(self, command: str) -> str:
+    def run(self, command: str, network: bool = False) -> str:
         self.refresh()
         if not self.admin and re.match(r"\s*(sudo|pkexec|su)\b", command):
             return "error: administrator commands aren't allowed in this session (no admin)"
+        if network and self.sandbox:  # Ian, 2026-10-10: never in Ask; in Auto, asked once (No permissions: no sandbox)
+            if self.mode != "auto" or self.role == "junior":
+                return ("error: commands have no internet here — the web goes through fetch, download and web_search "
+                        "(each asks the person, and keeps a record of what came in)")
+            if not self.net_ok:
+                self.event("busy", doing="waiting for your answer in the terminal", asking="internet for commands")
+                reply = self.ask(f"\033[1mLet commands use the internet for the rest of this session? This one wants it:\n"
+                                 f"  $ {command[:300]}\nWhat a command fetches isn't checked or recorded the way fetch "
+                                 "and download do it. [y]es / [n]o: \033[0m").strip().lower()
+                if not reply.startswith("y"):
+                    return ("the person said no to internet for commands — use fetch or download (they ask, check each "
+                            "address and keep a record)")
+                self.net_ok = True
         if not self.allowed("run", f"\033[36m$ {command}\033[0m", command):
             return "the user said no to this command"
-        code, out = self.execute(command, RUN_TIMEOUT, self.sandbox)
+        code, out = self.execute(command, RUN_TIMEOUT, self.sandbox, network=network and self.net_ok)
         if code is None:
             return f"error: still running after {RUN_TIMEOUT} s, stopped"
         self.say(out[-3000:])
         tail = out[-OBS_CHARS:] if len(out) > OBS_CHARS else out
         return f"exit {code}\n{tail}"
 
-    def execute(self, command: str, timeout: int, sandbox: bool) -> tuple[int | None, str]:
+    def execute(self, command: str, timeout: int, sandbox: bool, network: bool = False) -> tuple[int | None, str]:
         """A command in the project folder: (exit code or None after the timeout, output)."""
         # the project's venv first on the path (after bash -l's profile, which may set PATH), and no window: the AI
         # can't see one, and a program waiting on a window it can't close would hold the step until the timeout
@@ -2152,7 +2168,8 @@ class Agent:
         argv = ["bash", "-lc", prefix + command]
         if sandbox:
             argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
-                    "--bind", self.root, self.root, "--unshare-net", "--die-with-parent", "--chdir", self.root, *argv]
+                    "--bind", self.root, self.root, *([] if network else ["--unshare-net"]), "--die-with-parent",
+                    "--chdir", self.root, *argv]
         # no .pyc from the agent's runs: an edit within the same second that keeps the file's size (a - b → a + b)
         # left Python running the old compiled code, and a fixed test still failed
         env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy",

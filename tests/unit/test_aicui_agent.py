@@ -586,6 +586,40 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(a.known_address("https://cards.example/pack/Starter%20Deck"))
         self.assertFalse(a.known_address("https://made.up.example/pack/Starter%20Deck"))
 
+    def test_commands_reach_the_internet_never_in_ask_and_after_one_question_in_auto(self):
+        """Ian, 2026-10-10 (test9, run with no permissions: the coder wrote its own downloader): "make sure that doesnt
+        happen in normal ask mode. In auto, probably one time ask for that tool." """
+        from unittest import mock
+        ran, asked = [], []
+        ask = Agent(self.root, Scripted([]), "m", "ask", say=self.said.append, ask=lambda p: "y")
+        ask.sandbox = True
+        with mock.patch.object(ask, "execute", side_effect=lambda *a, **k: (ran.append((a, k)), (0, "ok"))[1]):
+            self.assertIn("commands have no internet here", ask.do({"tool": "run", "command": "curl x", "network": True}))
+            ask.do({"tool": "run", "command": "ls"})
+        self.assertEqual(ran[-1][1], {"network": False})  # Ask: never the internet
+        self.assertNotIn("`network` true", ask.system())
+        auto = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append,
+                     ask=lambda p: (asked.append(p), "y")[1])
+        auto.sandbox = True
+        self.assertIn("`network` true for a command that needs the internet", auto.system())
+        with mock.patch.object(auto, "execute", side_effect=lambda *a, **k: (ran.append((a, k)), (0, "ok"))[1]):
+            auto.do({"tool": "run", "command": "python3 get.py", "network": True})
+            auto.do({"tool": "run", "command": "python3 get.py --more", "network": True})
+            auto.do({"tool": "run", "command": "ls"})
+        self.assertEqual(len([p for p in asked if "use the internet" in p]), 1)  # asked once for the session
+        self.assertEqual([k["network"] for _, k in ran[-3:]], [True, True, False])
+        no = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: "n")
+        no.sandbox = True
+        self.assertIn("the person said no to internet for commands",
+                      no.do({"tool": "run", "command": "curl x", "network": True}))
+        argv = []
+        with mock.patch("subprocess.run", side_effect=lambda a, **k: (argv.append(a), mock.Mock(returncode=0, stdout="",
+                                                                                                    stderr=""))[1]):
+            auto.execute("true", 5, True)
+            auto.execute("true", 5, True, network=True)
+        self.assertIn("--unshare-net", argv[0])
+        self.assertNotIn("--unshare-net", argv[1])
+
     def test_a_picture_search_puts_the_projects_own_sites_first(self):
         """Image search (Cin-MinAI's own search): each picture's address, size and page; pictures from a site the project
         already fetched from first (a set keeps its look); kept as a source, so download may take the addresses."""

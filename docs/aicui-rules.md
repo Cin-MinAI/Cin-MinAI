@@ -45,6 +45,7 @@ So each rule is one of two kinds:
 | A26 | fetch, download, the file list | every kept file says what it holds and what it's for: page text (read and distill this), page markup (for a script), document, document text, picture, sound, data, search results | today (Ian: "classifiers for both of those files") |
 | A27 | plan, the needs gate | each outside item has a kind (text, pictures, sound, file); each is met by one source of its kind; a page counts once, by its text | today (test8: one page's .txt and .html met "the card lists" and "the card images") |
 | A28 | team B | after the Senior moves on 3 times while a task is still with the Junior, a word on how it's going (its steps, changes, moving or not); follow_up gives the Junior direction mid-task, or with the task if it hasn't started | today (Ian: "task follow up") |
+| A29 | run | Ask: commands never reach the internet (the web through fetch, download, web_search); Auto: a command with `network` true asks the person once for the session; No permissions: no sandbox (the person's choice) | today (Ian, after test9's own downloader in No permissions) |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model
