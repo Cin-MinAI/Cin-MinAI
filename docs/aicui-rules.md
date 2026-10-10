@@ -96,4 +96,6 @@ So each rule is one of two kinds:
   Senior was after (the Senior's thinking at that step and the goal) and keeps notes in `notes/`, in the source's own
   words with where they stood. The Senior gets the notes between its steps, not the page. The Junior waits on the
   Senior's direction: it works only on what it's given.
-- **A7 (search):** open. Ian asked for the options (Google, Bing, DuckDuckGo, Metacrawler, Ask Jeeves…).
+- **A7 (search):** Cin-MinAI's own search, SearXNG on the person's computer, on by default (`cinminai-search`, SPEC
+  §7.5): DuckDuckGo and Bing at once, with no disguise; ads and pages that share no word with the search dropped; the
+  direct way (DuckDuckGo, then Bing) when it isn't there. Pictures through `web_search` kind images.

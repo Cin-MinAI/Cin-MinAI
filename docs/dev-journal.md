@@ -1720,3 +1720,21 @@ rule over them: facts come from sources, never from memory. Ian sent the build b
 picture addresses, each beside its words, become the pictures themselves, with an index of which is which. And a
 compiled file is checked against its record item by item, every time it changes. Next: test5, team B, with the full ruleset fetched
 offline first.
+
+## 2026-10-10 (afternoon) — the regroup, and a search of our own
+
+**What went wrong.** Test5's Senior wrote the same plan as its thinking in fifteen steps, and three fixes in a row
+missed why. Ian sent us back to look again, then once more, "look on the test machine". What the machine showed was
+our own rules boxing the model in. The instructions had become a procedure, and the model recited it. A note told
+it to "make the change now" while it was still gathering sources. An address rule leaned on a search that had
+quietly fallen back to Bing's feed, and the feed answered with budgeting-app ads. Every rule a model works under is
+now listed in one file (`docs/aicui-rules.md`), each marked as a boundary in a tool or a rule on the model, and Ian
+decided which stay. The instructions went back to a list of tools. A new source counts as progress. A site's own
+address patterns may be followed. In team B the Junior reads first and keeps notes, and waits on the Senior.
+
+**A search of our own.** Ian asked what the options were. Google's search API is closing; Bing's was retired last
+year. So the assistant now runs its own metasearch, SearXNG, on each person's computer, on by default ("if they
+connected to the internet they want to search things"). One thing had to change first: as it ships, SearXNG dresses
+every request up as a Chrome browser. Cin-MinAI never gets around bot checks, so ours goes out as what it is, and
+an engine that says no is set aside. Google's says no; DuckDuckGo and Bing answer, and with the ads filtered out the
+searches test5 got lost in now find the card lists and the rulebook in under a second.

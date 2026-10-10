@@ -206,7 +206,7 @@ row when work lands. D87 was never adopted.
 | D52 | filled | standing rule |
 | D53 | filled | diagnose + spreadsheets |
 | D54 | filled | standing rule |
-| D55 | filled | search offer + the journal |
+| D55 | filled | search offer + the journal; Cin-MinAI's own search (cinminai-search, 2026-10-10) |
 | D56 | filled | Story Circle |
 | D57 | filled | review before every chapter |
 | D58 | filled | Make a manuscript |
@@ -373,7 +373,8 @@ its card pictures in by script, so its pages hold names but no picture addresses
 where they collided. Decided and built: the instructions back to a tool list (written as a procedure, they were
 recited as the plan every step); a new source is progress; an address may follow the pattern of a site already
 fetched from; the duplicate-goal check removed; in team B the Junior reads what the Senior fetches first and keeps
-notes, and waits on the Senior's direction. Search engines: open.
+notes, and waits on the Senior's direction. Search: Cin-MinAI's own (SearXNG on the person's computer, `cinminai-search`,
+on by default; SPEC §7.5), DuckDuckGo and Bing at once, no disguise; image search through `web_search` kind images.
 
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 

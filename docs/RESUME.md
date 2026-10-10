@@ -1,10 +1,20 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-10** (latest: journal "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-10** (latest: journal "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-10, afternoon) — the regroup and our own search; next: test5 again
+
+- **Built since the last push (local, not pushed):** the regroup (`docs/aicui-rules.md`: every rule a model works
+  under, Ian's decisions); Cin-MinAI's own search, `cinminai-search` (SearXNG on the person's computer, on by default,
+  no disguise; SPEC §7.5); `web_search` kind images.
+- **Ian's PC has build `…133923`** (18 packages, with cinminai-search) to install from `prompts.txt`.
+- **Next:** test5 again (fresh folder, Team B, the same request), read against test4: a new thought each step, the
+  Junior's first reading reaching the Senior, searches without junk, sources kept, pictures from set pages. Then the
+  ISO boot/install test with the new package.
 
 ## Where we stopped (2026-10-10, later) — style B run, GatheredData built; next: test5
 

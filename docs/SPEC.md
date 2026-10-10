@@ -646,6 +646,23 @@ and waits. Live on the Mint box's test install: "Why did World War II start?" (B
 se hace una buena lasaña?" (three recipe sites) answered correctly from the pages, about a second for the search.
 Rough edges: the offer's own words are English for now (D25's UI translation); citations [n] uneven.
 
+**Built (2026-10-10): Cin-MinAI's own search, `cinminai-search`, on by default** (Ian: "if they connected to the
+internet they want to search things"). SearXNG at a pinned commit, with its libraries for Python 3.12 in its own folder,
+runs per user on a private socket (`$XDG_RUNTIME_DIR/cinminai/search.sock`). `web_search` starts it through systemd
+(`systemctl --user start cinminai-search`) on the first search, and it stops itself after 15 minutes without one
+(~90 MB while it runs). Each search asks **DuckDuckGo and Bing at once**, for pages and, with `kind` images, for
+pictures (each one's address, size, page and engines; the same picture once; thumbnails out). Without it (not
+installed, not starting, or nothing usable) the direct way runs as before: DuckDuckGo, then Bing's feed.
+**No disguise:** as shipped, SearXNG presents every request as a Chrome browser and picks a random browser name.
+Cin-MinAI never gets around bot checks, so its launcher turns both off: requests say what they are
+(`Cin-MinAI-search/1`), and an engine that refuses is set aside, never fooled. Measured that way on the dev PC:
+DuckDuckGo and Bing answer, Google's engine refuses (timeouts), and Wikipedia's engine refuses (Wikipedia is read
+through its own API anyway). **Every result is checked:** an ad (an address with ad-tracking parameters) or a page
+that shares no word with the search isn't a result. Replaying test5's eleven searches through the installed package:
+nine came back with the right card lists and the official rulebook PDFs, under a second each; the two that Bing had
+answered with budgeting-app ads came back as "no results", and the model asks again in other words. The consent line
+names both engines ("Only these words are sent, to DuckDuckGo and Bing").
+
 ### 7.6 LibreOffice extension
 
 `cinminai-libreoffice` ships a Python-UNO extension (`.oxt`, uses Mint's `python3-uno`; no

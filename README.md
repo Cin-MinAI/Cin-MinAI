@@ -151,6 +151,7 @@ It is built with AI assistants, each used where it worked best — **none prefer
   and IBM (Granite), whose models we tested; and **Hugging Face** and the people who publish GGUF conversions
   (Unsloth, ggml-org).
 - **LibreOffice (The Document Foundation) and Mozilla**, whose programs the assistant works inside.
+- **SearXNG** (its contributors, AGPL-3.0), the metasearch behind the assistant's own search on each computer.
 - **The researchers and builders who started this era**: from the Transformer paper (Google, 2017) to OpenAI's
   public release of ChatGPT in 2022, which put these tools in everyone's hands and pushed the whole field, open
   models included, forward.
