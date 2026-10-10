@@ -68,15 +68,26 @@ ACTIONS = [
     {"tool": "look", "target": {"enum": ["program", "page", "screen"]}, "question": STR, "address": STR},
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
+    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
+    {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
 OPTIONAL = {"start", "goal"}
+SENIOR_ONLY = {"assign", "review_task"}           # style B's Senior (PLAN §1b, two cards)
+JUNIOR_TOOLS = {"read", "list", "search", "edit", "replace_lines", "write", "append", "run", "ask", "answer"}
 
 
-def schema(content_max: int | None = None) -> dict:
+def _asked(ask, prompt: str) -> str:
+    with ASK_LOCK:
+        return ask(prompt)
+
+
+def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(SENIOR_ONLY)) -> dict:
     """content_max: the most a write or append may hold, so a step always fits its token limit (2026-10-08: a model
     ignored "write in parts" five times, and each cut-off step cost ~5 minutes)."""
     variants = []
     for a in ACTIONS:
+        if a["tool"] in exclude:
+            continue
         props = {k: ({"const": v} if k == "tool" else {**v, "maxLength": content_max} if k == "content" and content_max
                      else v) for k, v in a.items()}
         variants.append({"type": "object", "additionalProperties": False, "properties": props,
@@ -124,6 +135,31 @@ The project's files (first lines):
 
 Session goals:
 {goals}"""
+
+
+JUNIOR_SYSTEM = """You are the junior developer in AICUI, in the project folder {root}. Your senior lays out the
+project and gives you one task at a time; you change only the files the task names.
+Each step: your thinking (short), then exactly one action:
+- read (a file, from line `start`), list (a folder), search (a regex over the project's files)
+- edit, replace_lines, write, append (only the task's files)
+- run (a shell command in the project folder{sandbox}; no network)
+- ask (a question for your senior), answer (what you did and how you checked it; ends the task)
+Keep the names, signatures and imports the skeleton already has; fill in what's marked TODO; don't invent interfaces.
+After a change, check it (compile it, run the tests). One step holds about {answer_tokens} tokens: a file longer than
+about {write_lines} lines is written in parts, the first part, then append the rest.
+
+The project's files (first lines):
+{files}"""
+
+SENIOR_B = """
+You are the Senior, with a junior developer (a smaller model) beside you. First lay the project's skeleton: every
+file with its imports, classes and function signatures (bodies as stubs marked TODO), the shared types and the build
+files, and make it compile. Then give the junior one file at a time with assign (`path`, `task`, `kind`): the file is
+held for it until it's done, and you work on other files meanwhile. Its result comes between your steps: check it,
+then review_task (`n`, `accept`, `note`); a rejection goes back to it with your note. You have the final word."""
+
+CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
+ASK_LOCK = threading.Lock()      # one question to the person at a time
 
 
 def slim(step: dict) -> str:
@@ -601,7 +637,9 @@ class Agent:
         self.content_cpt = 2.6  # lowered by what the model's long replies measure (generate)
         self.content_max = int(max(800, (self.answer_tokens - 700) * self.content_cpt))
         self.venv = venv_of(root)
-        self.mode, self.admin, self.ask, self.say = mode, admin, ask, say
+        self.mode, self.admin, self.say = mode, admin, say
+        self.ask = lambda prompt: _asked(ask, prompt)  # one question at a time, whichever agent asks
+        self.role = "solo"  # "senior" / "junior" in style B (pair.py); solo and style A use the coder's tools
         self.tick = tick  # tick(text): the terminal's progress line while a step is generated
         self.goals, self.log = Goals(root), Changelog(root)
         self.history: list[dict] = []   # earlier turns: the user's message and the final answer
@@ -613,7 +651,21 @@ class Agent:
         self.sandbox = self.bwrap and mode != "none"
 
     # --- events for AICUI's panes --------------------------------------------------------------------------
+    def excluded(self) -> set:
+        """The tools this agent's card doesn't have."""
+        if self.role == "senior":
+            return set()
+        if self.role == "junior":
+            return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS
+        return set(SENIOR_ONLY)
+
     def event(self, kind: str, **data) -> None:
+        if self.role == "junior":  # its work shows as the Junior's, never as the Senior's status or answer
+            if kind == "busy":
+                kind = "helper"
+            elif kind == "answer":
+                kind, data = "handoff", {"by": "junior", "to": "senior", **data}
+            data.setdefault("who", "junior")
         os.makedirs(os.path.dirname(self.events), exist_ok=True)
         with EVENT_LOCK, open(self.events, "a", encoding="utf-8") as f:  # the helper's thread writes here too
             f.write(json.dumps({"t": time.time(), "kind": kind, **data}, ensure_ascii=False) + "\n")
@@ -634,7 +686,8 @@ class Agent:
         inbox = getattr(self, "inbox", None)
         while inbox:
             n, kind, text = inbox.pop(0)
-            self.note(steps, f"Errand {n} ({kind}) is back from your helper:\n{text}")
+            self.note(steps, f"Task {n} is back from your junior:\n{text}" if kind == "task" else
+                      f"Errand {n} ({kind}) is back from your helper:\n{text}")
 
     # --- the loop -------------------------------------------------------------------------------------------
     def system(self) -> str:
@@ -662,9 +715,12 @@ class Agent:
             venv += (f"\nThe person's screen is {w}x{h} pixels" + (f" at {k}x scaling: a program that draws in pixels "
                      f"(pygame, SDL) shows a {w // k}x{h // k} window at the size other windows have" if k > 1 else "")
                      + ". Size a program's window for this screen, or make it resizable.")
-        return SYSTEM.format(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
-                             answer_tokens=self.answer_tokens, write_lines=self.write_lines,
-                             sandbox=", sandboxed without network" if self.sandbox else "")
+        parts = dict(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
+                     answer_tokens=self.answer_tokens, write_lines=self.write_lines,
+                     sandbox=", sandboxed without network" if self.sandbox else "")
+        if self.role == "junior":
+            return JUNIOR_SYSTEM.format(**parts)
+        return SYSTEM.format(**parts) + (SENIOR_B if self.role == "senior" else "")
 
     def problems(self) -> list[str]:
         """What the checks find in the project's files now, one line a file."""
@@ -797,7 +853,8 @@ class Agent:
         t0 = time.time()
         from cin_minai.inference.backend import Cancelled
         try:
-            raw, timings = self.chat(messages, schema=schema(self.content_max), max_tokens=self.answer_tokens,
+            raw, timings = self.chat(messages, schema=schema(self.content_max, self.excluded()),
+                                     max_tokens=self.answer_tokens,
                                      cancel=stop, on_text=on_text)
         except Cancelled:
             if not capped[0]:
@@ -1161,6 +1218,10 @@ class Agent:
         if goal:  # evidence for the goal's cycle: fetched while it was the one being worked
             for rel in kept["files"]:
                 self.goals.note(goal["id"], "sources", rel)
+        if kept["kind"] == "file" and len(kept["files"]) > 1:  # a PDF: its text kept as a source beside it
+            return (f"saved {url} as {kept['files'][0]} ({len(data):,} bytes); its text ({kept['lines']} lines) is in "
+                    f"{kept['files'][1]} — read it, or give it to your helper as an errand. It begins:\n"
+                    + kept["text"][:min(1200, self.obs_chars - 400)])
         if kept["kind"] == "file":
             return f"saved {url} as {kept['files'][0]} ({len(data):,} bytes) — it's in the project to use."
         if not kept["text"].strip():
@@ -1406,6 +1467,12 @@ class Agent:
                 return self.web_search(a.get("query", ""))
             if t == "download":
                 return self.download(a.get("urls") or [], a.get("folder", ""))
+            if t in ("assign", "review_task"):  # style B's Senior (pair.py)
+                fn = getattr(self, t + "_fn", None)
+                if not callable(fn):
+                    return "no junior is working with you here"
+                return (fn(a.get("path", ""), a.get("task", ""), a.get("kind", "write")) if t == "assign" else
+                        fn(int(a.get("n") or 0), bool(a.get("accept")), a.get("note", "")))
             if t == "errand":  # the tandem's Junior (tandem.py), working while this model does; alone, there's none
                 errand = getattr(self, "errand", None)
                 if not callable(errand):
@@ -1490,6 +1557,17 @@ class Agent:
         return os.path.join(self.root, ".cinminai", "drafts", rel)
 
     def change(self, a: dict, filled: bool | None = None) -> str:
+        """Every change, one at a time (style B's two agents share the files), past this agent's write guard (a file
+        held for the other one's task)."""
+        guard = getattr(self, "may_write", None)
+        if callable(guard):
+            why = guard(os.path.relpath(self.path(a["path"]), self.root).replace(os.sep, "/"))
+            if why:
+                return f"error: {why}"
+        with CHANGE_LOCK:
+            return self._change(a, filled)
+
+    def _change(self, a: dict, filled: bool | None = None) -> str:
         rel = os.path.relpath(self.path(a["path"]), self.root)
         full = os.path.join(self.root, rel)
         old = open(full, encoding="utf-8").read() if os.path.exists(full) else ""
@@ -1758,7 +1836,18 @@ def main(argv=None) -> int:
     if mode == "none":
         print("\033[1;31mNo permissions: the AI changes files and runs commands without asking, outside the sandbox. "
               "Don't risk anything you aren't willing to lose.\033[0m")
-    backend, name = local_backend()
+    from . import pair as pair_mod
+    team, both = pair_mod.team_of(root), None
+    if team == "B":
+        try:
+            both = pair_mod.pair_backends(say=print)
+        except Exception as e:  # a missing model, or the pair doesn't fit: team A, said plainly
+            print(f"\033[33mTeam B can't start here ({e}); working as team A (the coder with its helper).\033[0m")
+    if both:
+        backend, name, junior_backend, junior_name, senior_sees = both
+    else:
+        backend, name = local_backend()
+
     def tick(text: str) -> None:  # one progress line, rewritten in place; anything said after it starts clean
         sys.stdout.write(f"\r\033[2m… {text}\033[0m\033[K")
         sys.stdout.flush()
@@ -1767,6 +1856,14 @@ def main(argv=None) -> int:
                   say=lambda s: print(f"\r\033[K{s}"), tick=tick)
     agent.chat = card_minded(backend, agent.event, agent.say)
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
+    team_b = None
+    if both:  # style B: this agent is the Senior; the 9B Junior codes beside it (pair.py)
+        junior = Agent(root, junior_backend.chat, junior_name, mode, a.admin,
+                       ctx=int(junior_backend.cfg.get("context", 8192)),
+                       say=lambda s: print(f"\r\033[K\033[2m(junior) {s}\033[0m"))
+        team_b = pair_mod.Pair(agent, junior, say=lambda s: print(f"\r\033[K{s}"))
+        if senior_sees:
+            agent.reader = lambda: agent.chat
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
     from . import tandem as tandem_mod
@@ -1798,7 +1895,8 @@ def main(argv=None) -> int:
 
     def reader():  # look's one question goes to the guide when it has its picture reader (look.py)
         return guide().chat if tandem_mod.reads_pictures() and guide() is not None else None
-    agent.reader = reader
+    if team_b is None:
+        agent.reader = reader
     try:
         while True:
             try:
@@ -1811,13 +1909,15 @@ def main(argv=None) -> int:
             if text:
                 cancel = threading.Event()
                 try:
-                    (tandem() or agent).turn(text, cancel)
+                    (team_b or tandem() or agent).turn(text, cancel)
                 except KeyboardInterrupt:  # AICUI's Stop button sends Ctrl+C; the server stops when we hang up
                     cancel.set()
                     print("\r\033[K(stopped — what's done is saved and in the changelog)")
                     agent.event("answer", text="Stopped. What's done is saved and in the changelog.")
     finally:
         backend.unload()
+        if both:
+            junior_backend.unload()
         if pair["junior"] is not None:
             pair["junior"].unload()
     return 0

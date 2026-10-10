@@ -245,8 +245,8 @@ class Workspace(Gtk.ApplicationWindow):
                 continue
             if e["kind"] == "user":
                 self.bubble("user", e.get("text", ""))
-            elif e["kind"] == "thinking":
-                self.thought(e.get("text", ""))
+            elif e["kind"] == "thinking":  # the Junior's own, in style B, marked as its
+                self.thought(e.get("text", ""), "Junior's thought" if e.get("who") == "junior" else "Thought")
             elif e["kind"] == "answer":
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "note":  # a step that went wrong (cut off, not valid), told to the model as it was
@@ -254,7 +254,8 @@ class Workspace(Gtk.ApplicationWindow):
             elif e["kind"] == "handover":  # every 60 steps: where the work stands; the AI goes on
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "handoff":  # the two cards passing work: the coder (Senior) and its helper (Junior)
-                who = {"helper": "Senior → Junior", "coder": "Junior → Senior", "person": "Senior → you"}
+                who = {"helper": "Senior → Junior", "junior": "Senior → Junior", "coder": "Junior → Senior",
+                       "senior": "Junior → Senior", "person": "Senior → you"}
                 self.thought(e.get("text", ""), who.get(e.get("to", ""), "Junior"))
             elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
                 self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
@@ -476,6 +477,7 @@ class Workspace(Gtk.ApplicationWindow):
         file_item.set_submenu(menu)
         bar = Gtk.MenuBar()
         bar.append(file_item)
+        bar.append(self.team_menu())
         box = Gtk.Box(spacing=6)
         box.pack_start(bar, False, False, 0)
         for label, tip in (("GitHub", "Coming soon: your project on GitHub — push, pull and share it from here"),
@@ -484,6 +486,37 @@ class Workspace(Gtk.ApplicationWindow):
             b.set_tooltip_text(tip)
             box.pack_end(b, False, False, 4)
         return box
+
+    def team_menu(self) -> Gtk.MenuItem:
+        """The two cards (PLAN §1b): team A — the coder with the 4B as its errand intern; team B — a MoE Senior with
+        the 9B coding as its Junior. Both models load when the agent starts, so the choice holds from the next open."""
+        path = os.path.join(self.root, ".cinminai", "team.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                now = "B" if json.load(f).get("team") == "B" else "A"
+        except (OSError, ValueError):
+            now = "A"
+        menu, group = Gtk.Menu(), None
+        for key, label in (("A", "Team A — the coder, with a helper for errands"),
+                           ("B", "Team B — a senior and a junior coder (two models)")):
+            item = Gtk.RadioMenuItem(label=label, group=group)
+            group = group or item
+            item.set_active(key == now)
+            item.connect("toggled", lambda w, k=key: w.get_active() and self.set_team(k))
+            menu.append(item)
+        top = Gtk.MenuItem(label="Team")
+        top.set_submenu(menu)
+        return top
+
+    def set_team(self, team: str) -> None:
+        path = os.path.join(self.root, ".cinminai", "team.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"team": team}, f)
+        os.replace(path + ".tmp", path)
+        self.bubble("ai", f"Team {team} is chosen. Both of a team's models load when the AI starts: close and reopen "
+                          "this project to work with it." + (" Team B needs Qwen3.5-9B and Qwen3.6-35B-A3B in your "
+                                                              "model store." if team == "B" else ""))
 
     def open_project(self) -> None:
         d = Gtk.FileChooserNative(title="Open a project folder", action=Gtk.FileChooserAction.SELECT_FOLDER,

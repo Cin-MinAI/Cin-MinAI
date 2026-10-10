@@ -392,6 +392,16 @@ Junior" and back; the coder's rules say to take the person's words as they are a
 Not needed in style A: holding files (the Junior writes no project files). Style B (and file holds) when round 4
 runs.
 
+**Style B built 2026-10-10** (`aicui/pair.py`; Team menu in AICUI's top bar, `.cinminai/team.json`): the Senior (an
+Agent with the MoE) has `assign` (one existing file — so the skeleton comes first — held for the Junior's task) and
+`review_task` (accept, or back to the Junior with a note); the Junior (an Agent with the 9B) works its queue on its
+own thread and may write only its task's files, with its own short rules; the Senior can't write a held file; results
+reach the Senior between its steps; one change and one question to the person at a time across both. The two models
+are placed together (`matcher.pair_plan`): the 9B whole on the card at 32K (~5.6 GB), the 35B-A3B beside it with 38
+of 40 layers' experts in RAM (~3.6 GB on the card, ~16 GB in RAM) — on paper for a 1080 Ti and 32 GB, to be measured;
+its picture reader (Q8_0, pinned) answers looks. If a model is missing or the pair doesn't fit, the agent says so and
+works as team A. A PDF that comes in keeps its text under `sources/` (poppler's pdftotext), for a rulebook offline.
+
 **Stop on the table's tokens** (Ian, 2026-10-09: "a pop up asking if the user wants the task to continue in the
 background with a listing of the task and for what session goal… It falls back to team tables tokens. Stop both or
 just one? Thats what the ultimate function is."): every errand is a task on the table from the moment it's queued,

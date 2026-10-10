@@ -61,6 +61,13 @@ PROJECTORS = {
                                              source="unsloth/Qwen3.5-4B-GGUF@e87f176479d0855a907a41277aca2f8ee7a09523",
                                              sha256="cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864",
                                              size=672423616, remote="mmproj-F16.gguf"),
+    # team B's Senior answers the look's picture question (Ian, 2026-10-09: "the 35b will have the screenshots and
+    # picture reader"); Q8_0 kept off the card (--no-mmproj-offload), the card's room is the Junior's
+    "Qwen3.6-35B-A3B-Q4_K_M.gguf": Model("Vision for Qwen3.6-35B-A3B", "Qwen3.6-35B-A3B-mmproj-Q8_0.gguf",
+                                         614194304, 0, 0, 0,
+                                         source="ggml-org/Qwen3.6-35B-A3B-GGUF@baec3ebee244827cda0f4557eafa8b28f7545fa6",
+                                         sha256="904cbf8c8e876220066ab3bf676c7efa40f3da372276fdaf8b01d2fb2a37a51d",
+                                         size=614194304, remote="mmproj-Qwen3.6-35B-A3B-Q8_0.gguf"),
 }
 VISION_CONTEXT = 16384
 IMAGE_MIB = 600  # room for reading the picture: at 16K this gives the 27B two layers in RAM on a free 1080 Ti, as measured
@@ -300,6 +307,27 @@ def full_plan(m: Model, machine: Machine, ctx: int, why: str = "") -> dict | Non
             "reserve_mib": margin_mib(machine.cards[0]) if machine.cards else 0,
             "tok_s": [round(p["tok_s"] * 0.7, 1), round(p["tok_s"] * 1.3, 1)],
             "args": p["args"] + ["-c", str(ctx), "-fa", "on", "-ctk", p["cache"], "-ctv", p["cache"]]}
+
+
+SECOND_SERVER_MIB = 300  # a second llama-server on the same card: its own CUDA context and buffers
+
+
+def pair_plan(junior: Model, senior: Model, machine: Machine, ctx_junior: int = 32768,
+              ctx_senior: int = 32768) -> dict | None:
+    """Two models on one machine (style B of the two cards, PLAN §1b): the Junior (the coder) placed first, whole on
+    the card; the Senior — a MoE — in what's left, its backbone on the card and as many layers' experts in RAM as it
+    takes. {"junior": plan, "senior": plan} in full_plan's shape, or None when the pair doesn't fit."""
+    j = full_plan(junior, machine, ctx_junior)
+    if not j or not machine.cards or j["mode"] != "all on the graphics card":
+        return None
+    card = machine.cards[0]
+    rest = dataclasses.replace(
+        machine, cards=[{**card, "free_mib": card["free_mib"] - int(j["card_gb"] * GiB / MiB) - SECOND_SERVER_MIB}],
+        ram_avail_gib=machine.ram_avail_gib - j.get("ram_gb", 0))
+    s = full_plan(senior, rest, ctx_senior)
+    if not s:
+        return None
+    return {"junior": j, "senior": s}
 
 
 def match(machine: Machine) -> dict:

@@ -388,6 +388,34 @@ class AgentTest(unittest.TestCase):
         nothing = a.do({"tool": "download", "urls": ["https://made.up.example/c.jpg"], "folder": "../../etc"})
         self.assertIn("nothing downloaded", nothing)
 
+    def test_a_pdf_comes_in_with_its_text_as_a_source(self):
+        """For style B's rulebook (Ian, 2026-10-10: "make sure the full ruleset is there and get it offline"): a PDF is
+        kept as it came, and its text kept beside it under sources/ for either model to read."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: "a")
+        a.given("the rules: https://rules.example/rulebook.pdf")
+        with mock.patch.object(intake, "get", return_value=(b"%PDF-1.4 ...", "application/pdf")), \
+                mock.patch.object(intake, "pdf_text", return_value="PHASES\nDraw Phase: draw 1 card.\n"):
+            said = a.fetch("https://rules.example/rulebook.pdf")
+        self.assertIn("saved https://rules.example/rulebook.pdf as assets/rulebook.pdf", said)
+        self.assertIn("its text (3 lines) is in sources/rulebook.txt", said)
+        with open(os.path.join(self.root, "sources", "rulebook.txt"), encoding="utf-8") as f:
+            text = f.read()
+        self.assertTrue(text.startswith("From https://rules.example/rulebook.pdf"))
+        self.assertIn("Draw Phase: draw 1 card.", text)
+
+    @unittest.skipUnless(shutil.which("pdftotext"), "needs pdftotext (poppler-utils)")
+    def test_a_real_pdfs_text(self):
+        from cin_minai.aicui import intake
+        pdf = (b"%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+               b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 100]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>"
+               b">>endobj\n4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 10 50 Td (Battle Phase rules) Tj ET\nendstream "
+               b"endobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF")
+        kept = intake.save(self.root, "https://rules.example/rules.pdf", pdf, "application/pdf")
+        self.assertEqual(kept["files"], ["assets/rules.pdf", "sources/rules.txt"])
+        self.assertIn("Battle Phase rules", kept["text"])
+
     def test_where_the_ai_stands_is_kept_after_every_step(self):
         """Ian, 2026-10-09: power cuts from storms. The request, its state and its last steps are on disk after every
         step; a finished request says so; one cut off mid-way still says "working"."""

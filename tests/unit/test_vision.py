@@ -67,9 +67,9 @@ class Choosing(unittest.TestCase):
         self.assertEqual(cfg["socket_name"], "llama-vision.sock")
 
     def test_projectors_download_from_their_own_names(self):
-        for p in M.PROJECTORS.values():
-            self.assertEqual(p.remote, "mmproj-F16.gguf")
-            self.assertTrue(p.source and len(p.sha256) == 64 and p.size > 600 << 20)
+        for p in M.PROJECTORS.values():  # each repository names its own file (ggml-org's carry the model's name)
+            self.assertTrue(p.remote.startswith("mmproj") and p.remote.endswith(".gguf"), p.remote)
+            self.assertTrue(p.source and len(p.sha256) == 64 and p.size > 580 << 20)
 
 
 @unittest.skipIf(Image is None, "needs Pillow (to make the test photo; the daemon itself uses GdkPixbuf)")

@@ -29,6 +29,21 @@ class Matcher(unittest.TestCase):
         self.assertEqual(r["writing"]["file"], "Qwen3-14B-Q4_K_M.gguf")
         self.assertEqual(r["help"]["file"], "Qwen3.5-4B-guide-HO-Q4_K_M.gguf")
 
+    def test_a_pair_on_one_card_the_junior_first(self):
+        """Style B (PLAN §1b): the 9B coder whole on the card, the 35B-A3B Senior beside it — its backbone on the card,
+        most experts in RAM. On a 1080 Ti with 32 GB it fits on paper (to be measured)."""
+        from cin_minai.inference.matcher import CATALOG, pair_plan
+        nine = next(m for m in CATALOG["coding"] if m.file == "Qwen3.5-9B-Q4_K_M.gguf")
+        moe = next(m for m in CATALOG["coding"] if m.file == "Qwen3.6-35B-A3B-Q4_K_M.gguf")
+        p = pair_plan(nine, moe, machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))
+        self.assertIsNotNone(p)
+        self.assertEqual(p["junior"]["mode"], "all on the graphics card")
+        self.assertIn("experts of", p["senior"]["mode"])
+        self.assertIn("--n-cpu-moe", p["senior"]["args"])
+        self.assertLessEqual(p["junior"]["card_gb"] + p["senior"]["card_gb"], 10354 / 1024)
+        self.assertIsNone(pair_plan(nine, moe, machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354, avail=10)))  # RAM
+        self.assertIsNone(pair_plan(nine, moe, machine("NVIDIA GeForce RTX 3050", 6144, 5600)))  # no room beside it
+
     def test_1080ti_desktop_on_the_card(self):
         r = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))
         # the 27B no longer fits whole: a near-fit, a few layers' feed-forward weights in RAM (12.9 tok/s with one)
