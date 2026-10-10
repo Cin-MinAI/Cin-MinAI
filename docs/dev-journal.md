@@ -1677,3 +1677,9 @@ behind a C bridge, a Python GUI over it, the data fetched and checked, the real 
 machine." What it lacked was the rules themselves: nobody gave it the full rulebook, and a model's weights don't hold
 one accurately. The next test, style B with a MoE Senior and the 9B coding, starts by getting the full ruleset
 offline as a source.
+
+**The one that made us laugh** (2026-10-09, kept for the record). Asked for a picture from the web, the coder found the
+page that had it and saved it. The checks then scanned the saved page as if it were project code, found an "unclosed
+script tag" in it, and the coder dutifully set about repairing someone else's website — instead of taking the picture.
+Ian, later, naming the fix as a principle (GatheredData, being designed): reading a web image "grabs the image instead
+of trying to fix a website."
