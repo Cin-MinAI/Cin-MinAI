@@ -40,7 +40,7 @@ So each rule is one of two kinds:
 | A20 | goal_add | ~~an open goal added again is refused~~ removed (a band-aid on C1) | today |
 | A21 | plan (team B's Senior) | a new project starts with its plan: before it, only looking around (read, list, search, look) and talking | today (test6) |
 | A22 | plan | the person's request as goals, each with what it needs from outside, its files and who does it; the person sees it once and says OK or what to change; a goal for the junior names its files | today (test6) |
-| A23 | edit, write… and goal_done | a goal's files aren't written, and it isn't ticked, until what it needs from outside is in (pages, files or records fetched or distilled for it, as many as it has needs) | today (test6: 300 lines of card data typed from memory) |
+| A23 | edit, write… and goal_done | a goal's files aren't written, and it isn't ticked, until what it takes `from_outside` is in (named `needs` until test8, where the model listed the project's own work there and goals waited for themselves) (pages, files or records fetched or distilled for it, as many as it has needs) | today (test6: 300 lines of card data typed from memory) |
 | A24 | team B | the junior's goals go to it once their needs are in, with their files held for it; it starts nothing itself | today |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 

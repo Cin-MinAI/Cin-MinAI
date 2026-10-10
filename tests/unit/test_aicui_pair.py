@@ -320,24 +320,24 @@ class PairTest(unittest.TestCase):
                       senior.do({"tool": "write", "path": "engine.py", "content": "x = 1\n"}))
         self.assertIn("1 parts", senior.do({"tool": "list", "path": "."}) + " 1 parts")  # looking around is fine
         said = senior.do({"tool": "plan", "goals": [
-            {"text": "Get the official rules into data", "needs": ["the official rulebook"],
+            {"text": "Get the official rules into data", "from_outside": ["the official rulebook"],
              "files": ["data/rules.json"], "who": "senior"},
-            {"text": "The card list as data", "needs": ["the official card list"], "files": ["data/cards.json"],
+            {"text": "The card list as data", "from_outside": ["the official card list"], "files": ["data/cards.json"],
              "who": "junior"},
-            {"text": "The engine's skeleton", "needs": [], "files": ["engine.py"], "who": "senior"}]})
+            {"text": "The engine's skeleton", "from_outside": [], "files": ["engine.py"], "who": "senior"}]})
         self.assertIn("the plan is in: goals 1–3", said)
-        self.assertIn("2. [your assistant] The card list as data\n       needs from outside: the official card list",
+        self.assertIn("2. [your assistant] The card list as data\n       from outside: the official card list",
                       shown[0])
         goals = senior.goals.load()
-        self.assertEqual([(g["who"], g["needs"], g["files"]) for g in goals],
+        self.assertEqual([(g["who"], g["from_outside"], g["files"]) for g in goals],
                          [("senior", ["the official rulebook"], ["data/rules.json"]),
                           ("junior", ["the official card list"], ["data/cards.json"]),
                           ("senior", [], ["engine.py"])])
         blocked = senior.do({"tool": "write", "path": "data/rules.json", "content": "[]\n"})
         self.assertIn("belongs to goal 1", blocked)
-        self.assertIn("needs the official rulebook — in so far: 0 of 1", blocked)
+        self.assertIn("takes from outside the official rulebook — in so far: 0 of 1", blocked)
         self.assertIn("logged as change", senior.do({"tool": "write", "path": "engine.py", "content": "x = 1\n"}))
-        self.assertIn("NOT ticked — what it needs from outside isn't in yet", senior.do({"tool": "goal_done", "id": 1}))
+        self.assertIn("NOT ticked — what it takes from outside isn't in yet", senior.do({"tool": "goal_done", "id": 1}))
         self.assertFalse(p.out)  # nothing for the junior yet: its goal waits for its card list
 
         def jchat(messages, **kw):  # the junior: notes when it reads first, steps when it works its goal
@@ -372,6 +372,7 @@ class PairTest(unittest.TestCase):
         senior.goals.remove(1)
         text = senior.system()
         self.assertIn("- plan (a new project's goals, made once", text)
+        self.assertIn("never the project's own work", text)
         self.assertIn("A new project starts with\nits plan (plan)", text)
         self.assertNotIn("write them as goals", text)
         solo = Agent(self.root, Scripted([]), "m", "auto", say=lambda s: None)

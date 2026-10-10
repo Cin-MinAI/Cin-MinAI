@@ -74,8 +74,8 @@ ACTIONS = [
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
     {"tool": "plan", "goals": {"type": "array", "minItems": 1, "maxItems": PLAN_MAX, "items": {
-        "type": "object", "additionalProperties": False, "required": ["text", "needs", "files", "who"], "properties": {
-            "text": STR, "needs": {"type": "array", "items": STR, "maxItems": 6},
+        "type": "object", "additionalProperties": False, "required": ["text", "from_outside", "files", "who"], "properties": {
+            "text": STR, "from_outside": {"type": "array", "items": STR, "maxItems": 6},
             "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
     {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
@@ -89,9 +89,10 @@ JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "w
 # and "write them as goals", so it planned in its thinking, reached for goal_add, and was refused fifteen times)
 GOAL_TOOLS = {"solo": ("- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)",
                        "At the start of a new project, ask about its goals\nand scope and write them as goals"),
-              "senior": ("- plan (a new project's goals, made once: the request in its order, each with its `needs` from "
-                         "outside, its\n  `files` and `who` does it; the person sees it), goal_add (one more goal for "
-                         "the plan) / goal_done (tick\n  goal `id` when it's really done)",
+              "senior": ("- plan (a new project's goals, made once: the request in its order, each with `from_outside` "
+                         "(pages or\n  files that must come from the web or the person — never the project's own work), "
+                         "its `files` and `who`\n  does it; the person sees it), goal_add (one more goal for the plan) / "
+                         "goal_done (tick goal `id` when it's done)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
 DISTILL_PART = """You distill for this intent: {intent}
@@ -239,8 +240,9 @@ The project's files (first lines):
 
 SENIOR_B = """
 You are the Senior, with your assistant, the junior developer (a smaller, faster model). A new project starts with
-plan: the person's request as goals in its order, each with what it `needs` from outside (a rulebook, lists,
-pictures: fetched and distilled before its files are written), its `files`, and `who` does it (you, or the junior).
+plan: the person's request as goals in its order, each with `from_outside` (only what must come from the web or the
+person: a rulebook, lists, pictures — fetched and distilled before its files are written; what the project builds
+itself is never in it), its `files`, and `who` does it (you, or the junior).
 The person sees it once. Fetch a goal's needs with `goal` N; the junior's goals go to it once their needs are in, or
 give it one file with assign (`path`, `task`, `kind`). Its results come between your steps: review_task (`n`,
 `accept`, `note`). Pages you fetch go to the junior first; its notes (notes/) come to you. You have the final word."""
@@ -1561,7 +1563,7 @@ class Agent:
 
     def make_plan(self, items: list) -> str:
         """The person's request as goals (Ian, 2026-10-10: the Senior "didnt search, didnt use the junior, and didnt
-        really make a plan"): each with what it needs from outside, its files and who does it; the person sees it
+        really make a plan"): each with what must come from outside, its files and who does it; the person sees it
         once and says OK or what to change."""
         if self.goals.load():
             return "error: this project has its goals already; add one with goal_add"
@@ -1575,7 +1577,8 @@ class Agent:
                 full = os.path.realpath(os.path.join(self.root, str(f)))
                 if full.startswith(os.path.realpath(self.root) + os.sep):
                     files.append(os.path.relpath(full, os.path.realpath(self.root)).replace(os.sep, "/"))
-            goals.append({"text": text, "needs": [" ".join(str(n).split()) for n in it.get("needs") or [] if str(n).strip()],
+            outside = it.get("from_outside") or []
+            goals.append({"text": text, "from_outside": [" ".join(str(n).split()) for n in outside if str(n).strip()],
                           "files": files, "who": "junior" if it.get("who") == "junior" else "senior"})
         if not goals:
             return "error: the plan needs at least one goal, each said in a sentence"
@@ -1583,7 +1586,7 @@ class Agent:
         if bare:  # the junior writes only the files its task holds
             return f"error: a goal for your assistant names its files (which it writes): {'; '.join(bare)}"
         shown = "\n".join(f"  {i}. [{'your assistant' if g['who'] == 'junior' else 'the senior'}] {g['text']}"
-                          + (f"\n       needs from outside: {'; '.join(g['needs'])}" if g["needs"] else "")
+                          + (f"\n       from outside: {'; '.join(g['from_outside'])}" if g["from_outside"] else "")
                           + (f"\n       files: {', '.join(g['files'])}" if g["files"] else "")
                           for i, g in enumerate(goals, 1))
         self.event("busy", doing="waiting for your answer in the terminal", asking="the plan")
@@ -1592,12 +1595,13 @@ class Agent:
             return "the person said no to the plan — ask what they want instead"
         if reply.lower() not in ("y", "yes", "ok", "a"):
             return f"the person wants changes to the plan: {reply[:500]} — make the plan again with them"
-        made = [self.goals.add(g["text"], by="ai", needs=g["needs"], files=g["files"], who=g["who"]) for g in goals]
+        made = [self.goals.add(g["text"], by="ai", from_outside=g["from_outside"], files=g["files"], who=g["who"])
+                for g in goals]
         self.event("goals")
         planned = getattr(self, "planned", None)
         if callable(planned):
             planned()  # team B: the junior's goals with nothing to wait for go to it now
-        return (f"the plan is in: goals {made[0]['id']}–{made[-1]['id']}. What a goal needs from outside comes first: "
+        return (f"the plan is in: goals {made[0]['id']}–{made[-1]['id']}. What a goal takes from outside comes first: "
                 "fetch and distill it with that goal's number (goal N); until then its files can't be written and it "
                 "can't be ticked. Your assistant's goals go to it once their needs are in.")
 
@@ -1608,12 +1612,18 @@ class Agent:
         return [r for r in ev.get("sources", []) if not os.path.basename(r).startswith("search-")] + \
             [f"gathered record {r}" for r in ev.get("records", [])]
 
+    @staticmethod
+    def outside(goal: dict) -> list[str]:
+        """What a planned goal takes from outside (pages or files from the web or the person; "needs" until
+        2026-10-10, when the model put the project's own dependencies there and a goal waited for itself)."""
+        return list(goal.get("from_outside", goal.get("needs")) or [])
+
     def needs_met(self, goal: dict) -> bool:
-        return not goal.get("needs") or len(self.needs_have(goal)) >= len(goal["needs"])
+        return not self.outside(goal) or len(self.needs_have(goal)) >= len(self.outside(goal))
 
     def needs_line(self, goal: dict) -> str:
-        have = self.needs_have(goal)
-        return (f"needs {'; '.join(goal.get('needs', []))} — in so far: {len(have)} of {len(goal.get('needs', []))}"
+        have, want = self.needs_have(goal), self.outside(goal)
+        return (f"takes from outside {'; '.join(want)} — in so far: {len(have)} of {len(want)}"
                 + (f" ({', '.join(have[:4])})" if have else ""))
 
     def needs_block(self, path: str) -> str:
@@ -1817,7 +1827,7 @@ class Agent:
             t = a["tool"]
             if t not in BEFORE_PLAN and self.plans() and not self.goals.load():
                 return ("error: a new project starts with its plan — plan: the person's request as goals, in the "
-                        "request's order, each with what it needs from outside (needs), its files, and who does it "
+                        "request's order, each with what must come from outside (from_outside), its files, and who does it "
                         "(you, or your assistant, the junior). The person sees it once.")
             if t == "plan":
                 return self.make_plan(a.get("goals") or [])
@@ -1907,7 +1917,7 @@ class Agent:
             if t == "goal_done":
                 goal = next((g for g in self.goals.load() if g["id"] == int(a["id"])), None)
                 if goal and not self.needs_met(goal):
-                    return (f"goal {goal['id']} NOT ticked — what it needs from outside isn't in yet: "
+                    return (f"goal {goal['id']} NOT ticked — what it takes from outside isn't in yet: "
                             + self.needs_line(goal) + ". Fetch and distill it (with goal " + str(goal["id"]) + "), or "
                             "ask the person.")
                 ok, report = self.verify()
