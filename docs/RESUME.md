@@ -13,6 +13,8 @@ model's story: `docs/guide-model-journal.md`.
   origins and protection by origin, the `distill` tool and gathered records (`.cinminai/gathered/`), compiled data
   files checked against their records, the instructions sorted into FETCH / DISTILL / COMPILE / TALK; the Junior
   stops at any step, sends its stuck point to the Senior, and can't replace most of a file.
+  Then pictures distilled as the pictures (`format` files: downloaded with an index) and the compiled check item by
+  item, after every change too.
 - **Test4 (team B)** built a ~1,800-line engine that compiles; the Junior's loop and a 1,088→77-line draft were undone
   from the changelog. Findings in PLAN §1b.
 - **Next — test5**, team B, the full ruleset fetched offline first; the build and starter request are in `prompts.txt`.

@@ -355,8 +355,10 @@ file of 80+ lines goes up); the `distill` tool with gathered records, queued to 
 files written by code and checked against their records before a goal is ticked; every model's instructions sorted
 into FETCH / DISTILL / COMPILE / TALK with the rule of the three. The context-fit rule now leaves the instructions
 whole and keeps the history under 60 % of the room left after them (the instructions grew by ~1,000 characters).
-Not built: a review that diffs a data file against its record item by item (the check counts and compares; the
-Senior reads the record); distilling pictures out of a page (the picture is still fetched by `download`).
+Then, the same day (Ian: "part of the point was to fix that picture issue"): the check goes item by item (missing,
+added, changed field by field, and after every change to a compiled file, not only at the goal check); pictures are
+distilled as the pictures (`format` files: the page's own addresses beside their words, kept only if the source
+holds them, downloaded with one approval, an `index.json` of which is which compiled by code).
 
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 

@@ -91,16 +91,23 @@ class _AllText(HTMLParser):
             self.skipping += 1
             return
         a = {k: v or "" for k, v in attrs}
+        here = ""  # this picture's address, beside its words: so a distill ties "Stone Giant" to its picture
         if self.base:  # the page's own pictures and links, as full addresses: what may be fetched next
+            if tag == "meta" and a.get("property", a.get("name", "")).lower() in ("og:image", "twitter:image"):
+                a["src"], tag = a.get("content", ""), "img"  # the page's own main picture
+                a.setdefault("alt", "the page's main picture")
             for found, key, into in (("img", "src", self.pictures), ("img", "data-src", self.pictures),
                                      ("a", "href", self.links)):
                 if tag == found and a.get(key) and not a[key].startswith(("data:", "javascript:", "#", "mailto:")):
                     full = urllib.parse.urljoin(self.base, a[key].strip())
+                    if found == "img" and full.startswith("https://"):
+                        here = here or full
                     if full.startswith("https://") and full not in into and len(into) < MAX_LINKS:
                         into.append(full)
         for key in ("alt", "title"):
             if a.get(key, "").strip() and (tag == "img" or key == "title"):
-                self.lines.append(f"[{'image' if tag == 'img' else tag}: {a[key].strip()}]")
+                self.lines.append(f"[{'image' if tag == 'img' else tag}: {a[key].strip()}"
+                                  + (f" — {here}]" if tag == "img" and here else "]"))
 
     def handle_endtag(self, tag):
         if tag in self.SKIP and self.skipping:

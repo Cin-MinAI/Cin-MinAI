@@ -1715,5 +1715,8 @@ item with where it stood. Code, not a model, writes the record into the project'
 ticked that file is checked against its record. In style B the Senior's reading goes to the faster Junior. The
 Junior stops at any step. A stuck Junior goes up to the Senior with its stuck point, and a Junior change that would
 throw away most of a file goes up too. Every model's tools are now sorted under FETCH, DISTILL and COMPILE, with one
-rule over them: facts come from sources, never from memory. Next: test5, team B, with the full ruleset fetched
+rule over them: facts come from sources, never from memory. Ian sent the build back for the two things it left out:
+"part of the point was to fix that picture issue." So pictures are now distilled as pictures: the page's own
+picture addresses, each beside its words, become the pictures themselves, with an index of which is which. And a
+compiled file is checked against its record item by item, every time it changes. Next: test5, team B, with the full ruleset fetched
 offline first.

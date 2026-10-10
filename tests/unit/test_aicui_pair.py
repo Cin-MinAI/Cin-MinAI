@@ -188,6 +188,66 @@ class PairTest(unittest.TestCase):
             f.write("[]\n")
         self.assertIn("0 items now, 1 in the record: changed since it was compiled", "\n".join(solo.compiled_check()))
 
+    def test_a_compiled_file_is_checked_against_its_record_item_by_item(self):
+        """Compile checked against the sources (SPEC §23.5): which items are missing, added or changed, field by field —
+        at the goal check and right after a change to the file, so drift is seen when it's made."""
+        senior, _, _ = self.pair()
+        from cin_minai.aicui import intake
+        intake.save(self.root, "https://cards.example/set", b"<html><body><p>Stone Giant 3000</p><p>Sea Wyrm 1800</p>"
+                                                            b"</body></html>", "text/html")
+        solo = Agent(self.root, Scripted([]), "m", "auto", say=lambda s: None, ctx=32768)
+        solo.chat = lambda messages, **kw: (json.dumps({"items": [{"name": "Stone Giant", "atk": 3000, "where": "p1"},
+                                                                    {"name": "Sea Wyrm", "atk": 1800, "where": "p2"}]}), {})
+        solo.do({"tool": "distill", "sources": ["sources/set.html"], "intent": "each card's name and ATK",
+                 "into": "data/cards.json"})
+        changed = solo.do({"tool": "write", "path": "data/cards.json", "content": json.dumps(
+            {"cards": [{"name": "Stone Giant", "atk": 2500}, {"name": "Fire Imp", "atk": 900}]})})
+        self.assertIn("logged as change", changed)
+        self.assertIn("data/cards.json: compiled from gathered record 1", changed)  # the check comes back at once
+        for part in ("1 missing (Sea Wyrm)", "1 not in the record (Fire Imp)", "1 changed (Stone Giant (atk: 3000 → "
+                     "2500))"):
+            self.assertIn(part, changed)
+        solo.do({"tool": "write", "path": "data/cards.json", "content": json.dumps(
+            [{"name": "Sea Wyrm", "atk": 1800}, {"name": "Stone Giant", "atk": 3000}])})  # order and "where" aside
+        self.assertIn("2 items, as distilled", "\n".join(solo.compiled_check()))
+
+    def test_pictures_are_distilled_as_the_pictures_not_the_page(self):
+        """Ian, 2026-10-10: reading an internet image "grabs the image instead of trying to fix a website". Format
+        files: the page's own picture addresses (each beside its words), downloaded with one approval, an index of which
+        is which compiled by code; an address the page doesn't hold is left out."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        intake.save(self.root, "https://cards.example/giant", b'<html><head><meta property="og:image" content='
+                    b'"https://img.example/giant-full.jpg"></head><body><img alt="Stone Giant" src="/pics/giant.jpg">'
+                    b"<p>A big one.</p></body></html>", "text/html")
+        with open(os.path.join(self.root, "sources", "giant.txt"), encoding="utf-8") as f:
+            page = f.read()
+        self.assertIn("[image: Stone Giant — https://cards.example/pics/giant.jpg]", page)  # the picture beside its words
+        self.assertIn("https://img.example/giant-full.jpg", page)  # the page's main picture, listed too
+        asked = []
+        solo = Agent(self.root, Scripted([]), "m", "auto", say=lambda s: None, ctx=32768,
+                     ask=lambda p: (asked.append(p), "y")[1])
+        solo.chat = lambda messages, **kw: (json.dumps({"items": [
+            {"name": "Stone Giant", "url": "https://cards.example/pics/giant.jpg", "where": "the card's picture"},
+            {"name": "Sea Wyrm", "url": "https://cards.example/pics/wyrm.jpg", "where": "from memory"}]}), {})
+        self.assertIn("which folder under assets/", solo.do({"tool": "distill", "sources": ["sources/giant.html"],
+                                                          "intent": "each card's picture", "format": "files"}))
+        with mock.patch.object(intake, "get", side_effect=lambda u: (b"JFIF" + u.encode(), "image/jpeg")):
+            said = solo.do({"tool": "distill", "sources": ["sources/giant.html"], "intent": "each card's picture",
+                            "into": "assets/cards", "format": "files"})
+        self.assertEqual(len(asked), 1)  # one approval for the pictures
+        self.assertIn("1 addresses weren't in the sources as given, left out", said)  # the made-up one
+        self.assertIn("downloaded 1 of 1 into assets/cards/", said)
+        self.assertIn("compiled into assets/cards/index.json", said)
+        with open(os.path.join(self.root, "assets", "cards", "index.json"), encoding="utf-8") as f:
+            index = json.load(f)
+        self.assertEqual([(i["name"], i["file"]) for i in index], [("Stone Giant", "assets/cards/giant.jpg")])
+        self.assertTrue(intake.came_in(self.root, "assets/cards/giant.jpg"))  # the picture stays as it came
+        self.assertFalse(intake.came_in(self.root, "assets/cards/index.json"))  # the index is the project's own
+        self.assertIn("1 items, as distilled", "\n".join(solo.compiled_check()))
+        os.remove(os.path.join(self.root, "assets", "cards", "giant.jpg"))
+        self.assertIn("1 files gone (assets/cards/giant.jpg)", "\n".join(solo.compiled_check()))
+
     def test_in_team_b_the_seniors_reading_goes_to_the_junior(self):
         """Ian, 2026-10-10: "Jr should do mostly reading and distilling, Sr should do mostly direction and organizing."
         The Senior's distill is queued for the Junior (it reads ~10x faster here); the record comes back between steps."""
@@ -206,6 +266,20 @@ class PairTest(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.root, "data", "rules.json")))
         self.assertNotIn("errand", {v["properties"]["tool"]["const"] for v in
                                     schema(None, senior.excluded())["properties"]["action"]["anyOf"]})
+        # pictures too: the junior downloads them and writes their index, which its task holds
+        from unittest import mock
+        intake.save(self.root, "https://cards.example/giant", b'<html><body><img alt="Stone Giant" src="/g.jpg">'
+                                                              b"</body></html>", "text/html")
+        junior.chat = lambda messages, **kw: (json.dumps({"items": [{"name": "Stone Giant",
+                                                                       "url": "https://cards.example/g.jpg"}]}), {})
+        junior.fetch_ok = True  # the person's "always this session"
+        senior.inbox.clear()
+        with mock.patch.object(intake, "get", side_effect=lambda u: (b"JFIF", "image/jpeg")):
+            said = senior.do({"tool": "distill", "sources": ["sources/giant.html"], "intent": "each card's picture",
+                              "into": "assets/cards", "format": "files"})
+            self.assertIn("held for it", said)
+            self.wait(p)
+        self.assertIn("compiled into assets/cards/index.json", senior.inbox[0][2])
 
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P

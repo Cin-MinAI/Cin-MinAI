@@ -2271,11 +2271,23 @@ a file goes to the Senior before it lands.
 - **Compile.** With `into`, the record's items are written by code into the data file (JSON, or text one item per
   line), not retyped by a model, and that file's origin is recorded as *compiled* from record N, so it stays the
   project's own and can be edited. From there the models compile it further with `edit`/`write`/`append`: the code
-  reads the data file instead of carrying it. **The check:** before a goal is ticked, every compiled data file is
-  compared with its record, next to the tests and the entry point: a JSON file's item count against the record's
-  ("cards.json: compiled from gathered record 3 (sources/cards.txt) — 412 items, as distilled", or "390 items now,
-  412 in the record: changed since it was compiled (if on purpose, say why; else distill it again)"); a review by the Senior is told to compare
-  against the records.
+  reads the data file instead of carrying it. **The check, item by item:** before a goal is ticked, every compiled
+  data file is compared with its record, next to the tests and the entry point, and the same check comes back in the
+  result of every change to that file, so drift shows when it's made. Items are paired by the first field that names
+  each one once (a name, an id); the places they stood (`where`, `source`) and the order don't count. The result
+  names what differs: "cards.json: compiled from gathered record 3 (sources/cards.txt) — 412 items, as distilled",
+  or "… changed since it was compiled — 1 missing (Sea Wyrm); 1 not in the record (Fire Imp); 1 changed (Stone Giant
+  (atk: 3000 → 2500)) (if on purpose, say why; else distill it again)". A file that wraps the list (`{"cards":
+  [...]}`) is read through to the list. The Senior's reviews are told to compare against the records.
+- **Pictures are distilled as the pictures** (Ian: reading an internet image "grabs the image instead of trying to
+  fix a website"). A kept page's text puts each picture's address beside its words ("[image: Stone Giant —
+  https://…/giant.jpg]"), and lists the page's main picture (`og:image`) too. `distill` with `format` files and
+  `into` a folder under `assets/` asks the model, part by part, for the picture or file each item names: its name
+  and its address *as it stands in the source*. Code keeps only addresses the source really holds (one from memory is
+  left out and counted), downloads them with one approval and every check `download` has, and compiles
+  `<folder>/index.json`: each item's name, address, source and saved file. The pictures are fetched material, kept as
+  they came; the index is the project's own, and its check also says when a picture it names is gone. In style B the
+  Junior does it, holding the index.
 - **The Junior goes up.** The Junior runs under the Senior's rules and is stopped between any two steps (the Stop
   button, Ctrl+C at an idle prompt). A task that ends stuck, at the step limit, on an error or a question comes back
   to the Senior as a **stuck point**: the task, the last three steps (thinking and result) and "distill its next step:

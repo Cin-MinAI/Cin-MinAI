@@ -61,7 +61,7 @@ ACTIONS = [
     {"tool": "fetch", "url": STR},
     {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR},
     {"tool": "distill", "sources": {"type": "array", "items": STR, "maxItems": 12}, "intent": STR, "into": STR,
-     "format": {"enum": ["json", "text"]}},
+     "format": {"enum": ["json", "text", "files"]}},
     {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR,
      "goal": {"type": "integer"}},
     {"tool": "goal_add", "text": STR},
@@ -83,8 +83,63 @@ From the part below only ({source}, part {n} of {total}), extract every item the
 stands (names, numbers, wording). Never add what isn't in this part."""
 DISTILL_JSON = """Reply as JSON: {"items": [ ... ]}, one object per item, with the fields the intent names and
 "where": a short place in this part (a heading, a page, the line it starts). {"items": []} when the part has none."""
+DISTILL_FILES = """Reply as JSON: {"items": [ ... ]}, one object per picture or file the intent names: "url", its
+address exactly as it stands in this part (beside its words, or in the lists at the end), "name", what it is, as the
+part names it, and "where". Never a page's address for its picture, never one you make up. {"items": []} when none."""
 DISTILL_TEXT = """Reply with the extracted text, as it stands, each piece headed by where it is; "nothing here" when the
 part has none."""
+
+
+SIDE_FIELDS = {"where", "source"}  # where an item stood: the record's bookkeeping, not the data
+
+
+def compare_items(want: list, have: list) -> list[str]:
+    """The record's items against a compiled file's, item by item: missing, added, changed (field: was → is). Paired
+    by the first field that names every item once (a name, an id); without one, as whole items."""
+    def clean(it):
+        return {k: v for k, v in it.items() if k not in SIDE_FIELDS} if isinstance(it, dict) else it
+
+    def key_of(items):
+        first = next((it for it in items if isinstance(it, dict)), None)
+        for k, v in (first or {}).items():
+            if k in SIDE_FIELDS or not isinstance(v, (str, int)):
+                continue
+            vals = [it.get(k) for it in items if isinstance(it, dict)]
+            if len(vals) == len(items) and None not in vals and len(set(map(str, vals))) == len(vals):
+                return k
+        return None
+
+    def show(xs):
+        return ", ".join(xs[:4]) + (f" and {len(xs) - 4} more" if len(xs) > 4 else "")
+
+    out = []
+    key = key_of(want) if want else None
+    if key and all(isinstance(it, dict) for it in have):
+        was = {str(it[key]): clean(it) for it in want}
+        now = {str(it.get(key)): clean(it) for it in have}
+        missing = [k for k in was if k not in now]
+        added = [k for k in now if k not in was]
+        changed = []
+        for k in was:
+            if k in now:
+                fields = [f"{f}: {json.dumps(v, ensure_ascii=False)[:40]} → "
+                          f"{json.dumps(now[k].get(f), ensure_ascii=False)[:40] if f in now[k] else 'gone'}"
+                          for f, v in was[k].items() if now[k].get(f, object()) != v]
+                if fields:
+                    changed.append(f"{k} ({', '.join(fields[:2])})")
+    else:
+        canon = lambda it: json.dumps(clean(it), sort_keys=True, ensure_ascii=False)
+        was, now = [canon(it) for it in want], [canon(it) for it in have]
+        missing = [w[:60] for w in was if w not in now]
+        added = [h[:60] for h in now if h not in was]
+        changed = []
+    if missing:
+        out.append(f"{len(missing)} missing ({show(missing)})")
+    if added:
+        out.append(f"{len(added)} not in the record ({show(added)})")
+    if changed:
+        out.append(f"{len(changed)} changed ({show(changed)})")
+    return out
 
 
 def _asked(ask, prompt: str) -> str:
@@ -123,8 +178,10 @@ FETCH: anything that reads, in the project or from the web.
 DISTILL: take out what the intent asked, not the whole thing.
 - distill (`sources`: the files to read, `intent`: what to extract, `into`: a data file to compile it into,
   `format`: json or text). It reads each source in parts, extracts every item the intent names with where it
-  stands in the source, keeps a gathered record of it, and writes `into`. A picture in a page is fetched as the
-  picture; a long file is distilled for what you need, never read end to end in parts.
+  stands in the source, keeps a gathered record of it, and writes `into`. Pictures or files a page holds: `format`
+  files, `into` a folder under assets/: the pictures themselves are downloaded (one approval) with an index.json of
+  which is which, never the page around them. A long file is distilled for what you need, never read end to end.
+  After a change to a compiled data file, its check against the record comes back: missing, added or changed items.
 COMPILE: rebuild the distilled pieces into what the intent needs: the project's own files.
 - edit (replace the exact text `old` with `new`; `old` must appear once), replace_lines (lines `first`-`last`
   become `new`; "" deletes them), write (a whole new file), append (add `content` to the end of a file)
@@ -164,8 +221,8 @@ Each step: your thinking (short), then exactly one action. Your work runs throug
 FETCH: read (a file, from line `start`), list (a folder), search (a regex over the project's files). Every read has
   an intent: your task's. Fetched material (what came in from the web or the user) stays as it came.
 DISTILL: distill (`sources`, `intent`, `into`, `format` json or text): read sources in parts for the intent, extract
-  every item it names with where it stands, keep a gathered record, write `into`. Facts come from the sources, never
-  from your memory.
+  every item it names with where it stands, keep a gathered record, write `into`; `format` files and a folder under
+  assets/ download the pictures a page holds, with an index. Facts come from the sources, never from your memory.
 COMPILE (within your task's files): edit, replace_lines, write, append; run (a shell command{sandbox}; no network)
   to compile and test what you wrote.
 TALK: ask (a question for your senior), answer (what you did and how you checked it; ends the task).
@@ -1361,6 +1418,8 @@ class Agent:
                 missing.append(str(src))
             else:
                 files.append(full)
+        if fmt == "files" and not into:
+            return "error: say which folder under assets/ the pictures go into (`into`, e.g. assets/cards)"
         if not files:
             return "error: none of the sources is a file in the project" + (f" ({', '.join(missing)})" if missing else "")
         dest = ""
@@ -1369,10 +1428,12 @@ class Agent:
             if not dest_full.startswith(base + os.sep):
                 return f"error: {into} isn't in the project"
             dest = os.path.relpath(dest_full, base).replace(os.sep, "/")
+            if fmt == "files" and not (dest + "/").startswith("assets/"):
+                return f"error: pictures and files go into a folder under assets/ (e.g. assets/cards), not {dest}"
             if intake.came_in(self.root, dest):
                 return f"error: {dest} is gathered material; compile into a file of the project's own"
         part_chars = max(3000, min(12000, self.ctx * 3 // 4))
-        items, texts, used = [], [], []
+        items, texts, used, dropped = [], [], [], 0
         for full in files:
             rel = os.path.relpath(full, base).replace(os.sep, "/")
             with open(full, encoding="utf-8", errors="replace") as f:
@@ -1386,24 +1447,40 @@ class Agent:
                     return "not done: stopped by the person"
                 self.event("busy", doing=f"distilling {rel}, part {n} of {len(parts)}", tokens=0)
                 ask = DISTILL_PART.format(intent=intent, source=rel, n=n, total=len(parts)) + "\n" + \
-                    (DISTILL_JSON if fmt == "json" else DISTILL_TEXT)
+                    {"json": DISTILL_JSON, "files": DISTILL_FILES}.get(fmt, DISTILL_TEXT)
                 try:
                     raw, _ = self.chat([{"role": "system", "content": ask}, {"role": "user", "content": part}],
                                        schema={"type": "object", "required": ["items"], "properties": {
                                            "items": {"type": "array", "items": {"type": "object"}}}}
-                                       if fmt == "json" else None, max_tokens=self.answer_tokens)
+                                       if fmt != "text" else None, max_tokens=self.answer_tokens)
                 except Exception as e:
                     return f"error: the model couldn't distill {rel} ({type(e).__name__}); nothing was kept"
-                if fmt == "json":
+                if fmt != "text":
                     try:
                         got = json.loads(raw).get("items", [])
                     except (ValueError, AttributeError):
                         got = []
                     for it in got:
-                        if isinstance(it, dict) and it:
-                            items.append({**it, "source": rel})
+                        if not isinstance(it, dict) or not it:
+                            continue
+                        if fmt == "files":  # an address the source holds, once: never one from the model's memory
+                            url = intake.clean_url(str(it.get("url", "")).strip())
+                            if not url or url not in text:
+                                dropped += 1
+                                continue
+                            if any(x["url"] == url for x in items):
+                                continue
+                            it = {**it, "url": url}
+                        items.append({**it, "source": rel})
                 elif raw.strip() and not raw.strip().lower().startswith("nothing here"):
                     texts.append(f"## {rel}, part {n}\n{raw.strip()}")
+        got_files = ""
+        if fmt == "files" and items:  # the picture itself, not the page around it: downloaded, one approval
+            got_files = self.download([it["url"] for it in items], dest)
+            for it in items:
+                kept = self.fetched.get(it["url"], "")
+                if kept.startswith("saved as "):
+                    it["file"] = kept.removeprefix("saved as ")
         os.makedirs(os.path.join(base, GATHERED), exist_ok=True)
         n = len([f for f in os.listdir(os.path.join(base, GATHERED)) if f.endswith(".json")]) + 1
         record = f"{GATHERED}/{n}.json".replace(os.sep, "/")
@@ -1411,20 +1488,26 @@ class Agent:
             json.dump({"id": n, "intent": intent, "format": fmt, "sources": used, "items": items, "text": texts,
                        "into": dest, "by": self.model_name, "time": time.strftime("%Y-%m-%d %H:%M:%S")}, f,
                       ensure_ascii=False, indent=1)
-        count = len(items) if fmt == "json" else len(texts)
-        out = (f"distilled {count} {'items' if fmt == 'json' else 'pieces'} for \"{intent}\" from "
+        count = len(texts) if fmt == "text" else len(items)
+        out = (f"distilled {count} {'pieces' if fmt == 'text' else 'items'} for \"{intent}\" from "
                + ", ".join(f"{u['path']} ({u['parts']} parts)" for u in used) + f" — gathered record {n} ({record})")
         if missing:
             out += f"; not found: {', '.join(missing)}"
+        if dropped:
+            out += f"; {dropped} addresses weren't in the sources as given, left out"
+        if got_files:
+            out += "\n" + got_files
+        if fmt == "files":  # the index ties each name to its picture: the project's own, compiled from the record
+            dest = dest.rstrip("/") + "/index.json"
         if dest:
-            body = (json.dumps(items, ensure_ascii=False, indent=1) + "\n") if fmt == "json" else \
+            body = (json.dumps(items, ensure_ascii=False, indent=1) + "\n") if fmt != "text" else \
                 ("\n\n".join(texts) + "\n")
             wrote = self.change({"tool": "write", "path": dest, "content": body}, filled=False)
             if "logged as change" not in wrote:
                 return out + f"\nCompiling into {dest} didn't go through: {wrote}"
             intake.record_origin(self.root, dest, f"gathered record {n}", kind="compiled")
             out += f"\ncompiled into {dest} ({wrote.split(',')[0]})"
-        preview = json.dumps(items[:3], ensure_ascii=False)[:700] if fmt == "json" else "\n".join(texts)[:700]
+        preview = json.dumps(items[:3], ensure_ascii=False)[:700] if fmt != "text" else "\n".join(texts)[:700]
         return out + ("\nThe first: " + preview if count else "\nNothing in the sources matched the intent — check "
                       "the intent, or fetch a better source.")
 
@@ -1643,7 +1726,11 @@ class Agent:
                 if kept_material(a.get("path", ""), self.root):  # what came in stays as it came
                     return (f"error: {a.get('path')} is gathered material: it came in from outside and stays as it came. "
                             "Nothing in it needs fixing — distill what you need from it into the project's own files.")
-                return self.change(a)
+                said = self.change(a)
+                rel = os.path.normpath(a.get("path", "")).replace(os.sep, "/")
+                if "logged as change" in said and intake.origins(self.root).get(rel, {}).get("kind") == "compiled":
+                    said += "\n" + "\n".join(self.compiled_check(only=rel))  # compiled data: against its record, now
+                return said
             if t == "look":
                 return self.look(a.get("target", "program"), a.get("question", ""), a.get("address", ""))
             if t == "need":
@@ -1849,12 +1936,15 @@ class Agent:
         return r.returncode, (r.stdout + r.stderr).strip()
 
     # --- checks: after every change, and before a goal is ticked ---------------------------------------------
-    def compiled_check(self) -> list[str]:
-        """Each data file compiled from a gathered record, against that record (SPEC §23.5, compile): still what was
-        distilled, or changed since — said, so a review compares with the sources, never with memory."""
+    def compiled_check(self, only: str = "") -> list[str]:
+        """Each data file compiled from a gathered record, against that record, item by item (SPEC §23.5, compile):
+        still what was distilled, or which items are missing, added or changed since — said, so a review compares with
+        the sources, never with memory. Pictures and files: each one still there. `only`: one file (after a change)."""
         out = []
         for rel, o in sorted(intake.origins(self.root).items()):
             if o.get("kind") != "compiled" or not str(o.get("from", "")).startswith("gathered record "):
+                continue
+            if only and rel != only:
                 continue
             n = str(o["from"]).split()[-1]
             try:
@@ -1865,17 +1955,30 @@ class Agent:
             except (OSError, ValueError):
                 out.append(f"{rel}: compiled from gathered record {n}, but the file or its record is gone")
                 continue
-            if record.get("format") == "json":
-                try:
-                    have = len(json.loads(now))
-                except (ValueError, TypeError):
-                    have = -1
-                want = len(record.get("items", []))
-                srcs = ", ".join(s["path"] for s in record.get("sources", []))
-                out.append(f"{rel}: compiled from gathered record {n} ({srcs}) — " + (
-                    f"{want} items, as distilled" if have == want else
-                    f"{have if have >= 0 else 'unreadable'} items now, {want} in the record: changed since it was "
-                    "compiled (if on purpose, say why; else distill it again)"))
+            if record.get("format") not in ("json", "files"):
+                continue
+            srcs = ", ".join(s["path"] for s in record.get("sources", []))
+            want = record.get("items", [])
+            try:
+                have = json.loads(now)
+            except ValueError:
+                have = None
+            if isinstance(have, dict) and len([v for v in have.values() if isinstance(v, list)]) == 1:
+                have = next(v for v in have.values() if isinstance(v, list))  # {"cards": [...]}: the list inside
+            head = f"{rel}: compiled from gathered record {n} ({srcs}) — "
+            if not isinstance(have, list):
+                out.append(head + f"not a list any more ({len(want)} items in the record): changed since it was "
+                           "compiled (if on purpose, say why; else distill it again)")
+                continue
+            diff = compare_items(want, have)
+            if record.get("format") == "files":  # each picture or file the index names, still in the project
+                gone = [str(it.get("file")) for it in have if isinstance(it, dict) and it.get("file")
+                        and not os.path.isfile(os.path.join(self.root, str(it["file"])))]
+                if gone:
+                    diff.append(f"{len(gone)} files gone ({', '.join(gone[:4])})")
+            out.append(head + (f"{len(want)} items, as distilled" if not diff else
+                               f"{len(have)} items now, {len(want)} in the record: changed since it was compiled — "
+                               + "; ".join(diff) + " (if on purpose, say why; else distill it again)"))
         return out
 
     def verify(self) -> tuple[bool, str]:

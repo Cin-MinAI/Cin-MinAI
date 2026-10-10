@@ -207,7 +207,8 @@ class Pair:
             if into in self.held:
                 return f"error: {into} is already held by task {self.held[into]}"
         spec = json.dumps({"sources": list(sources)[:12], "intent": intent, "into": into, "format": fmt})
-        return self.queue(into, spec, "distill", f"distill for: {intent}"[:200])
+        hold = into.rstrip("/") + "/index.json" if into and fmt == "files" else into  # pictures: the index is written
+        return self.queue(hold, spec, "distill", f"distill for: {intent}"[:200])
 
     def review(self, n: int, accept: bool, note: str = "") -> str:
         """The Senior's word on a finished task: accepted, or back to the Junior with the note."""
