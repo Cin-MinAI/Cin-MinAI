@@ -42,6 +42,7 @@ So each rule is one of two kinds:
 | A22 | plan | the person's request as goals, each with what it needs from outside, its files and who does it; the person sees it once and says OK or what to change; a goal for the junior names its files | today (test6) |
 | A23 | edit, write… and goal_done | a goal's files aren't written, and it isn't ticked, until what it needs from outside is in (pages, files or records fetched or distilled for it, as many as it has needs) | today (test6: 300 lines of card data typed from memory) |
 | A24 | team B | the junior's goals go to it once their needs are in, with their files held for it; it starts nothing itself | today |
+| A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model
 
@@ -51,7 +52,7 @@ So each rule is one of two kinds:
 | B2 | instructions | **FETCH / DISTILL / COMPILE / TALK as "your work runs through three steps"** | today |
 | B3 | instructions | "the rule of the three": facts from sources, never from memory; if none, say so and ask | today |
 | B4 | instructions (Senior, style B) | **a numbered four-stage method**: skeleton, give the junior the reading, assign, review | today (was 3 sentences) |
-| B5 | instructions | at the start of a new project, ask about goals and scope and write them as goals | 2026-10-03 |
+| B5 | instructions | at the start of a new project, ask about goals and scope and write them as goals; team B's Senior: make the plan (its tool list names plan; goal_add adds one goal to it) | 2026-10-03; the Senior's 2026-10-10 (test7) |
 | B6 | instructions | read before you edit; smallest change; check after a change; never edit tests to pass | early |
 | B7 | instructions | write in parts: a file longer than ~N lines is written, then appended | 2026-10-08 |
 | B8 | instructions | the goals and file list, frozen at the start of each request (for the server's cache) | df1b29d |

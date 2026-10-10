@@ -85,6 +85,14 @@ SENIOR_ONLY = {"assign", "review_task", "plan"}   # style B's Senior (PLAN §1b,
 BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
+# the goal tools as each card has them: team B's Senior makes the plan (2026-10-10, test7: its tool list said "goal_add"
+# and "write them as goals", so it planned in its thinking, reached for goal_add, and was refused fifteen times)
+GOAL_TOOLS = {"solo": ("- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)",
+                       "At the start of a new project, ask about its goals\nand scope and write them as goals"),
+              "senior": ("- plan (a new project's goals, made once: the request in its order, each with its `needs` from "
+                         "outside, its\n  `files` and `who` does it; the person sees it), goal_add (one more goal for "
+                         "the plan) / goal_done (tick\n  goal `id` when it's really done)",
+                         "A new project starts with\nits plan (plan), made from the person's request")}
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
 DISTILL_PART = """You distill for this intent: {intent}
 From the part below only ({source}, part {n} of {total}), extract every item the intent asks for, exactly as it
@@ -182,7 +190,7 @@ You work step by step. Each step: your thinking (short), then exactly one action
   written `into` a data file; `format` json, text, or files: the pictures a page names, downloaded into a folder
   under assets/ with an index)
 - errand (your helper's side job while you work on: `kind` read a long `source` for your `question`, or look)
-- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)
+{goal_tools}
 - need (a package the project needs: the person agrees, AICUI installs it)
 - look (see the program, a page or the screen: facts, and your `question` answered)
 - ask (a question for the user), answer (tell the user something; ends your turn)
@@ -196,8 +204,7 @@ haven't read. Data or a source the user gives you (pasted or fetched) beats your
 differs, say so once and go on. Facts the project needs (rules, lists, numbers) come from sources: fetch and distill
 them into its data files, never type them from memory. Never a stand-in for what the
 user asked for: ask. Files that work together use each other's exact names: before writing a page's CSS or script, read
-its HTML (or the map of it) and use the classes and ids it has. At the start of a new project, ask about its goals
-and scope and write them as goals; once work
+its HTML (or the map of it) and use the classes and ids it has. {goal_rule}; once work
 starts, work the goals as your to-do list. Answer in the user's language.
 One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
 the first part, then append the rest, one part per step, each under {write_lines} lines.
@@ -797,7 +804,9 @@ class Agent:
             venv += (f"\nThe person's screen is {w}x{h} pixels" + (f" at {k}x scaling: a program that draws in pixels "
                      f"(pygame, SDL) shows a {w // k}x{h // k} window at the size other windows have" if k > 1 else "")
                      + ". Size a program's window for this screen, or make it resizable.")
-        parts = dict(root=self.root, files=files or "  (empty)", goals=goals, venv=venv,
+        goal_tools, goal_rule = GOAL_TOOLS["senior" if self.plans() else "solo"]
+        parts = dict(root=self.root, files=files or "  (empty)", goals=goals, venv=venv, goal_tools=goal_tools,
+                     goal_rule=goal_rule,
                      answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                      sandbox=", sandboxed without network" if self.sandbox else "")
         if self.role == "junior":
@@ -1133,6 +1142,19 @@ class Agent:
             self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
+            refused = (json.dumps(act, sort_keys=True), result) if result.startswith("error") else None
+            if refused and refused == getattr(self, "last_refused", None):
+                # 2026-10-10 (test7): the same refused step, fifteen times — a model that doesn't change course after
+                # a refusal won't after the next one either
+                msg = self.handover(steps, f"I tried the same step twice and it was refused the same way: "
+                                           f"{result[:300]}") + "\nTell me how to go on — a hint about where I'm stuck helps most."
+                self.stopped = "stuck"
+                self.last_refused = None
+                self.event("answer", text=msg)
+                self.say(msg)
+                self.history.append({"user": text, "answer": msg})
+                return msg
+            self.last_refused = refused
             self.checkpoint(text, "working", steps)
             if self.progressed(act, result):
                 last_progress = n

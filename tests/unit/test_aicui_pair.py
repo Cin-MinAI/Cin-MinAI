@@ -365,6 +365,26 @@ class PairTest(unittest.TestCase):
         with open(os.path.join(self.root, "data", "cards.json")) as f:
             self.assertIn("Stone Giant", f.read())
 
+    def test_the_seniors_tool_list_names_the_plan_and_a_refusal_twice_is_stuck(self):
+        """2026-10-10 (test7): the Senior planned in its thinking but its tool list said goal_add and "write them as
+        goals"; the gate refused goal_add fifteen times, the same step each time."""
+        senior, junior, p = self.pair()
+        senior.goals.remove(1)
+        text = senior.system()
+        self.assertIn("- plan (a new project's goals, made once", text)
+        self.assertIn("A new project starts with\nits plan (plan)", text)
+        self.assertNotIn("write them as goals", text)
+        solo = Agent(self.root, Scripted([]), "m", "auto", say=lambda s: None)
+        self.assertIn("write them as goals", solo.system())  # solo and style A are as they were
+        self.assertNotIn("- plan (", solo.system())
+        senior.chat = Scripted([step("Add the goals.", tool="goal_add", text="Research the rules"),
+                                step("Add the goals.", tool="goal_add", text="Research the rules"),
+                                step("never reached", tool="list", path=".")])
+        said = senior.turn("make a game")
+        self.assertIn("I tried the same step twice and it was refused the same way", said)
+        self.assertEqual(senior.stopped, "stuck")
+        self.assertEqual(len(senior.chat.steps), 1)  # it stopped after the second refusal
+
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P
         self.assertEqual(P.team_of(self.root), "A")  # nothing chosen: team A
