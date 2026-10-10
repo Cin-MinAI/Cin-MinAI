@@ -65,6 +65,7 @@ class Pair:
         senior.assign_fn = self.assign
         senior.distiller = self.distill
         senior.first_reader = self.first_read  # team B: what the senior fetches, the junior reads first
+        senior.planned = senior.each_step = self.release_goals  # the plan's junior goals, once their needs are in
         senior.review_task_fn = self.review
         senior.may_write = self.senior_may_write
         junior.may_write = self.junior_may_write
@@ -168,8 +169,9 @@ class Pair:
             return "error: say what the junior should do in this file"
         return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200])
 
-    def queue(self, rel: str, task: str, kind: str, what: str) -> str:
-        goal = self.senior.goals.current()
+    def queue(self, rel: str, task: str, kind: str, what: str, hold: list | None = None,
+              goal: dict | None = None) -> str:
+        goal = goal or self.senior.goals.current()
         towards = f"goal {goal['id']}: {goal['text'][:120]}" if goal else "no session goal"
         table = None
         if self.engine is not None and self.root:
@@ -182,8 +184,8 @@ class Pair:
             self.count += 1
             self.out += 1
             n = self.count
-            if rel:
-                self.held[rel] = n
+            for path in (hold if hold is not None else [rel] if rel else []):
+                self.held[path] = n
             self.listing[n] = {"n": n, "what": what, "goal": towards, "task": table["id"] if table else None}
         self.show()
         self.tasks.put((n, rel, task, kind, table))
@@ -191,6 +193,8 @@ class Pair:
             self.worker = threading.Thread(target=self.work_queue, daemon=True)
             self.worker.start()
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n}: {what}")
+        if kind == "goal":
+            return f"task {n} given to your junior ({what}); its files are held for it until it's done."
         if kind == "distill":
             return (f"task {n} given to your junior (distill" + (f" into {rel}, held for it" if rel else "") +
                     "); work on other files meanwhile; the gathered record comes between your steps.")
@@ -211,12 +215,35 @@ class Pair:
         hold = into.rstrip("/") + "/index.json" if into and fmt == "files" else into  # pictures: the index is written
         return self.queue(hold, spec, "distill", f"distill for: {intent}"[:200])
 
-    def first_read(self, rel: str, url: str) -> str:
+    def release_goals(self) -> None:
+        """The plan's goals for the Junior (Ian, 2026-10-10): each goes to it once what it needs from outside is in,
+        with its files held for it; one at a time per file. The Junior waits for these — it starts nothing itself."""
+        for g in self.senior.goals.load():
+            if g["done"] or g.get("who") != "junior" or g.get("queued") or not self.senior.needs_met(g):
+                continue
+            files = list(g.get("files") or [])
+            with self.lock:
+                if any(f in self.held for f in files):
+                    continue  # one writer per file: when they're free
+            have = self.senior.needs_have(g)
+            notes = sorted(os.path.join("notes", f) for f in os.listdir(os.path.join(self.senior.root, "notes"))) \
+                if os.path.isdir(os.path.join(self.senior.root, "notes")) else []
+            task = json.dumps({"goal": g["id"], "files": files, "text": (
+                f"Goal {g['id']}: {g['text']}\n"
+                + (f"Its files: {', '.join(files)}.\n" if files else "")
+                + (f"What came in for it: {', '.join(have)}.\n" if have else "")
+                + (f"Notes kept so far: {', '.join(notes[:12])}.\n" if notes else "")
+                + "Facts come from these sources only. Work the goal in small steps; when it's done, answer with what "
+                  "you did and how you checked it.")})
+            self.senior.goals.update(g["id"], queued=True)
+            self.queue("", task, "goal", f"goal {g['id']}: {g['text']}"[:200], hold=files, goal=g)
+
+    def first_read(self, rel: str, url: str, goal: int | None = None) -> str:
         """Ian, 2026-10-10: "Jr should do first reading and hand to senior and hold notes." A page or a PDF's text the
         Senior fetches goes to the Junior, which reads it for what the Senior was after (its thinking at that step and
         the goal) and keeps notes in notes/ — the source's own words, with where they stood; they come back between
         the Senior's steps."""
-        goal = self.senior.goals.current()
+        goal = next((g for g in self.senior.goals.load() if g["id"] == goal), None) or self.senior.goals.current()
         wanted = " ".join(str(getattr(self.senior, "last_thinking", "")).split())[:300]
         intent = (f"what this source holds for: {goal['text'][:150]}" if goal else "what this source holds") + \
             (f" (your senior was after: {wanted})" if wanted else "")
@@ -260,12 +287,17 @@ class Pair:
                     result = "not done: stopped by the person"
                 elif kind == "distill":
                     result = self.run_distill(n, rel, task, table)
+                elif kind == "goal":
+                    spec = json.loads(task)
+                    result = self.run_task(n, ", ".join(spec["files"]) or f"goal {spec['goal']}", spec["text"], kind,
+                                           table, files=spec["files"])
                 else:
                     result = self.run_task(n, rel, task, kind, table)
             except Exception as e:  # a failing task never stops the Senior
                 result = f"error: the junior couldn't do it ({type(e).__name__})"
             with self.lock:
-                self.held.pop(rel, None)
+                for path in [p for p, m in self.held.items() if m == n]:
+                    self.held.pop(path, None)
                 self.listing.pop(n, None)
                 self.done[n] = {"path": rel, "task": task, "kind": kind, "table": table}
                 self.out -= 1
@@ -294,13 +326,13 @@ class Pair:
                 pass
         return result
 
-    def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None) -> str:
+    def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None, files: list | None = None) -> str:
         if table is not None and self.engine is not None:
             try:
                 self.engine.db.claim_task(table["id"], self.second)
             except Exception:
                 pass
-        self.current, self.current_table = {rel}, table
+        self.current, self.current_table = (set(files) if files is not None else {rel}), table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
         try:
             said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\nYou may change only {rel}.",
@@ -309,7 +341,7 @@ class Pair:
             self.current, self.current_table = set(), None
         changes = self.junior.log.entries()[before:] if hasattr(self.junior.log, "entries") else []
         changed = sorted({c.get("file", "") for c in changes} - {""})
-        found = [p for p in self.senior.problems() if p.startswith(rel + ":")]
+        found = [p for p in self.senior.problems() if any(p.startswith(f + ":") for f in (files or [rel]))]
         ended = getattr(self.junior, "stopped", "")
         verdict = {"answer": "done", "ask": "asks the senior"}.get(ended, ended or "done")
         checks = "\nThe checks on " + rel + ": " + ("; ".join(found) or "nothing found")

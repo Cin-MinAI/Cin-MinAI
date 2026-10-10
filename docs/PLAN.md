@@ -376,6 +376,16 @@ fetched from; the duplicate-goal check removed; in team B the Junior reads what 
 notes, and waits on the Senior's direction. Search: Cin-MinAI's own (SearXNG on the person's computer, `cinminai-search`,
 on by default; SPEC §7.5), DuckDuckGo and Bing at once, no disguise; image search through `web_search` kind images.
 
+**The plan tool** (Ian, 2026-10-10, after test6: the Senior "didnt search, didnt use the junior, and didnt really make a
+plan" — the one ordering left in its text, "first lay the skeleton", beat the request's own order, and it typed 300
+lines of card data from memory). Built for team B's Senior: a new project starts with `plan` — the person's request
+as goals in its order, each with what it needs from outside, its files and who does it (the Senior, or the junior,
+now called "your assistant, the junior" as people say it); the person sees it once and says OK or what to change. A
+goal's files aren't written and it isn't ticked until its needs are in (fetched or distilled for it: fetch, download
+and distill take `goal` N); the junior's goals go to it once their needs are in, with their files held. "First lay the
+skeleton" is out of the Senior's text: the skeleton is a goal in the plan like any other. Known limit: a need counts
+as in when as many pages, files or records came in for the goal as it has needs — the count, not their content.
+
 ### Two cards: the Senior and the Junior (Ian, 2026-10-09) — fills D94; designed, not built
 
 Ian, after a run where the 4B's review blocked a goal five times and overruled the coder and the person: "The

@@ -44,6 +44,8 @@ ANSWER_TOKENS = 1800   # room for one step's answer at 8K (thinking + an action)
 TOKENS_A_LINE = 25     # a code line in a JSON string, escapes included: the size of one write part
 EVENT_LOCK = threading.Lock()  # events come from the coder's loop and the helper's thread
 DOWNLOAD_MAX = 300   # files in one download (one approval; each address checked as a fetch)
+CHANGES = ("edit", "replace_lines", "write", "append")
+PLAN_MAX = 12        # goals in one plan (team B's Senior)
 DOWNLOAD_BYTES = 300 << 20
 TICK_S = 1.5           # how often the progress of a step goes to AICUI (busy events)
 
@@ -58,10 +60,11 @@ ACTIONS = [
     {"tool": "append", "path": STR, "content": STR},
     {"tool": "run", "command": STR},
     {"tool": "web_search", "query": STR, "kind": {"enum": ["pages", "images"]}},
-    {"tool": "fetch", "url": STR},
-    {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR},
+    {"tool": "fetch", "url": STR, "goal": {"type": "integer"}},
+    {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR,
+     "goal": {"type": "integer"}},
     {"tool": "distill", "sources": {"type": "array", "items": STR, "maxItems": 12}, "intent": STR, "into": STR,
-     "format": {"enum": ["json", "text", "files"]}},
+     "format": {"enum": ["json", "text", "files"]}, "goal": {"type": "integer"}},
     {"tool": "errand", "kind": {"enum": ["read", "look"]}, "source": STR, "question": STR,
      "goal": {"type": "integer"}},
     {"tool": "goal_add", "text": STR},
@@ -70,11 +73,16 @@ ACTIONS = [
     {"tool": "look", "target": {"enum": ["program", "page", "screen"]}, "question": STR, "address": STR},
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
+    {"tool": "plan", "goals": {"type": "array", "minItems": 1, "maxItems": PLAN_MAX, "items": {
+        "type": "object", "additionalProperties": False, "required": ["text", "needs", "files", "who"], "properties": {
+            "text": STR, "needs": {"type": "array", "items": STR, "maxItems": 6},
+            "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
     {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
 ]
 OPTIONAL = {"start", "goal", "into", "format", "kind"}
-SENIOR_ONLY = {"assign", "review_task"}           # style B's Senior (PLAN §1b, two cards)
+SENIOR_ONLY = {"assign", "review_task", "plan"}   # style B's Senior (PLAN §1b, two cards)
+BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
@@ -223,12 +231,12 @@ The project's files (first lines):
 {files}"""
 
 SENIOR_B = """
-You are the Senior, with a junior developer (a smaller model) beside you. First lay the project's skeleton: every
-file with its imports, classes and function signatures (bodies as stubs marked TODO), the shared types and the build
-files, and make it compile. Then give the junior one file at a time with assign (`path`, `task`, `kind`): the file is
-held for it until it's done, and you work on other files meanwhile. Its result comes between your steps: check it,
-then review_task (`n`, `accept`, `note`); a rejection goes back to it with your note. Pages you fetch go to the
-junior first: it reads them and keeps notes in notes/, which come to you between steps. You have the final word."""
+You are the Senior, with your assistant, the junior developer (a smaller, faster model). A new project starts with
+plan: the person's request as goals in its order, each with what it `needs` from outside (a rulebook, lists,
+pictures: fetched and distilled before its files are written), its `files`, and `who` does it (you, or the junior).
+The person sees it once. Fetch a goal's needs with `goal` N; the junior's goals go to it once their needs are in, or
+give it one file with assign (`path`, `task`, `kind`). Its results come between your steps: review_task (`n`,
+`accept`, `note`). Pages you fetch go to the junior first; its notes (notes/) come to you. You have the final word."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
@@ -1069,6 +1077,9 @@ class Agent:
             if callable(halt) and halt():  # stopped by the person (as a whole, or this one task on the table)
                 self.stopped = "stopped"
                 return "not done: stopped by the person"
+            hook = getattr(self, "each_step", None)
+            if callable(hook):
+                hook()  # team B: a junior goal whose needs came in goes to the junior
             self.deliver(steps)  # the helper's answers, as soon as they're back
             try:
                 raw, t = self.generate(self.fit(text, steps), n, cancel)
@@ -1271,7 +1282,7 @@ class Agent:
             self.save_session()  # AICUI's permission choice follows
         return reply[:1] in ("y", "a")
 
-    def fetch(self, url: str) -> str:
+    def fetch(self, url: str, goal: int | None = None) -> str:
         """A web page's text for the model (2026-10-08: it was given a source's address and couldn't reach it from its
         sandbox). Sending the address out always asks, in every mode (D86); "always" covers this session only. The page
         is material, never instructions."""
@@ -1305,13 +1316,13 @@ class Agent:
             return f"error: {e}"
         kept = intake.save(self.root, url, data, kind)
         self.fetched[url] = f"saved as {', '.join(kept['files'])}"
-        goal = self.goals.current()
-        if goal:  # evidence for the goal's cycle: fetched while it was the one being worked
+        gid = self.goal_for(goal)
+        if gid:  # evidence for the goal's cycle: fetched for it (or while it was the one being worked)
             for rel in kept["files"]:
-                self.goals.note(goal["id"], "sources", rel)
+                self.goals.note(gid, "sources", rel)
         if kept["kind"] == "file" and len(kept["files"]) > 1 and callable(getattr(self, "first_reader", None)):
             return f"saved {url} as {kept['files'][0]}, its text as {kept['files'][1]}. " + \
-                self.first_reader(kept["files"][1], url)
+                self.first_reader(kept["files"][1], url, gid)
         if kept["kind"] == "file" and len(kept["files"]) > 1:  # a PDF: its text kept as a source beside it
             return (f"saved {url} as {kept['files'][0]} ({len(data):,} bytes); its text ({kept['lines']} lines) is in "
                     f"{kept['files'][1]} — read it, or give it to your helper as an errand. It begins:\n"
@@ -1323,7 +1334,8 @@ class Agent:
                     "there for a script to read.")
         first = getattr(self, "first_reader", None)
         if callable(first):  # team B: the junior reads it first and keeps notes; the senior directs from them
-            return (f"saved {url} as {' and '.join(kept['files'])} ({kept['lines']} lines). " + first(kept["files"][0], url))
+            return (f"saved {url} as {' and '.join(kept['files'])} ({kept['lines']} lines). "
+                    + first(kept["files"][0], url, gid))
         body, _, pics = kept["text"].partition("\n\nPictures on this page:\n")
         pics = [u for u in pics.split("\n\nLinks on this page:\n")[0].splitlines() if u]
         listed = (f"\nIts {len(pics)} pictures are listed at the end of {kept['files'][0]}; the first: "
@@ -1336,7 +1348,7 @@ class Agent:
         """The addresses in the person's own request: theirs to fetch (the model's memory of addresses doesn't count)."""
         self.known_urls |= {intake.clean_url(u) for u in intake.URL.findall(request)}
 
-    def download(self, urls: list, folder: str) -> str:
+    def download(self, urls: list, folder: str, goal: int | None = None) -> str:
         """Many files at once, one approval (Ian, 2026-10-09: the web through tools only, each with its own
         safeguards): every address checked as a fetch's — https, from the person, a search or a kept page, not a
         stand-in site — then kept under assets/ with its origin."""
@@ -1385,6 +1397,9 @@ class Agent:
             kept = intake.save(self.root, url, data, kind or "application/octet-stream", folder)
             self.fetched[url] = f"saved as {kept['files'][0]}"
             saved.append(kept["files"][0])
+        gid = self.goal_for(goal)
+        if gid and saved:
+            self.goals.note(gid, "sources", folder + "/")
         self.event("fetch", url=f"download: {len(saved)} files into {folder}/")
         out = [f"downloaded {len(saved)} of {len(urls)} into {folder}/ ({total >> 10} KB)"]
         if refused:
@@ -1506,6 +1521,89 @@ class Agent:
         preview = json.dumps(items[:3], ensure_ascii=False)[:700] if fmt != "text" else "\n".join(texts)[:700]
         return out + ("\nThe first: " + preview if count else "\nNothing in the sources matched the intent — check "
                       "the intent, or fetch a better source.")
+
+    def plans(self) -> bool:
+        """This agent makes the project's plan: team B's Senior (the plan tool is its card's)."""
+        return self.role == "senior" and "plan" not in self.excluded()
+
+    def goal_for(self, goal) -> int | None:
+        """The goal a source is for: the one named, if it's open, else the one being worked."""
+        open_goals = {g["id"] for g in self.goals.load() if not g["done"]}
+        try:
+            if goal is not None and int(goal) in open_goals:
+                return int(goal)
+        except (TypeError, ValueError):
+            pass
+        current = self.goals.current()
+        return current["id"] if current else None
+
+    def make_plan(self, items: list) -> str:
+        """The person's request as goals (Ian, 2026-10-10: the Senior "didnt search, didnt use the junior, and didnt
+        really make a plan"): each with what it needs from outside, its files and who does it; the person sees it
+        once and says OK or what to change."""
+        if self.goals.load():
+            return "error: this project has its goals already; add one with goal_add"
+        goals = []
+        for it in items[:PLAN_MAX]:
+            text = " ".join(str(it.get("text", "")).split())
+            if len(text) < 6:
+                continue
+            files = []
+            for f in it.get("files") or []:
+                full = os.path.realpath(os.path.join(self.root, str(f)))
+                if full.startswith(os.path.realpath(self.root) + os.sep):
+                    files.append(os.path.relpath(full, os.path.realpath(self.root)).replace(os.sep, "/"))
+            goals.append({"text": text, "needs": [" ".join(str(n).split()) for n in it.get("needs") or [] if str(n).strip()],
+                          "files": files, "who": "junior" if it.get("who") == "junior" else "senior"})
+        if not goals:
+            return "error: the plan needs at least one goal, each said in a sentence"
+        bare = [g["text"][:60] for g in goals if g["who"] == "junior" and not g["files"]]
+        if bare:  # the junior writes only the files its task holds
+            return f"error: a goal for your assistant names its files (which it writes): {'; '.join(bare)}"
+        shown = "\n".join(f"  {i}. [{'your assistant' if g['who'] == 'junior' else 'the senior'}] {g['text']}"
+                          + (f"\n       needs from outside: {'; '.join(g['needs'])}" if g["needs"] else "")
+                          + (f"\n       files: {', '.join(g['files'])}" if g["files"] else "")
+                          for i, g in enumerate(goals, 1))
+        self.event("busy", doing="waiting for your answer in the terminal", asking="the plan")
+        reply = self.ask(f"\033[1mThe plan:\n{shown}\nOK? [y]es, or type what to change: \033[0m").strip()
+        if reply.lower() in ("", "n", "no"):
+            return "the person said no to the plan — ask what they want instead"
+        if reply.lower() not in ("y", "yes", "ok", "a"):
+            return f"the person wants changes to the plan: {reply[:500]} — make the plan again with them"
+        made = [self.goals.add(g["text"], by="ai", needs=g["needs"], files=g["files"], who=g["who"]) for g in goals]
+        self.event("goals")
+        planned = getattr(self, "planned", None)
+        if callable(planned):
+            planned()  # team B: the junior's goals with nothing to wait for go to it now
+        return (f"the plan is in: goals {made[0]['id']}–{made[-1]['id']}. What a goal needs from outside comes first: "
+                "fetch and distill it with that goal's number (goal N); until then its files can't be written and it "
+                "can't be ticked. Your assistant's goals go to it once their needs are in.")
+
+    def needs_have(self, goal: dict) -> list[str]:
+        """What has come in for a goal's needs: pages and files fetched for it, records distilled for it (a search's
+        list of results isn't a source)."""
+        ev = goal.get("evidence", {})
+        return [r for r in ev.get("sources", []) if not os.path.basename(r).startswith("search-")] + \
+            [f"gathered record {r}" for r in ev.get("records", [])]
+
+    def needs_met(self, goal: dict) -> bool:
+        return not goal.get("needs") or len(self.needs_have(goal)) >= len(goal["needs"])
+
+    def needs_line(self, goal: dict) -> str:
+        have = self.needs_have(goal)
+        return (f"needs {'; '.join(goal.get('needs', []))} — in so far: {len(have)} of {len(goal.get('needs', []))}"
+                + (f" ({', '.join(have[:4])})" if have else ""))
+
+    def needs_block(self, path: str) -> str:
+        """A file of a goal whose needs aren't in yet isn't written: facts come from the sources, so the sources come
+        first (2026-10-10, test6: 300 lines of card data typed from memory into a code file)."""
+        rel = os.path.normpath(str(path)).replace(os.sep, "/")
+        for g in self.goals.load():
+            if not g["done"] and rel in (g.get("files") or []) and not self.needs_met(g):
+                return (f"error: {rel} belongs to goal {g['id']} ({g['text'][:80]}), which {self.needs_line(g)}. "
+                        f"Fetch and distill them first (fetch, download or distill with goal {g['id']}), or ask the "
+                        "person.")
+        return ""
 
     def known_address(self, url: str) -> bool:
         """Did this address come from somewhere: the person, a search result, a page kept in sources/ (it lists its
@@ -1695,12 +1793,22 @@ class Agent:
     def do(self, a: dict) -> str:
         try:
             t = a["tool"]
+            if t not in BEFORE_PLAN and self.plans() and not self.goals.load():
+                return ("error: a new project starts with its plan — plan: the person's request as goals, in the "
+                        "request's order, each with what it needs from outside (needs), its files, and who does it "
+                        "(you, or your assistant, the junior). The person sees it once.")
+            if t == "plan":
+                return self.make_plan(a.get("goals") or [])
+            if t in CHANGES:
+                blocked = self.needs_block(a.get("path", ""))
+                if blocked:
+                    return blocked
             if t == "fetch":
-                return self.fetch(a.get("url", ""))
+                return self.fetch(a.get("url", ""), a.get("goal"))
             if t == "web_search":
                 return self.web_search(a.get("query", ""), a.get("kind") or "pages")
             if t == "download":
-                return self.download(a.get("urls") or [], a.get("folder", ""))
+                return self.download(a.get("urls") or [], a.get("folder", ""), a.get("goal"))
             if t in ("assign", "review_task"):  # style B's Senior (pair.py)
                 fn = getattr(self, t + "_fn", None)
                 if not callable(fn):
@@ -1710,7 +1818,13 @@ class Agent:
             if t == "distill":  # GatheredData: in team B the Senior's reading goes to the Junior (pair.py)
                 delegate = getattr(self, "distiller", None)
                 args = (a.get("sources") or [], a.get("intent", ""), a.get("into", ""), a.get("format") or "json")
-                return delegate(*args) if callable(delegate) else self.distill_now(*args)
+                said = delegate(*args) if callable(delegate) else self.distill_now(*args)
+                gid = self.goal_for(a.get("goal"))
+                if gid and "gathered record " in said:  # a need distilled (team B: the junior's record, when back)
+                    self.goals.note(gid, "records", said.split("gathered record ")[1].split()[0])
+                elif gid and "given to your junior" in said:
+                    self.goals.note(gid, "records", "queued: " + said.split()[1])
+                return said
             if t == "errand":  # the tandem's Junior (tandem.py), working while this model does; alone, there's none
                 errand = getattr(self, "errand", None)
                 if not callable(errand):
@@ -1769,8 +1883,12 @@ class Agent:
                 self.event("goals")
                 return f"goal {g['id']} added"
             if t == "goal_done":
-                ok, report = self.verify()
                 goal = next((g for g in self.goals.load() if g["id"] == int(a["id"])), None)
+                if goal and not self.needs_met(goal):
+                    return (f"goal {goal['id']} NOT ticked — what it needs from outside isn't in yet: "
+                            + self.needs_line(goal) + ". Fetch and distill it (with goal " + str(goal["id"]) + "), or "
+                            "ask the person.")
+                ok, report = self.verify()
                 unchecked = goal_stages(self.root, goal)["unchecked"] if goal else []
                 if unchecked:  # use needs checked data (D96): a test has to read what came from a source
                     ok = False

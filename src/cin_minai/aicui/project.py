@@ -325,10 +325,11 @@ class Goals:
             json.dump({"goals": goals}, f, ensure_ascii=False, indent=1)
         os.replace(tmp, self.path)
 
-    def add(self, text: str, by: str = "user") -> dict:
+    def add(self, text: str, by: str = "user", **plan) -> dict:
+        """plan: a planned goal's needs (from outside), files and who (team B's plan tool)."""
         goals = self.load()
         g = {"id": max([x["id"] for x in goals], default=0) + 1, "text": " ".join(text.split()), "done": False,
-             "by": by, "made": time.strftime("%Y-%m-%dT%H:%M:%S")}
+             "by": by, "made": time.strftime("%Y-%m-%dT%H:%M:%S"), **plan}
         goals.append(g)
         self.save(goals)
         return g
@@ -340,6 +341,13 @@ class Goals:
                 g["done"] = done
                 if by:
                     g["ticked_by"] = by if done else ""
+        self.save(goals)
+
+    def update(self, gid: int, **fields) -> None:
+        goals = self.load()
+        for g in goals:
+            if g["id"] == gid:
+                g.update(fields)
         self.save(goals)
 
     def remove(self, gid: int) -> None:

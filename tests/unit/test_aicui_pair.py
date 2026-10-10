@@ -306,6 +306,65 @@ class PairTest(unittest.TestCase):
         with open(os.path.join(self.root, ".cinminai", "gathered", "1.json"), encoding="utf-8") as f:
             self.assertIn("I need the rules of the Battle Phase.", json.load(f)["intent"])  # read for what it was after
 
+    def test_a_new_project_starts_with_the_plan_and_its_needs_come_first(self):
+        """Ian, 2026-10-10 (test6): the Senior "didnt search, didnt use the junior, and didnt really make a plan" — it laid
+        a skeleton and typed the card data from memory. The plan is a tool: the request as goals, each with what it
+        needs from outside, its files and who does it; the person sees it once; a goal's files wait for its needs."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        senior, junior, p = self.pair()
+        senior.goals.remove(1)  # a new project: no goals yet
+        shown = []
+        senior.ask = lambda prompt: (shown.append(prompt), "y")[1]
+        self.assertIn("a new project starts with its plan",
+                      senior.do({"tool": "write", "path": "engine.py", "content": "x = 1\n"}))
+        self.assertIn("1 parts", senior.do({"tool": "list", "path": "."}) + " 1 parts")  # looking around is fine
+        said = senior.do({"tool": "plan", "goals": [
+            {"text": "Get the official rules into data", "needs": ["the official rulebook"],
+             "files": ["data/rules.json"], "who": "senior"},
+            {"text": "The card list as data", "needs": ["the official card list"], "files": ["data/cards.json"],
+             "who": "junior"},
+            {"text": "The engine's skeleton", "needs": [], "files": ["engine.py"], "who": "senior"}]})
+        self.assertIn("the plan is in: goals 1–3", said)
+        self.assertIn("2. [your assistant] The card list as data\n       needs from outside: the official card list",
+                      shown[0])
+        goals = senior.goals.load()
+        self.assertEqual([(g["who"], g["needs"], g["files"]) for g in goals],
+                         [("senior", ["the official rulebook"], ["data/rules.json"]),
+                          ("junior", ["the official card list"], ["data/cards.json"]),
+                          ("senior", [], ["engine.py"])])
+        blocked = senior.do({"tool": "write", "path": "data/rules.json", "content": "[]\n"})
+        self.assertIn("belongs to goal 1", blocked)
+        self.assertIn("needs the official rulebook — in so far: 0 of 1", blocked)
+        self.assertIn("logged as change", senior.do({"tool": "write", "path": "engine.py", "content": "x = 1\n"}))
+        self.assertIn("NOT ticked — what it needs from outside isn't in yet", senior.do({"tool": "goal_done", "id": 1}))
+        self.assertFalse(p.out)  # nothing for the junior yet: its goal waits for its card list
+
+        def jchat(messages, **kw):  # the junior: notes when it reads first, steps when it works its goal
+            if messages[0]["content"].startswith("You distill"):
+                return "## part 1\nStone Giant 3000", {}
+            return json.dumps(next(steps)), {}
+        steps = iter([step("Write the card list.", tool="write", path="data/cards.json",
+                           content='[{"name": "Stone Giant", "atk": 3000}]\n'),
+                      step("", tool="answer", text="data/cards.json from the card list; checked it loads")])
+        junior.chat = jchat
+        senior.fetch_ok = True
+        senior.given("https://rules.example/rulebook https://cards.example/list")
+        with mock.patch.object(intake, "get", return_value=(b"<html><body><p>Stone Giant 3000</p></body></html>",
+                                                             "text/html")):
+            senior.do({"tool": "fetch", "url": "https://rules.example/rulebook", "goal": 1})
+            senior.do({"tool": "fetch", "url": "https://cards.example/list", "goal": 2})
+        self.assertIn("logged as change", senior.do({"tool": "write", "path": "data/rules.json", "content": "[]\n"}))
+        p.release_goals()  # between the senior's steps: goal 2's need is in, so it goes to the junior
+        self.assertTrue(senior.goals.load()[1].get("queued"))
+        self.assertIn("held by your junior", senior.do({"tool": "write", "path": "data/cards.json", "content": "[]\n"}))
+        self.wait(p)
+        results = [r for _, _, r in senior.inbox]
+        self.assertIn('for: The card list as data', results[1])  # read for the goal it was fetched for
+        self.assertTrue(any("(goal data/cards.json) — done" in r for r in results), results)
+        with open(os.path.join(self.root, "data", "cards.json")) as f:
+            self.assertIn("Stone Giant", f.read())
+
     def test_the_team_is_chosen_per_project(self):
         from cin_minai.aicui import pair as P
         self.assertEqual(P.team_of(self.root), "A")  # nothing chosen: team A

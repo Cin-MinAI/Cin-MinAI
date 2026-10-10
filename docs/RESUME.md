@@ -12,7 +12,8 @@ model's story: `docs/guide-model-journal.md`.
   under, Ian's decisions); Cin-MinAI's own search, `cinminai-search` (SearXNG on the person's computer, on by default,
   no disguise; SPEC §7.5); `web_search` kind images.
 - **Ian's PC has build `…133923`** (18 packages, with cinminai-search) to install from `prompts.txt`.
-- **Next:** test5 again (fresh folder, Team B, the same request), read against test4: a new thought each step, the
+- **Then (test6):** the Senior skipped search, the junior and a plan; the plan tool is built for team B (PLAN §1b).
+- **Next:** test7 (fresh folder, Team B, the same request), read against test4: a new thought each step, the
   Junior's first reading reaching the Senior, searches without junk, sources kept, pictures from set pages. Then the
   ISO boot/install test with the new package.
 

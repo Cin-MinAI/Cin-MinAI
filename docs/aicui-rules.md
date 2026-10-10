@@ -37,7 +37,11 @@ So each rule is one of two kinds:
 | A17 | run | sandboxed, no network, time limit, no admin | D1 |
 | A18 | goal_done | the project's tests run and its entry point starts; data from a source needs a test that reads it | 2026-10-03, D96 |
 | A19 | goal_done (style A) | the helper's flag: a second goal_done ticks | 2026-10-09 |
-| A20 | goal_add | an open goal added again is refused | today (band-aid: see C5) |
+| A20 | goal_add | ~~an open goal added again is refused~~ removed (a band-aid on C1) | today |
+| A21 | plan (team B's Senior) | a new project starts with its plan: before it, only looking around (read, list, search, look) and talking | today (test6) |
+| A22 | plan | the person's request as goals, each with what it needs from outside, its files and who does it; the person sees it once and says OK or what to change; a goal for the junior names its files | today (test6) |
+| A23 | edit, write… and goal_done | a goal's files aren't written, and it isn't ticked, until what it needs from outside is in (pages, files or records fetched or distilled for it, as many as it has needs) | today (test6: 300 lines of card data typed from memory) |
+| A24 | team B | the junior's goals go to it once their needs are in, with their files held for it; it starts nothing itself | today |
 
 ## B. On the model
 
