@@ -31,6 +31,7 @@ APP_ID = "org.cinminai.Sidebar"
 DAEMON = ("org.cinminai.Assistant1", "/org/cinminai/Assistant1", "org.cinminai.Assistant1")
 LIBREOFFICE = ("org.cinminai.LibreOffice1", "/org/cinminai/LibreOffice1", "org.cinminai.LibreOffice1")
 WIDTH = 380  # logical px
+AUTO_CHECKS = 4  # Download…: files checked by themselves (each reads up to ~96 MB of its header)
 
 CSS = b"""
 #sidebar { background: @theme_bg_color; border-left: 1px solid @borders; }
@@ -1244,7 +1245,9 @@ class Sidebar(Gtk.Application):
             label.get_style_context().add_class("note")
             return label
 
-        def checked(area: Gtk.Box, v: dict) -> None:
+        def checked(area: Gtk.Box, v: dict, then=None) -> None:
+            if then:
+                then()  # the next file's check (Download…: one after another)
             clear(area)
             for line in words.fit_lines(v["jobs"]):
                 area.pack_start(small(line), False, False, 0)
@@ -1262,8 +1265,12 @@ class Sidebar(Gtk.Application):
                 area.pack_start(get, False, False, 0)
             area.show_all()
 
-        def repo_files(area: Gtk.Box, v: dict) -> None:
+        def repo_files(area: Gtk.Box, v: dict, auto: bool = False) -> None:
+            """auto (Download…, Ian 2026-10-10: "We need a download button for the hugging face search"): the
+            offered files are checked by themselves, smallest first, up to AUTO_CHECKS, so each one that runs here
+            shows its Download button without another click."""
             clear(area)
+            checks = []
             area.pack_start(small(words.licence_line(v["licence"])), False, False, 0)
             if v["gated"]:
                 area.pack_start(small(words.t("h_gated")), False, False, 0)
@@ -1278,17 +1285,26 @@ class Sidebar(Gtk.Application):
                 if f["offered"] and not v["gated"]:
                     check = Gtk.Button(label=words.t("h_check"))
 
-                    def run_check(b, path=f["path"], result=result) -> None:
+                    def run_check(b, path=f["path"], result=result, then=None) -> None:
                         b.set_sensitive(False)
                         clear(result)
                         result.pack_start(small(words.t("h_checking")), False, False, 0)
                         result.show_all()
-                        self.daemon_async("HubCheck", (v["repo"], path), "(ss)", lambda c: checked(result, c))
+                        self.daemon_async("HubCheck", (v["repo"], path), "(ss)", lambda c: checked(result, c, then))
                     check.connect("clicked", run_check)
                     line.pack_end(check, False, False, 0)
+                    checks.append((f["size"], check, run_check))
                 area.pack_start(line, False, False, 0)
                 area.pack_start(result, False, False, 0)
             area.show_all()
+            if auto:
+                queue = [c for c in sorted(checks, key=lambda c: c[0])[:AUTO_CHECKS]]
+
+                def next_check() -> None:
+                    if queue:
+                        _, button, run_check = queue.pop(0)
+                        run_check(button, then=next_check)
+                next_check()
 
         def results(rs: list) -> None:
             clear(found)
@@ -1307,6 +1323,11 @@ class Sidebar(Gtk.Application):
                 found.pack_start(area, False, False, 0)
                 b.connect("clicked", lambda b, repo=r["repo"], area=area: self.daemon_async(
                     "HubFiles", (repo,), "(s)", lambda v: repo_files(area, v)))
+                get = Gtk.Button(label=words.t("h_open"))  # the repository's files, each checked, each downloadable
+                get.set_halign(Gtk.Align.START)
+                get.connect("clicked", lambda b, repo=r["repo"], area=area: (b.set_sensitive(False), self.daemon_async(
+                    "HubFiles", (repo,), "(s)", lambda v: repo_files(area, v, auto=True))))
+                found.pack_start(get, False, False, 0)
             found.show_all()
 
         def search(*_a) -> None:
