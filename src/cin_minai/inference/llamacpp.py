@@ -215,7 +215,11 @@ class LlamaCppBackend(InferenceBackend):
             if ctx > 4096:
                 steps.append(Profile(b, dev, 4096, "all", "smaller context (4K): the graphics card's memory is busy"))
         if builds:
-            cpu_why = "on the processor (slower): the graphics card's memory is busy"
+            holders = hardware.card_holders() if any(g.driver == "nvidia" for g in gpus) else []
+            busy = (f"the graphics card is in use by {' and '.join(holders[:2])}"
+                    + (" (close the AICUI project to free it)" if any(h.startswith("AICUI") for h in holders) else "")
+                    if holders else "the graphics card's memory is busy")
+            cpu_why = f"on the processor (slower): {busy}"
         elif any(g.vendor == "nvidia" and g.driver != "nvidia" for g in gpus):
             cpu_why = "on the processor (slower): the graphics card's driver isn't installed yet"
         else:

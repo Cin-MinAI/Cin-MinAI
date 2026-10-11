@@ -71,6 +71,32 @@ def nvidia_free_mib() -> int | None:
     return int(rows[0]) if rows and rows[0].isdigit() else None
 
 
+# Cin-MinAI's own model servers, by their sockets: who holds the card, in words the person can act on
+OUR_SERVERS = {"llama-code.sock": "AICUI's coding models", "llama-senior.sock": "AICUI's coding models",
+               "llama-junior.sock": "AICUI's coding models", "llama-guide.sock": "AICUI's helper"}
+
+
+def card_holders(proc: str = "/proc") -> list[str]:
+    """Who holds the NVIDIA card's memory besides the assistant itself, in plain words ("AICUI's coding models",
+    a program's name), biggest first; [] if nothing or unknown (2026-10-11: the writer fell back to the processor while
+    AICUI's team B held the card, and the person was told only that the card was busy)."""
+    rows = [r.split(", ") for r in _run(["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory",
+                                         "--format=csv,noheader,nounits"]).splitlines() if r.strip()]
+    held: dict[str, int] = {}
+    for row in rows:
+        if len(row) != 3 or not row[0].strip().isdigit():
+            continue
+        pid, name, mib = row[0].strip(), row[1].strip(), int(row[2]) if row[2].strip().isdigit() else 0
+        cmd = _read(os.path.join(proc, pid, "cmdline")).replace("\0", " ")
+        who = next((w for sock, w in OUR_SERVERS.items() if sock in cmd), None)
+        if who is None:
+            if "llama-server" in name or "llama.sock" in cmd:
+                continue  # the assistant's own model: the one being replaced
+            who = os.path.basename(name) or "another program"
+        held[who] = held.get(who, 0) + mib
+    return sorted(held, key=held.get, reverse=True)
+
+
 def desktop_reserve_mib(sysfs: str = "/sys") -> int:
     """Graphics memory to leave free for the desktop (SPEC §4.2): 1.5 GB at 4K or with more than one
     screen, 0.8 GB otherwise. Read from the connected screens' preferred modes."""

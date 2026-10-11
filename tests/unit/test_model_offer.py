@@ -48,3 +48,21 @@ class Offer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(service is None, "needs PyGObject")
+class Replies(unittest.TestCase):
+    """2026-10-11: ProjectInfo with no writing project open returned nothing where it's declared to answer, and the
+    sidebar got "Type of return value is incorrect: expected '(s)', got '()'" — the writing tool glitched."""
+
+    def test_a_method_declared_to_answer_always_answers(self):
+        self.assertTrue(service.OUT_ARGS["ProjectInfo"])
+        self.assertFalse(service.OUT_ARGS["ProjectClose"])
+        sent = []
+        inv = types.SimpleNamespace(return_value=sent.append)
+        service.Service.answer(None, inv, "ProjectInfo", None)
+        self.assertEqual(sent[-1].unpack(), ("null",))  # null, which the sidebar reads as nothing to show
+        service.Service.answer(None, inv, "ProjectInfo", {"title": "The Bottle"})
+        self.assertEqual(sent[-1].unpack(), ('{"title": "The Bottle"}',))
+        service.Service.answer(None, inv, "ProjectClose", None)
+        self.assertIsNone(sent[-1])

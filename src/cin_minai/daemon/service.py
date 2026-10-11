@@ -188,6 +188,16 @@ XML = f"""
   </interface>
 </node>
 """
+
+
+def _out_args() -> dict:
+    """Which methods are declared to answer (from the interface itself)."""
+    iface = Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0]
+    return {m.name: bool(m.out_args) for m in iface.methods}
+
+
+OUT_ARGS = _out_args()
+
 WHERE = {"cuda": "graphics card", "vulkan": "graphics card", "cpu": "processor"}
 
 
@@ -640,14 +650,14 @@ class Service:
             except (OSError, ValueError, KeyError) as e:
                 inv.return_dbus_error(f"{IFACE}.Error.Project", str(e))
                 return
-            inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+            self.answer(inv, method, out)
         elif method in ("JournalOpen", "JournalClose", "JournalEntries", "JournalSetPin", "JournalRead"):
             try:
                 out = self.journal_call(method, *params.unpack())
             except (JournalError, OSError, ValueError) as e:
                 inv.return_dbus_error(f"{IFACE}.Error.Journal", str(e))
                 return
-            inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+            self.answer(inv, method, out)
         elif method == "MakeDocument":
             title, text = params.unpack()
             try:
@@ -787,7 +797,7 @@ class Service:
             except (OSError, ValueError, KeyError) as e:
                 inv.return_dbus_error(f"{IFACE}.Error.Model", str(e))
                 return
-            inv.return_value(None if out is None else GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+            self.answer(inv, method, out)
         elif method == "ModelDownload":
             (task,) = params.unpack()
             if self.busy:
@@ -1721,6 +1731,15 @@ class Service:
         if method == "ModelAssign":
             log(f"job {args[0]}: " + (f"our pick again ({out.get('model', '')})" if out.get("ours") else out["model"]))
         GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
+
+    def answer(self, inv, method: str, out) -> None:
+        """A method's reply as its declaration says: one declared to answer always does — null when there's nothing
+        (2026-10-11: ProjectInfo with no writing project open returned nothing, and the sidebar got a D-Bus error);
+        one declared without an answer gets none."""
+        if OUT_ARGS.get(method):
+            inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        else:
+            inv.return_value(None)
 
     def hub_call(self, method: str, args: tuple):
         """Searching Hugging Face, a repository's files, the fit check, and models on connected drives."""
