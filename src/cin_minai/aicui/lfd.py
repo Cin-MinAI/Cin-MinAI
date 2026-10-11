@@ -115,7 +115,8 @@ def run(senior, junior, focus: str, stop=lambda: False) -> dict:
     work("senior", senior)
     helper.join()
     # the finished file in the list's order, smallest to largest (they were appended as they came)
-    head = open(path, encoding="utf-8").read().split("\n## ", 1)[0]
+    with open(path, encoding="utf-8") as f:
+        head = f.read().split("\n## ", 1)[0]
     text = head + "".join(sections[rel] for rel, _ in files if rel in sections)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)

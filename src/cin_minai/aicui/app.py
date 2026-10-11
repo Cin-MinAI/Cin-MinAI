@@ -480,12 +480,182 @@ class Workspace(Gtk.ApplicationWindow):
         bar.append(self.team_menu())
         box = Gtk.Box(spacing=6)
         box.pack_start(bar, False, False, 0)
-        for label, tip in (("GitHub", "Coming soon: your project on GitHub — push, pull and share it from here"),
-                           ("Cloud models", "Coming soon: connect a cloud model (OpenAI, Anthropic) with your own key")):
-            b = Gtk.Button(label=label, sensitive=False)
-            b.set_tooltip_text(tip)
-            box.pack_end(b, False, False, 4)
+        cloud = Gtk.Button(label="Cloud models", sensitive=False)
+        cloud.set_tooltip_text("Coming soon: connect a cloud model (OpenAI, Anthropic) with your own key")
+        box.pack_end(cloud, False, False, 4)
+        gh = Gtk.Button(label="GitHub")
+        gh.set_tooltip_text("Your project on GitHub: sign in once, link a repository, save and bring in changes")
+        gh.connect("clicked", self.github_menu)
+        box.pack_end(gh, False, False, 4)
         return box
+
+    # --- GitHub (docs/accounts-and-cloud.md): signed in once through the browser, then linked, saved, brought in ----
+    def github_menu(self, button) -> None:
+        from cin_minai.daemon.accounts import github
+        from . import github_link
+        st = github.status()
+        menu = Gtk.Menu()
+
+        def item(label, act=None):
+            it = Gtk.MenuItem(label=label, sensitive=act is not None)
+            if act is not None:
+                it.connect("activate", lambda w: act())
+            menu.append(it)
+        if not st["ready"]:
+            item("GitHub sign-in isn't set up in this build yet")
+        elif not st["linked"]:
+            item("Sign in to GitHub…", self.github_sign_in)
+        else:
+            url = github_link.remote(self.root)
+            item(f"Signed in as {st['login']}")
+            menu.append(Gtk.SeparatorMenuItem())
+            item("Link this project to a repository…" if not url else "Link to another repository…",
+                 self.github_link_dialog)
+            if url:
+                item("Save to GitHub (push)", lambda: self.github_run("push"))
+                item("Bring in changes from GitHub (pull)", lambda: self.github_run("pull"))
+                item("Open the repository on GitHub", lambda: Gio.AppInfo.launch_default_for_uri(
+                    url.removesuffix(".git"), None))
+            menu.append(Gtk.SeparatorMenuItem())
+            item("Sign out of GitHub", self.github_sign_out)
+        menu.show_all()
+        menu.popup_at_widget(button, Gdk.Gravity.SOUTH_EAST, Gdk.Gravity.NORTH_EAST, None)
+
+    def github_sign_in(self) -> None:
+        """The device flow: a short code, approved by the person on github.com in their own browser; the link is kept
+        in the login keyring and renews itself (Ian: "you just do the sign in through the browser and it links up")."""
+        from cin_minai.daemon.accounts import AccountError, github
+        try:
+            start = github.start()
+        except AccountError as e:
+            self.bubble("ai", f"GitHub sign-in couldn't start: {e}")
+            return
+        d = Gtk.Dialog(title="Sign in to GitHub", transient_for=self, modal=True)
+        d.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        box = d.get_content_area()
+        box.set_spacing(10)
+        box.set_border_width(16)
+        box.pack_start(Gtk.Label(label="Type this code on GitHub's page, in your browser:", xalign=0), False, False, 0)
+        code = Gtk.Label(xalign=0.5, selectable=True)
+        code.set_markup(f"<span size='xx-large' weight='bold' font_family='monospace'>{start['user_code']}</span>")
+        box.pack_start(code, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        copy = Gtk.Button(label="Copy the code")
+        copy.connect("clicked", lambda b: Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(start["user_code"], -1))
+        opener = Gtk.Button(label="Open github.com")
+        opener.connect("clicked", lambda b: Gio.AppInfo.launch_default_for_uri(start["verification_uri"], None))
+        row.pack_start(copy, False, False, 0)
+        row.pack_start(opener, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        note = Gtk.Label(label="Only GitHub sees your password. This computer keeps the link in your login keyring "
+                               "and renews it by itself.", xalign=0, wrap=True, max_width_chars=48)
+        note.get_style_context().add_class("dim-label")
+        box.pack_start(note, False, False, 0)
+        status = Gtk.Label(label="Waiting for your approval on GitHub…", xalign=0)
+        box.pack_start(status, False, False, 0)
+        d.show_all()
+        Gio.AppInfo.launch_default_for_uri(start["verification_uri"], None)
+        cancel = threading.Event()
+
+        def wait() -> None:
+            try:
+                login = github.finish(start, cancel)
+                installed = github.installed()
+                msg = f"Linked to GitHub as {login}." + (
+                    "" if installed else " One more step: install Cin-MinAI on your GitHub account (all repositories, "
+                    "or the ones you choose), so it can reach your repositories — the page is opening.")
+                GLib.idle_add(lambda: (d.response(Gtk.ResponseType.OK), self.bubble("ai", msg),
+                                       None if installed or not github.install_url() else
+                                       Gio.AppInfo.launch_default_for_uri(github.install_url(), None)) and False)
+            except AccountError as e:
+                why = str(e)
+                if not cancel.is_set():
+                    GLib.idle_add(lambda: (d.response(Gtk.ResponseType.CANCEL),
+                                           self.bubble("ai", f"Not linked to GitHub: {why}")) and False)
+        threading.Thread(target=wait, daemon=True).start()
+        d.run()
+        cancel.set()
+        d.destroy()
+
+    def github_link_dialog(self) -> None:
+        """A new private repository named after the project, or one of the person's own."""
+        from cin_minai.daemon.accounts import AccountError, github
+        from . import github_link
+        d = Gtk.Dialog(title="Link this project to GitHub", transient_for=self, modal=True)
+        d.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        d.add_button("Link", Gtk.ResponseType.OK)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(16)
+        new = Gtk.RadioButton(label="A new repository")
+        name = Gtk.Entry(text=os.path.basename(self.root.rstrip("/")))
+        private = Gtk.CheckButton(label="Private (only you can see it)", active=True)
+        old = Gtk.RadioButton(label="One of my repositories", group=new)
+        pick = Gtk.ComboBoxText()
+        pick.append("", "loading…")
+        pick.set_active(0)
+        for w in (new, name, private, old, pick):
+            box.pack_start(w, False, False, 0)
+        d.show_all()
+        found: dict[str, str] = {}
+
+        def listed(repos) -> bool:
+            pick.remove_all()
+            for r in repos:
+                found[r["full_name"]] = r["clone_url"]
+                pick.append(r["full_name"], r["full_name"] + (" (private)" if r["private"] else ""))
+            if not repos:
+                pick.append("", "none it can reach yet — install Cin-MinAI on more repositories on GitHub")
+            pick.set_active(0)
+            return False
+        threading.Thread(target=lambda: GLib.idle_add(listed, self._safe(github.repos, [])), daemon=True).start()
+        if d.run() != Gtk.ResponseType.OK:
+            d.destroy()
+            return
+        want_new, repo_name, is_private, chosen = new.get_active(), name.get_text().strip(), private.get_active(), \
+            pick.get_active_id()
+        d.destroy()
+        try:
+            if want_new:
+                made = github.create_repo(repo_name, private=is_private,
+                                          description="Made with Cin-MinAI's AICUI")
+                url, full = made["clone_url"], made["full_name"]
+            elif chosen:
+                url, full = found[chosen], chosen
+            else:
+                return
+            github_link.link(self.root, url, github.status()["login"])
+        except (AccountError, ValueError, KeyError) as e:
+            self.bubble("ai", f"Not linked: {e}")
+            return
+        self.bubble("ai", f"This project is linked to {full} on GitHub. Save to GitHub (push) sends it there; AICUI's "
+                          "own folder (.cinminai) and the Python environment stay on this computer.")
+
+    def github_run(self, what: str) -> None:
+        from . import github_link
+        self.bubble("ai", "Saving to GitHub…" if what == "push" else "Bringing in changes from GitHub…")
+
+        def work() -> None:
+            ok, out = (github_link.push if what == "push" else github_link.pull)(self.root)
+            msg = ("Saved to GitHub." if what == "push" else "Up to date with GitHub.") if ok else \
+                f"GitHub {what} didn't go through:\n{out}"
+            GLib.idle_add(lambda: (self.bubble("ai", msg), self.load_tree()) and False)
+        threading.Thread(target=work, daemon=True).start()
+
+    def github_sign_out(self) -> None:
+        from cin_minai.daemon.accounts import github
+        if self.yes_no("Sign out of GitHub on this computer?",
+                       "The link is removed from your login keyring; the repositories stay as they are. To remove "
+                       "Cin-MinAI's access on GitHub's side too: github.com/settings/applications."):
+            github.sign_out()
+            self.bubble("ai", "Signed out of GitHub on this computer.")
+
+    @staticmethod
+    def _safe(fn, fallback):
+        try:
+            return fn()
+        except Exception:
+            return fallback
 
     def team_menu(self) -> Gtk.MenuItem:
         """The two cards (PLAN §1b): team A — the coder with the 4B as its errand intern; team B — a MoE Senior with
