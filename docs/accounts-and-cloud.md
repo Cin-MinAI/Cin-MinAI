@@ -54,6 +54,10 @@ github.com → Settings (of the CinMin account) → Developer settings → GitHu
 Each person then signs in from AICUI (device code) and installs the app on their account — all repositories, or the ones
 they pick. AICUI shows the install page when the app isn't installed yet.
 
+**Registered 2026-10-11:** "Cin-MinAI AICUI" (`cin-minai-aicui`, app id 5270555, owner `cinminaidevbox`), Client ID
+`Iv23liJjsjlZQfksbz8a` (in `/usr/share/cinminai/accounts.json`, cinminai-daemon). GitHub asks for a private key to exist
+before the app can be installed; generate one and keep it off this repository (AICUI never uses it).
+
 ## OpenAI: Sign in with ChatGPT (Ian)
 
 Fill in OpenAI's interest form for Sign in with ChatGPT (openai.com/form/sign-in-with-chatgpt-interest) for Cin-MinAI:
