@@ -68,7 +68,8 @@ the package like GitHub's. Until then OpenAI works with an API key.
 
 ## Build order
 
-1. **Accounts and GitHub:** the keyring store for accounts; the device flow, renewal and sign-out; the git credential
+1. ✔ **Accounts and GitHub** (built 2026-10-11/12, signed in and working on Ian's PC; using it waits for GitHub to lift
+   the flag on the CinMin bot account, the account it's meant for): the keyring store for accounts; the device flow, renewal and sign-out; the git credential
    helper; AICUI's GitHub button — sign in, link the project to a repo (new or existing), push, pull.
 2. **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
    calls; AICUI's Cloud button — provider, model, role (Senior or Exclusive); what's sent said first.

@@ -939,6 +939,16 @@ record is detected; a lost USB is recovered with the printed code.
   offloading; 262K context. GGUF 75-94 GB (Unsloth). Reddit: runs well on 64 GB RAM + a 16 GB card. Vendor SWE-bench Pro
   62.5 vs Qwen3.8-27B 61.7. Licence qwen-community-1.0 (unread, not Apache: D44 applies); needs a llama.cpp newer than our
   pin (architecture qwen4_exp).
+- **A place to share what people build, with papers and open peer review** (Ian, 2026-10-12, an idea, no decision):
+  repos, write-ups and reviews in the open — GitHub + arXiv + OpenReview for people building with AI, not only
+  academics; close to "a place for inventors". Lean on what exists first: code stays on GitHub (linked through the
+  AICUI GitHub app; AWS took no new customers for its own git hosting from 2024), papers on Zenodo (free, CERN, a DOI
+  each), OpenReview's model for reviews, a Matrix room per project or paper for talk. A cheap first test with no
+  servers: a GitHub organization with Discussions, Zenodo, Matrix. If it outgrows them, AWS without hardware, paid by
+  use: S3 + CloudFront (the site), API Gateway + Lambda (the logic), DynamoDB (profiles, posts, reviews), S3 (the
+  papers, uploaded from the browser), Cognito with GitHub as the sign-in. Far later, our own hardware through
+  crowdfunding, git hosting included. The hard part is people, not servers: moderation, the legal duties of public
+  uploads (takedowns, reporting illegal material) and trust in the reviewers (close to Quaddle's choice records).
 
 ## 6. Open questions
 
