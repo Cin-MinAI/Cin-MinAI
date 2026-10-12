@@ -54,9 +54,11 @@ github.com → Settings (of the CinMin account) → Developer settings → GitHu
 Each person then signs in from AICUI (device code) and installs the app on their account — all repositories, or the ones
 they pick. AICUI shows the install page when the app isn't installed yet.
 
-**Registered 2026-10-11:** "Cin-MinAI AICUI" (`cin-minai-aicui`, app id 5270555, owner `cinminaidevbox`), Client ID
-`Iv23liJjsjlZQfksbz8a` (in `/usr/share/cinminai/accounts.json`, cinminai-daemon). GitHub asks for a private key to exist
-before the app can be installed; generate one and keep it off this repository (AICUI never uses it).
+**Registered 2026-10-12:** "AICUI GitHub" (`aicui-github`, app id 5291496, owner `Brickmii`), Client ID
+`Iv23lifpctLOPB9TqgNO` (in `/usr/share/cinminai/accounts.json`, cinminai-daemon); the device flow answers. The first
+app (2026-10-11, on the CinMin bot account `cinminaidevbox`) can't sign anyone in while GitHub keeps that new account
+flagged (support ticket sent); it isn't used. GitHub asks for a private key to exist before an app can be installed;
+keep it off this repository (AICUI never uses it).
 
 ## OpenAI: Sign in with ChatGPT (Ian)
 
