@@ -76,6 +76,21 @@ def price_of(model: str) -> tuple[float, float, float, float]:
     return next((p for k, p in PRICES.items() if k in model), PRICES["sonnet"])  # unknown: the dearer guess
 
 
+def blocks(content) -> list[dict]:
+    """A message's content as Anthropic's blocks: text, and pictures (our image_url data: addresses) as images."""
+    if isinstance(content, str):
+        return [{"type": "text", "text": content}]
+    out = []
+    for part in content or []:
+        if part.get("type") == "image_url":
+            head, _, data = ((part.get("image_url") or {}).get("url") or "").partition(",")
+            mime = head[5:].split(";")[0] if head.startswith("data:") else "image/jpeg"
+            out.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}})
+        elif part.get("type") == "text":
+            out.append({"type": "text", "text": part.get("text", "")})
+    return out or [{"type": "text", "text": ""}]
+
+
 def flat_tools(schema: dict) -> list[dict]:
     """The agent's step schema (thinking + one action out of many, each with its own fields) as Anthropic tools: one
     per action, its fields flat, with `thinking` first. Claude models fill flat tools reliably; the one nested choice
@@ -160,10 +175,16 @@ class Anthropic:
             if m["role"] == "system":
                 continue
             role = "assistant" if m["role"] == "assistant" else "user"
+            parts = blocks(m["content"])
             if turns and turns[-1]["role"] == role:
-                turns[-1]["content"][0]["text"] += "\n\n" + m["content"]
+                last = turns[-1]["content"]
+                for part in parts:  # text runs on in one block; a picture is a block of its own
+                    if part["type"] == "text" and last[-1]["type"] == "text":
+                        last[-1]["text"] += "\n\n" + part["text"]
+                    else:
+                        last.append(part)
             else:
-                turns.append({"role": role, "content": [{"type": "text", "text": m["content"]}]})
+                turns.append({"role": role, "content": parts})
         if turns and turns[0]["role"] != "user":
             turns.insert(0, {"role": "user", "content": [{"type": "text", "text": "(the conversation so far)"}]})
         if system:

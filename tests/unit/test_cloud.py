@@ -148,3 +148,14 @@ class Quirks(unittest.TestCase):
         for t in tools:
             self.assertEqual(t["input_schema"]["required"][0], "thinking")
             self.assertNotIn("tool", t["input_schema"]["properties"])
+
+
+class Pictures(unittest.TestCase):
+    def test_a_picture_goes_as_an_image_block_beside_its_text(self):
+        system, turns = cloud.Anthropic.shape([
+            {"role": "user", "content": "Fix the board."},
+            {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,QUJD"}},
+                                         {"type": "text", "text": "What does the window show?"}]}])
+        parts = turns[0]["content"]
+        self.assertEqual([p["type"] for p in parts], ["text", "image", "text"])
+        self.assertEqual(parts[1]["source"], {"type": "base64", "media_type": "image/jpeg", "data": "QUJD"})

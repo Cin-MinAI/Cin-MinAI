@@ -464,6 +464,29 @@ class AgentTest(unittest.TestCase):
         self.assertIn("Nothing was saved", sent[-2]["content"])
         self.assertIn("wasn't valid JSON", sent[-1]["content"])
 
+    def test_a_picture_in_the_project_is_looked_at_never_read_as_text(self):
+        """2026-10-12: the person put screenshots in the project; the cloud model had no way to see them."""
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("no PIL")
+        os.makedirs(os.path.join(self.root, "screenshots"))
+        Image.new("RGB", (40, 30), "green").save(os.path.join(self.root, "screenshots", "board.png"))
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        self.assertIn("is a picture: look at it", a.do({"tool": "read", "path": "screenshots/board.png"}))
+        seen = []
+        a.reader = lambda: (lambda messages, **kw: (seen.append(messages) or "A blank green board.", {}))
+        report = a.do({"tool": "look", "target": "picture", "address": "screenshots/board.png",
+                       "question": "What does the board show?"})
+        self.assertIn("A blank green board.", report)
+        self.assertEqual(seen[0][0]["content"][0]["type"], "image_url")
+
+    def test_no_errands_offered_without_a_helper(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        self.assertIn("errand", a.excluded())
+        a.errand = lambda *args: "queued"
+        self.assertNotIn("errand", a.excluded())
+
     def test_three_unusable_replies_in_a_row_end_the_task(self):
         """2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for, until the stuck limit."""
         a = Agent(self.root, Scripted([("not json", {})] * 3 + [step("", tool="answer", text="never")]), "m", "auto",

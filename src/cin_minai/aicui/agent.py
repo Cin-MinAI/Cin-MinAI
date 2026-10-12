@@ -76,7 +76,7 @@ ACTIONS = [
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
     {"tool": "need", "package": STR, "why": STR},
-    {"tool": "look", "target": {"enum": ["program", "page", "screen"]}, "question": STR, "address": STR},
+    {"tool": "look", "target": {"enum": ["program", "page", "screen", "picture"]}, "question": STR, "address": STR},
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
     {"tool": "plan", "goals": {"type": "array", "minItems": 1, "maxItems": PLAN_MAX, "items": {
@@ -210,7 +210,8 @@ You work step by step. Each step: your thinking (short), then exactly one action
 - errand (your helper's side job while you work on: `kind` read a long `source` for your `question`, or look)
 {goal_tools}
 - need (a package the project needs: the person agrees, AICUI installs it)
-- look (see the program, a page or the screen: facts, and your `question` answered)
+- look (see the program, a page, the screen, or a `picture` in the project at `address`: facts, and your
+  `question` answered)
 - ask (a question for the user), answer (tell the user something; ends your turn)
 Your thinking: a sentence or two about your next move, never a copy of the user's message or an error (the user
 sees it).
@@ -790,6 +791,8 @@ class Agent:
             return {"errand"}  # its reading goes to the Junior (distill, assign)
         if self.role == "junior":
             return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS
+        if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
+            return set(SENIOR_ONLY) | {"errand"}
         return set(SENIOR_ONLY)
 
     def event(self, kind: str, **data) -> None:
@@ -1905,8 +1908,19 @@ class Agent:
                                     for f in (line.split() for line in listing.splitlines()) if len(f) >= 7]
             except (OSError, subprocess.TimeoutExpired, ValueError):
                 pass
+        elif target == "picture":  # a picture already in the project (the person's screenshots, a downloaded image)
+            src = self.path(address) if address else ""
+            if not src or not os.path.isfile(src) or not src.lower().endswith(intake.PICTURE_EXT[:-1]):
+                return "error: a picture is a .png, .jpg, .webp, .gif or .bmp file in the project, at `address`"
+            try:
+                from PIL import Image
+                with Image.open(src) as im:
+                    im.convert("RGB").save(full(base + ".png"))
+            except Exception as e:
+                return f"error: the picture couldn't be opened ({type(e).__name__})"
+            facts["picture_of"] = address
         else:
-            return "error: look at a program, a page or the screen"
+            return "error: look at a program, a page, the screen or a picture"
         if not os.path.exists(full(base + ".png")):
             return "error: no picture came (" + (facts.get("output") or "the capture failed")[-300:] + ")"
         facts["picture"] = look.picture_facts(full(base + ".png"))
@@ -2008,6 +2022,8 @@ class Agent:
                 return errand(a.get("kind", "read"), a.get("source", ""), a.get("question", ""), a.get("goal"))
             if t == "read":
                 full = self.path(a["path"])
+                if full.lower().endswith(intake.PICTURE_EXT[:-1]):  # 2026-10-12: screenshots read as text
+                    return f"{a['path']} is a picture: look at it (target picture, address {a['path']}) with your question"
                 with open(full, encoding="utf-8", errors="replace") as f:
                     lines = f.read().splitlines()
                 start = max(1, int(a.get("start") or 1))
@@ -2545,6 +2561,8 @@ def main(argv=None) -> int:
         return guide().chat if tandem_mod.reads_pictures() and guide() is not None else None
     if team_b is None and not use_cloud:
         agent.reader = reader
+    elif use_cloud:  # the cloud model reads pictures itself (2026-10-12: Haiku's looks went unanswered)
+        agent.reader = lambda: agent.chat
     first = a.first.strip()
     try:
         while True:
