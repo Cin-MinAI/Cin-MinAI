@@ -464,6 +464,14 @@ class AgentTest(unittest.TestCase):
         self.assertIn("Nothing was saved", sent[-2]["content"])
         self.assertIn("wasn't valid JSON", sent[-1]["content"])
 
+    def test_three_unusable_replies_in_a_row_end_the_task(self):
+        """2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for, until the stuck limit."""
+        a = Agent(self.root, Scripted([("not json", {})] * 3 + [step("", tool="answer", text="never")]), "m", "auto",
+                  say=self.said.append)
+        self.assertIn("last three replies weren't steps I could use", a.turn("go"))
+        self.assertEqual(len(a.chat.sent), 3)
+        self.assertEqual(a.stopped, "error")
+
     def test_salvage_and_doing(self):
         self.assertIsNone(salvage('{"thinking": "x", "action": {"tool": "write", "path": "a.py", "content": "one'))
         whole = json.dumps(step("", tool="write", path="a.py", content="1\n2\n3\n4\n5\n6\n"))

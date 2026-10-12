@@ -76,6 +76,26 @@ def price_of(model: str) -> tuple[float, float, float, float]:
     return next((p for k, p in PRICES.items() if k in model), PRICES["sonnet"])  # unknown: the dearer guess
 
 
+def flat_tools(schema: dict) -> list[dict]:
+    """The agent's step schema (thinking + one action out of many, each with its own fields) as Anthropic tools: one
+    per action, its fields flat, with `thinking` first. Claude models fill flat tools reliably; the one nested choice
+    the local models are held to token by token came back as unusable replies (2026-10-12, Haiku on test10: 25 in a
+    row). [] when the schema has no actions."""
+    variants = (((schema or {}).get("properties") or {}).get("action") or {}).get("anyOf") or []
+    thinking = ((schema or {}).get("properties") or {}).get("thinking") or {"type": "string"}
+    tools = []
+    for v in variants:
+        props = dict(v.get("properties") or {})
+        name = (props.pop("tool", None) or {}).get("const")
+        if not name:
+            continue
+        required = [r for r in v.get("required", []) if r != "tool"]
+        tools.append({"name": name, "description": f"Your next step: {name}. `thinking` first: a sentence or two.",
+                      "input_schema": {"type": "object", "properties": {"thinking": thinking, **props},
+                                       "required": ["thinking", *required]}})
+    return tools
+
+
 def label(model: str) -> str:
     """claude-haiku-4-5-20251001 → Claude Haiku 4.5"""
     parts = [x for x in model.split("-") if not (x.isdigit() and len(x) == 8)]
@@ -163,10 +183,13 @@ class Anthropic:
         body = {"model": self.model, "max_tokens": int(max_tokens or 4096), "messages": turns}
         if system:
             body["system"] = system
-        if schema is not None:  # one forced tool call: its input is the step, held to the agent's schema
-            body["tools"] = [{"name": "step", "description": "Your next step: your thinking and one action.",
-                              "input_schema": schema}]
-            body["tool_choice"] = {"type": "tool", "name": "step"}
+        tools = flat_tools(schema) if schema is not None else None
+        if tools:  # every action its own tool with flat inputs; the model calls exactly one (see flat_tools)
+            body["tools"] = tools
+            body["tool_choice"] = {"type": "any"}
+        elif schema is not None:  # a schema without actions (a distill's items): one forced tool, its input the reply
+            body["tools"] = [{"name": "reply", "description": "Your reply.", "input_schema": schema}]
+            body["tool_choice"] = {"type": "tool", "name": "reply"}
         start = time.monotonic()
         got = self._post("messages", body)
         usage = got.get("usage", {})
@@ -174,13 +197,15 @@ class Anthropic:
         self.log(usage, usd)
         if schema is not None:
             block = next((b for b in got.get("content", []) if b.get("type") == "tool_use"), None)
-            step = dict(block["input"]) if block else {}
-            if isinstance(step.get("action"), str):  # a nested object sometimes comes as its JSON, in a string
-                try:
-                    step["action"] = json.loads(step["action"])
-                except ValueError:
-                    pass
-            text = json.dumps(step, ensure_ascii=False) if block else ""
+            if block is None:
+                text = ""
+            elif tools:  # the agent's step: {"thinking", "action": {"tool": the tool called, its inputs}}
+                inputs = dict(block.get("input") or {})
+                thinking = str(inputs.pop("thinking", ""))
+                text = json.dumps({"thinking": thinking, "action": {"tool": block.get("name", ""), **inputs}},
+                                  ensure_ascii=False)
+            else:
+                text = json.dumps(block.get("input") or {}, ensure_ascii=False)
         else:
             text = "".join(b.get("text", "") for b in got.get("content", []) if b.get("type") == "text")
         if on_text:

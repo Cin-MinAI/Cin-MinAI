@@ -35,9 +35,18 @@ class FakeAnthropic:
 
 
 STEP = {"thinking": "Run it.", "action": {"tool": "run", "command": "bash run.sh"}}
-REPLY = {"content": [{"type": "tool_use", "name": "step", "input": STEP}], "stop_reason": "tool_use",
+REPLY = {"content": [{"type": "tool_use", "name": "run", "input": {"thinking": "Run it.", "command": "bash run.sh"}}], "stop_reason": "tool_use",
          "usage": {"input_tokens": 1200, "output_tokens": 80, "cache_creation_input_tokens": 9000,
                    "cache_read_input_tokens": 0}}
+
+
+SCHEMA = {"type": "object", "required": ["thinking", "action"], "properties": {
+    "thinking": {"type": "string", "maxLength": 1500},
+    "action": {"anyOf": [
+        {"type": "object", "required": ["tool", "command"],
+         "properties": {"tool": {"const": "run"}, "command": {"type": "string"}}},
+        {"type": "object", "required": ["tool", "text"],
+         "properties": {"tool": {"const": "answer"}, "text": {"type": "string"}}}]}}}
 
 
 class Cloud(unittest.TestCase):
@@ -49,17 +58,19 @@ class Cloud(unittest.TestCase):
         self.fake = FakeAnthropic(answers)
         return cloud.Anthropic(self.root, lambda: "sk-ant-test-key-0123456789abcdef", opener=self.fake)
 
-    def test_a_step_through_one_forced_tool_call_with_the_cache_marked_and_its_cost_logged(self):
+    def test_a_step_through_one_flat_tool_per_action_with_the_cache_marked_and_its_cost_logged(self):
         b = self.backend([REPLY])
         messages = [{"role": "system", "content": "You are the coding agent."}, {"role": "user", "content": "Finish it."},
                     {"role": "assistant", "content": "{...earlier step...}"}, {"role": "user", "content": "Result: ok"},
                     {"role": "user", "content": "No progress in the last 6 steps."}]
-        text, t = b.chat(messages, schema={"type": "object", "properties": {}}, max_tokens=1800)
+        text, t = b.chat(messages, schema=SCHEMA, max_tokens=1800)
         self.assertEqual(json.loads(text), STEP)
         url, body, headers = self.fake.sent[0]
         self.assertEqual(url, "https://api.anthropic.com/v1/messages")
         self.assertEqual(body["model"], "claude-haiku-4-5-20251001")
-        self.assertEqual(body["tool_choice"], {"type": "tool", "name": "step"})
+        self.assertEqual(body["tool_choice"], {"type": "any"})
+        self.assertEqual([t["name"] for t in body["tools"]], ["run", "answer"])
+        self.assertEqual(body["tools"][0]["input_schema"]["required"], ["thinking", "command"])
         self.assertEqual([m["role"] for m in body["messages"]], ["user", "assistant", "user"])  # notes merged in turn
         self.assertIn("No progress", body["messages"][-1]["content"][0]["text"])
         self.assertEqual(body["system"][-1]["cache_control"], {"type": "ephemeral"})
@@ -116,13 +127,24 @@ if __name__ == "__main__":
 
 
 class Quirks(unittest.TestCase):
-    def test_an_action_sent_as_a_string_is_unpacked(self):
-        """2026-10-12, Haiku on test10: the step's action came as its JSON in a string, and the agent fell over."""
+    def test_a_schema_without_actions_is_one_forced_tool_and_its_input_the_reply(self):
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
-        reply = {"content": [{"type": "tool_use", "name": "step", "input": {
-            "thinking": "Look for tests.", "action": json.dumps({"tool": "list", "path": "."})}}],
-            "usage": {"input_tokens": 10, "output_tokens": 5}}
-        b = cloud.Anthropic(root, lambda: "sk-ant-test-key-0123456789abcdef", opener=FakeAnthropic([reply]))
+        reply = {"content": [{"type": "tool_use", "name": "reply", "input": {"items": ["a"]}}],
+                 "usage": {"input_tokens": 10, "output_tokens": 5}}
+        fake = FakeAnthropic([reply])
+        b = cloud.Anthropic(root, lambda: "sk-ant-test-key-0123456789abcdef", opener=fake)
         text, _ = b.chat([{"role": "user", "content": "go"}], schema={"type": "object"})
-        self.assertEqual(json.loads(text)["action"], {"tool": "list", "path": "."})
+        self.assertEqual(json.loads(text), {"items": ["a"]})
+        self.assertEqual(fake.sent[0][1]["tool_choice"], {"type": "tool", "name": "reply"})
+
+    def test_the_agents_real_schema_becomes_one_tool_per_action(self):
+        sys.path.insert(0, os.path.join(ROOT, "third_party", "team-table", "src"))
+        from cin_minai.aicui import agent
+        tools = cloud.flat_tools(agent.schema(None, set()))
+        names = [t["name"] for t in tools]
+        self.assertIn("write", names)
+        self.assertIn("answer", names)
+        for t in tools:
+            self.assertEqual(t["input_schema"]["required"][0], "thinking")
+            self.assertNotIn("tool", t["input_schema"]["properties"])

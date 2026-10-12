@@ -1133,6 +1133,7 @@ class Agent:
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
         self.flagged: set[int] = set()  # goals the helper flagged in this task (a second goal_done ticks)
         last_progress = 0
+        unusable = 0  # replies in a row that weren't a step
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
@@ -1173,7 +1174,19 @@ class Agent:
                 steps.append({"note": note})
                 if "logged as change" in note:  # a cut-off write that was saved still moved the work on
                     last_progress = n
+                    unusable = 0
+                else:
+                    unusable += 1
+                if unusable >= 3:  # 2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for
+                    msg = ("The model's last three replies weren't steps I could use, so I've stopped here (they did "
+                           "nothing). Tell me to continue, or choose another model.")
+                    self.stopped = "error"
+                    self.event("answer", text=msg)
+                    self.say(msg)
+                    self.history.append({"user": text, "answer": msg})
+                    return msg
                 continue
+            unusable = 0
             self.last_thinking = str(step.get("thinking", ""))
             if step.get("thinking"):
                 self.event("thinking", text=step["thinking"])
