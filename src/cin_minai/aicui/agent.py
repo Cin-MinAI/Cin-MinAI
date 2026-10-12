@@ -1137,6 +1137,7 @@ class Agent:
         self.flagged: set[int] = set()  # goals the helper flagged in this task (a second goal_done ticks)
         last_progress = 0
         unusable = 0  # replies in a row that weren't a step
+        empty = 0  # answers or questions with nothing in them
         # the system text stays as it was at the start of the task: the file list in it changed with every new file,
         # and the server re-read the whole prompt (the model knows the files it made from its own steps)
         self.sys = self.system()
@@ -1208,7 +1209,16 @@ class Agent:
                     self.deliver(steps)
                     continue
             if act["tool"] in ("answer", "ask"):
-                msg = act.get("text") or act.get("question") or ""
+                msg = str(act.get("text") or act.get("question") or "").strip()
+                if not msg:  # 2026-10-12: Haiku put its whole answer in its thinking; the person saw a blank reply
+                    note = ("Your answer was empty, so the person saw nothing. Put what you'd tell them in `text`"
+                            if act["tool"] == "answer" else "Your question was empty. Put it in `question`") + "."
+                    self.event("note", text=note)
+                    steps.append({"did": step, "result": note})
+                    empty += 1
+                    if empty < 3:
+                        continue
+                    msg = step.get("thinking") or "The model gave an empty answer three times."
                 self.stopped = act["tool"]
                 self.event("answer", text=msg)
                 self.say(msg)

@@ -487,6 +487,17 @@ class AgentTest(unittest.TestCase):
         a.errand = lambda *args: "queued"
         self.assertNotIn("errand", a.excluded())
 
+    def test_an_empty_answer_is_sent_back_never_shown_blank(self):
+        """2026-10-12: Haiku put its answer in its thinking and answered with no text; the person saw a blank reply."""
+        a = Agent(self.root, Scripted([step("The deck needs three kinds.", tool="answer", text=""),
+                                       step("", tool="answer", text="The deck needs a card of each kind.")]),
+                  "m", "auto", say=self.said.append)
+        self.assertEqual(a.turn("what's wrong?"), "The deck needs a card of each kind.")
+        self.assertIn("Your answer was empty", a.chat.sent[-1][-1]["content"])
+        b = Agent(self.root, Scripted([step("All three kinds are missing.", tool="answer", text="")] * 3),
+                  "m", "auto", say=self.said.append)
+        self.assertEqual(b.turn("what's wrong?"), "All three kinds are missing.")  # its thinking, never a blank
+
     def test_three_unusable_replies_in_a_row_end_the_task(self):
         """2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for, until the stuck limit."""
         a = Agent(self.root, Scripted([("not json", {})] * 3 + [step("", tool="answer", text="never")]), "m", "auto",
