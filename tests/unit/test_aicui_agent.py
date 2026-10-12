@@ -498,6 +498,22 @@ class AgentTest(unittest.TestCase):
                   "m", "auto", say=self.said.append)
         self.assertEqual(b.turn("what's wrong?"), "All three kinds are missing.")  # its thinking, never a blank
 
+    def test_a_new_project_keeps_its_first_request_and_a_screenshots_folder(self):
+        """Ian, 2026-10-12: he kept both by hand for test10 (origprompt, screenshots/), and the cloud finished from them."""
+        a = Agent(self.root, Scripted([step("", tool="answer", text="ok"), step("", tool="answer", text="ok")]),
+                  "m", "auto", say=self.said.append)
+        a.turn("Make a card game.")
+        a.turn("Make the cards bigger.")
+        with open(os.path.join(self.root, "original-request.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "Make a card game.\n")  # the first request only, in the person's words
+        self.assertTrue(os.path.isdir(os.path.join(self.root, "screenshots")))
+        self.assertIn("isn't changed", a.do({"tool": "write", "path": "original-request.txt", "content": "x"}))
+        self.assertIn("original-request.txt is the person's first request", a.system())
+        self.assertIn("screenshots/ is for pictures of the program", a.system())
+        with open(os.path.join(self.root, "screenshots", "board.png"), "wb") as f:
+            f.write(b'PNG')  # only its name counts here
+        self.assertIn("screenshots/ has 1 picture of the program from the person (newest: board.png)", a.system())
+
     def test_three_unusable_replies_in_a_row_end_the_task(self):
         """2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for, until the stuck limit."""
         a = Agent(self.root, Scripted([("not json", {})] * 3 + [step("", tool="answer", text="never")]), "m", "auto",

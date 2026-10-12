@@ -87,8 +87,13 @@ class Workspace(Gtk.ApplicationWindow):
         run.set_tooltip_text("Start the project as you would: run.sh, else main.py (with its own Python), "
                              "else index.html in the browser")
         run.connect("clicked", lambda b: self.run_project())
+        shots = Gtk.Button(label="Screenshots")
+        shots.set_tooltip_text("The project's screenshots folder: put pictures of the program there, and the AI "
+                               "looks at them")
+        shots.connect("clicked", lambda b: self.open_screenshots())
         bar = Gtk.Box(spacing=4)
         bar.pack_start(run, False, False, 0)
+        bar.pack_start(shots, False, False, 0)
         bar.pack_start(self.swap, True, True, 0)
         bar.pack_end(refresh, False, False, 0)
         self.tree_title = Gtk.Label(label="Working tree", xalign=0)
@@ -626,6 +631,12 @@ class Workspace(Gtk.ApplicationWindow):
             if cloud.settings(self.root)["role"] != "off":
                 self.cloud_off()
             self.bubble("ai", "The Anthropic key is removed from this computer.")
+
+    def open_screenshots(self) -> None:
+        from .agent import SCREENSHOTS
+        folder = os.path.join(self.root, SCREENSHOTS)
+        os.makedirs(folder, exist_ok=True)
+        Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(folder).get_uri(), None)
 
     def restart_with(self, first: str) -> None:
         """The agent restarted in the terminal — with a first request when there is one (Ctrl+C stops what runs,
