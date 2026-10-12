@@ -1162,7 +1162,10 @@ class Agent:
             try:
                 step = json.loads(raw)
                 act = step["action"]
-            except (ValueError, KeyError, TypeError):
+                if not isinstance(act, dict) or not isinstance(act.get("tool"), str):
+                    # 2026-10-12: a cloud model sent the action as a string; the agent fell over at act["tool"]
+                    raise ValueError("the action isn't an object with a tool")
+            except (ValueError, KeyError, TypeError, AttributeError):
                 cut = (t.get("predicted_n") or 0) >= self.answer_tokens - 2 or bool(t.get("capped"))
                 note = self.unfinished(raw, cut, capped=bool(t.get("capped")))
                 self.event("note", text=note)
@@ -2220,9 +2223,13 @@ class Agent:
             return "the user said no to this command"
         code, out = self.execute(command, RUN_TIMEOUT, self.sandbox, network=network and self.net_ok)
         if code is None:
-            return f"error: still running after {RUN_TIMEOUT} s, stopped"
+            return (f"error: still running after {RUN_TIMEOUT} s, stopped — a program with a window or a main loop "
+                    "doesn't end by itself: start it with `timeout 5` to see that it runs")
         self.say(out[-3000:])
         tail = out[-OBS_CHARS:] if len(out) > OBS_CHARS else out
+        if code == 124 and re.search(r"\btimeout\s+\d", command):  # 2026-10-12: read as "it hung"
+            return (f"exit 124: still running when the timeout stopped it — for a program with a window or a main loop, "
+                    f"that means it started and kept running (no crash in that time)\n{tail}")
         return f"exit {code}\n{tail}"
 
     def execute(self, command: str, timeout: int, sandbox: bool, network: bool = False) -> tuple[int | None, str]:
@@ -2240,11 +2247,21 @@ class Agent:
         # left Python running the old compiled code, and a fixed test still failed
         env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy",
                "PYGAME_HIDE_SUPPORT_PROMPT": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        # its own process group: at the limit everything it started stops with it (2026-10-12: a game window and its
+        # virtual screen kept running after the command was cut off, outside the sandbox in No permissions)
+        p = subprocess.Popen(argv, cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
+                             start_new_session=True)
         try:
-            r = subprocess.run(argv, cwd=self.root, capture_output=True, text=True, timeout=timeout, env=env)
+            out, err = p.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
+            import signal
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            p.communicate()
             return None, ""
-        return r.returncode, (r.stdout + r.stderr).strip()
+        return p.returncode, (out + err).strip()
 
     # --- checks: after every change, and before a goal is ticked ---------------------------------------------
     def compiled_check(self, only: str = "") -> list[str]:

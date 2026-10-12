@@ -113,3 +113,16 @@ class Keys(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Quirks(unittest.TestCase):
+    def test_an_action_sent_as_a_string_is_unpacked(self):
+        """2026-10-12, Haiku on test10: the step's action came as its JSON in a string, and the agent fell over."""
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        reply = {"content": [{"type": "tool_use", "name": "step", "input": {
+            "thinking": "Look for tests.", "action": json.dumps({"tool": "list", "path": "."})}}],
+            "usage": {"input_tokens": 10, "output_tokens": 5}}
+        b = cloud.Anthropic(root, lambda: "sk-ant-test-key-0123456789abcdef", opener=FakeAnthropic([reply]))
+        text, _ = b.chat([{"role": "user", "content": "go"}], schema={"type": "object"})
+        self.assertEqual(json.loads(text)["action"], {"tool": "list", "path": "."})

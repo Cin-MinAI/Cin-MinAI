@@ -174,7 +174,13 @@ class Anthropic:
         self.log(usage, usd)
         if schema is not None:
             block = next((b for b in got.get("content", []) if b.get("type") == "tool_use"), None)
-            text = json.dumps(block["input"], ensure_ascii=False) if block else ""
+            step = dict(block["input"]) if block else {}
+            if isinstance(step.get("action"), str):  # a nested object sometimes comes as its JSON, in a string
+                try:
+                    step["action"] = json.loads(step["action"])
+                except ValueError:
+                    pass
+            text = json.dumps(step, ensure_ascii=False) if block else ""
         else:
             text = "".join(b.get("text", "") for b in got.get("content", []) if b.get("type") == "text")
         if on_text:

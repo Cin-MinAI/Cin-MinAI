@@ -613,8 +613,8 @@ class AgentTest(unittest.TestCase):
         self.assertIn("the person said no to internet for commands",
                       no.do({"tool": "run", "command": "curl x", "network": True}))
         argv = []
-        with mock.patch("subprocess.run", side_effect=lambda a, **k: (argv.append(a), mock.Mock(returncode=0, stdout="",
-                                                                                                    stderr=""))[1]):
+        with mock.patch("subprocess.Popen", side_effect=lambda a, **k: (argv.append(a), mock.Mock(
+                returncode=0, pid=0, communicate=lambda timeout=None: ("", "")))[1]):
             auto.execute("true", 5, True)
             auto.execute("true", 5, True, network=True)
         self.assertIn("--unshare-net", argv[0])
@@ -882,3 +882,32 @@ class VirtualScreen(unittest.TestCase):
         r = subprocess.run(["bash", "-c", with_screen("xdpyinfo | grep -c dimensions; exit 3", (800, 600, 1))],
                            capture_output=True, text=True, timeout=60)
         self.assertEqual((r.returncode, r.stdout.strip()), (3, "1"))
+
+
+@unittest.skipUnless(shutil.which("git") and os.name == "posix", "the changelog needs git; runs commands")
+class Robust(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def test_a_step_that_isnt_one_is_a_note_not_a_crash(self):
+        """2026-10-12: a cloud model's action arrived as a string; act["tool"] ended the agent."""
+        a = Agent(self.root, Scripted([(json.dumps({"thinking": "Look.", "action": "list ."}), {}),
+                                       step("", tool="answer", text="done")]), "m", "auto", say=lambda s: None)
+        self.assertEqual(a.turn("go"), "done")  # it went on to its next reply
+
+    def test_a_command_cut_off_at_its_limit_leaves_nothing_running(self):
+        """2026-10-12: a game window and its virtual screen kept running after the command was stopped."""
+        a = Agent(self.root, Scripted([]), "m", "none", say=lambda s: None)
+        pidfile = os.path.join(self.root, "child.pid")
+        code, _ = a.execute(f"sleep 301 & echo $! > {pidfile}; sleep 302", 2, False)
+        self.assertIsNone(code)
+        with open(pidfile) as f:
+            pid = int(f.read())
+        import time
+        time.sleep(0.2)
+        self.assertFalse(os.path.exists(f"/proc/{pid}") and "sleep" in open(f"/proc/{pid}/cmdline").read())
+
+    def test_a_timeout_says_the_program_was_still_running(self):
+        a = Agent(self.root, Scripted([]), "m", "none", say=lambda s: None)
+        self.assertIn("exit 124: still running when the timeout stopped it", a.run("timeout 1 sleep 5"))
