@@ -226,8 +226,8 @@ its HTML (or the map of it) and use the classes and ids it has. {goal_rule}; onc
 starts, work the goals as your to-do list. Answer in the user's language.
 One step holds about {answer_tokens} tokens: a file longer than about {write_lines} lines is written in parts — write
 the first part, then append the rest, one part per step, each under {write_lines} lines.
-Your commands run graphical programs windowless (SDL's dummy drivers); look shows them for real, at the
-user's screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
+Your commands have a screen of their own that nobody sees: a tkinter or Qt window opens there (pygame runs
+windowless), so `timeout 5` around the program shows its errors; look shows a program for real, at the user's screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
 loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
 button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
 project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
@@ -701,6 +701,20 @@ def venv_packages(venv: str) -> list[str]:
     return found[:20]
 
 
+def with_screen(command: str, screen: tuple[int, int, int]) -> str:
+    """The command with a virtual screen of its own (Ian, 2026-10-11): tkinter and Qt need a display, and without one
+    every test of a window ended in "couldn't connect to display", which the model rightly took as expected — and never
+    saw the program's real errors. Xvfb starts inside the command's sandbox (its /tmp is the command's own), picks a free
+    display itself (-displayfd: never the person's, never look's), and stops with the command. Its OpenGL extension
+    stays off: it goes through the NVIDIA driver, which crashes without the card's devices (measured 2026-10-09)."""
+    w, h, _ = screen
+    return (f"mkdir -p -m 1777 /tmp/.X11-unix 2>/dev/null; _xd=$(mktemp); "
+            f"Xvfb -displayfd 9 -screen 0 {w}x{h}x24 -nolisten tcp -extension GLX 9>\"$_xd\" >/dev/null 2>&1 & _xv=$!; "
+            f"for _i in $(seq 100); do [ -s \"$_xd\" ] && break; sleep 0.05; done; "
+            f"export DISPLAY=\":$(tr -dc 0-9 < \"$_xd\")\"; rm -f \"$_xd\"; "
+            f"( {command}\n); _rc=$?; kill $_xv 2>/dev/null; wait $_xv 2>/dev/null; exit $_rc")
+
+
 def kept_material(rel: str, root: str = "") -> bool:
     """Fetched material, kept as it came — not the project's code (2026-10-09: the checks found an "unclosed script
     tag" in a saved web page, and the coder was sent to fix it): by its recorded origin (intake.came_in); without a
@@ -766,6 +780,7 @@ class Agent:
         self.fetched: dict[str, str] = {}  # address -> what came back, this session (the same fetch twice isn't news)
         self.known_urls: set[str] = set()  # addresses the person gave (pages kept and searches made count too)
         self.bwrap = shutil.which("bwrap") is not None
+        self.xvfb = shutil.which("Xvfb") is not None  # a virtual screen for the commands (with_screen)
         self.sandbox = self.bwrap and mode != "none"
 
     # --- events for AICUI's panes --------------------------------------------------------------------------
@@ -2216,7 +2231,7 @@ class Agent:
         # can't see one, and a program waiting on a window it can't close would hold the step until the timeout
         prefix = f"export VIRTUAL_ENV={shlex.quote(self.venv)} PATH={shlex.quote(self.venv + '/bin')}:$PATH; " \
             if self.venv else ""
-        argv = ["bash", "-lc", prefix + command]
+        argv = ["bash", "-lc", prefix + (with_screen(command, look.screen_of()) if self.xvfb else command)]
         if sandbox:
             argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
                     "--bind", self.root, self.root, *([] if network else ["--unshare-net"]), "--die-with-parent",

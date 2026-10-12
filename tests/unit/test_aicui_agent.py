@@ -862,3 +862,23 @@ class AgentTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VirtualScreen(unittest.TestCase):
+    """Ian, 2026-10-11: commands get a screen of their own, so a tkinter or Qt program fails (or runs) the way it would
+    for the person — test10's game crashed on start while the model, without a display, called its error expected."""
+
+    def test_the_command_runs_inside_its_own_screen_and_keeps_its_exit_code(self):
+        from cin_minai.aicui.agent import with_screen
+        wrapped = with_screen("python3 app.py  # a comment", (1920, 1080, 1))
+        self.assertIn("Xvfb -displayfd 9 -screen 0 1920x1080x24 -nolisten tcp -extension GLX", wrapped)
+        self.assertIn("( python3 app.py  # a comment\n)", wrapped)  # a trailing comment can't swallow the bracket
+        self.assertTrue(wrapped.endswith("exit $_rc"))
+
+    @unittest.skipUnless(shutil.which("Xvfb") and shutil.which("xdpyinfo"), "needs Xvfb")
+    def test_live_a_display_is_there_and_goes_away(self):
+        import subprocess
+        from cin_minai.aicui.agent import with_screen
+        r = subprocess.run(["bash", "-c", with_screen("xdpyinfo | grep -c dimensions; exit 3", (800, 600, 1))],
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual((r.returncode, r.stdout.strip()), (3, "1"))
