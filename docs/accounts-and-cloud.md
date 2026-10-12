@@ -71,7 +71,11 @@ the package like GitHub's. Until then OpenAI works with an API key.
 1. ✔ **Accounts and GitHub** (built 2026-10-11/12, signed in and working on Ian's PC; using it waits for GitHub to lift
    the flag on the CinMin bot account, the account it's meant for): the keyring store for accounts; the device flow, renewal and sign-out; the git credential
    helper; AICUI's GitHub button — sign in, link the project to a repo (new or existing), push, pull.
-2. **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
+2. ◐ **Cloud** (Anthropic built 2026-10-12: the key pasted once into the keyring and checked with a free call; the
+   cloud backend — the step through one forced tool call, prompt caching, every call's cost logged in
+   `.cinminai/cloud-usage.jsonl`, a budget per project checked before each call; AICUI's Cloud models menu with
+   **Finisher** (the local models built it, the cloud takes it to working, Ian 2026-10-12: "develop mostly locally and
+   then have cloud come in and finalize") and **Exclusive**; Senior with a local Junior next, then OpenAI). Was: **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
    calls; AICUI's Cloud button — provider, model, role (Senior or Exclusive); what's sent said first.
 3. **The models' own GitHub work** (push and pull as tools, under the same approvals); Sign in with ChatGPT when the
    client ID comes.

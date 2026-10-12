@@ -212,6 +212,35 @@ class GitHub:
         return {"full_name": got["full_name"], "private": got["private"], "clone_url": got["clone_url"]}
 
 
+# --- cloud model keys (docs/accounts-and-cloud.md): pasted once, kept in the keyring, read only by the cloud backend --
+CLOUD = {"anthropic": {"name": "Anthropic", "shape": r"sk-ant-[A-Za-z0-9_-]{20,300}",
+                       "console": "https://console.anthropic.com/settings/keys"}}
+
+
+def cloud_key(provider: str, keyring=None) -> str:
+    """The provider's key, for its own request only; "" when there's none or no keyring."""
+    try:
+        return (keyring or Keyring()).get(f"cloud-{provider}").get("key", "")
+    except Exception:
+        return ""
+
+
+def store_cloud_key(provider: str, key: str, keyring=None) -> None:
+    """Check the key's shape and keep it; the error never repeats the key."""
+    import re
+    p = CLOUD.get(provider)
+    if p is None:
+        raise AccountError("that cloud provider isn't offered")
+    key = key.strip()
+    if not re.fullmatch(p["shape"], key):
+        raise AccountError(f"that doesn't look like an {p['name']} API key; copy it again from {p['console']}")
+    (keyring or Keyring()).put(f"cloud-{provider}", f"Cin-MinAI: {p['name']} API key", {"key": key})
+
+
+def forget_cloud_key(provider: str, keyring=None) -> None:
+    (keyring or Keyring()).forget(f"cloud-{provider}")
+
+
 @contextmanager
 def _renewing():
     """One renewal at a time on this computer: a refresh token is replaced at each use, so two at once would lose one."""

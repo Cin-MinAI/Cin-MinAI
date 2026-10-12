@@ -480,14 +480,160 @@ class Workspace(Gtk.ApplicationWindow):
         bar.append(self.team_menu())
         box = Gtk.Box(spacing=6)
         box.pack_start(bar, False, False, 0)
-        cloud = Gtk.Button(label="Cloud models", sensitive=False)
-        cloud.set_tooltip_text("Coming soon: connect a cloud model (OpenAI, Anthropic) with your own key")
+        cloud = Gtk.Button(label="Cloud models")
+        cloud.set_tooltip_text("A cloud model with your own API key: finish a project, or work with the cloud only")
+        cloud.connect("clicked", self.cloud_menu)
         box.pack_end(cloud, False, False, 4)
         gh = Gtk.Button(label="GitHub")
         gh.set_tooltip_text("Your project on GitHub: sign in once, link a repository, save and bring in changes")
         gh.connect("clicked", self.github_menu)
         box.pack_end(gh, False, False, 4)
         return box
+
+    # --- Cloud models (docs/accounts-and-cloud.md): your own key, a budget per project, local first ---------------
+    FINISH = ("Finish this project: start it the way the person does (run.sh, else main.py) and run its tests; fix what "
+              "fails, one cause at a time, until it starts and the session goals' checks pass. Read only the files you "
+              "need, in the parts you need — every token is paid for. When it works, tick the goals and say what you "
+              "changed.")
+
+    def cloud_menu(self, button) -> None:
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud
+        cs, has_key = cloud.settings(self.root), bool(accounts.cloud_key("anthropic"))
+        menu = Gtk.Menu()
+
+        def item(label, act=None):
+            it = Gtk.MenuItem(label=label, sensitive=act is not None)
+            if act is not None:
+                it.connect("activate", lambda w: act())
+            menu.append(it)
+        if not has_key:
+            item("Add an Anthropic API key…", self.cloud_add_key)
+        else:
+            item("Finish this project with the cloud…", lambda: self.cloud_role_dialog("finisher"))
+            item("Work with the cloud only (no local models)…", lambda: self.cloud_role_dialog("exclusive"))
+            if cs["role"] != "off":
+                item("Back to the local models", self.cloud_off)
+            menu.append(Gtk.SeparatorMenuItem())
+            item(f"Spent on this project: ${cloud.spent(self.root):.2f} of ${cs['budget_usd']:.2f}"
+                 + (f" · {cloud.label(cs['model'])}, {cs['role']}" if cs["role"] != "off" else ""))
+            item("Remove the Anthropic key from this computer", self.cloud_remove_key)
+        menu.show_all()
+        menu.popup_at_widget(button, Gdk.Gravity.SOUTH_EAST, Gdk.Gravity.NORTH_EAST, None)
+
+    def cloud_add_key(self) -> None:
+        """Pasted once into a masked box; straight into the login keyring, checked with one free call."""
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud
+        d = Gtk.Dialog(title="Add an Anthropic API key", transient_for=self, modal=True)
+        d.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        d.add_button("Save", Gtk.ResponseType.OK)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(16)
+        text = Gtk.Label(xalign=0, wrap=True, max_width_chars=52, label=(
+            "Make a key in your Anthropic Console (an API account with prepaid credit and a spending limit keeps it "
+            "apart from your personal accounts), then paste it here. It goes straight into your login keyring: AICUI "
+            "never shows it again, and no model ever sees it."))
+        box.pack_start(text, False, False, 0)
+        console = Gtk.Button(label="Open the Anthropic Console")
+        console.connect("clicked", lambda b: Gio.AppInfo.launch_default_for_uri(
+            accounts.CLOUD["anthropic"]["console"], None))
+        box.pack_start(console, False, False, 0)
+        entry = Gtk.Entry(visibility=False, placeholder_text="sk-ant-…", activates_default=True)
+        box.pack_start(entry, False, False, 0)
+        d.set_default_response(Gtk.ResponseType.OK)
+        d.show_all()
+        ok, key = d.run() == Gtk.ResponseType.OK, entry.get_text()
+        entry.set_text("")
+        d.destroy()
+        if not ok:
+            return
+        try:
+            accounts.store_cloud_key("anthropic", key)
+        except accounts.AccountError as e:
+            self.bubble("ai", f"Not saved: {e}")
+            return
+        del key
+
+        def check() -> None:
+            try:
+                models = cloud.Anthropic(self.root, lambda: accounts.cloud_key("anthropic")).models()
+                msg = "Anthropic key saved and working. It can use: " + ", ".join(
+                    cloud.label(m) for m in models[:6]) + ". Cloud models → Finish this project, when you want it."
+            except cloud.CloudError as e:
+                msg = f"The key is saved, but Anthropic didn't accept it ({e}). Check it in the Console, or remove it."
+            GLib.idle_add(lambda: self.bubble("ai", msg) and False)
+        threading.Thread(target=check, daemon=True).start()
+
+    def cloud_role_dialog(self, role: str) -> None:
+        from cin_minai.inference import cloud
+        cs = cloud.settings(self.root)
+        d = Gtk.Dialog(title="Finish with the cloud" if role == "finisher" else "Work with the cloud only",
+                       transient_for=self, modal=True)
+        d.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        d.add_button("Start", Gtk.ResponseType.OK)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(16)
+        box.pack_start(Gtk.Label(xalign=0, wrap=True, max_width_chars=52, label=(
+            ("The cloud model takes this project from where the local models left it to working: it runs it, reads "
+             "what it needs and fixes what fails." if role == "finisher" else
+             "The cloud model does all the work on this project; no model is loaded on this computer.")
+            + " What it reads of the project, its goals and what the commands print go to Anthropic. It stops at the "
+              "budget below.")), False, False, 0)
+        model = Gtk.ComboBoxText()
+        for m in ("claude-haiku-4-5-20251001", "claude-sonnet-4-6"):
+            model.append(m, f"{cloud.label(m)} — ${cloud.price_of(m)[0]:g} / ${cloud.price_of(m)[1]:g} per million "
+                            "tokens in / out")
+        model.set_active_id(cs["model"] if cs["model"] in ("claude-haiku-4-5-20251001", "claude-sonnet-4-6")
+                            else "claude-haiku-4-5-20251001")
+        box.pack_start(model, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        row.pack_start(Gtk.Label(label="Budget for this project, in dollars:"), False, False, 0)
+        budget = Gtk.SpinButton.new_with_range(0.10, 100.0, 0.25)
+        budget.set_digits(2)
+        budget.set_value(max(cs["budget_usd"], cloud.spent(self.root) + 1.0) if cloud.spent(self.root) else
+                         cs["budget_usd"])
+        row.pack_start(budget, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        box.pack_start(Gtk.Label(xalign=0, label=f"Spent on this project so far: ${cloud.spent(self.root):.2f}"),
+                       False, False, 0)
+        d.show_all()
+        ok = d.run() == Gtk.ResponseType.OK
+        chosen, limit = model.get_active_id(), budget.get_value()
+        d.destroy()
+        if not ok:
+            return
+        cloud.save_settings(self.root, provider="anthropic", model=chosen, role=role, budget_usd=round(limit, 2))
+        self.bubble("ai", f"{cloud.label(chosen)} takes over this project ({role}), up to ${limit:.2f}. The AI restarts "
+                          "with it in the terminal.")
+        self.restart_with(self.FINISH if role == "finisher" else "")
+
+    def cloud_off(self) -> None:
+        from cin_minai.inference import cloud
+        cloud.save_settings(self.root, role="off")
+        self.bubble("ai", "Back to the local models: the AI restarts with them in the terminal.")
+        self.restart_with("")
+
+    def cloud_remove_key(self) -> None:
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud
+        if self.yes_no("Remove the Anthropic key from this computer?",
+                       "It's deleted from your login keyring. To stop the key working everywhere, delete it in your "
+                       "Anthropic Console too."):
+            accounts.forget_cloud_key("anthropic")
+            if cloud.settings(self.root)["role"] != "off":
+                self.cloud_off()
+            self.bubble("ai", "The Anthropic key is removed from this computer.")
+
+    def restart_with(self, first: str) -> None:
+        """The agent restarted in the terminal — with a first request when there is one (Ctrl+C stops what runs,
+        Ctrl+D leaves the agent; its shell stays and takes the new command)."""
+        self.term.feed_child(b"\x03")
+        command = self.agent_command() + (f" --first {GLib.shell_quote(first)}" if first else "")
+        GLib.timeout_add(800, lambda: (self.term.feed_child(b"\x04"), False)[1])
+        GLib.timeout_add(2500, lambda: (self.term.feed_child((command + "\n").encode()), False)[1])
 
     # --- GitHub (docs/accounts-and-cloud.md): signed in once through the browser, then linked, saved, brought in ----
     def github_menu(self, button) -> None:

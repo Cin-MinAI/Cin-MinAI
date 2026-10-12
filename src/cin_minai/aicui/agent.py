@@ -2427,6 +2427,8 @@ def main(argv=None) -> int:
     ap.add_argument("--admin", action="store_true", help="allow administrator commands")
     ap.add_argument("--solo", action="store_true",
                     help="the coding model alone, without the guide helping on the processor (SPEC 22.5)")
+    ap.add_argument("--first", default="", help="a first request, worked as soon as the agent is ready (AICUI's "
+                                                 "Cloud menu: finish this project)")
     a = ap.parse_args(argv)
     mode = "none" if a.no_permissions else "auto" if a.auto else "ask"
     root = project_root(a.folder)
@@ -2434,7 +2436,18 @@ def main(argv=None) -> int:
         print("\033[1;31mNo permissions: the AI changes files and runs commands without asking, outside the sandbox. "
               "Don't risk anything you aren't willing to lose.\033[0m")
     from . import pair as pair_mod
+    from cin_minai.inference import cloud as cloud_mod
+    cloud = cloud_mod.settings(root)
+    use_cloud = cloud["role"] in ("finisher", "exclusive")  # docs/accounts-and-cloud.md: no local model is loaded
     team, both = pair_mod.team_of(root), None
+    if use_cloud:
+        from cin_minai.daemon import accounts
+        backend = cloud_mod.Anthropic(root, lambda: accounts.cloud_key("anthropic"), cloud["model"])
+        name = cloud_mod.label(cloud["model"]) + " (cloud)"
+        team = "cloud"
+        print(f"\033[1m{name}, {cloud['role']}: up to ${cloud['budget_usd']:.2f} for this project "
+              f"(${cloud_mod.spent(root):.2f} spent so far). What the model reads of the project goes to Anthropic; "
+              "the key stays in your keyring.\033[0m")
     if team == "B":
         try:
             both = pair_mod.pair_backends(say=print)
@@ -2442,7 +2455,7 @@ def main(argv=None) -> int:
             print(f"\033[33mTeam B can't start here ({e}); working as team A (the coder with its helper).\033[0m")
     if both:
         backend, name, junior_backend, junior_name, senior_sees = both
-    else:
+    elif not use_cloud:
         backend, name = local_backend()
 
     def tick(text: str) -> None:  # one progress line, rewritten in place; anything said after it starts clean
@@ -2459,7 +2472,7 @@ def main(argv=None) -> int:
 
     agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)),
                   say=said, tick=tick)
-    agent.chat = card_minded(backend, agent.event, agent.say)
+    agent.chat = backend.chat if use_cloud else card_minded(backend, agent.event, agent.say)
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     team_b = None
     if both:  # style B: this agent is the Senior; the 9B Junior codes beside it (pair.py)
@@ -2492,7 +2505,7 @@ def main(argv=None) -> int:
         """The coder leads every request; the guide on the processor is its helper (reading, reviews, pictures) and
         every request is a task on the Team Table (Ian, 2026-10-09: "flip the tandem"). --solo: the coder alone; if
         the guide can't start, the coder works alone and says so."""
-        if a.solo or guide() is None:
+        if a.solo or use_cloud or guide() is None:  # the cloud works alone: no local model loads
             return None
         if pair["tandem"] is None:
             pair["tandem"] = tandem_mod.Tandem(agent, pair["junior"].chat, say=lambda s: print(f"\r\033[K{s}"))
@@ -2500,12 +2513,13 @@ def main(argv=None) -> int:
 
     def reader():  # look's one question goes to the guide when it has its picture reader (look.py)
         return guide().chat if tandem_mod.reads_pictures() and guide() is not None else None
-    if team_b is None:
+    if team_b is None and not use_cloud:
         agent.reader = reader
+    first = a.first.strip()
     try:
         while True:
             try:
-                text = input("\033[1;34myou>\033[0m ").strip()
+                text, first = (first, "") if first else (input("\033[1;34myou>\033[0m ").strip(), "")
             except EOFError:
                 break
             except KeyboardInterrupt:  # Stop while nothing runs: a fresh prompt — and the background work, as chosen
