@@ -77,18 +77,19 @@ def price_of(model: str) -> tuple[float, float, float, float]:
 
 
 def blocks(content) -> list[dict]:
-    """A message's content as Anthropic's blocks: text, and pictures (our image_url data: addresses) as images."""
+    """A message's content as Anthropic's blocks: text, and pictures (our image_url data: addresses) as images. No
+    empty text: Anthropic refuses it (2026-10-12: a command that printed nothing ended Haiku's run)."""
     if isinstance(content, str):
-        return [{"type": "text", "text": content}]
+        content = [{"type": "text", "text": content}]
     out = []
     for part in content or []:
         if part.get("type") == "image_url":
             head, _, data = ((part.get("image_url") or {}).get("url") or "").partition(",")
             mime = head[5:].split(";")[0] if head.startswith("data:") else "image/jpeg"
             out.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}})
-        elif part.get("type") == "text":
-            out.append({"type": "text", "text": part.get("text", "")})
-    return out or [{"type": "text", "text": ""}]
+        elif part.get("type") == "text" and str(part.get("text") or "").strip():
+            out.append({"type": "text", "text": str(part["text"])})
+    return out or [{"type": "text", "text": "(nothing)"}]
 
 
 def flat_tools(schema: dict) -> list[dict]:

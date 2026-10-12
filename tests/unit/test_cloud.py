@@ -159,3 +159,13 @@ class Pictures(unittest.TestCase):
         parts = turns[0]["content"]
         self.assertEqual([p["type"] for p in parts], ["text", "image", "text"])
         self.assertEqual(parts[1]["source"], {"type": "base64", "media_type": "image/jpeg", "data": "QUJD"})
+
+    def test_no_empty_text_is_ever_sent(self):
+        """2026-10-12: Anthropic said 400, "text content blocks must be non-empty", and Haiku's run ended."""
+        system, turns = cloud.Anthropic.shape([
+            {"role": "user", "content": "Go."}, {"role": "assistant", "content": ""},
+            {"role": "user", "content": "   "}, {"role": "user", "content": [{"type": "text", "text": ""}]}])
+        for t in turns:
+            for p in t["content"]:
+                if p["type"] == "text":
+                    self.assertTrue(p["text"].strip())
