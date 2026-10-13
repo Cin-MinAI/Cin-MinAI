@@ -604,5 +604,59 @@ class PairTest(unittest.TestCase):
         self.assertTrue(any(e.get("who") == "junior" for e in events))  # the Junior's work shows as its own
 
 
+@unittest.skipUnless(shutil.which("git"), "the changelog needs git")
+class CrewTest(unittest.TestCase):
+    """Ian, 2026-10-12: the cloud leads; the local models are its contributors with set functions, one or two."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        with open(os.path.join(self.root, "rules.py"), "w") as f:
+            f.write("def draw(deck):NLNL    passNL".replace("NL", chr(10)).replace(chr(10) + chr(10), chr(10)))
+
+    def test_the_cloud_lead_directs_two_local_contributors(self):
+        from cin_minai.aicui.pair import Crew
+        lead = Agent(self.root, Scripted([]), "Claude Haiku 4.5 (cloud)", "auto", say=lambda s: None, ctx=200000)
+        coder = Agent(self.root, Scripted([
+            step("Fill it.", tool="edit", path="rules.py", old="pass", new="return deck.pop(0)"),
+            step("", tool="answer", text="draw() takes the top card."),
+            step("Run it.", tool="run", command="python3 -c 'import rules'"),
+            step("", tool="answer", text="It imports; nothing fails.")]), "Qwen3.6-35B-A3B", "auto",
+            say=lambda s: None, ctx=32768)
+        reader = Agent(self.root, Scripted([("draw() returns nothing yet.", {})]), "Qwen3.5-9B", "auto",
+                       say=lambda s: None, ctx=32768)
+        lead.goals.add("Cards are drawn", by="user")
+        crew = Crew(lead, coder, reader, engine=None)
+        lead.cloud_crew = "Two contributors: Qwen3.6-35B-A3B writes, fixes, checks and tests; Qwen3.5-9B reads."
+        self.assertIn("You lead from the cloud", lead.system())
+        self.assertIn("Two contributors", lead.system())
+        self.assertEqual((coder.role, reader.role, lead.role), ("junior", "junior", "senior"))
+        self.assertIn("task 1 given to your junior (write rules.py)", lead.do(
+            {"tool": "assign", "path": "rules.py", "task": "fill draw so it takes the top card", "kind": "write"}))
+        self.assertIn("task 2 given to your junior", lead.do(
+            {"tool": "brief", "files": ["rules.py"], "question": "what does draw do now"}))
+        for _ in range(200):
+            if crew.out == 0:
+                break
+            time.sleep(0.05)
+        self.assertEqual(crew.out, 0)
+        with open(os.path.join(self.root, "rules.py")) as f:
+            self.assertIn("return deck.pop(0)", f.read())  # the coder wrote it
+        got = {n: text for n, kind, text in lead.inbox}
+        self.assertIn("draw() returns nothing yet.", got[2])  # the reader briefed
+        self.assertIs(crew.holder(1), crew.coder)
+        self.assertIs(crew.holder(2), crew.reader)
+        self.assertIn("task 1 accepted", lead.do({"tool": "review_task", "n": 1, "accept": True, "note": ""}))
+        # test: run and report, nothing held, nothing changed
+        self.assertIn("task 3 given to your junior", lead.do(
+            {"tool": "assign", "path": "rules.py", "task": "run it and say what fails", "kind": "test"}))
+        self.assertEqual(crew.coder.held, {})
+        for _ in range(200):
+            if crew.out == 0:
+                break
+            time.sleep(0.05)
+        self.assertIn("It imports; nothing fails.", {n: t for n, k, t in lead.inbox}[3])
+
+
 if __name__ == "__main__":
     unittest.main()

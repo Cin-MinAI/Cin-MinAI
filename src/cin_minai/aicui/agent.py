@@ -87,7 +87,7 @@ ACTIONS = [
                 "type": "object", "additionalProperties": False, "required": ["what", "kind"],
                 "properties": {"what": STR, "kind": {"enum": list(NEED_KINDS)}}}},
             "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
-    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "check"]}},
+    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "fix", "check", "test"]}},
     {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
     {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR},
     {"tool": "lfd", "focus": STR},
@@ -270,6 +270,18 @@ give it one file with assign (`path`, `task`, `kind`). Its results come between 
 Large File Distillation) has you both summarize every file of a project you don't have in mind, then you plan from
 the summary. Its questions (may it change a file, run a command) come to you too: permit (`n`, `allow`), or leave
 them to the person. Pages you fetch go to the junior first; its notes come to you. You have the final word."""
+
+SENIOR_CLOUD = """
+You lead from the cloud. Your contributors are local models on the person's computer: their work costs nothing, and
+every token you read or write is paid. Direct; keep your own reading and writing small. {crew}
+A new project starts with plan: the person's request as goals in its order, each with `from_outside` (only what must
+come from the web or the person), its `files`, and `who` does it (you, or the junior: your contributors). Give work
+with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (say
+what's wrong and how to correct it), check it, or test (run the program or its tests and report what fails); brief
+(`files`, `question`): they read files and answer you; distill and the pages you fetch go to them first, their notes
+come to you; lfd (`focus`): they summarize the whole project for you to plan from. Their results come between your
+steps: review_task (`n`, `accept`, `note`); a long task gets a progress report: let it work, or direct it with
+follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). You have the final word."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
@@ -904,7 +916,9 @@ class Agent:
                      net=NET_LINE if self.sandbox and self.mode == "auto" and self.role != "junior" else "")
         if self.role == "junior":
             return JUNIOR_SYSTEM.format(**parts)
-        return SYSTEM.format(**parts) + (SENIOR_B if self.role == "senior" else "")
+        crew = getattr(self, "cloud_crew", "")  # the cloud leads, local contributors work for it
+        return SYSTEM.format(**parts) + ((SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
+                                         if self.role == "senior" else "")
 
     def problems(self) -> list[str]:
         """What the checks find in the project's files now, one line a file."""
@@ -2575,8 +2589,8 @@ def main(argv=None) -> int:
     from . import pair as pair_mod
     from cin_minai.inference import cloud as cloud_mod
     cloud = cloud_mod.settings(root)
-    use_cloud = cloud["role"] in ("finisher", "exclusive")  # docs/accounts-and-cloud.md: no local model is loaded
-    team, both = pair_mod.team_of(root), None
+    use_cloud = cloud["role"] in ("finisher", "exclusive", "lead")  # docs/accounts-and-cloud.md
+    team, both, crew = pair_mod.team_of(root), None, []  # crew: the cloud lead's local contributors (backend, name)
     if use_cloud:
         from cin_minai.daemon import accounts
         backend = cloud_mod.Anthropic(root, lambda: accounts.cloud_key("anthropic"), cloud["model"])
@@ -2585,6 +2599,15 @@ def main(argv=None) -> int:
         print(f"\033[1m{name}, {cloud['role']}: up to ${cloud['budget_usd']:.2f} for this project "
               f"(${cloud_mod.spent(root):.2f} spent so far). What the model reads of the project goes to Anthropic; "
               "the key stays in your keyring.\033[0m")
+        if cloud["role"] == "lead":  # Ian, 2026-10-12: the local models as the cloud's contributors, one or two
+            try:
+                if cloud["crew"] == "two":
+                    sb, sname, jb, jname, _ = pair_mod.pair_backends(say=print)
+                    crew = [(sb, sname), (jb, jname)]
+                else:
+                    crew = [local_backend()]
+            except (Exception, SystemExit) as e:  # a missing model, or they don't fit: the cloud works alone
+                print(f"\033[33mThe local contributors can't start here ({e}); the cloud model works alone.\033[0m")
     if team == "B":
         try:
             both = pair_mod.pair_backends(say=print)
@@ -2612,6 +2635,17 @@ def main(argv=None) -> int:
     agent.chat = backend.chat if use_cloud else card_minded(backend, agent.event, agent.say)
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     team_b = None
+    if crew:  # the cloud leads; its local contributors do the reading, writing, testing and fixing (pair.py)
+        helpers = [Agent(root, b.chat, n, mode, a.admin, ctx=int(b.cfg.get("context", 8192)),
+                         say=lambda s, who=n: said(f"\033[2m({who}) {s}\033[0m")) for b, n in crew]
+        if len(helpers) == 2:
+            team_b = pair_mod.Crew(agent, helpers[0], helpers[1], say=said)
+            agent.cloud_crew = (f"Two contributors: {crew[0][1]} writes, fixes, checks and tests; {crew[1][1]}, the "
+                                "faster, fetches, reads and briefs.")
+        else:
+            team_b = pair_mod.Pair(agent, helpers[0], say=said)
+            agent.cloud_crew = f"One contributor: {crew[0][1]} — it reads, writes, tests and fixes."
+        print(f"\033[2m{agent.cloud_crew}\033[0m")
     if both:  # style B: this agent is the Senior; the 9B Junior codes beside it (pair.py)
         junior = Agent(root, junior_backend.chat, junior_name, mode, a.admin,
                        ctx=int(junior_backend.cfg.get("context", 8192)),
@@ -2679,6 +2713,8 @@ def main(argv=None) -> int:
         backend.unload()
         if both:
             junior_backend.unload()
+        for b, _ in crew:
+            b.unload()
         if pair["junior"] is not None:
             pair["junior"].unload()
     return 0

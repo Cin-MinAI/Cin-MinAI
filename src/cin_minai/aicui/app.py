@@ -515,6 +515,7 @@ class Workspace(Gtk.ApplicationWindow):
         if not has_key:
             item("Add an Anthropic API key…", self.cloud_add_key)
         else:
+            item("Lead with the cloud (the local models do the work)…", lambda: self.cloud_role_dialog("lead"))
             item("Finish this project with the cloud…", lambda: self.cloud_role_dialog("finisher"))
             item("Work with the cloud only (no local models)…", lambda: self.cloud_role_dialog("exclusive"))
             if cs["role"] != "off":
@@ -574,17 +575,19 @@ class Workspace(Gtk.ApplicationWindow):
     def cloud_role_dialog(self, role: str) -> None:
         from cin_minai.inference import cloud
         cs = cloud.settings(self.root)
-        d = Gtk.Dialog(title="Finish with the cloud" if role == "finisher" else "Work with the cloud only",
-                       transient_for=self, modal=True)
+        d = Gtk.Dialog(title={"finisher": "Finish with the cloud", "lead": "Lead with the cloud"}.get(
+            role, "Work with the cloud only"), transient_for=self, modal=True)
         d.add_button("Cancel", Gtk.ResponseType.CANCEL)
         d.add_button("Start", Gtk.ResponseType.OK)
         box = d.get_content_area()
         box.set_spacing(8)
         box.set_border_width(16)
         box.pack_start(Gtk.Label(xalign=0, wrap=True, max_width_chars=52, label=(
-            ("The cloud model takes this project from where the local models left it to working: it runs it, reads "
-             "what it needs and fixes what fails." if role == "finisher" else
-             "The cloud model does all the work on this project; no model is loaded on this computer.")
+            {"finisher": "The cloud model takes this project from where the local models left it to working: it "
+                         "runs it, reads what it needs and fixes what fails.",
+             "lead": "The cloud model plans and directs; the models on this computer do the reading, writing, "
+                     "testing and fixing it gives them, for free. The cloud's tokens go to the thinking."}.get(
+                role, "The cloud model does all the work on this project; no model is loaded on this computer.")
             + " What it reads of the project, its goals and what the commands print go to Anthropic. It stops at the "
               "budget below.")), False, False, 0)
         model = Gtk.ComboBoxText()
@@ -594,6 +597,12 @@ class Workspace(Gtk.ApplicationWindow):
         model.set_active_id(cs["model"] if cs["model"] in ("claude-haiku-4-5-20251001", "claude-sonnet-4-6")
                             else "claude-haiku-4-5-20251001")
         box.pack_start(model, False, False, 0)
+        crew = Gtk.ComboBoxText()
+        crew.append("one", "One local model works for it (the coding model you use)")
+        crew.append("two", "Two local models work for it (team B's pair: one writes and tests, one reads)")
+        crew.set_active_id(cs.get("crew", "one"))
+        if role == "lead":
+            box.pack_start(crew, False, False, 0)
         row = Gtk.Box(spacing=8)
         row.pack_start(Gtk.Label(label="Budget for this project, in dollars:"), False, False, 0)
         budget = Gtk.SpinButton.new_with_range(0.10, 100.0, 0.25)
@@ -606,11 +615,12 @@ class Workspace(Gtk.ApplicationWindow):
                        False, False, 0)
         d.show_all()
         ok = d.run() == Gtk.ResponseType.OK
-        chosen, limit = model.get_active_id(), budget.get_value()
+        chosen, limit, helpers = model.get_active_id(), budget.get_value(), crew.get_active_id() or "one"
         d.destroy()
         if not ok:
             return
-        cloud.save_settings(self.root, provider="anthropic", model=chosen, role=role, budget_usd=round(limit, 2))
+        cloud.save_settings(self.root, provider="anthropic", model=chosen, role=role, budget_usd=round(limit, 2),
+                            crew=helpers)
         self.bubble("ai", f"{cloud.label(chosen)} takes over this project ({role}), up to ${limit:.2f}. The AI restarts "
                           "with it in the terminal.")
         self.restart_with(self.FINISH if role == "finisher" else "")

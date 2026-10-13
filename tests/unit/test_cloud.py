@@ -107,6 +107,9 @@ class Cloud(unittest.TestCase):
         self.assertEqual(cloud.label("claude-haiku-4-5-20251001"), "Claude Haiku 4.5")
         self.assertEqual(cloud.price_of("claude-sonnet-4-6")[:2], (3.0, 15.0))
         self.assertEqual(cloud.settings(self.root)["role"], "off")  # nothing chosen: the local models
+        self.assertEqual(cloud.settings(self.root)["crew"], "one")
+        cloud.save_settings(self.root, role="lead", crew="two")
+        self.assertEqual((cloud.settings(self.root)["role"], cloud.settings(self.root)["crew"]), ("lead", "two"))
 
 
 class Keys(unittest.TestCase):

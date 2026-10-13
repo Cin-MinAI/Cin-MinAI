@@ -72,10 +72,17 @@ the package like GitHub's. Until then OpenAI works with an API key.
    the flag on the CinMin bot account, the account it's meant for): the keyring store for accounts; the device flow, renewal and sign-out; the git credential
    helper; AICUI's GitHub button — sign in, link the project to a repo (new or existing), push, pull.
 2. ◐ **Cloud** (Anthropic built 2026-10-12: the key pasted once into the keyring and checked with a free call; the
-   cloud backend — the step through one forced tool call, prompt caching, every call's cost logged in
+   cloud backend — every action its own flat tool (one nested tool gave Haiku 25 unusable replies in a row), pictures
+   as image blocks, prompt caching, every call's cost logged in
    `.cinminai/cloud-usage.jsonl`, a budget per project checked before each call; AICUI's Cloud models menu with
    **Finisher** (the local models built it, the cloud takes it to working, Ian 2026-10-12: "develop mostly locally and
-   then have cloud come in and finalize") and **Exclusive**; Senior with a local Junior next, then OpenAI). Was: **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
+   then have cloud come in and finalize") and **Exclusive**; **Lead** built the same day (Ian: "turn the 2 local models
+   into tool calls locally to conserve tokens. Fetch this, write that, test this, correct that with this"): the cloud
+   model is the Senior, with the plan, assign (write, fix, check, test), brief, distill, LFD, follow-up and review;
+   **one** local contributor (the coding model) or **two** (team B's pair: the 35B writes, fixes and tests, the 9B
+   fetches, reads and briefs; LFD between the two of them), so the cloud's tokens go to directing. OpenAI next).
+   Seen on test11 (2026-10-12): Haiku as Finisher alone lost the thread at every stop and re-read the same files;
+   the local team picked it up at once — the reason for Lead, and for the carry-over between requests. Was: **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
    calls; AICUI's Cloud button — provider, model, role (Senior or Exclusive); what's sent said first.
 3. **The models' own GitHub work** (push and pull as tools, under the same approvals); Sign in with ChatGPT when the
    client ID comes.

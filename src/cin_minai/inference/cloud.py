@@ -37,14 +37,16 @@ class CloudError(Exception):
 
 
 def settings(root: str) -> dict:
-    """The project's cloud choice: {"provider", "model", "role": off|finisher|exclusive, "budget_usd"}."""
+    """The project's cloud choice: {"provider", "model", "role": off|finisher|exclusive|lead, "budget_usd",
+    "crew": one|two (a lead's local contributors)}."""
     try:
         with open(os.path.join(root, SETTINGS), encoding="utf-8") as f:
             s = json.load(f)
     except (OSError, ValueError):
         s = {}
     return {"provider": s.get("provider", "anthropic"), "model": s.get("model", DEFAULT_MODEL),
-            "role": s.get("role", "off"), "budget_usd": float(s.get("budget_usd", 1.0))}
+            "role": s.get("role", "off"), "budget_usd": float(s.get("budget_usd", 1.0)),
+            "crew": "two" if s.get("crew") == "two" else "one"}
 
 
 def save_settings(root: str, **change) -> dict:

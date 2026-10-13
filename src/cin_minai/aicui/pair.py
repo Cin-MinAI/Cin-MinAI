@@ -18,6 +18,7 @@ the small model has a domain to work in and should hallucinate less and make les
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import os
 import queue
@@ -52,7 +53,8 @@ class Pair:
         self.cancel: threading.Event | None = None
         self.tasks: queue.Queue = queue.Queue()     # the Junior's queue: tasks stack, done one at a time
         self.out = 0
-        self.count = 0
+        self.numbers = itertools.count(1)            # task numbers (a crew's contributors share them)
+        self.question_numbers = itertools.count(1)   # the junior's questions, numbered the same way
         self.lock = threading.Lock()
         self.worker: threading.Thread | None = None
         self.listing: dict[int, dict] = {}           # tasks out, as AICUI lists them at Stop
@@ -73,7 +75,6 @@ class Pair:
         senior.permit_fn = self.permit
         junior.ask_permission = self.junior_permission  # its questions: to the person and to the senior
         self.questions: dict[int, dict] = {}
-        self.asked = 0
         junior.inbox = []                       # the senior's direction, read at the junior's next step
         self.running: dict | None = None        # the junior's task now: {"n", "what", "since", "log0", "kinds"}
         self.pending_notes: dict[int, list[str]] = {}  # direction for a task that hasn't started
@@ -171,6 +172,11 @@ class Pair:
         if not full.startswith(root + os.sep):
             return f"error: {path} isn't in the project"
         rel = os.path.relpath(full, root).replace(os.sep, "/")
+        if kind == "test":  # run the program or its tests and report: nothing held, nothing changed
+            if len(task.strip()) < 8:
+                return "error: say what the junior should run and look for"
+            return self.queue(rel if os.path.exists(full) else "", task.strip(), "test",
+                              f"test {rel}: {task.strip()}"[:200], hold=[])
         if not os.path.isfile(full):
             return (f"error: {rel} doesn't exist yet — lay the skeleton first (the file with its imports, classes and "
                     "signatures, stubs marked TODO), then assign it")
@@ -192,9 +198,8 @@ class Pair:
             except Exception:
                 table = None
         with self.lock:
-            self.count += 1
             self.out += 1
-            n = self.count
+            n = next(self.numbers)
             for path in (hold if hold is not None else [rel] if rel else []):
                 self.held[path] = n
             self.listing[n] = {"n": n, "what": what, "goal": towards, "task": table["id"] if table else None}
@@ -298,15 +303,17 @@ class Pair:
                 pass
         return result
 
-    def lfd(self, focus: str) -> str:
+    def lfd(self, focus: str, ends: tuple | None = None) -> str:
         """Large File Distillation (lfd.py): both cards summarize the whole project from opposite ends; then the
-        Senior's context is dumped and it plans from the summary."""
+        Senior's context is dumped and it plans from the summary. `ends`: the two that read (a cloud lead's two local
+        contributors: its own tokens go to the plan, not the reading)."""
         from . import lfd
         focus = " ".join(focus.split()) or "what each part does and what's left to do"
         cancel = getattr(self.senior, "cancel_event", None)
         stop = lambda: self.stop_junior.is_set() or bool(cancel is not None and cancel.is_set())  # noqa: E731
         self.senior.event("handoff", by="senior", to="junior", text=f"Large File Distillation: {focus}")
-        r = lfd.run(self.senior, self.junior, focus, stop)
+        big, small = ends or (self.senior, self.junior)
+        r = lfd.run(big, small, focus, stop)
         if r["stopped"]:
             return (f"Large File Distillation stopped by the person: {r['by_junior'] + r['by_senior']} of {r['files']} "
                     f"files summarized so far, in {r['path']}")
@@ -327,8 +334,7 @@ class Pair:
         """Ian, 2026-10-10: "If jr asks both user and sr can click yes or no." The question goes to the terminal and to
         the Senior between its steps; whichever answers first decides."""
         with self.lock:
-            self.asked += 1
-            k = self.asked
+            k = next(self.question_numbers)
         q = {"n": k, "event": threading.Event(), "answer": "", "by": ""}
         self.questions[k] = q
         self.senior.inbox.append((k, "question", f"{tool}{about}:\n{show[:800]}"))
@@ -514,16 +520,18 @@ class Pair:
                 self.engine.db.claim_task(table["id"], self.second)
             except Exception:
                 pass
-        self.current, self.current_table = (set(files) if files is not None else {rel}), table
+        self.current = set() if kind == "test" else set(files) if files is not None else {rel}
+        self.current_table = table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
         self.running = {"n": n, "what": f"{kind} {rel}", "since": getattr(self.senior, "progress_total", 0),
                         "log0": before, "kinds": 0}
         notes = self.pending_notes.pop(n, [])
         if notes:
             task += "\nYour senior adds: " + " ".join(notes)
+        may = ("Change no file: run what's needed and report what works and what fails, with the errors as they "
+               "were printed." if kind == "test" else f"You may change only {rel}.")
         try:
-            said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\nYou may change only {rel}.",
-                                    self.stop_junior)
+            said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\n{may}", self.stop_junior)
         finally:
             self.current, self.current_table, self.running = set(), None, None
             self.junior.inbox.clear()
@@ -552,6 +560,78 @@ class Pair:
             except Exception:
                 pass
         return result
+
+
+class Crew:
+    """The cloud leads; two local contributors work for it (Ian, 2026-10-12: "turn the 2 local models into tool calls
+    locally to conserve tokens. Fetch this, write that, test this, correct that with this."). The coder (the bigger
+    local model) writes, fixes, checks and tests; the reader (the faster one) fetches, distills and briefs; Large File
+    Distillation is theirs, from both ends. Each is a Pair with the same lead: one numbering, one listing at Stop, and
+    each task, question and review goes to the one that holds it."""
+
+    def __init__(self, lead, coder, reader, say=print, engine=False) -> None:
+        if engine is False:
+            project = token_of(lead.root) or hashlib.sha1(os.path.realpath(lead.root).encode()).hexdigest()
+            engine = engine_mod.open_engine(project, lead.root)
+            if engine is not None:
+                engine.close_stale()
+        self.lead, self.say = lead, say
+        self.reader = Pair(lead, reader, say, engine)
+        self.coder = Pair(lead, coder, say, engine)   # second: the lead's own hooks are the coder's, then set below
+        self.reader.numbers, self.reader.question_numbers = self.coder.numbers, self.coder.question_numbers
+        self.pairs = (self.coder, self.reader)
+        for p in self.pairs:
+            p.show = self.show
+        lead.inbox = []
+        lead.errands_pending = lambda: self.out > 0
+        lead.assign_fn = self.coder.assign
+        lead.distiller = self.reader.distill
+        lead.first_reader = self.reader.first_read
+        lead.brief_fn = self.reader.brief
+        lead.planned = self.coder.release_goals
+        lead.each_step = self.between_steps
+        lead.follow_up_fn = lambda n, note: self.holder(n).follow_up(n, note)
+        lead.review_task_fn = lambda n, accept, note="": self.holder(n).review(n, accept, note)
+        lead.permit_fn = lambda n, allow: next((p for p in self.pairs if n in p.questions), self.coder).permit(n, allow)
+        lead.lfd_fn = lambda focus: self.coder.lfd(focus, ends=(coder, reader))
+        lead.may_write = lambda rel: self.coder.senior_may_write(rel) or self.reader.senior_may_write(rel)
+
+    @property
+    def out(self) -> int:
+        return sum(p.out for p in self.pairs)
+
+    def holder(self, n: int) -> Pair:
+        """The contributor with task n: working on it, waiting with it, or finished with it."""
+        for p in self.pairs:
+            if n in p.listing or n in p.done or (p.running and p.running["n"] == n):
+                return p
+        return self.coder
+
+    def show(self) -> None:
+        out = [x for p in self.pairs for x in p.listing.values()]
+        self.lead.event("errands", out=sorted(out, key=lambda x: x["n"]))
+
+    def between_steps(self) -> None:
+        self.coder.release_goals()
+        for p in self.pairs:
+            p.check_in()
+
+    def turn(self, request: str, cancel: threading.Event | None = None) -> str:
+        cancel = cancel or threading.Event()
+        if self.reader.out == 0:
+            self.reader.stop_junior.clear()
+        try:  # the lead works the request; the coder's Pair keeps it on the Team Table (the reader's tasks go by Stop)
+            return self.coder.turn(request, cancel)
+        except BaseException:
+            self.reader.stopped()
+            raise
+        finally:
+            if cancel.is_set():
+                self.reader.stopped()
+
+    def stopped(self) -> None:
+        for p in self.pairs:
+            p.stopped()
 
 
 FOLLOW_UP = 3   # the Senior's steps of progress while a task is with the Junior before a word on how it's going

@@ -52,6 +52,8 @@ So each rule is one of two kinds:
 | A33 | team B | the junior's permission questions go to the person and to the senior (permit n, allow); the first answer decides, the terminal says who answered | today (Ian: "If jr asks both user and sr can click yes or no") |
 | A34 | every request | a new project keeps its first request in original-request.txt (the person's words; the model can't change it) and every project has screenshots/ (the person's pictures, or the AI's; AICUI's Screenshots button opens it); the system text says both, with the newest picture, and the model can ask for a screenshot | 2026-10-12 (Ian kept both by hand for test10; Haiku finished from them) |
 | A35 | look, read, answer | look at a `picture` in the project; read on a picture says look; an empty answer goes back to the model; the cloud model reads pictures itself | 2026-10-12 (Haiku on test10: blind, then a blank reply) |
+| A36 | every request | the next request is told what the last one read, changed and thought; a new session starts from the checkpoint; a screenshot older than the last change is said to be old | 2026-10-12 (Haiku on test11 re-read main.py 17 times and trusted a stale screenshot) |
+| A37 | cloud Lead | the cloud is the Senior; one or two local contributors take assign (write, fix, check, test), brief, distill and LFD; one numbering, Stop lists both | 2026-10-12 (Ian) |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model
