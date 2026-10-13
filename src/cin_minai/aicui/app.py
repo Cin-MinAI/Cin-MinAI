@@ -32,6 +32,7 @@ CSS = b"""
 .pane-title { font-weight: bold; padding: 4px 6px; }
 .bubble-user { background: alpha(@theme_selected_bg_color, 0.25); border-radius: 6px; padding: 6px; }
 .bubble-ai { background: alpha(@theme_fg_color, 0.06); border-radius: 6px; padding: 6px; }
+.bubble-cloud { background: alpha(#3584e4, 0.16); border-left: 4px solid #3584e4; border-radius: 6px; padding: 6px; }
 .waiting { background: rgba(255, 170, 0, 0.30); border-radius: 6px; padding: 2px 6px; font-weight: bold; }
 """
 
@@ -266,8 +267,15 @@ class Workspace(Gtk.ApplicationWindow):
             elif e["kind"] == "handoff":  # the two cards passing work: the coder (Senior) and its helper (Junior)
                 who = {"helper": "Senior → Junior", "junior": "Senior → Junior", "coder": "Junior → Senior",
                        "senior": "Junior → Senior", "person": "Senior → you", "advisor": "Asked the cloud advisor"}
-                label = "The cloud advisor says" if e.get("by") == "advisor" else who.get(e.get("to", ""), "Junior")
-                self.thought(e.get("text", ""), label)
+                if "advisor" in (e.get("by"), e.get("to")):  # the cloud advisor, plainly visible (Ian, 2026-10-13:
+                    # "It may have made a call to Haiku but I cant tell") — each call in its own bubble, with its cost
+                    from cin_minai.inference import cloud
+                    self.bubble("cloud", (f"☁ The local model asked the cloud advisor: {e.get('text', '')}"
+                                          if e.get("to") == "advisor" else
+                                          f"☁ The cloud advisor says:\n{e.get('text', '')}\n\n"
+                                          f"(${cloud.spent(self.root):.3f} spent on the cloud for this project)"))
+                else:
+                    self.thought(e.get("text", ""), who.get(e.get("to", ""), "Junior"))
             elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
                 self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
             elif e["kind"] == "env_request":  # the AI declared a package the work needs: the person decides
@@ -401,7 +409,7 @@ class Workspace(Gtk.ApplicationWindow):
         row.show_all()
     def bubble(self, who: str, text: str) -> None:
         label = Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48)
-        label.get_style_context().add_class("bubble-user" if who == "user" else "bubble-ai")
+        label.get_style_context().add_class({"user": "bubble-user", "cloud": "bubble-cloud"}.get(who, "bubble-ai"))
         row = Gtk.ListBoxRow(activatable=False)
         row.add(label)
         self.chat.add(row)
