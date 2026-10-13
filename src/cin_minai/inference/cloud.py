@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -107,23 +108,38 @@ def as_call(content, names) -> dict | None:
     if not isinstance(act, dict) or act.get("tool") not in names:
         return None
     inputs = {k: v for k, v in act.items() if k != "tool"}
-    return {"type": "tool_use", "name": act["tool"], "input": {"thinking": str(step.get("thinking", "")), **inputs}}
+    return {"type": "tool_use", "name": act["tool"], "input": {WHY: str(step.get("thinking", "")), **inputs}}
+
+
+WHY = "reason"  # the step's thinking, as the cloud's tools call it: named "thinking", Claude models closed it with
+#                 </thinking> and went on in their own call markup inside it (2026-10-12, Haiku leading on test12)
+MARKUP = re.compile(r"</?(thinking|invoke|parameter|function_calls)\b")
+XML_PARAM = re.compile(r'<parameter name="(\w+)">(.*?)(?:</parameter>|$)', re.S)
 
 
 def unleak(inputs: dict, required: list) -> dict:
-    """Parameters a model wrote into its thinking text (2026-10-12, Haiku: `Read it.", "path": "a.txt", "start": 1}
-    </invoke>` as the thinking, no path) taken back out, when the call is missing one it needs."""
-    thinking = str(inputs.get("thinking", ""))
-    if '", "' not in thinking or all(r in inputs for r in required):
-        return inputs
-    head = thinking[:thinking.rfind("}") + 1] if "}" in thinking else thinking + "}"
-    for text in (head, thinking + '"}', thinking + "}"):
-        try:
-            got = json.loads('{"thinking": "' + text)
-        except ValueError:
-            continue
-        if isinstance(got, dict):
-            return {**got, **{k: v for k, v in inputs.items() if k != "thinking"}}
+    """Parameters a model wrote into its reason text taken back out, when the call is missing one it needs —
+    JSON-style (2026-10-12, Haiku: `Read it.", "path": "a.txt", "start": 1} </invoke>` as the reason, no path) or
+    in its own markup (`</thinking> <parameter name="command">…`); call markup is cut off the reason either way."""
+    inputs = dict(inputs)
+    why = str(inputs.get(WHY, ""))
+    if not all(r in inputs for r in required):
+        for name, value in XML_PARAM.findall(why):
+            inputs.setdefault(name, value.strip())
+        if '", "' in why:
+            head = why[:why.rfind("}") + 1] if "}" in why else why + "}"
+            for text in (head, why + '"}', why + "}"):
+                try:
+                    got = json.loads('{"' + WHY + '": "' + text)
+                except ValueError:
+                    continue
+                if isinstance(got, dict):
+                    inputs = {**got, **{k: v for k, v in inputs.items() if k != WHY}}
+                    why = str(inputs.get(WHY, ""))
+                    break
+    m = MARKUP.search(why)
+    if m:
+        inputs[WHY] = why[:m.start()].strip()
     return inputs
 
 
@@ -133,7 +149,7 @@ def flat_tools(schema: dict) -> list[dict]:
     the local models are held to token by token came back as unusable replies (2026-10-12, Haiku on test10: 25 in a
     row). [] when the schema has no actions."""
     variants = (((schema or {}).get("properties") or {}).get("action") or {}).get("anyOf") or []
-    thinking = ((schema or {}).get("properties") or {}).get("thinking") or {"type": "string"}
+    why = ((schema or {}).get("properties") or {}).get("thinking") or {"type": "string"}
     tools = []
     for v in variants:
         props = dict(v.get("properties") or {})
@@ -141,9 +157,9 @@ def flat_tools(schema: dict) -> list[dict]:
         if not name:
             continue
         required = [r for r in v.get("required", []) if r != "tool"]
-        tools.append({"name": name, "description": f"Your next step: {name}. `thinking` first: a sentence or two.",
-                      "input_schema": {"type": "object", "properties": {"thinking": thinking, **props},
-                                       "required": ["thinking", *required]}})
+        tools.append({"name": name, "description": f"Your next step: {name}. `{WHY}` first: a sentence or two on why.",
+                      "input_schema": {"type": "object", "properties": {WHY: why, **props},
+                                       "required": [WHY, *required]}})
     return tools
 
 
@@ -280,7 +296,7 @@ class Anthropic:
             elif tools:  # the agent's step: {"thinking", "action": {"tool": the tool called, its inputs}}
                 need = next((t["input_schema"]["required"] for t in tools if t["name"] == block.get("name")), [])
                 inputs = unleak(dict(block.get("input") or {}), need)
-                thinking = str(inputs.pop("thinking", ""))
+                thinking = str(inputs.pop(WHY, "") or inputs.pop("thinking", ""))
                 text = json.dumps({"thinking": thinking, "action": {"tool": block.get("name", ""), **inputs}},
                                   ensure_ascii=False)
             else:

@@ -35,7 +35,7 @@ class FakeAnthropic:
 
 
 STEP = {"thinking": "Run it.", "action": {"tool": "run", "command": "bash run.sh"}}
-REPLY = {"content": [{"type": "tool_use", "name": "run", "input": {"thinking": "Run it.", "command": "bash run.sh"}}], "stop_reason": "tool_use",
+REPLY = {"content": [{"type": "tool_use", "name": "run", "input": {"reason": "Run it.", "command": "bash run.sh"}}], "stop_reason": "tool_use",
          "usage": {"input_tokens": 1200, "output_tokens": 80, "cache_creation_input_tokens": 9000,
                    "cache_read_input_tokens": 0}}
 
@@ -70,7 +70,7 @@ class Cloud(unittest.TestCase):
         self.assertEqual(body["model"], "claude-haiku-4-5-20251001")
         self.assertEqual(body["tool_choice"], {"type": "any"})
         self.assertEqual([t["name"] for t in body["tools"]], ["run", "answer"])
-        self.assertEqual(body["tools"][0]["input_schema"]["required"], ["thinking", "command"])
+        self.assertEqual(body["tools"][0]["input_schema"]["required"], ["reason", "command"])
         self.assertEqual([m["role"] for m in body["messages"]], ["user", "assistant", "user"])  # notes merged in turn
         self.assertIn("No progress", body["messages"][-1]["content"][0]["text"])
         self.assertEqual(body["system"][-1]["cache_control"], {"type": "ephemeral"})
@@ -149,7 +149,7 @@ class Quirks(unittest.TestCase):
         self.assertIn("write", names)
         self.assertIn("answer", names)
         for t in tools:
-            self.assertEqual(t["input_schema"]["required"][0], "thinking")
+            self.assertEqual(t["input_schema"]["required"][0], "reason")
             self.assertNotIn("tool", t["input_schema"]["properties"])
 
 
@@ -197,7 +197,7 @@ class Pictures(unittest.TestCase):
                                           {"role": "user", "content": "A note."}], {"read"})
         call = turns[1]["content"][0]
         self.assertEqual((call["type"], call["name"], call["input"]),
-                         ("tool_use", "read", {"thinking": "Read it.", "path": "a.py"}))
+                         ("tool_use", "read", {"reason": "Read it.", "path": "a.py"}))
         answer = turns[2]["content"]
         self.assertEqual((answer[0]["type"], answer[0]["tool_use_id"], answer[0]["content"]),
                          ("tool_result", call["id"], "line 1"))
@@ -205,9 +205,15 @@ class Pictures(unittest.TestCase):
         _, plain = cloud.Anthropic.shape([{"role": "user", "content": "go"}, {"role": "assistant", "content": step}])
         self.assertEqual(plain[1]["content"][0]["type"], "text")  # no tools offered: as it was
 
-    def test_parameters_written_into_the_thinking_are_taken_back_out(self):
-        leak = {"thinking": 'Check the page text.", "path": "sources/Cat.txt", "start": 1} </invoke>'}
-        self.assertEqual(cloud.unleak(leak, ["thinking", "path"]),
-                         {"thinking": "Check the page text.", "path": "sources/Cat.txt", "start": 1})
-        fine = {"thinking": 'He said "go", "now".', "path": "a.py"}
-        self.assertEqual(cloud.unleak(fine, ["thinking", "path"]), fine)
+    def test_parameters_written_into_the_reason_are_taken_back_out(self):
+        """2026-10-12, Haiku leading: the call's fields inside its reason text, JSON-style or in its own markup."""
+        leak = {"reason": 'Check the page text.", "path": "sources/Cat.txt", "start": 1} </invoke>'}
+        self.assertEqual(cloud.unleak(leak, ["reason", "path"]),
+                         {"reason": "Check the page text.", "path": "sources/Cat.txt", "start": 1})
+        xml = {"reason": 'Run the tests.</thinking> <parameter name="command">python3 test_build_system.py'}
+        self.assertEqual(cloud.unleak(xml, ["reason", "command"]),
+                         {"reason": "Run the tests.", "command": "python3 test_build_system.py"})
+        tail = {"reason": 'Run them.</thinking> <parameter name="command">x', "command": "make test"}
+        self.assertEqual(cloud.unleak(tail, ["reason", "command"]), {"reason": "Run them.", "command": "make test"})
+        fine = {"reason": 'He said "go", "now".', "path": "a.py"}
+        self.assertEqual(cloud.unleak(fine, ["reason", "path"]), fine)
