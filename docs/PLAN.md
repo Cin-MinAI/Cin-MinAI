@@ -999,6 +999,19 @@ record is detected; a lost USB is recovered with the printed code.
   and **Matter** for small and IoT devices; the **EU Cyber Resilience Act** (mandatory, phasing in to 2027) and the
   US **Cyber Trust Mark**. Our part: teach it (above), support TPM 2.0 on everything we run on (a Pi with a TPM board
   as a PC), prefer open roots of trust in hardware advice, and take part in the open (D26).
+- **The goal the security serves: an assistant that keeps daily life running, payments included** (Ian, 2026-10-13):
+  "That's how I want to secure this OS. Just like that [the Secure Enclave's design: keys in silicon, trust no
+  software, act only on the person's live trigger], and hardware USB on top. That's the goal so we can actually move
+  into financial stuff. But I'm not doing that until I feel like I'm pushing the cutting edge of security. I'd like to
+  eventually get a prepaid credit card, store it with the OS and agent, and let it pay bills and stuff for me. That's
+  the point it's really Jarvis. Not just creating stuff, but maintaining day to day." **Order: the security suite
+  first, money after.** The shape: a prepaid card or merchant-locked virtual cards (the most it can lose is what's
+  loaded); **standing permissions** made with the key, PIN and voice ("the electric bill, monthly, up to $150, to this
+  payee"), payments within them running on their own, anything outside asked live (D85: irreversible always asks);
+  every payment in the action record (M4); the card's key in the TPM-backed vault, released only to the payment step,
+  never to a model. The rails being built for it: Visa Intelligent Commerce, Mastercard Agent Pay, Google's AP2 and
+  OpenAI/Stripe's Agentic Commerce Protocol (agents pay with tokens and signed mandates, never the card number) —
+  read when the time comes. Builds on D88 (standing tasks), D91 (chains), D94 (the key for automation).
 
 ## 6. Open questions
 
