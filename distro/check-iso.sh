@@ -22,8 +22,8 @@ diff=$M1/out/$OUT_ISO.manifest-diff
 # Package by package: what was removed (old lines), what was added (new lines). A package on both sides is an
 # upgrade — an Ubuntu update of one already in the image, pulled in only because one of ours needs its newer version
 # (build-iso.sh pins the snapshot at the installed packages' priority, 2026-10-13).
-old_pkgs=$(grep '^<' "$diff" | cut -c3- | cut -f1 | sort -u)
-new_pkgs=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort -u)
+old_pkgs=$(grep '^<' "$diff" | cut -c3- | cut -f1 | sed 's/:amd64$//' | sort -u)
+new_pkgs=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sed 's/:amd64$//' | sort -u)
 upgraded=$(comm -12 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } | tr '\n' ' ')
 gone=$(comm -23 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } | tr '\n' ' ')
 added=$(comm -13 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } | tr '\n' ' ')
@@ -31,9 +31,9 @@ added=$(comm -13 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } |
 # python3-pyte for terminal sharing and its sandbox, M3; python3-venv for AICUI's project environments, 2026-10-08;
 # xvfb for AICUI's looks at a program, 2026-10-09; ffmpeg for whisper; cinminai-admin, -firefox, -search, -table,
 # -whisper since) — named one by one, so anything else that appears fails
-want="cinminai-admin cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-firefox cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sandbox cinminai-search cinminai-shell cinminai-sidebar cinminai-table cinminai-whisper ffmpeg git git-man liberror-perl passt python3-pip-whl python3-pyte python3-setuptools-whl python3-venv python3-wcwidth python3.12-venv xvfb "
+want="blt cinminai-admin cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-firefox cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sandbox cinminai-search cinminai-shell cinminai-sidebar cinminai-table cinminai-whisper ffmpeg git git-man liberror-perl libtk8.6 passt python3-pil.imagetk python3-pip-whl python3-pyte python3-setuptools-whl python3-tk python3-venv python3-wcwidth python3.12-venv tk8.6-blt2.5 xvfb "
 # the upgrades our dependencies need (python3.12-venv: python3.12 0.17; xvfb: the X server parts) — named too
-may_upgrade="libpciaccess0 libpython3.12-minimal libpython3.12-stdlib libpython3.12t64 python3.12 python3.12-minimal xserver-common xserver-xephyr xserver-xorg-core xserver-xorg-legacy "
+may_upgrade="libpciaccess0 libpython3.12-minimal libpython3.12-stdlib libpython3.12t64 python3-pil python3.12 python3.12-minimal xserver-common xserver-xephyr xserver-xorg-core xserver-xorg-legacy "
 [[ -z $gone && $added == "$want" ]] && ok "manifest: nothing removed; only our packages and their named dependencies added ($added)" \
     || bad "manifest: removed: ${gone:-none}; added: $added"
 unexpected=$(comm -23 <(tr ' ' '\n' <<<"$upgraded" | { grep . || true; } | sort) <(tr ' ' '\n' <<<"$may_upgrade" | { grep . || true; } | sort) | tr '\n' ' ')
