@@ -1012,6 +1012,16 @@ record is detected; a lost USB is recovered with the printed code.
   never to a model. The rails being built for it: Visa Intelligent Commerce, Mastercard Agent Pay, Google's AP2 and
   OpenAI/Stripe's Agentic Commerce Protocol (agents pay with tokens and signed mandates, never the card number) —
   read when the time comes. Builds on D88 (standing tasks), D91 (chains), D94 (the key for automation).
+- **The long-term security plan: an open-source alternative to Pluton** (Ian, 2026-10-13: "I want to be competitive
+  with Pluton as an Open Source alternative architecture. That's the long term hardware goal and how we present to
+  the community as the security plan."). Presented as **an open security architecture**, in layers: (1) an **open
+  silicon root of trust** — back OpenTitan (in commercial production) and Caliptra (inside CPUs), not a chip of our
+  own; (2) **open firmware** on it, signed with our key through our own update pipeline and auditable — Pluton's
+  firmware is closed and comes through Windows Update; (3) **our security suite** on top (the vault, the USB key, PIN,
+  voice, standing permissions, the action record), the same on any root of trust: OpenTitan where present, a TPM or
+  fTPM (Pluton included) otherwise, the stick alone on old hardware; (4) **teaching and openness** as the difference —
+  Pluton says "trust us, it's handled", ours "here's how it works, check it, you hold the key" (D26). Layer 3 we build
+  and ship; layers 1-2 are where we join and push the open projects, with the community.
 
 ## 6. Open questions
 
