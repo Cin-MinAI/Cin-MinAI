@@ -94,6 +94,39 @@ def blocks(content) -> list[dict]:
     return out or [{"type": "text", "text": "(nothing)"}]
 
 
+def as_call(content, names) -> dict | None:
+    """One of our steps ({"thinking", "action": {"tool", …}}) as the tool_use block it was; None for anything else
+    (an answer, an earlier write said as a sentence, a tool not offered now)."""
+    if not names or not isinstance(content, str) or not content.startswith("{"):
+        return None
+    try:
+        step = json.loads(content)
+    except ValueError:
+        return None
+    act = step.get("action") if isinstance(step, dict) else None
+    if not isinstance(act, dict) or act.get("tool") not in names:
+        return None
+    inputs = {k: v for k, v in act.items() if k != "tool"}
+    return {"type": "tool_use", "name": act["tool"], "input": {"thinking": str(step.get("thinking", "")), **inputs}}
+
+
+def unleak(inputs: dict, required: list) -> dict:
+    """Parameters a model wrote into its thinking text (2026-10-12, Haiku: `Read it.", "path": "a.txt", "start": 1}
+    </invoke>` as the thinking, no path) taken back out, when the call is missing one it needs."""
+    thinking = str(inputs.get("thinking", ""))
+    if '", "' not in thinking or all(r in inputs for r in required):
+        return inputs
+    head = thinking[:thinking.rfind("}") + 1] if "}" in thinking else thinking + "}"
+    for text in (head, thinking + '"}', thinking + "}"):
+        try:
+            got = json.loads('{"thinking": "' + text)
+        except ValueError:
+            continue
+        if isinstance(got, dict):
+            return {**got, **{k: v for k, v in inputs.items() if k != "thinking"}}
+    return inputs
+
+
 def flat_tools(schema: dict) -> list[dict]:
     """The agent's step schema (thinking + one action out of many, each with its own fields) as Anthropic tools: one
     per action, its fields flat, with `thinking` first. Claude models fill flat tools reliably; the one nested choice
@@ -169,16 +202,36 @@ class Anthropic:
         return [m["id"] for m in self._post("models?limit=50").get("data", [])]
 
     @staticmethod
-    def shape(messages: list[dict]) -> tuple[list[dict], list[dict]]:
+    def shape(messages: list[dict], names: set | frozenset = frozenset()) -> tuple[list[dict], list[dict]]:
         """Our messages as Anthropic's: the system text apart, one turn per speaker in turn (notes after a result are
-        merged into it), starting with the person; the last turn and the system text marked for the cache."""
+        merged into it), starting with the person; the last turn and the system text marked for the cache. With the
+        tools' `names`, each earlier step (our JSON) goes as the tool call it was and its result as that call's
+        tool_result (2026-10-12: shown its own steps as JSON text but made to answer with tool calls, Haiku mixed the
+        two — calls the API dropped, parameters written into its thinking)."""
         system = [{"type": "text", "text": m["content"]} for m in messages if m["role"] == "system"]
         turns: list[dict] = []
+        calls = 0
         for m in messages:
             if m["role"] == "system":
                 continue
             role = "assistant" if m["role"] == "assistant" else "user"
             parts = blocks(m["content"])
+            call = as_call(m["content"], names) if role == "assistant" else None
+            if call:
+                calls += 1
+                call["id"] = f"toolu_step{calls}"
+                parts = [call]
+            elif role == "user" and turns and turns[-1]["role"] == "assistant" and \
+                    turns[-1]["content"][-1].get("type") == "tool_use":  # the answer to that call, first in its turn
+                said = "\n\n".join(p["text"] for p in parts if p["type"] == "text")
+                said = said[len("Result: "):] if said.startswith("Result: ") else said
+                parts = [{"type": "tool_result", "tool_use_id": turns[-1]["content"][-1]["id"],
+                          "content": said or "(nothing)"}] + [p for p in parts if p["type"] != "text"]
+                turns.append({"role": "user", "content": parts})
+                continue
+            if turns and turns[-1]["role"] == role and turns[-1]["content"][-1].get("type") == "tool_use":
+                turns.append({"role": "user", "content": [{"type": "tool_result", "content": "(nothing)",
+                                                           "tool_use_id": turns[-1]["content"][-1]["id"]}]})
             if turns and turns[-1]["role"] == role:
                 last = turns[-1]["content"]
                 for part in parts:  # text runs on in one block; a picture is a block of its own
@@ -203,11 +256,11 @@ class Anthropic:
         if already >= s["budget_usd"]:
             raise CloudError(f"the cloud budget for this project is used up (${already:.2f} of ${s['budget_usd']:.2f}"
                              "); raise it in AICUI's Cloud models menu to go on")
-        system, turns = self.shape(messages)
+        tools = flat_tools(schema) if schema is not None else None
+        system, turns = self.shape(messages, {t["name"] for t in tools or []})
         body = {"model": self.model, "max_tokens": int(max_tokens or 4096), "messages": turns}
         if system:
             body["system"] = system
-        tools = flat_tools(schema) if schema is not None else None
         if tools:  # every action its own tool with flat inputs; the model calls exactly one (see flat_tools)
             body["tools"] = tools
             body["tool_choice"] = {"type": "any"}
@@ -225,7 +278,8 @@ class Anthropic:
                 text = "".join(b.get("text", "") for b in got.get("content", []) if b.get("type") == "text").strip()
                 self.keep(got)
             elif tools:  # the agent's step: {"thinking", "action": {"tool": the tool called, its inputs}}
-                inputs = dict(block.get("input") or {})
+                need = next((t["input_schema"]["required"] for t in tools if t["name"] == block.get("name")), [])
+                inputs = unleak(dict(block.get("input") or {}), need)
                 thinking = str(inputs.pop("thinking", ""))
                 text = json.dumps({"thinking": thinking, "action": {"tool": block.get("name", ""), **inputs}},
                                   ensure_ascii=False)

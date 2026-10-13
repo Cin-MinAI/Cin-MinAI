@@ -188,3 +188,26 @@ class Pictures(unittest.TestCase):
             got = f.read()
         self.assertIn("end_turn", got)
         self.assertNotIn("sk-ant", got)
+
+    def test_earlier_steps_go_as_tool_calls_and_their_results(self):
+        """2026-10-12: shown its own steps as JSON text but made to answer with tool calls, Haiku mixed the two."""
+        step = json.dumps({"thinking": "Read it.", "action": {"tool": "read", "path": "a.py"}})
+        _, turns = cloud.Anthropic.shape([{"role": "user", "content": "go"}, {"role": "assistant", "content": step},
+                                          {"role": "user", "content": "Result: line 1"},
+                                          {"role": "user", "content": "A note."}], {"read"})
+        call = turns[1]["content"][0]
+        self.assertEqual((call["type"], call["name"], call["input"]),
+                         ("tool_use", "read", {"thinking": "Read it.", "path": "a.py"}))
+        answer = turns[2]["content"]
+        self.assertEqual((answer[0]["type"], answer[0]["tool_use_id"], answer[0]["content"]),
+                         ("tool_result", call["id"], "line 1"))
+        self.assertEqual(answer[1]["text"], "A note.")
+        _, plain = cloud.Anthropic.shape([{"role": "user", "content": "go"}, {"role": "assistant", "content": step}])
+        self.assertEqual(plain[1]["content"][0]["type"], "text")  # no tools offered: as it was
+
+    def test_parameters_written_into_the_thinking_are_taken_back_out(self):
+        leak = {"thinking": 'Check the page text.", "path": "sources/Cat.txt", "start": 1} </invoke>'}
+        self.assertEqual(cloud.unleak(leak, ["thinking", "path"]),
+                         {"thinking": "Check the page text.", "path": "sources/Cat.txt", "start": 1})
+        fine = {"thinking": 'He said "go", "now".', "path": "a.py"}
+        self.assertEqual(cloud.unleak(fine, ["thinking", "path"]), fine)

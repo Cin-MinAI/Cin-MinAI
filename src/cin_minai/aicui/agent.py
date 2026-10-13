@@ -2213,7 +2213,10 @@ class Agent:
                 self.event("goals")
                 return f"goal {a['id']} ticked. Checks:\n{report}"
             return f"unknown tool {t}"
-        except (OSError, ValueError, re.error, KeyError, StopIteration) as e:
+        except KeyError as e:  # 2026-10-12: "error: 'path'" told the model nothing; it sent the same call again
+            return (f"error: {a.get('tool', 'this tool')} needs `{e.args[0] if e.args else '?'}` and the call had none — "
+                    "put each of the tool's fields in its own field, not in your thinking")
+        except (OSError, ValueError, re.error, StopIteration) as e:
             return f"error: {e}"
 
     def draft_path(self, rel: str) -> str:
