@@ -279,6 +279,38 @@ ASK_LOCK = threading.Lock()      # one question to the person at a time
 PENDING = {"prompt": ""}
 
 
+def carry(steps: list) -> str:
+    """What a request did, said to the next one: the files it read and changed, and its last thoughts (2026-10-12:
+    Haiku stopped at the step limit and, told to continue, re-read the same files — the answer was all it kept)."""
+    did = [s["did"] for s in steps if isinstance(s, dict) and isinstance(s.get("did"), dict)]
+    path = lambda d, tools: d.get("action", {}).get("path", "") if d.get("action", {}).get("tool") in tools else ""  # noqa: E731
+    read = [p for p in dict.fromkeys(path(d, ("read",)) for d in did) if p]
+    changed = [p for p in dict.fromkeys(path(d, CHANGES) for d in did) if p]
+    thoughts = [str(d.get("thinking", ""))[:240] for d in did if d.get("thinking")][-3:]
+    if not (read or changed or thoughts):
+        return ""
+    return ("(What I did in that request — " + (f"read: {', '.join(read[:20])}; " if read else "")
+            + (f"changed: {', '.join(changed[:20])}; " if changed else "") + "my last thoughts: "
+            + " / ".join(thoughts) + ". The files are on disk as they are now: read again only what I need.)")
+
+
+def left_off(path: str) -> str:
+    """The last session's checkpoint as a note for the first request of this one (a restart: another team, the
+    cloud, a power cut)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            c = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    if not (c.get("read") or c.get("changed") or c.get("thoughts")):
+        return ""
+    return (f"(Where the last session left off, {c.get('time', '')}: the request was \"{str(c.get('request', ''))[:300]}\" "
+            f"({c.get('state', '')}, {c.get('step', 0)} steps)"
+            + (f"; it read {', '.join(c['read'][:20])}" if c.get("read") else "")
+            + (f"; it changed {', '.join(c['changed'][:20])}" if c.get("changed") else "")
+            + (f"; its last thoughts: {' / '.join(c['thoughts'][-3:])}" if c.get("thoughts") else "") + ".)")
+
+
 def slim(step: dict) -> str:
     """A step as it's sent again later. A write or a long edit becomes a plain sentence — never an action with
     stand-in content: shown `"content": "<219 lines written>"`, the model copied that into a real write and
@@ -925,9 +957,12 @@ class Agent:
         A step's file contents are never sent again (2026-10-02: the blackjack run overflowed 8K by resending every
         written file in every step); the file is on disk to read."""
         messages = [{"role": "system", "content": self.sys or self.system()}]
-        for h in self.history[-6:]:
-            messages += [{"role": "user", "content": h["user"]}, {"role": "assistant", "content": h["answer"][:600]}]
-        messages.append({"role": "user", "content": text})
+        recent = self.history[-6:]
+        for h in recent:  # the last request with what it did (Haiku re-read the same files after every stop)
+            done = h["answer"][:600] + (f"\n\n{h['carry']}" if h is recent[-1] and h.get("carry") else "")
+            messages += [{"role": "user", "content": h["user"]}, {"role": "assistant", "content": done}]
+        resumed = getattr(self, "resumed", "") if not self.history else ""
+        messages.append({"role": "user", "content": f"{resumed}\n\n{text}" if resumed else text})
         older = steps[:cut]
         if older:
             lines = []
@@ -1073,6 +1108,8 @@ class Agent:
         if self.role != "junior":
             self.keep_request(text)
         self.given(text)
+        if not self.history and not hasattr(self, "resumed"):  # a new session: where the last one left off
+            self.resumed = left_off(os.path.join(self.root, ".cinminai", "checkpoint.json"))
         self.checkpoint(text, "working")
         ended = "stopped"
         try:
@@ -1081,6 +1118,8 @@ class Agent:
             return out
         finally:
             self.checkpoint(text, ended)
+            if self.history and self.history[-1].get("user") == text:  # what this request did, for the next one
+                self.history[-1]["carry"] = carry(getattr(self, "steps", []))
             self.event("idle")  # AICUI's indicator goes away, also after Stop (Ctrl+C) or an error
 
     def checkpoint(self, request: str, state: str, steps: list | None = None) -> None:
@@ -1092,8 +1131,10 @@ class Agent:
         changed = sorted({s["did"]["action"].get("path", "") for s in steps if isinstance(s, dict) and s.get("did")
                           and s["did"].get("action", {}).get("tool") in ("write", "append", "edit", "replace_lines")}
                          - {""})
+        read = list(dict.fromkeys(s["did"]["action"].get("path", "") for s in steps if isinstance(s, dict)
+                                  and s.get("did") and s["did"].get("action", {}).get("tool") == "read"))
         data = {"request": request, "state": state, "step": len(steps), "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "thoughts": [t[:300] for t in thoughts if t], "changed": changed[:30],
+                "thoughts": [t[:300] for t in thoughts if t], "changed": changed[:30], "read": read[:30],
                 "goals": [{"id": g["id"], "done": g["done"], "text": g["text"][:120]} for g in self.goals.load()]}
         path = os.path.join(self.root, ".cinminai", "checkpoint.json")
         try:
@@ -1489,8 +1530,15 @@ class Agent:
         pics = sorted(f for f in (os.listdir(folder) if os.path.isdir(folder) else [])
                       if f.lower().endswith(intake.PICTURE_EXT[:-1]))
         if pics:
+            pics.sort(key=lambda f: os.path.getmtime(os.path.join(folder, f)))
+            taken = os.path.getmtime(os.path.join(folder, pics[-1]))
+            changed = max((os.path.getmtime(os.path.join(self.root, r)) for r, d, _ in tree(self.root)
+                           if not d and not r.replace(os.sep, "/").startswith(SCREENSHOTS + "/")), default=0)
+            old = (f" — taken {time.strftime('%H:%M', time.localtime(taken))}, before the project's last change at "
+                   f"{time.strftime('%H:%M', time.localtime(changed))}: it shows the program as it was; look at the "
+                   "program itself to see it now") if changed > taken + 60 else ""
             out += (f"\n{SCREENSHOTS}/ has {len(pics)} picture{'s' if len(pics) > 1 else ''} of the program from the "
-                    f"person (newest: {pics[-1]}): look at them (target picture). ")
+                    f"person (newest: {pics[-1]}{old}): look at them (target picture). ")
         else:
             out += f"\n{SCREENSHOTS}/ is for pictures of the program. "
         return out + "You can ask the person to take a screenshot and put it there."

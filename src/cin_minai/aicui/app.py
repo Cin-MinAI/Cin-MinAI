@@ -496,10 +496,10 @@ class Workspace(Gtk.ApplicationWindow):
         return box
 
     # --- Cloud models (docs/accounts-and-cloud.md): your own key, a budget per project, local first ---------------
-    FINISH = ("Finish this project: start it the way the person does (run.sh, else main.py) and run its tests; fix what "
-              "fails, one cause at a time, until it starts and the session goals' checks pass. Read only the files you "
-              "need, in the parts you need — every token is paid for. When it works, tick the goals and say what you "
-              "changed.")
+    FINISH = ("Finish this project: work its open session goals in order — they're the plan; add none unless something "
+              "the person asked for has no goal. Start it the way the person does (run.sh, else main.py) and run its "
+              "tests if it has any; fix what fails, one cause at a time. Read only the files you need, in the parts you "
+              "need — every token is paid for. Tick each goal when its checks pass, and say what you changed.")
 
     def cloud_menu(self, button) -> None:
         from cin_minai.daemon import accounts

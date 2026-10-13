@@ -9,6 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -513,6 +514,38 @@ class AgentTest(unittest.TestCase):
         with open(os.path.join(self.root, "screenshots", "board.png"), "wb") as f:
             f.write(b'PNG')  # only its name counts here
         self.assertIn("screenshots/ has 1 picture of the program from the person (newest: board.png)", a.system())
+
+    def test_the_next_request_knows_what_the_last_one_read_and_changed(self):
+        """2026-10-12: Haiku stopped at the step limit and, told to continue, re-read main.py 17 times in 12 minutes."""
+        a = Agent(self.root, Scripted([step("Read the adder.", tool="read", path="app.py"),
+                                       step("It subtracts.", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("", tool="answer", text="Fixed."),
+                                       step("Check it again.", tool="read", path="app.py"),
+                                       step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
+        a.turn("fix add")
+        a.turn("continue")
+        last = a.chat.sent[-1]
+        carried = [m["content"] for m in last if m["role"] == "assistant" and "What I did in that request" in m["content"]]
+        self.assertTrue(carried)
+        self.assertIn("read: app.py", carried[0])
+        self.assertIn("changed: app.py", carried[0])
+        self.assertIn("It subtracts.", carried[0])
+        # a new session (a restart: the cloud, another team) starts from the checkpoint
+        b = Agent(self.root, Scripted([step("", tool="answer", text="ok")]), "m", "auto", say=self.said.append)
+        b.turn("go on")
+        self.assertIn("Where the last session left off", b.chat.sent[-1][-1]["content"])
+        self.assertIn("go on", b.chat.sent[-1][-1]["content"])
+
+    def test_a_screenshot_older_than_the_last_change_is_said_to_be_old(self):
+        os.makedirs(os.path.join(self.root, "screenshots"))
+        shot = os.path.join(self.root, "screenshots", "board.png")
+        with open(shot, "wb") as f:
+            f.write(b"PNG")
+        os.utime(shot, (time.time() - 600, time.time() - 600))
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        self.assertIn("it shows the program as it was", a.system())
+        os.utime(shot, None)
+        self.assertNotIn("it shows the program as it was", a.system())
 
     def test_three_unusable_replies_in_a_row_end_the_task(self):
         """2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for, until the stuck limit."""
