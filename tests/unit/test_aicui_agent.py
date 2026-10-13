@@ -547,6 +547,24 @@ class AgentTest(unittest.TestCase):
         os.utime(shot, None)
         self.assertNotIn("it shows the program as it was", a.system())
 
+    def test_a_question_to_the_person_never_waits_behind_the_helpers(self):
+        """2026-10-13: Haiku's question waited unseen while its contributor worked on a brief."""
+        a = Agent(self.root, Scripted([step("", tool="ask", question="Which decks?")]), "m", "auto",
+                  say=self.said.append)
+        a.errands_pending = lambda: True  # a contributor still working, for as long as it takes
+        start = time.time()
+        self.assertEqual(a.turn("get the images"), "Which decks?")
+        self.assertLess(time.time() - start, 5)
+
+    def test_an_address_in_a_kept_json_answer_is_known(self):
+        os.makedirs(os.path.join(self.root, "sources"))
+        with open(os.path.join(self.root, "sources", "cardinfo.txt"), "w") as f:
+            f.write('{"image_url":"https:' + chr(92) + '/' + chr(92) + '/images.example.com' + chr(92) + '/cards'
+                    + chr(92) + '/1.jpg"}')
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        self.assertTrue(a.known_address("https://images.example.com/cards/1.jpg"))
+        self.assertFalse(a.known_address("https://elsewhere.example.org/cards/1.jpg"))
+
     def test_work_given_to_a_contributor_is_progress(self):
         """2026-10-12: Haiku leading gave seven tasks in fifteen steps and was stopped for "no progress"."""
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)

@@ -1269,8 +1269,10 @@ class Agent:
                 self.history.append({"user": text, "answer": msg})
                 return msg
             if act["tool"] in ("answer", "ask") and (self.errands_out() or getattr(self, "inbox", None)):
-                # its helper's answers first: the ones out, and any back since its last step
-                self.wait_errands(cancel)
+                # its helper's answers first: any back since its last step, and before a final answer the ones out —
+                # never before a question to the person (2026-10-13: Haiku's question waited unseen behind a brief)
+                if act["tool"] == "answer":
+                    self.wait_errands(cancel)
                 if getattr(self, "inbox", None):
                     self.deliver(steps)
                     continue
@@ -1901,7 +1903,8 @@ class Agent:
         for name in names:
             try:
                 with open(os.path.join(folder, name), encoding="utf-8", errors="replace") as f:
-                    if url in f.read():
+                    text = f.read()
+                    if url in text or url.replace("/", "\\/") in text:  # a JSON answer writes / as \/
                         self.known_urls.add(url)
                         return True
             except OSError:
