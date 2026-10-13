@@ -2177,6 +2177,22 @@ class Agent:
                 full = self.path(a["path"])
                 if full.lower().endswith(intake.PICTURE_EXT[:-1]):  # 2026-10-12: screenshots read as text
                     return f"{a['path']} is a picture: look at it (target picture, address {a['path']}) with your question"
+                draft = self.draft_path(os.path.relpath(full, self.root))
+                if os.path.exists(draft):  # 2026-10-13 (test13): it read the old file, saw it empty, and began again —
+                    # three times, 150 s each; the draft is its own work so far: shown, where it ends, to go on from
+                    with open(draft, encoding="utf-8", errors="replace") as f:
+                        dlines = f.read().splitlines()
+                    on_disk = 0
+                    if os.path.exists(full):
+                        with open(full, encoding="utf-8", errors="replace") as f:
+                            on_disk = len(f.read().splitlines())
+                    tail = dlines[-30:]
+                    first = len(dlines) - len(tail) + 1
+                    return (f"{a['path']} has a draft in progress — your new version so far, {len(dlines)} lines, not "
+                            f"in the file yet (the file on disk still has its old {on_disk} lines). Don't start over: "
+                            f"append the rest to {a['path']} from line {len(dlines) + 1}; it replaces the file when a "
+                            f"part ends without filling the step. Where the draft ends:\n"
+                            + "\n".join(f"{first + i:5} {line}" for i, line in enumerate(tail)))
                 if not os.path.exists(full):  # 2026-10-13: "[Errno 2]" twice, and the model meant to create it
                     return (f"error: {a['path']} doesn't exist yet — write it to create it (list shows what's "
                             "there)")

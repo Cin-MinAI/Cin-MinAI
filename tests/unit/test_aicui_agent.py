@@ -565,6 +565,22 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(a.known_address("https://images.example.com/cards/1.jpg"))
         self.assertFalse(a.known_address("https://elsewhere.example.org/cards/1.jpg"))
 
+    def test_reading_a_file_with_a_draft_in_progress_shows_the_draft(self):
+        """2026-10-13, test13: a long write was kept as a draft; the model read the old, empty file, decided nothing
+        had happened and wrote it all again — three times, 150 s each."""
+        with open(os.path.join(self.root, "cards.json"), "w") as f:
+            f.write("[]\n")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.content_max = 200
+        big = "[\n" + "".join(f'  {{"name": "Card {i}"}},\n' for i in range(40))
+        said = a.do({"tool": "write", "path": "cards.json", "content": big})
+        self.assertIn("kept as a draft", said)
+        seen = a.do({"tool": "read", "path": "cards.json"})
+        self.assertIn("has a draft in progress", seen)
+        self.assertIn("Don't start over", seen)
+        self.assertIn("the file on disk still has its old 1 lines", seen)
+        self.assertIn('"name": "Card', seen)
+
     def test_work_given_to_a_contributor_is_progress(self):
         """2026-10-12: Haiku leading gave seven tasks in fifteen steps and was stopped for "no progress"."""
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)

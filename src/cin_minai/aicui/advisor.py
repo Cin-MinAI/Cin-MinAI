@@ -24,7 +24,11 @@ question. It is smaller than you: it loses the thread, repeats steps, guesses wh
 problem it could solve. Answer with what it should do next — concrete steps, the files and functions they concern,
 the likely cause of an error and how to check it. Short: a few lines, at most a short code fragment where an exact
 change is needed. If its approach is wrong, say so plainly and give the better one. Never ask it to call you
-again."""
+again.
+Facts the project needs — card data, rules, names, numbers, prices — come only from the sources it has fetched
+(sources/, notes/, data/, gathered records): tell it which to read or distill, or what to fetch. Never give example
+data with values of your own, and never tell it to type facts from memory: a value you're not sure of is a wrong
+value in its project."""
 
 
 class Advisor:
