@@ -779,6 +779,22 @@ Exit: a branded ISO installs in a VM and receives an update from our repository 
 
 Exit (boot check 1): the alpha ISO boots from USB on the Mint box; the desktop works; the assistant opens from applet and hotkey and answers a lookup, a system check and a decline correctly; nothing on the machine's own disks is touched.
 
+### After the alpha: the order (Ian, 2026-10-13)
+
+Closing the alpha phase (the first 100 decisions, D97) first: the ISO pipeline, a release of what's built, the
+near-done decisions (PLAN §1b). Then, in this order:
+
+1. **The sentinel, first slice — fills D94 (the security work, "Mythos-class security on autopilot"), no new
+   decision.** A local watcher on the places a program that copies itself has to touch on Linux: **staying past a
+   restart** (autostart entries, user systemd services, cron jobs, shell startup files) and **spreading** (new keys in
+   `authorized_keys`, unexpected listening programs, a program making outbound connections it never made before). A
+   change there is said in plain words — "something added itself to startup: this program, at this time" — and the
+   person keeps or removes it (Rule 9). Ian: "Thats something Defender does in Windows already, and one of the good
+   ways we can explain why you need to watch what you click on with any device" — so it teaches as it guards, with
+   the security help cards and "is my computer secure?" (PLAN §5b). Why now: the threat of bots that spread on their
+   own is real today ("I never dodge pragmatics and the threat is real right now, so measures should be taken").
+   Local, no cloud; the AI's own commands are already sandboxed (D1) — this watches everything else.
+
 ### M2 — Assistant core on the desktop
 
 - `cinminai-daemon`: session D-Bus API, `InferenceBackend` + `LlamaCppBackend`, conversation, session state, supervisor/OOM ladder.
