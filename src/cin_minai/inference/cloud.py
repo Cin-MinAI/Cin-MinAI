@@ -244,6 +244,10 @@ class Anthropic:
     def _post(self, path: str, body: dict | None = None) -> dict:
         key = self.key()
         if not key:
+            from cin_minai.daemon import accounts
+            if accounts.keyring_locked():  # the key may well be there: the login keyring is locked (automatic login)
+                raise CloudError("the login keyring is locked, so the Anthropic key can't be read — unlock it from "
+                                 "AICUI's Cloud models menu (or Passwords and Keys), then continue")
             raise CloudError("no Anthropic key on this computer — add one from AICUI's Cloud models menu")
         req = urllib.request.Request(f"{API}/{path}", data=json.dumps(body).encode() if body is not None else None,
                                      headers={"x-api-key": key, "anthropic-version": VERSION,

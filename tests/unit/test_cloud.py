@@ -237,3 +237,35 @@ class Offered(unittest.TestCase):
         self.assertEqual(cloud.cached_models(), [])
         cloud.cache_models(["claude-opus-4-8"])
         self.assertEqual(cloud.cached_models(), ["claude-opus-4-8"])
+
+
+class LockedKeyring(unittest.TestCase):
+    def test_a_locked_keyring_is_said_not_taken_for_a_missing_key(self):
+        """2026-10-13: after a restart with automatic login the login keyring was locked; AICUI said the key was gone."""
+        from tests.unit.test_accounts import FakeKeyring
+
+        class Locked(FakeKeyring):
+            def __init__(self):
+                super().__init__()
+                self.is_locked, self.prompted = True, 0
+
+            def locked(self):
+                return self.is_locked
+
+            def unlock(self):
+                self.prompted += 1
+                self.is_locked = False
+                return True
+        kr = Locked()
+        self.assertTrue(accounts.keyring_locked(keyring=kr))
+        self.assertTrue(accounts.unlock_keyring(keyring=kr))
+        self.assertEqual(kr.prompted, 1)
+        self.assertFalse(accounts.keyring_locked(keyring=kr))
+        old = accounts.keyring_locked
+        accounts.keyring_locked = lambda keyring=None: True
+        self.addCleanup(setattr, accounts, "keyring_locked", old)
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        with self.assertRaises(cloud.CloudError) as e:
+            cloud.Anthropic(root, lambda: "").chat([{"role": "user", "content": "x"}])
+        self.assertIn("the login keyring is locked", str(e.exception))

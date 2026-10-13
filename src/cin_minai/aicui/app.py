@@ -526,7 +526,10 @@ class Workspace(Gtk.ApplicationWindow):
             if act is not None:
                 it.connect("activate", lambda w: act())
             menu.append(it)
-        if not has_key:
+        if not has_key and accounts.keyring_locked():
+            item("Unlock the login keyring (your key may be in it)…", self.cloud_unlock)
+            item("Add an Anthropic API key…", self.cloud_add_key)
+        elif not has_key:
             item("Add an Anthropic API key…", self.cloud_add_key)
         else:
             item("Advise the local models (they work; the cloud is asked when it helps)…",
@@ -598,7 +601,10 @@ class Workspace(Gtk.ApplicationWindow):
         self.cloud_pick.handler_block(self.cloud_pick_id)
         self.cloud_pick.remove_all()
         models = (cloud.cached_models() or [cloud.DEFAULT_MODEL]) if accounts.cloud_key("anthropic") else []
-        if not models:
+        if not models and accounts.keyring_locked():  # the key may be there, behind a locked keyring
+            self.cloud_pick.append("locked", "Cloud: keyring locked — unlock it")
+            self.cloud_pick.set_active_id("locked")
+        elif not models:
             self.cloud_pick.append("none", "Cloud: none connected")
             self.cloud_pick.set_active_id("none")
         else:
@@ -632,6 +638,9 @@ class Workspace(Gtk.ApplicationWindow):
     def cloud_pick_changed(self, combo) -> None:
         from cin_minai.inference import cloud
         chosen = combo.get_active_id()
+        if chosen == "locked":
+            self.cloud_unlock()
+            return
         if not chosen or chosen == "none":
             if chosen == "none":
                 self.cloud_add_key()
@@ -649,6 +658,18 @@ class Workspace(Gtk.ApplicationWindow):
         else:
             self.bubble("ai", f"{cloud.label(chosen)} from the AI's next start (it's working now; Stop, then send "
                               "your next request).")
+
+    def cloud_unlock(self) -> None:
+        """The desktop's own prompt for the login keyring's password: with automatic login it stays locked after a
+        restart, and the key behind it can't be read (2026-10-13)."""
+        from cin_minai.daemon import accounts
+        if accounts.unlock_keyring():
+            self.bubble("ai", "The login keyring is unlocked: your cloud key is back.")
+            self.fill_cloud_pick()
+            self.refresh_cloud_models()
+        else:
+            self.bubble("ai", "The keyring is still locked. It opens with your login password; Passwords and Keys "
+                              "(in the menu) can unlock it too.")
 
     def cloud_role_dialog(self, role: str) -> None:
         from cin_minai.inference import cloud

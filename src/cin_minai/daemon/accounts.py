@@ -74,6 +74,24 @@ class Keyring:
         Secret, schema = self._schema()
         Secret.password_clear_sync(schema, {"account": account}, None)
 
+    def locked(self) -> bool:
+        """Is the keyring our accounts are in locked? (2026-10-13: with automatic login the login keyring stays locked
+        after a restart; the key was there, AICUI said there was none.)"""
+        Secret, _ = self._schema()
+        svc = Secret.Service.get_sync(Secret.ServiceFlags.OPEN_SESSION, None)
+        c = Secret.Collection.for_alias_sync(svc, "default", Secret.CollectionFlags.NONE, None)
+        return bool(c and c.get_locked())
+
+    def unlock(self) -> bool:
+        """The desktop's own prompt for the keyring's password (we never see it). True when it's unlocked."""
+        Secret, _ = self._schema()
+        svc = Secret.Service.get_sync(Secret.ServiceFlags.OPEN_SESSION, None)
+        c = Secret.Collection.for_alias_sync(svc, "default", Secret.CollectionFlags.NONE, None)
+        if c is None or not c.get_locked():
+            return True
+        svc.unlock_sync([c], None)
+        return not c.get_locked()
+
 
 class GitHub:
     """Sign-in, renewal, sign-out and the few API calls AICUI needs. `opener` and `keyring` are swappable for tests."""
@@ -223,6 +241,20 @@ def cloud_key(provider: str, keyring=None) -> str:
         return (keyring or Keyring()).get(f"cloud-{provider}").get("key", "")
     except Exception:
         return ""
+
+
+def keyring_locked(keyring=None) -> bool:
+    try:
+        return (keyring or Keyring()).locked()
+    except Exception:
+        return False
+
+
+def unlock_keyring(keyring=None) -> bool:
+    try:
+        return (keyring or Keyring()).unlock()
+    except Exception:
+        return False
 
 
 def store_cloud_key(provider: str, key: str, keyring=None) -> None:
