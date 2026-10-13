@@ -962,7 +962,11 @@ record is detected; a lost USB is recovered with the printed code.
   ratchet (each use moves both sides on; a copied stick goes stale) with a resync step for a stick pulled mid-update;
   a plain stick can be copied — a FIDO2 security key (D94: can't be read out) as the strong option, the stick as the
   cheap one; a recovery copy (a second stick or a printed code), or a lost stick loses the vault; removing the stick
-  ends the session at once.
+  ends the session at once. **Ian's further layers and recovery (same day):** a **6-digit PIN** and **voice** — say a
+  key phrase, then punch in the PIN. The PIN is a sound second factor (lock after a few wrong tries, as FIDO2 keys
+  do); voice is the weak layer — a phrase said aloud can be overheard, and a voice can be cloned from seconds of
+  audio or replayed — so it's a convenience or extra check, never the one thing that unlocks recovery; recognized
+  locally (whisper), nothing leaves the computer.
 
 ## 6. Open questions
 
