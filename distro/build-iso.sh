@@ -105,13 +105,15 @@ cp "$M1/build-key.gpg" "$rootfs/tmp/cinminai-build.gpg"
 echo "deb [signed-by=/tmp/cinminai-build.gpg] file:/mnt/cinminai-repo $REPO_SUITE $REPO_COMPONENT" > "$rootfs/tmp/cinminai-build.list"
 # Our packages' dependencies that the Mint image doesn't carry (AICUI needs git, found 2026-10-03: "git but it is
 # not installable") come from the same dated Ubuntu snapshot the llama.cpp build uses — so they're the same on every
-# build — and only those: priority 50 means "install only if not installed", so nothing already in the image is
-# upgraded or replaced.
+# build. Priority 100, the installed packages' own: a package already in the image is upgraded only when one of ours
+# needs its newer version, and then to the snapshot's (an Ubuntu update of the same package); nothing else moves.
+# (It was 50, "install only if not installed": from 2026-10-08 python3.12-venv needed python3.12 0.17 over the
+# image's 0.9, and xvfb newer X server parts, and the ISO build stopped at "unmet dependencies".)
 cp /usr/share/keyrings/ubuntu-archive-keyring.gpg "$rootfs/tmp/cinminai-ubuntu.gpg"
 for suite in noble noble-updates noble-security; do
     echo "deb [signed-by=/tmp/cinminai-ubuntu.gpg] https://snapshot.ubuntu.com/ubuntu/$UBUNTU_SNAPSHOT $suite main universe"
 done >> "$rootfs/tmp/cinminai-build.list"
-printf 'Package: *\nPin: origin "snapshot.ubuntu.com"\nPin-Priority: 50\n' > "$rootfs/tmp/cinminai-build.pref"
+printf 'Package: *\nPin: origin "snapshot.ubuntu.com"\nPin-Priority: 100\n' > "$rootfs/tmp/cinminai-build.pref"
 resolv_saved=""
 if [[ -e $rootfs/etc/resolv.conf || -L $rootfs/etc/resolv.conf ]]; then
     resolv_saved=$b/resolv.conf.image; cp -a "$rootfs/etc/resolv.conf" "$resolv_saved"; rm -f "$rootfs/etc/resolv.conf"

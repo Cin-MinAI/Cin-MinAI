@@ -19,14 +19,26 @@ iso=$M1/out/$OUT_ISO up=$WORK/upstream/$MINT_ISO
 fail=0; ok() { echo "PASS  $*"; }; bad() { echo "FAIL  $*"; fail=1; }
 
 diff=$M1/out/$OUT_ISO.manifest-diff
-removed=$(grep -c '^<' "$diff" || true); added=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort | tr '\n' ' ')
+# Package by package: what was removed (old lines), what was added (new lines). A package on both sides is an
+# upgrade — an Ubuntu update of one already in the image, pulled in only because one of ours needs its newer version
+# (build-iso.sh pins the snapshot at the installed packages' priority, 2026-10-13).
+old_pkgs=$(grep '^<' "$diff" | cut -c3- | cut -f1 | sort -u)
+new_pkgs=$(grep '^>' "$diff" | cut -c3- | cut -f1 | sort -u)
+upgraded=$(comm -12 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } | tr '\n' ' ')
+gone=$(comm -23 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } | tr '\n' ' ')
+added=$(comm -13 <(echo "$old_pkgs") <(echo "$new_pkgs") | { grep . || true; } | tr '\n' ' ')
 # ours, plus the dependencies the image lacks, from the dated Ubuntu snapshot (git for AICUI, 2026-10-03; passt and
 # python3-pyte for terminal sharing and its sandbox, M3; python3-venv for AICUI's project environments, 2026-10-08;
-# xvfb for AICUI's looks at a program, 2026-10-09 —
-# the exact set it pulls is confirmed by the next ISO build) — named one by one, so anything else that appears fails
-want="cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sandbox cinminai-shell cinminai-sidebar git git-man liberror-perl passt python3-pip-whl python3-pyte python3-setuptools-whl python3-venv python3-wcwidth python3.12-venv xvfb "
-[[ $removed == 0 && $added == "$want" ]] && ok "manifest: only our packages and their named dependencies added ($added)" \
-    || bad "manifest: removed $removed, added: $added"
+# xvfb for AICUI's looks at a program, 2026-10-09; ffmpeg for whisper; cinminai-admin, -firefox, -search, -table,
+# -whisper since) — named one by one, so anything else that appears fails
+want="cinminai-admin cinminai-aicui cinminai-applet cinminai-archive-keyring cinminai-branding cinminai-daemon cinminai-desktop cinminai-firefox cinminai-guide-model cinminai-libreoffice cinminai-llama cinminai-sandbox cinminai-search cinminai-shell cinminai-sidebar cinminai-table cinminai-whisper ffmpeg git git-man liberror-perl passt python3-pip-whl python3-pyte python3-setuptools-whl python3-venv python3-wcwidth python3.12-venv xvfb "
+# the upgrades our dependencies need (python3.12-venv: python3.12 0.17; xvfb: the X server parts) — named too
+may_upgrade="libpciaccess0 libpython3.12-minimal libpython3.12-stdlib libpython3.12t64 python3.12 python3.12-minimal xserver-common xserver-xephyr xserver-xorg-core xserver-xorg-legacy "
+[[ -z $gone && $added == "$want" ]] && ok "manifest: nothing removed; only our packages and their named dependencies added ($added)" \
+    || bad "manifest: removed: ${gone:-none}; added: $added"
+unexpected=$(comm -23 <(tr ' ' '\n' <<<"$upgraded" | { grep . || true; } | sort) <(tr ' ' '\n' <<<"$may_upgrade" | { grep . || true; } | sort) | tr '\n' ' ')
+[[ -z $unexpected ]] && ok "upgrades: only the named ones our dependencies need (${upgraded:-none})" \
+    || bad "upgrades not named: $unexpected"
 
 # The boot entries, their types, flags and sizes must match upstream's; their block positions may move
 # (xorriso lays the image out again around the bigger live filesystem), so positions are left out — and so
