@@ -119,7 +119,14 @@ if [[ -e $rootfs/etc/resolv.conf || -L $rootfs/etc/resolv.conf ]]; then
     resolv_saved=$b/resolv.conf.image; cp -a "$rootfs/etc/resolv.conf" "$resolv_saved"; rm -f "$rootfs/etc/resolv.conf"
 fi
 cp /etc/resolv.conf "$rootfs/etc/resolv.conf"   # name lookups for the snapshot, during the build only
-mkdir -p "$rootfs/tmp/cinminai-lists/partial"
+# The snapshot's package lists and the packages taken from it are kept on the build machine, per snapshot date
+# (Ian, 2026-10-13: "keep this sort of thing localized since its our primer"): the snapshot is dated, so what it
+# gives never changes — the first build downloads, every later one reads the same files from here. A slow or down
+# snapshot server (503s all afternoon on 2026-10-13) no longer stops a build that has them.
+cache=$WORK/snapshot-cache/$UBUNTU_SNAPSHOT
+mkdir -p "$cache/lists/partial" "$cache/archives/partial"
+bind "$cache/lists" "$rootfs/tmp/cinminai-lists"
+bind "$cache/archives" "$rootfs/tmp/cinminai-debs"
 # apt's update hooks rebuild the command-not-found database and the software catalogue (AppStream) from
 # the lists apt can see — during the build, only ours — so Mint's would be replaced by near-empty ones
 # (found 2026-09-27: commands.db 3.8 vs 4.05 MB, swcatalog caches rewritten; also the one thing that made
@@ -130,11 +137,19 @@ for d in "${upstream_kept[@]}"; do [[ -d $rootfs/$d ]] && { mkdir -p "$b/kept/$(
 aptopts=(-o Dir::Etc::sourcelist=/tmp/cinminai-build.list -o Dir::Etc::sourceparts=-
          -o Dir::Etc::preferences=/tmp/cinminai-build.pref -o Dir::Etc::preferencesparts=-
          -o Dir::State::Lists=/tmp/cinminai-lists -o APT::Get::List-Cleanup=0
+         -o Dir::Cache::archives=/tmp/cinminai-debs -o APT::Sandbox::User=root
          -o Acquire::Retries=8 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60)
 # every list or it stops here, said plainly: 2026-10-13 the snapshot answered "503 Service Unavailable", apt went on
-# without most lists and failed later on "unmet dependencies" — a server's bad hour, not our packages
-chroot "$rootfs" apt-get "${aptopts[@]}" -o APT::Update::Error-Mode=any update \
-    || { echo "the Ubuntu snapshot ($UBUNTU_SNAPSHOT) didn't give every package list (busy or down): try again later" >&2; exit 1; }
+# without most lists and failed later on "unmet dependencies" — a server's bad hour, not our packages. Lists kept from
+# an earlier complete download of the same dated snapshot are the same lists: the build goes on with those.
+if chroot "$rootfs" apt-get "${aptopts[@]}" -o APT::Update::Error-Mode=any update; then
+    touch "$cache/complete"
+elif [[ -f $cache/complete ]]; then
+    echo "NOTE  the Ubuntu snapshot didn't answer in full; its lists for $UBUNTU_SNAPSHOT are kept here from an earlier build (the same lists): going on with those"
+else
+    echo "the Ubuntu snapshot ($UBUNTU_SNAPSHOT) didn't give every package list (busy or down), and none are kept here yet: try again later" >&2
+    exit 1
+fi
 chroot "$rootfs" env DEBIAN_FRONTEND=noninteractive SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
     apt-get "${aptopts[@]}" install -y --no-install-recommends "cinminai-desktop=$CINMINAI_PKG_VERSION"
 if [[ $BOOTTEST == 1 ]]; then
@@ -157,7 +172,7 @@ fi
 log "chroot: clean up (build-only files, and logs and caches that differ between runs)"
 chroot "$rootfs" apt-get clean
 cleanup; mounts=()
-rm -rf "$rootfs/tmp/cinminai-build.gpg" "$rootfs/tmp/cinminai-build.list" "$rootfs/tmp/cinminai-lists" \
+rm -rf "$rootfs/tmp/cinminai-build.gpg" "$rootfs/tmp/cinminai-build.list" "$rootfs/tmp/cinminai-lists" "$rootfs/tmp/cinminai-debs" \
        "$rootfs/tmp/cinminai-ubuntu.gpg" "$rootfs/tmp/cinminai-build.pref" "$rootfs/usr/sbin/policy-rc.d"
 rm -f "$rootfs/etc/resolv.conf"
 [[ -n $resolv_saved ]] && cp -a "$resolv_saved" "$rootfs/etc/resolv.conf"   # the image's own, exactly as it was
