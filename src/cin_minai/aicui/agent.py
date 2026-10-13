@@ -188,7 +188,7 @@ def _asked(ask, prompt: str) -> str:
             PENDING["prompt"] = ""
 
 
-def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(SENIOR_ONLY)) -> dict:
+def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(SENIOR_ONLY | {"advisor"})) -> dict:
     """content_max: the most a write or append may hold, so a step always fits its token limit (2026-10-08: a model
     ignored "write in parts" five times, and each cut-off step cost ~5 minutes)."""
     variants = []
