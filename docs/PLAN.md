@@ -966,7 +966,11 @@ record is detected; a lost USB is recovered with the printed code.
   key phrase, then punch in the PIN. The PIN is a sound second factor (lock after a few wrong tries, as FIDO2 keys
   do); voice is the weak layer — a phrase said aloud can be overheard, and a voice can be cloned from seconds of
   audio or replayed — so it's a convenience or extra check, never the one thing that unlocks recovery; recognized
-  locally (whisper), nothing leaves the computer.
+  locally (whisper), nothing leaves the computer. Ian wants **biometrics in it** ("People have easy access to mics
+  and voice stuff has come far"): voice made strong against the known attacks — **speaker verification** (who is
+  speaking, against a voiceprint made at setup and kept on the stick, a local model), a **random challenge** beside
+  the person's own phrase (words shown fresh each time, so a recording can't hold them), a **liveness check** against
+  synthetic and replayed audio, and always together with the stick and the PIN, never alone.
 
 ## 6. Open questions
 
