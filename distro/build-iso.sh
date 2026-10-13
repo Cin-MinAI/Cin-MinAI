@@ -129,8 +129,12 @@ mkdir -p "$b/kept"
 for d in "${upstream_kept[@]}"; do [[ -d $rootfs/$d ]] && { mkdir -p "$b/kept/$(dirname "$d")"; cp -a "$rootfs/$d" "$b/kept/$d"; }; done
 aptopts=(-o Dir::Etc::sourcelist=/tmp/cinminai-build.list -o Dir::Etc::sourceparts=-
          -o Dir::Etc::preferences=/tmp/cinminai-build.pref -o Dir::Etc::preferencesparts=-
-         -o Dir::State::Lists=/tmp/cinminai-lists -o APT::Get::List-Cleanup=0)
-chroot "$rootfs" apt-get "${aptopts[@]}" update
+         -o Dir::State::Lists=/tmp/cinminai-lists -o APT::Get::List-Cleanup=0
+         -o Acquire::Retries=8 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60)
+# every list or it stops here, said plainly: 2026-10-13 the snapshot answered "503 Service Unavailable", apt went on
+# without most lists and failed later on "unmet dependencies" — a server's bad hour, not our packages
+chroot "$rootfs" apt-get "${aptopts[@]}" -o APT::Update::Error-Mode=any update \
+    || { echo "the Ubuntu snapshot ($UBUNTU_SNAPSHOT) didn't give every package list (busy or down): try again later" >&2; exit 1; }
 chroot "$rootfs" env DEBIAN_FRONTEND=noninteractive SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
     apt-get "${aptopts[@]}" install -y --no-install-recommends "cinminai-desktop=$CINMINAI_PKG_VERSION"
 if [[ $BOOTTEST == 1 ]]; then
