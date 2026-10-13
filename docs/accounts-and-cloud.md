@@ -82,7 +82,15 @@ the package like GitHub's. Until then OpenAI works with an API key.
    **one** local contributor (the coding model) or **two** (team B's pair: the 35B writes, fixes and tests, the 9B
    fetches, reads and briefs; LFD between the two of them), so the cloud's tokens go to directing. OpenAI next).
    Seen on test11 (2026-10-12): Haiku as Finisher alone lost the thread at every stop and re-read the same files;
-   the local team picked it up at once — the reason for Lead, and for the carry-over between requests. Was: **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
+   the local team picked it up at once — the reason for Lead, and for the carry-over between requests.
+   **Advisor** built 2026-10-13 (Ian: "this was about incorporating the local with the cloud, not 2 cloud models"):
+   the local models do all the work as chosen (one model, team A or B), and the lead local model has an `advisor`
+   tool — its question goes to the cloud model with the request, the goals, the last 8 steps and what the checks find,
+   and the advice comes back as its result; AICUI asks by itself after 12 steps without progress, before the stuck
+   rule stops the work; 5 calls a request at most, each against the budget. The pattern of Anthropic's advisor tool
+   (a cheap model consulting a stronger one in the same request) turned around: there both models are Anthropic's and
+   run on their servers, so it can't serve a local model; here AICUI makes the call. Within Anthropic's terms: the
+   person's own API key, the outputs used in their app, nothing trained on them. Was: **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
    calls; AICUI's Cloud button — provider, model, role (Senior or Exclusive); what's sent said first.
 3. **The models' own GitHub work** (push and pull as tools, under the same approvals); Sign in with ChatGPT when the
    client ID comes.

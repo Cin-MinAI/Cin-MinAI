@@ -81,6 +81,7 @@ ACTIONS = [
     {"tool": "look", "target": {"enum": ["program", "page", "screen", "picture"]}, "question": STR, "address": STR},
     {"tool": "ask", "question": STR},
     {"tool": "answer", "text": STR},
+    {"tool": "advisor", "question": STR},
     {"tool": "plan", "goals": {"type": "array", "minItems": 1, "maxItems": PLAN_MAX, "items": {
         "type": "object", "additionalProperties": False, "required": ["text", "from_outside", "files", "who"], "properties": {
             "text": STR, "from_outside": {"type": "array", "maxItems": 6, "items": {
@@ -96,7 +97,7 @@ ACTIONS = [
 ]
 OPTIONAL = {"start", "goal", "into", "format", "kind", "network"}
 SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit"}  # style B's Senior
-BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
+BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan", "advisor"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
 WEB_TOOLS = {"web_search", "fetch", "download"}  # a cloud lead's contributors have these (2026-10-12: given a
@@ -287,6 +288,12 @@ to find and where it goes); distill and the pages you fetch go to them first, th
 come to you; lfd (`focus`): they summarize the whole project for you to plan from. Their results come between your
 steps: review_task (`n`, `accept`, `note`); a long task gets a progress report: let it work, or direct it with
 follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). You have the final word."""
+
+ADVISOR_LINE = """
+A stronger model in the cloud ({name}) is your advisor: advisor (`question`) gives it your request, the goals, your
+last steps and what the checks find, and it answers with what to do next. Ask it before you commit to an approach on
+a new project or a hard goal, when you're stuck (the same error twice, an approach that isn't working), and before you
+say a goal is done. A few times a request; it costs the person a little each time."""
 
 CHANGE_LOCK = threading.RLock()  # one change at a time: two agents (style B) share the files and the changelog
 ASK_LOCK = threading.Lock()      # one question to the person at a time
@@ -838,13 +845,14 @@ class Agent:
     # --- events for AICUI's panes --------------------------------------------------------------------------
     def excluded(self) -> set:
         """The tools this agent's card doesn't have."""
-        if self.role == "senior":
-            return {"errand"}  # its reading goes to the Junior (distill, assign)
         if self.role == "junior":  # a cloud lead's contributors fetch too (Ian: "Fetch this, write that")
             return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS - (WEB_TOOLS if getattr(self, "web", False) else set())
+        no_advisor = set() if callable(getattr(self, "advisor_fn", None)) else {"advisor"}  # the cloud as advisor
+        if self.role == "senior":
+            return {"errand"} | no_advisor  # its reading goes to the Junior (distill, assign)
         if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
-            return set(SENIOR_ONLY) | {"errand"}
-        return set(SENIOR_ONLY)
+            return set(SENIOR_ONLY) | {"errand"} | no_advisor
+        return set(SENIOR_ONLY) | no_advisor
 
     def event(self, kind: str, **data) -> None:
         if self.role == "junior":  # its work shows as the Junior's, never as the Senior's status or answer
@@ -922,8 +930,10 @@ class Agent:
         if self.role == "junior":
             return JUNIOR_SYSTEM.format(**parts, web=JUNIOR_WEB if getattr(self, "web", False) else "")
         crew = getattr(self, "cloud_crew", "")  # the cloud leads, local contributors work for it
+        advisor = (ADVISOR_LINE.format(name=getattr(self, "advisor_name", "a cloud model"))
+                   if callable(getattr(self, "advisor_fn", None)) else "")
         return SYSTEM.format(**parts) + ((SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
-                                         if self.role == "senior" else "")
+                                         if self.role == "senior" else "") + advisor
 
     def problems(self) -> list[str]:
         """What the checks find in the project's files now, one line a file."""
@@ -1124,6 +1134,10 @@ class Agent:
 
     def turn(self, text: str, cancel: threading.Event | None = None) -> str:
         self.event("user", text=text)
+        self.request_text = text
+        reset = getattr(self, "advisor_reset", None)
+        if callable(reset):
+            reset()
         if self.role != "junior":
             self.keep_request(text)
         self.given(text)
@@ -1318,6 +1332,14 @@ class Agent:
                 last_progress = n
                 self.kinds_done.append(act["tool"])
                 self.progress_total = getattr(self, "progress_total", 0) + 1  # across tasks (team B's follow-up)
+            elif n - last_progress == NUDGE_STEPS * 2 and callable(getattr(self, "advisor_fn", None)):
+                # stalled: the cloud advisor is asked by AICUI itself, before the stuck rule stops the work
+                advice = self.advisor_fn(f"I've gone {n - last_progress} steps without progress (no file changed, no "
+                                         "new result, no goal moved). What should I do next?", "stalled")
+                self.note(steps, advice if advice.startswith("Advice") else
+                          f"No progress in the last {n - last_progress} steps. Make the change now, or ask the person.")
+                if advice.startswith("Advice"):
+                    last_progress = n  # new knowledge: the advice gets its own steps to be tried
             elif n - last_progress in (NUDGE_STEPS, NUDGE_STEPS * 2):  # the one progress rule: said, then said again
                 self.note(steps, f"No progress in the last {n - last_progress} steps: no file changed, no new result, "
                                  "no goal moved. Make the change now (lines the checks or the map name can go by number "
@@ -1387,6 +1409,8 @@ class Agent:
         if tool == "distill" and "gathered record" in result and not result.startswith("error"):  # create
             return True
         if tool in ("goal_add", "need") and not result.startswith("error"):  # create (a goal; the environment's entry)
+            return True
+        if tool == "advisor" and result.startswith("Advice from"):  # create: new knowledge for the work
             return True
         if tool in ("assign", "brief", "follow_up") and re.match(r"(task \d+ given|sent to your junior|task \d+ hasn't "
                                                                  r"started)", result):
@@ -2177,6 +2201,9 @@ class Agent:
                 return said
             if t == "look":
                 return self.look(a.get("target", "program"), a.get("question", ""), a.get("address", ""))
+            if t == "advisor":  # the cloud as advisor (advisor.py)
+                fn = getattr(self, "advisor_fn", None)
+                return fn(a.get("question", "")) if callable(fn) else "no advisor here: work it out, or ask the person"
             if t == "need":
                 try:
                     said = want_package(self.root, a.get("package", ""), a.get("why", ""))
@@ -2672,6 +2699,15 @@ def main(argv=None) -> int:
         team_b = pair_mod.Pair(agent, junior, say=said)
         if senior_sees:
             agent.reader = lambda: agent.chat
+    if cloud["role"] == "advisor":  # the local models work; the cloud is asked when it helps (advisor.py)
+        from cin_minai.daemon import accounts as keys
+        from .advisor import MAX_USES, Advisor
+        adv = Advisor(agent, cloud_mod.Anthropic(root, lambda: keys.cloud_key("anthropic"), cloud["model"]),
+                      cloud_mod.label(cloud["model"]))
+        agent.advisor_fn, agent.advisor_reset, agent.advisor_name = adv.ask, adv.reset, adv.name
+        print(f"\033[1m{adv.name} (cloud) advises {name}: when it asks, or after 12 steps without progress; at most "
+              f"{MAX_USES} times a request, up to ${cloud['budget_usd']:.2f} for this project "
+              f"(${cloud_mod.spent(root):.2f} spent so far). What it's sent goes to Anthropic.\033[0m")
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
     from . import tandem as tandem_mod

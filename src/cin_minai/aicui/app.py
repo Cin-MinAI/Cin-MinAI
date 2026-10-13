@@ -265,8 +265,9 @@ class Workspace(Gtk.ApplicationWindow):
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "handoff":  # the two cards passing work: the coder (Senior) and its helper (Junior)
                 who = {"helper": "Senior → Junior", "junior": "Senior → Junior", "coder": "Junior → Senior",
-                       "senior": "Junior → Senior", "person": "Senior → you"}
-                self.thought(e.get("text", ""), who.get(e.get("to", ""), "Junior"))
+                       "senior": "Junior → Senior", "person": "Senior → you", "advisor": "Asked the cloud advisor"}
+                label = "The cloud advisor says" if e.get("by") == "advisor" else who.get(e.get("to", ""), "Junior")
+                self.thought(e.get("text", ""), label)
             elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
                 self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
             elif e["kind"] == "env_request":  # the AI declared a package the work needs: the person decides
@@ -520,6 +521,8 @@ class Workspace(Gtk.ApplicationWindow):
         if not has_key:
             item("Add an Anthropic API key…", self.cloud_add_key)
         else:
+            item("Advise the local models (they work; the cloud is asked when it helps)…",
+                 lambda: self.cloud_role_dialog("advisor"))
             item("Lead with the cloud (the local models do the work)…", lambda: self.cloud_role_dialog("lead"))
             item("Finish this project with the cloud…", lambda: self.cloud_role_dialog("finisher"))
             item("Work with the cloud only (no local models)…", lambda: self.cloud_role_dialog("exclusive"))
@@ -642,7 +645,8 @@ class Workspace(Gtk.ApplicationWindow):
     def cloud_role_dialog(self, role: str) -> None:
         from cin_minai.inference import cloud
         cs = cloud.settings(self.root)
-        d = Gtk.Dialog(title={"finisher": "Finish with the cloud", "lead": "Lead with the cloud"}.get(
+        d = Gtk.Dialog(title={"finisher": "Finish with the cloud", "lead": "Lead with the cloud",
+                              "advisor": "The cloud as advisor"}.get(
             role, "Work with the cloud only"), transient_for=self, modal=True)
         d.add_button("Cancel", Gtk.ResponseType.CANCEL)
         d.add_button("Start", Gtk.ResponseType.OK)
@@ -653,7 +657,11 @@ class Workspace(Gtk.ApplicationWindow):
             {"finisher": "The cloud model takes this project from where the local models left it to working: it "
                          "runs it, reads what it needs and fixes what fails.",
              "lead": "The cloud model plans and directs; the models on this computer do the reading, writing, "
-                     "testing and fixing it gives them, for free. The cloud's tokens go to the thinking."}.get(
+                     "testing and fixing it gives them, for free. The cloud's tokens go to the thinking.",
+             "advisor": "The models on this computer do all the work, as now. The cloud model is asked for advice "
+                        "when they ask for it, or when the work stalls (12 steps without progress): it reads the "
+                        "request, the goals and the last steps, and says what to do next. A few times a request — "
+                        "the cheapest way to use the cloud."}.get(
                 role, "The cloud model does all the work on this project; no model is loaded on this computer.")
             + " What it reads of the project, its goals and what the commands print go to Anthropic. It stops at the "
               "budget below.")), False, False, 0)
