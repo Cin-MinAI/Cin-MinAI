@@ -979,6 +979,19 @@ record is detected; a lost USB is recovered with the printed code.
   vault's key, released only with the stick and the PIN, voice on top. PCs without TPM 2.0 fall back to the stick
   and the PIN (Ian's Mint box, i7-4790K: no TPM; his dev PC's Ryzen 3900X has fTPM, often off in the BIOS); processor
   TPMs have had published flaws (AMD fTPM, 2023), so it's one strong layer, not the only one.
+- **Teaching security is a priority — fills D84, D47, D51, D91, no new decision** (Ian, 2026-10-13): "this is
+  exactly what this OS needs to prioritize teaching to users. This is where Windows will fail going into the future.
+  The information is moving past that experience and users need to understand these things moving forward in order
+  to make informed decisions about hardware and software." Windows hides security in the background (BitLocker on the
+  TPM, done for you); with AI agents running as the user, people need to know what to trust. Built as: **"is my
+  computer secure?"** — a read-only check (TPM present and on, disk encrypted, keyring locking, programs kept out of
+  each other's memory, updates, firewall), each item in plain words with what it means and what one could do, the
+  choice the person's (a D91 chain on D51 diagnostics; first run by hand on Ian's PC the same day: no TPM, disk not
+  encrypted, ptrace_scope 1, keyring folder private); **security help cards** in the six languages (the TPM and why
+  Windows 11 required one; disk encryption and what BitLocker did; the keyring and when it's open; what an AI agent
+  on the computer can and can't reach, and AICUI's sandbox; passwords and hardware keys), offered when relevant
+  (D84); the **installer recommending disk encryption**, plainly (D47); **hardware advice** when choosing a PC
+  (TPM 2.0 / Pluton; what a Pi lacks) with D24/D37.
 
 ## 6. Open questions
 
