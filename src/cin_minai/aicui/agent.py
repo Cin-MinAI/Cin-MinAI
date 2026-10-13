@@ -1315,6 +1315,16 @@ class Agent:
                 steps[:] = [{"note": dump}]
                 self.cut, self.lite, self.reads = 0, 0, {}
             refused = (json.dumps(act, sort_keys=True), result) if result.startswith("error") else None
+            repeated = bool(refused) and refused == getattr(self, "last_refused", None)
+            if repeated and callable(getattr(self, "advisor_fn", None)):
+                # stuck on a refusal: the cloud advisor is asked before the work stops (2026-10-13, test13: the 35B
+                # said "I'll create main.cpp" and read it again, twice; the run stopped and the advisor was never asked)
+                advice = self.advisor_fn(f"The same step was refused twice: {result[:300]}. My step was "
+                                         f"{json.dumps(act)[:300]}. What should I do instead?", "stuck")
+                if advice.startswith("Advice"):
+                    self.note(steps, advice)
+                    self.last_refused = None
+                    continue
             if refused and refused == getattr(self, "last_refused", None):
                 # 2026-10-10 (test7): the same refused step, fifteen times — a model that doesn't change course after
                 # a refusal won't after the next one either
@@ -2167,6 +2177,9 @@ class Agent:
                 full = self.path(a["path"])
                 if full.lower().endswith(intake.PICTURE_EXT[:-1]):  # 2026-10-12: screenshots read as text
                     return f"{a['path']} is a picture: look at it (target picture, address {a['path']}) with your question"
+                if not os.path.exists(full):  # 2026-10-13: "[Errno 2]" twice, and the model meant to create it
+                    return (f"error: {a['path']} doesn't exist yet — write it to create it (list shows what's "
+                            "there)")
                 with open(full, encoding="utf-8", errors="replace") as f:
                     lines = f.read().splitlines()
                 start = max(1, int(a.get("start") or 1))

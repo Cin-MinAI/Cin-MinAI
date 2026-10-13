@@ -80,6 +80,23 @@ class AdvisorTest(unittest.TestCase):
         self.assertTrue(any("Advice from" in m["content"] for m in a.chat.sent[-1]))
         self.assertEqual(a.stopped, "answer")  # it went on and answered; the stuck rule didn't stop it
 
+    def test_the_same_refusal_twice_goes_to_the_advisor_before_the_work_stops(self):
+        """2026-10-13, test13: "main.cpp doesn't exist yet. I'll create it now" — and it read main.cpp again, twice;
+        the run stopped and the advisor was never asked."""
+        again = step("I'll create main.cpp now.", tool="read", path="src/main.cpp")
+        a = self.agent([again, again, step("Write it.", tool="write", path="src/main.cpp", content="int main() {}\n"),
+                        step("", tool="answer", text="main.cpp written")])
+        self.assertEqual(a.turn("make main"), "main.cpp written")
+        self.assertEqual(len(self.cloud.sent), 1)
+        self.assertIn("refused twice", self.cloud.sent[0][1]["content"])
+        self.assertIn("doesn't exist yet — write it to create it", self.cloud.sent[0][1]["content"])
+
+    def test_without_an_advisor_the_same_refusal_twice_still_stops(self):
+        again = step("I'll create main.cpp now.", tool="read", path="src/main.cpp")
+        a = Agent(self.root, Scripted([again, again]), "m", "auto", say=lambda s: None)
+        self.assertIn("refused the same way", a.turn("make main"))
+        self.assertEqual(a.stopped, "stuck")
+
     def test_a_few_calls_a_request(self):
         a = self.agent([])
         ask = a.advisor_fn
