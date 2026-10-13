@@ -217,3 +217,23 @@ class Pictures(unittest.TestCase):
         self.assertEqual(cloud.unleak(tail, ["reason", "command"]), {"reason": "Run them.", "command": "make test"})
         fine = {"reason": 'He said "go", "now".', "path": "a.py"}
         self.assertEqual(cloud.unleak(fine, ["reason", "path"]), fine)
+
+
+class Offered(unittest.TestCase):
+    def test_the_box_offers_each_familys_newest_two_and_says_which_prices_are_checked(self):
+        """Ian, 2026-10-13: the bottom-right box filled by the connected providers' own model lists."""
+        ids = ["claude-3-haiku-20240307", "claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-sonnet-4-5-20250929",
+               "claude-opus-4-8", "claude-opus-4-1-20250805", "claude-3-7-sonnet-20250219", "claude-opus-5-5"]
+        self.assertEqual(cloud.offered(ids), ["claude-opus-5-5", "claude-opus-4-8", "claude-sonnet-4-6",
+                                              "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001",
+                                              "claude-3-haiku-20240307"])
+        self.assertTrue(cloud.price_checked("claude-haiku-4-5-20251001"))
+        self.assertFalse(cloud.price_checked("claude-opus-5-5"))  # counted at Opus's price, and said so
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        old = cloud.MODELS_CACHE
+        cloud.MODELS_CACHE = os.path.join(root, "models.json")
+        self.addCleanup(setattr, cloud, "MODELS_CACHE", old)
+        self.assertEqual(cloud.cached_models(), [])
+        cloud.cache_models(["claude-opus-4-8"])
+        self.assertEqual(cloud.cached_models(), ["claude-opus-4-8"])

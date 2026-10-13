@@ -75,6 +75,54 @@ def spent(root: str) -> float:
     return total
 
 
+FAMILIES = ("opus", "sonnet", "haiku")  # the order the box lists them in
+MODELS_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
+                            "cloud-models.json")
+
+
+def offered(models: list) -> list:
+    """The models worth offering from a provider's list: its current families, newest first, two of each."""
+    import re
+
+    def version(m: str) -> tuple:
+        return tuple(int(x) for x in re.findall(r"(?<![0-9])(\d{1,2})(?![0-9])", m))
+    out = []
+    for fam in FAMILIES:
+        mine = sorted((m for m in models if fam in m and m.startswith("claude-")), key=version, reverse=True)
+        out += mine[:2]
+    return out
+
+
+def cached_models(provider: str = "anthropic") -> list:
+    """The models a provider offered when last asked ([] before the first ask)."""
+    try:
+        with open(MODELS_CACHE, encoding="utf-8") as f:
+            return list(json.load(f).get(provider, []))
+    except (OSError, ValueError):
+        return []
+
+
+def cache_models(models: list, provider: str = "anthropic") -> None:
+    try:
+        with open(MODELS_CACHE, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    data[provider] = list(models)
+    os.makedirs(os.path.dirname(MODELS_CACHE), exist_ok=True)
+    with open(MODELS_CACHE + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(MODELS_CACHE + ".tmp", MODELS_CACHE)
+
+
+CHECKED = ("claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-8")  # prices read on Anthropic's page, 2026-10-11
+
+
+def price_checked(model: str) -> bool:
+    """Is this model's price one we read? Others are counted at their family's price — an estimate, said so."""
+    return model.startswith(CHECKED)
+
+
 def price_of(model: str) -> tuple[float, float, float, float]:
     return next((p for k, p in PRICES.items() if k in model), PRICES["sonnet"])  # unknown: the dearer guess
 

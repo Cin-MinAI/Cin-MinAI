@@ -143,10 +143,15 @@ class Workspace(Gtk.ApplicationWindow):
         # bottom: the typing box and model selection
         self.entry = Gtk.Entry(placeholder_text="Tell the AI what to do…", hexpand=True)
         self.entry.connect("activate", self.send)
-        self.model = Gtk.ComboBoxText()
-        self.model.append("local", "Local: the best model for this computer")
-        self.model.append("claude", "Claude (connect in slice 5)")
-        self.model.set_active_id("local")
+        # the cloud model the Cloud models menu uses, from the providers connected (Ian, 2026-10-13: "the little
+        # bottom right box gets changed to be filled by cloud providers if you have it connected"); the local models
+        # are chosen as before (the Team menu, the Models view)
+        self.cloud_pick = Gtk.ComboBoxText()
+        self.cloud_pick.set_tooltip_text("The cloud model for this project, from the providers you've connected. "
+                                         "What it does is chosen in Cloud models (top right).")
+        self.cloud_pick_id = self.cloud_pick.connect("changed", self.cloud_pick_changed)
+        self.fill_cloud_pick()
+        GLib.idle_add(self.refresh_cloud_models)
         # permissions are the user's (SPEC §21): ask (default), auto for this session, none (behind a warning); admin
         self.perms = Gtk.ComboBoxText()
         for key, label in (("ask", "Ask before changes"), ("auto", "Auto (this session)"),
@@ -184,7 +189,7 @@ class Workspace(Gtk.ApplicationWindow):
         bottom = Gtk.Box(spacing=6, margin=6)
         bottom.pack_start(self.busy_box, False, False, 0)
         bottom.pack_start(self.entry, True, True, 0)
-        bottom.pack_end(self.model, False, False, 0)
+        bottom.pack_end(self.cloud_pick, False, False, 0)
         bottom.pack_end(self.admin, False, False, 0)
         bottom.pack_end(self.perms, False, False, 0)
 
@@ -565,12 +570,74 @@ class Workspace(Gtk.ApplicationWindow):
         def check() -> None:
             try:
                 models = cloud.Anthropic(self.root, lambda: accounts.cloud_key("anthropic")).models()
-                msg = "Anthropic key saved and working. It can use: " + ", ".join(
-                    cloud.label(m) for m in models[:6]) + ". Cloud models → Finish this project, when you want it."
+                cloud.cache_models(cloud.offered(models))
+                GLib.idle_add(lambda: self.fill_cloud_pick() and False)
+                msg = ("Anthropic key saved and working. Its models are in the box at the bottom right; Cloud models "
+                       "(top right) says what the cloud does on this project.")
             except cloud.CloudError as e:
                 msg = f"The key is saved, but Anthropic didn't accept it ({e}). Check it in the Console, or remove it."
             GLib.idle_add(lambda: self.bubble("ai", msg) and False)
         threading.Thread(target=check, daemon=True).start()
+
+    def fill_cloud_pick(self) -> None:
+        """The box: each connected provider's models, with their prices; the project's choice selected."""
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud
+        cs = cloud.settings(self.root)
+        self.cloud_pick.handler_block(self.cloud_pick_id)
+        self.cloud_pick.remove_all()
+        models = (cloud.cached_models() or [cloud.DEFAULT_MODEL]) if accounts.cloud_key("anthropic") else []
+        if not models:
+            self.cloud_pick.append("none", "Cloud: none connected")
+            self.cloud_pick.set_active_id("none")
+        else:
+            if cs["model"] not in models:
+                models = [cs["model"]] + models
+            for m in models:
+                p = cloud.price_of(m)
+                price = f"${p[0]:g}/${p[1]:g}" if cloud.price_checked(m) else f"≈${p[0]:g}/${p[1]:g}, unchecked"
+                self.cloud_pick.append(m, f"☁ Anthropic · {cloud.label(m)} · {price}")
+            self.cloud_pick.set_active_id(cs["model"])
+        self.cloud_pick.handler_unblock(self.cloud_pick_id)
+
+    def refresh_cloud_models(self) -> bool:
+        """The provider's own list, asked once a start (a free call), so new models appear by themselves."""
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud
+        if not accounts.cloud_key("anthropic"):
+            return False
+
+        def ask() -> None:
+            try:
+                got = cloud.offered(cloud.Anthropic(self.root, lambda: accounts.cloud_key("anthropic")).models())
+            except cloud.CloudError:
+                return
+            if got and got != cloud.cached_models():
+                cloud.cache_models(got)
+                GLib.idle_add(lambda: self.fill_cloud_pick() and False)
+        threading.Thread(target=ask, daemon=True).start()
+        return False
+
+    def cloud_pick_changed(self, combo) -> None:
+        from cin_minai.inference import cloud
+        chosen = combo.get_active_id()
+        if not chosen or chosen == "none":
+            if chosen == "none":
+                self.cloud_add_key()
+            return
+        cs = cloud.settings(self.root)
+        if chosen == cs["model"]:
+            return
+        cloud.save_settings(self.root, provider="anthropic", model=chosen)
+        if cs["role"] == "off":
+            self.bubble("ai", f"{cloud.label(chosen)} is this project's cloud model. Cloud models (top right) says what "
+                              "it does: finish the project, lead the local models, or work alone.")
+        elif self.busy is None:
+            self.bubble("ai", f"{cloud.label(chosen)} takes over ({cs['role']}). The AI restarts with it in the terminal.")
+            self.restart_with("")
+        else:
+            self.bubble("ai", f"{cloud.label(chosen)} from the AI's next start (it's working now; Stop, then send "
+                              "your next request).")
 
     def cloud_role_dialog(self, role: str) -> None:
         from cin_minai.inference import cloud
@@ -591,11 +658,13 @@ class Workspace(Gtk.ApplicationWindow):
             + " What it reads of the project, its goals and what the commands print go to Anthropic. It stops at the "
               "budget below.")), False, False, 0)
         model = Gtk.ComboBoxText()
-        for m in ("claude-haiku-4-5-20251001", "claude-sonnet-4-6"):
+        offered = cloud.cached_models() or [cloud.DEFAULT_MODEL]
+        if cs["model"] not in offered:
+            offered = [cs["model"]] + offered
+        for m in offered:  # the provider's own list, as in the box at the bottom right
             model.append(m, f"{cloud.label(m)} — ${cloud.price_of(m)[0]:g} / ${cloud.price_of(m)[1]:g} per million "
-                            "tokens in / out")
-        model.set_active_id(cs["model"] if cs["model"] in ("claude-haiku-4-5-20251001", "claude-sonnet-4-6")
-                            else "claude-haiku-4-5-20251001")
+                            "tokens in / out" + ("" if cloud.price_checked(m) else " (not checked: an estimate)"))
+        model.set_active_id(cs["model"])
         box.pack_start(model, False, False, 0)
         crew = Gtk.ComboBoxText()
         crew.append("one", "One local model works for it (the coding model you use)")
@@ -621,6 +690,7 @@ class Workspace(Gtk.ApplicationWindow):
             return
         cloud.save_settings(self.root, provider="anthropic", model=chosen, role=role, budget_usd=round(limit, 2),
                             crew=helpers)
+        self.fill_cloud_pick()
         self.bubble("ai", f"{cloud.label(chosen)} takes over this project ({role}), up to ${limit:.2f}. The AI restarts "
                           "with it in the terminal.")
         self.restart_with(self.FINISH if role == "finisher" else "")
@@ -641,6 +711,7 @@ class Workspace(Gtk.ApplicationWindow):
             if cloud.settings(self.root)["role"] != "off":
                 self.cloud_off()
             self.bubble("ai", "The Anthropic key is removed from this computer.")
+            self.fill_cloud_pick()
 
     def open_screenshots(self) -> None:
         from .agent import SCREENSHOTS
