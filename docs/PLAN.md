@@ -970,7 +970,15 @@ record is detected; a lost USB is recovered with the printed code.
   and voice stuff has come far"): voice made strong against the known attacks — **speaker verification** (who is
   speaking, against a voiceprint made at setup and kept on the stick, a local model), a **random challenge** beside
   the person's own phrase (words shown fresh each time, so a recording can't hold them), a **liveness check** against
-  synthetic and replayed audio, and always together with the stick and the PIN, never alone.
+  synthetic and replayed audio, and always together with the stick and the PIN, never alone. **The hardware layer**
+  (Ian: "a hardware gap to be crossed now. Apple already did it with Secure Enclave. Its going to become the
+  default"): on PCs it's the **TPM 2.0** — in the processor (AMD fTPM, Intel PTT) or a chip; Windows 11 requires it,
+  so most PCs our audience brings have one; Microsoft's Pluton puts it in the CPU, Enclave-style. Keys made in it
+  can't be read out, its PIN check has anti-hammering in hardware, and it can refuse a key after a tampered boot;
+  Linux has the parts (`systemd-cryptenroll` binds to TPM + PIN, `tpm2-tools`). The layers then: the TPM holds the
+  vault's key, released only with the stick and the PIN, voice on top. PCs without TPM 2.0 fall back to the stick
+  and the PIN (Ian's Mint box, i7-4790K: no TPM; his dev PC's Ryzen 3900X has fTPM, often off in the BIOS); processor
+  TPMs have had published flaws (AMD fTPM, 2023), so it's one strong layer, not the only one.
 
 ## 6. Open questions
 
