@@ -992,6 +992,13 @@ record is detected; a lost USB is recovered with the printed code.
   on the computer can and can't reach, and AICUI's sandbox; passwords and hardware keys), offered when relevant
   (D84); the **installer recommending disk encryption**, plainly (D47); **hardware advice** when choosing a PC
   (TPM 2.0 / Pluton; what a Pi lacks) with D24/D37.
+- **Secure key hardware on every device, normalized — with the community** (Ian, 2026-10-13: "get the community on
+  board with designing a universal secure hardware interface for making this process normalized in all devices").
+  Back what exists rather than a rival standard: the interface is **TPM 2.0** (TCG; ISO/IEC 11889); open silicon roots
+  of trust **OpenTitan** (lowRISC) and **Caliptra** (CHIPS Alliance: AMD, Google, Microsoft, NVIDIA); **PSA Certified**
+  and **Matter** for small and IoT devices; the **EU Cyber Resilience Act** (mandatory, phasing in to 2027) and the
+  US **Cyber Trust Mark**. Our part: teach it (above), support TPM 2.0 on everything we run on (a Pi with a TPM board
+  as a PC), prefer open roots of trust in hardware advice, and take part in the open (D26).
 
 ## 6. Open questions
 
