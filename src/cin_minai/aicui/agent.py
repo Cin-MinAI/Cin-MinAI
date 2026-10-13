@@ -99,6 +99,10 @@ SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "pe
 BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
+WEB_TOOLS = {"web_search", "fetch", "download"}  # a cloud lead's contributors have these (2026-10-12: given a
+#   research task without them, a contributor thought "I need to search a card wiki" for 15 steps)
+JUNIOR_WEB = ("\n- web_search (a `query`; `kind` images for pictures), fetch (an https `url` from a search, a page you "
+              "fetched or your senior), download (many such `urls` into a `folder` under assets/); each asked first")
 # the goal tools as each card has them: team B's Senior makes the plan (2026-10-10, test7: its tool list said "goal_add"
 # and "write them as goals", so it planned in its thinking, reached for goal_add, and was refused fifteen times)
 GOAL_TOOLS = {"solo": ("- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)",
@@ -248,7 +252,7 @@ Each step: your thinking (short), then exactly one action:
 - read (a file, from line `start`), list (a folder), search (a regex over the project's files)
 - distill (read `sources` for an `intent`, keep what it names with where it stood, write it `into` the task's file)
 - edit, replace_lines, write, append (only the task's files)
-- run (a shell command in the project folder{sandbox}; no network)
+- run (a shell command in the project folder{sandbox}; no network){web}
 - ask (a question for your senior), answer (what you did and how you checked it; ends the task)
 Keep the names, signatures and imports the skeleton already has; fill in what's marked TODO; don't invent interfaces.
 After a change, check it (compile it, run the tests). Stuck: answer with your stuck point (what you were doing,
@@ -278,7 +282,8 @@ A new project starts with plan: the person's request as goals in its order, each
 come from the web or the person), its `files`, and `who` does it (you, or the junior: your contributors). Give work
 with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (say
 what's wrong and how to correct it), check it, or test (run the program or its tests and report what fails); brief
-(`files`, `question`): they read files and answer you; distill and the pages you fetch go to them first, their notes
+(`files`, `question`): they read files and answer you; they can search the web and fetch too (a research task: say what
+to find and where it goes); distill and the pages you fetch go to them first, their notes
 come to you; lfd (`focus`): they summarize the whole project for you to plan from. Their results come between your
 steps: review_task (`n`, `accept`, `note`); a long task gets a progress report: let it work, or direct it with
 follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). You have the final word."""
@@ -835,8 +840,8 @@ class Agent:
         """The tools this agent's card doesn't have."""
         if self.role == "senior":
             return {"errand"}  # its reading goes to the Junior (distill, assign)
-        if self.role == "junior":
-            return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS
+        if self.role == "junior":  # a cloud lead's contributors fetch too (Ian: "Fetch this, write that")
+            return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS - (WEB_TOOLS if getattr(self, "web", False) else set())
         if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
             return set(SENIOR_ONLY) | {"errand"}
         return set(SENIOR_ONLY)
@@ -915,7 +920,7 @@ class Agent:
                      sandbox=", sandboxed without network" if self.sandbox else "",
                      net=NET_LINE if self.sandbox and self.mode == "auto" and self.role != "junior" else "")
         if self.role == "junior":
-            return JUNIOR_SYSTEM.format(**parts)
+            return JUNIOR_SYSTEM.format(**parts, web=JUNIOR_WEB if getattr(self, "web", False) else "")
         crew = getattr(self, "cloud_crew", "")  # the cloud leads, local contributors work for it
         return SYSTEM.format(**parts) + ((SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
                                          if self.role == "senior" else "")
@@ -2647,6 +2652,8 @@ def main(argv=None) -> int:
     if crew:  # the cloud leads; its local contributors do the reading, writing, testing and fixing (pair.py)
         helpers = [Agent(root, b.chat, n, mode, a.admin, ctx=int(b.cfg.get("context", 8192)),
                          say=lambda s, who=n: said(f"\033[2m({who}) {s}\033[0m")) for b, n in crew]
+        for h in helpers:
+            h.web = True  # "fetch this": the contributors search and fetch, each asked of the person first
         if len(helpers) == 2:
             team_b = pair_mod.Crew(agent, helpers[0], helpers[1], say=said)
             agent.cloud_crew = (f"Two contributors: {crew[0][1]} writes, fixes, checks and tests; {crew[1][1]}, the "

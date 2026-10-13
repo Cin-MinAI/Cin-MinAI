@@ -631,6 +631,11 @@ class CrewTest(unittest.TestCase):
         self.assertIn("You lead from the cloud", lead.system())
         self.assertIn("Two contributors", lead.system())
         self.assertEqual((coder.role, reader.role, lead.role), ("junior", "junior", "senior"))
+        self.assertIn("web_search", coder.excluded())  # team B's junior: no web
+        coder.web = reader.web = True  # a cloud lead's contributors: "Fetch this, write that" (Ian)
+        self.assertNotIn("web_search", reader.excluded())
+        self.assertNotIn("fetch", reader.excluded())
+        self.assertIn("web_search (a `query`", reader.system())
         self.assertIn("task 1 given to your junior (write rules.py)", lead.do(
             {"tool": "assign", "path": "rules.py", "task": "fill draw so it takes the top card", "kind": "write"}))
         self.assertIn("task 2 given to your junior", lead.do(
