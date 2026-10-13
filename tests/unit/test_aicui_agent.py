@@ -547,6 +547,15 @@ class AgentTest(unittest.TestCase):
         os.utime(shot, None)
         self.assertNotIn("it shows the program as it was", a.system())
 
+    def test_work_given_to_a_contributor_is_progress(self):
+        """2026-10-12: Haiku leading gave seven tasks in fifteen steps and was stopped for "no progress"."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        self.assertTrue(a.progressed({"tool": "assign"}, "task 3 given to your junior (write rules.py); rules.py is held"))
+        self.assertTrue(a.progressed({"tool": "brief"}, "task 4 given to your junior (brief: a.py — what's in it)"))
+        self.assertTrue(a.progressed({"tool": "follow_up"}, "sent to your junior: it reads it at its next step on task 3"))
+        self.assertTrue(a.progressed({"tool": "review_task"}, "task 3 accepted"))
+        self.assertFalse(a.progressed({"tool": "assign"}, "error: rules.py is already held by task 3"))
+
     def test_three_unusable_replies_in_a_row_end_the_task(self):
         """2026-10-12: a cloud model sent 25 unusable replies in a row, each one paid for, until the stuck limit."""
         a = Agent(self.root, Scripted([("not json", {})] * 3 + [step("", tool="answer", text="never")]), "m", "auto",

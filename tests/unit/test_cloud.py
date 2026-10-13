@@ -172,3 +172,19 @@ class Pictures(unittest.TestCase):
             for p in t["content"]:
                 if p["type"] == "text":
                     self.assertTrue(p["text"].strip())
+
+    def test_a_reply_without_a_tool_call_is_kept_and_its_text_tried(self):
+        """2026-10-12: Haiku leading sent 8 replies the agent couldn't use; nothing showed what they were."""
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        reply = {"content": [{"type": "text", "text": json.dumps(STEP)}], "stop_reason": "end_turn",
+                 "usage": {"input_tokens": 10, "output_tokens": 30}}
+        b = cloud.Anthropic(root, lambda: "sk-ant-test-key-0123456789abcdef", opener=FakeAnthropic([reply]))
+        text, _ = b.chat([{"role": "user", "content": "go"}], schema=SCHEMA)
+        self.assertEqual(json.loads(text), STEP)
+        kept = os.listdir(os.path.join(root, ".cinminai", "cutoffs"))
+        self.assertEqual(len(kept), 1)
+        with open(os.path.join(root, ".cinminai", "cutoffs", kept[0])) as f:
+            got = f.read()
+        self.assertIn("end_turn", got)
+        self.assertNotIn("sk-ant", got)

@@ -1381,6 +1381,12 @@ class Agent:
             return True
         if tool in ("goal_add", "need") and not result.startswith("error"):  # create (a goal; the environment's entry)
             return True
+        if tool in ("assign", "brief", "follow_up") and re.match(r"(task \d+ given|sent to your junior|task \d+ hasn't "
+                                                                 r"started)", result):
+            return True  # create: work given to a contributor (2026-10-12: Haiku leading gave seven tasks and was stopped
+            #             for "no progress" — directing is a lead's work)
+        if tool == "review_task" and re.match(r"task \d+ (accepted|given)", result):  # accept / reject
+            return True
         if tool in ("run", "goal_done"):  # pass / fail: a verdict, counted when it's a new one
             key = hash((tool, re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result)))  # timings and addresses aren't news
             if key not in self.outputs:

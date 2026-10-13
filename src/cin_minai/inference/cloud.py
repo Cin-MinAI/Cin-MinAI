@@ -221,8 +221,9 @@ class Anthropic:
         self.log(usage, usd)
         if schema is not None:
             block = next((b for b in got.get("content", []) if b.get("type") == "tool_use"), None)
-            if block is None:
-                text = ""
+            if block is None:  # no tool called: a step written as text is still a step; the reply is kept to study
+                text = "".join(b.get("text", "") for b in got.get("content", []) if b.get("type") == "text").strip()
+                self.keep(got)
             elif tools:  # the agent's step: {"thinking", "action": {"tool": the tool called, its inputs}}
                 inputs = dict(block.get("input") or {})
                 thinking = str(inputs.pop("thinking", ""))
@@ -240,6 +241,17 @@ class Anthropic:
                       "cache_n": usage.get("cache_read_input_tokens", 0), "gen_n": out_n, "predicted_n": out_n,
                       "seconds": round(seconds, 1), "gen_tps": round(out_n / seconds, 1) if seconds else 0,
                       "usd": round(usd, 5), "capped": got.get("stop_reason") == "max_tokens"}
+
+    def keep(self, got: dict) -> None:
+        """A reply with no step in it, kept as it came (its content and why it stopped; never the key) in
+        .cinminai/cutoffs, to see what the model did instead (2026-10-12: Haiku leading, 8 unusable replies)."""
+        folder = os.path.join(self.root, ".cinminai", "cutoffs")
+        try:
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, time.strftime("cloud-%Y%m%d-%H%M%S.json")), "w", encoding="utf-8") as f:
+                json.dump({k: got.get(k) for k in ("stop_reason", "content", "usage")}, f, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
 
     def log(self, usage: dict, usd: float) -> None:
         path = os.path.join(self.root, USAGE)
