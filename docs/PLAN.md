@@ -950,6 +950,19 @@ record is detected; a lost USB is recovered with the printed code.
   papers, uploaded from the browser), Cognito with GitHub as the sign-in. Far later, our own hardware through
   crowdfunding, git hosting included. The hard part is people, not servers: moderation, the legal duties of public
   uploads (takedowns, reporting illegal material) and trust in the reviewers (close to Quaddle's choice records).
+- **Our own security suite: a USB key with a static key and a rolling one** (Ian, 2026-10-13, an idea, no decision;
+  may replace the desktop keyring, joins D94's key for admin automation). A **static key** is made on a USB stick and
+  kept there, as for the OS's signing key; a **second key changes every time the static key is used** and holds for
+  that session; the stick holds both (the static key and the current rolling key). Any keyring-like change — reading a
+  cloud key, a GitHub push, an admin action — needs the stick in and the keys to match: "insert your key" when the
+  cloud is wanted, "you can remove it now" after auth; pulling it out secures the computer. Ian: "I thought it would
+  sit like a lockbox where you open it when you need something and lock it back up when you are done" (the login
+  keyring stays open for the whole session once unlocked). To settle when it's designed: the secrets on disk
+  **encrypted with a key that exists only with the stick in** (else a copy of the disk has them); the rolling key as a
+  ratchet (each use moves both sides on; a copied stick goes stale) with a resync step for a stick pulled mid-update;
+  a plain stick can be copied — a FIDO2 security key (D94: can't be read out) as the strong option, the stick as the
+  cheap one; a recovery copy (a second stick or a printed code), or a lost stick loses the vault; removing the stick
+  ends the session at once.
 
 ## 6. Open questions
 
