@@ -1038,6 +1038,20 @@ record is detected; a lost USB is recovered with the printed code.
   fTPM (Pluton included) otherwise, the stick alone on old hardware; (4) **teaching and openness** as the difference —
   Pluton says "trust us, it's handled", ours "here's how it works, check it, you hold the key" (D26). Layer 3 we build
   and ship; layers 1-2 are where we join and push the open projects, with the community.
+- **RAMenstein: terabytes of old DDR3 as AI memory, open hardware with the community** (Ian, 2026-10-13/14: "If we
+  developed that with the community onboard and gave it out, thats a new frontier with tech thats everywhere. That old
+  ram is lying in old office pc's and peoples cupboards and shelves."). The design that makes it work: **many small
+  nodes**, each an FPGA driving one or two DDR3 channels of its own, holding its slice of the model's weights and
+  doing its own matrix math on it — only the small activation vectors travel between nodes (near-memory computing,
+  as llama.cpp's RPC split keeps weights in place). Bandwidth adds per channel: 32 channels ≈ 200-400 GB/s, GPU-class,
+  with a terabyte behind it; bulk without channels would be hopeless (a model read through one slow controller takes
+  minutes per token). The RAM is the cheap part (used 32 GB server RDIMMs; office PCs' 4-8 GB unbuffered UDIMMs — a
+  board takes one kind or the other: a "cupboard edition" for UDIMMs); the work is the boards (length-matched DIMM
+  traces, KiCad), the FPGAs (Artix-7 class run DDR3 at 800-1066 MT/s; DLL-off mode for slow, forgiving first
+  versions) and the links between nodes. **Ian's Tang Nano 20K is node #1's brain, prototyped:** its own SDRAM
+  standing in for DDR3, a small matrix engine on its DSP blocks, a serial link taking an activation vector and sending
+  back the result — one node computing its slice correctly, then replicate. Its own open project, Cin-MinAI its
+  first user; e-waste into AI memory, for people without much money.
 
 ## 6. Open questions
 
