@@ -8,7 +8,7 @@ model's story: `docs/guide-model-journal.md`.
 
 ## Where we stopped (2026-10-14) — the ISO builds again; next: the alpha release
 
-- **Built since the last push (local, 70+ commits, not pushed — GitHub's main is 10-09's `10b0e39`):** team B's plan,
+- **Pushed 2026-10-14** (GitHub main `22615f0`, the 73 commits since 10-09's `10b0e39`): team B's plan,
   file kinds, the Senior's follow-up, LFD and `brief`, visible questions and `permit`; GitHub sign-in (device flow,
   `accounts.py`, AICUI's GitHub menu); the models' virtual screen; the cloud (`inference/cloud.py`: Anthropic by key,
   flat tools, pictures, tool-call history, budgets) with the roles **Finisher, Exclusive, Lead, Advisor**
@@ -20,7 +20,7 @@ model's story: `docs/guide-model-journal.md`.
   VM install test pass. Ian installs it on the test box's 120 GB drive (kept for install tests), then I check it over SSH.
 - **Ian's PC runs build `…175215`** (AICUI with Advisor, the keyring prompt, the draft fix); test13 (team B + Haiku as
   Advisor) runs.
-- **Next:** push (after the private-name scan); a signed apt-repo update; then the near-done decisions (PLAN §1b: 60 of
+- **Next:** a signed apt-repo update; then the near-done decisions (PLAN §1b: 60 of
   95 filled, 86 is the bar — D35 OpenAI by key, D61, D28, D51/D91 "is my computer secure?", D84); after the alpha, the
   sentinel's first slice (PLAN §4 "After the alpha"). Ideas from 10-13/14 in PLAN §5b (the security suite, an open
   Pluton alternative, the AI-OS architecture, RAMenstein, payments). Ian needs a USB stick for the signing-key backup.
