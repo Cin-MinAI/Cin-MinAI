@@ -1051,7 +1051,15 @@ record is detected; a lost USB is recovered with the printed code.
   versions) and the links between nodes. **Ian's Tang Nano 20K is node #1's brain, prototyped:** its own SDRAM
   standing in for DDR3, a small matrix engine on its DSP blocks, a serial link taking an activation vector and sending
   back the result — one node computing its slice correctly, then replicate. Its own open project, Cin-MinAI its
-  first user; e-waste into AI memory, for people without much money.
+  first user; e-waste into AI memory, for people without much money. **Its purpose: a community model trainer**
+  (Ian: "The idea behind was an easy way to build a community model trainer. that takes sooooo much memory"):
+  training needs ~16-18 bytes a parameter (16-bit weights, a 32-bit master copy, gradients, Adam's two running
+  averages) against ~0.5-2 to run it, so a 1B model needs ~16-20 GB to train. The hungriest part — the master weights
+  and the optimizer's states, ~12 of those bytes — is touched once a step with a few multiplies and adds per weight:
+  memory-heavy, compute-light. So the GPU does the forward and backward passes and the DDR3 nodes hold the optimizer
+  states and **run the Adam update in place** (ZeRO-Offload's idea, with the update done where the memory is). And
+  training across the internet on volunteers' machines (DiLoCo-style, syncing every few hundred steps; Prime
+  Intellect's INTELLECT models) — each person bringing a GPU and a box of old DDR3.
 
 ## 6. Open questions
 
