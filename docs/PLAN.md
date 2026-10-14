@@ -1038,6 +1038,29 @@ record is detected; a lost USB is recovered with the printed code.
   fTPM (Pluton included) otherwise, the stick alone on old hardware; (4) **teaching and openness** as the difference —
   Pluton says "trust us, it's handled", ours "here's how it works, check it, you hold the key" (D26). Layer 3 we build
   and ship; layers 1-2 are where we join and push the open projects, with the community.
+- **The AI-OS architecture: a Sentinel at the bottom, the desktop a generated VM on top** (Ian's sketch, 2026-10-13,
+  "AI-OS Evolution" in his dev pictures). Layers: a **physical unlock** (biometric/USB device) read by the **Sentinel
+  AI in a major security chip**, which holds three vaults — the **bio/USB metrics vault**, the **AI OS vault**, the
+  **user vault** (read/write through the Sentinel); the **AI OS vault hardware** — the AI's own matrix/tensor cores, a
+  small CPU, some memory — reached only through the Sentinel's security channel; and the person's computer as a
+  **generated VM, "desktop of choice (+ kernel)"**, whose only path down is the Sentinel's desktop channel. The usual
+  OS turned over: security and the AI at the bottom, the desktop a disposable guest — malware there can't reach the
+  vaults, the keys or the AI's hardware, and a compromised desktop is regenerated clean (the answer to self-copying
+  bots: nowhere underneath to live). Work that exists: Qubes OS (a desktop compartmentalized in VMs over Xen), Windows'
+  virtualization-based security (Credential Guard in its own VM), Apple's Secure Enclave and Private Cloud Compute,
+  the NPU trend. Prototype on today's PCs: KVM at the bottom, the Sentinel a locked-down host with the TPM and the USB
+  key, one GPU for the AI vault and one passed through to the desktop VM (Ian's dual-card plan). AICUI was built for the
+  feel it needs (Ian: "Part of why I did AICUI was to get that feel"): the AI working in view, direct, nothing hidden.
+  **Sentinel updates by hand, never over the network** (Ian: "We can make sentinel updates by usb, and you take the usb
+  to a physical location to update. We get libraries onboard or something"): a layer that can't be reached online
+  can't be attacked online. Libraries as the places — trusted, everywhere, free, neutral, already teaching digital
+  skills. Safeguards: the library is the courier, never the authority — the device's security chip checks every
+  signature itself; updates need several independent maintainers' signatures (e.g. 3 of 5); reproducible builds and a
+  public log of every release; applied only with the person's key, PIN and voice; the same update by mail or carried
+  from another computer for those far from a library; a defined, still-offline emergency path for a serious flaw.
+  Open questions: what the Sentinel may see of the desktop (local, open, inspectable — or it's surveillance); the AI
+  acting on the desktop only through typed, recorded actions (D85, the action record); updating and recovering the
+  bottom layer itself (D42's recovery USB, the key); a VM desktop that feels native (GPU passthrough, no lag).
 - **RAMenstein: terabytes of old DDR3 as AI memory, open hardware with the community** (Ian, 2026-10-13/14: "If we
   developed that with the community onboard and gave it out, thats a new frontier with tech thats everywhere. That old
   ram is lying in old office pc's and peoples cupboards and shelves."). The design that makes it work: **many small
