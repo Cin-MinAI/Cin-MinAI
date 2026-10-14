@@ -1067,7 +1067,10 @@ record is detected; a lost USB is recovered with the printed code.
   (more than one enrolled, or delegated update rights); selling or giving the computer away (the old owner releases it
   with their key, the new one enrolls; a recovery path for a lost key, so a used PC isn't a brick); people biometrics
   fail for (injury, disability, a voice changed by illness) — alternatives of equal strength, a second key or a
-  recovery code, so security never shuts anyone out.
+  recovery code, so security never shuts anyone out. A side effect Ian saw: **a stamp from each library** on the key —
+  "It could end up like Pokemon Go where people want their keys updated from different libraries since it stores
+  that" — owned by the person and nowhere but on their key ("You own it though. It isnt anywhere but the usb. If you
+  want to talk about it, thats what you wanted"); behind the key's PIN like everything on it.
   Open questions: what the Sentinel may see of the desktop (local, open, inspectable — or it's surveillance); the AI
   acting on the desktop only through typed, recorded actions (D85, the action record); updating and recovering the
   bottom layer itself (D42's recovery USB, the key); a VM desktop that feels native (GPU passthrough, no lag).
