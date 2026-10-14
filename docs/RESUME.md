@@ -1,10 +1,29 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-10** (latest: journal "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-14** (latest: journal "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-14) — the ISO builds again; next: the alpha release
+
+- **Built since the last push (local, 70+ commits, not pushed — GitHub's main is 10-09's `10b0e39`):** team B's plan,
+  file kinds, the Senior's follow-up, LFD and `brief`, visible questions and `permit`; GitHub sign-in (device flow,
+  `accounts.py`, AICUI's GitHub menu); the models' virtual screen; the cloud (`inference/cloud.py`: Anthropic by key,
+  flat tools, pictures, tool-call history, budgets) with the roles **Finisher, Exclusive, Lead, Advisor**
+  (`aicui/advisor.py`, `pair.Crew`); continuity (carry-over, `original-request.txt`, `screenshots/`); the bottom-right
+  cloud model box; the locked-keyring prompt; the ISO pipeline fixed (snapshot pin 100, retries, a local snapshot
+  cache, `check-iso` naming additions and upgrades). Rules: `docs/aicui-rules.md` A34–A38. Cloud: `docs/accounts-and-cloud.md`.
+- **The ISO** (2026-10-13): `C:\Users\Ian\cinminai-vm\iso\cinminai-0.0.1-amd64-20261013.iso`, SHA-256
+  `8aad62d7c4e6c0c570a32e0d2b66d77925bc637aef26df3e2dd6179bc2b67f6e`; every `check-iso` check, the VM boot test and the
+  VM install test pass. Ian installs it on the test box's 120 GB drive (kept for install tests), then I check it over SSH.
+- **Ian's PC runs build `…175215`** (AICUI with Advisor, the keyring prompt, the draft fix); test13 (team B + Haiku as
+  Advisor) runs.
+- **Next:** push (after the private-name scan); a signed apt-repo update; then the near-done decisions (PLAN §1b: 60 of
+  95 filled, 86 is the bar — D35 OpenAI by key, D61, D28, D51/D91 "is my computer secure?", D84); after the alpha, the
+  sentinel's first slice (PLAN §4 "After the alpha"). Ideas from 10-13/14 in PLAN §5b (the security suite, an open
+  Pluton alternative, the AI-OS architecture, RAMenstein, payments). Ian needs a USB stick for the signing-key backup.
 
 ## Where we stopped (2026-10-10, afternoon) — the regroup and our own search; next: test5 again
 

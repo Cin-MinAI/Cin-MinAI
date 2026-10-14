@@ -1738,3 +1738,84 @@ connected to the internet they want to search things"). One thing had to change 
 every request up as a Chrome browser. Cin-MinAI never gets around bot checks, so ours goes out as what it is, and
 an engine that says no is set aside. Google's says no; DuckDuckGo and Bing answer, and with the ads filtered out the
 searches test5 got lost in now find the card lists and the rulebook in under a second.
+
+## 2026-10-10 (evening) — a plan first, a summary of everything, and questions you can see
+
+**A plan before any code.** Team B's Senior now starts a new project with `plan`: the request as goals, in its order,
+each saying what has to come from outside (only what the web or the person must supply, never the project's own
+work), which files it writes, and who does it. The person sees it once. A goal's files can't be written, and the goal
+can't be ticked, until what it needs from outside is in. Every kept file now says what it holds (page text, page
+markup, a picture…), so a page's markup no longer counts as a second source, and a picture need is met only by a
+picture. When the Junior's goal goes wrong, the Senior checks in after a few of its own steps and sends direction.
+
+**LFD, Large File Distillation (Ian's idea).** When a project is too big to hold in mind, both models summarize it
+from opposite ends: the Junior from the smallest file, the Senior from the largest, each file in a fresh context, into
+one summary. Then the Senior's context is cleared and it plans again from the summary. `brief` asks the Junior to read
+a few files and answer a question, so the Senior doesn't spend five minutes reading them itself.
+
+**Questions you can see.** A permission question stays on screen while the work goes on around it, and says who asks
+and for what; the Junior's questions go to the person and to the Senior, and whoever answers first decides. Commands
+never reach the internet in Ask; in Auto, one that needs it asks once for the session. The sidebar's Hugging Face
+search got a Download button.
+
+## 2026-10-11 to 10-12 — GitHub sign-in, a screen for the models, and the cloud arrives
+
+**GitHub, once.** Cin-MinAI's own GitHub App signs a computer in through the person's browser (the device flow: a
+short code, approved on github.com), keeps the tokens in the login keyring and renews them, and AICUI links a project
+to a repository, saves to it and brings changes in. The bot account it was meant for is still waiting on GitHub to
+lift an automatic flag; Ian's own account tested it end to end.
+
+**A screen for the models' commands.** Models build Python windows with tkinter, and a window with nowhere to open
+hid two real crashes behind "couldn't connect to display". Commands now get a virtual screen of their own inside the
+sandbox, so a test shows the program's real errors; the models fixed the crashes themselves once they could see them.
+
+**The cloud, by API key.** Ian's direction: develop mostly locally, then let a cheap cloud model finish — for people
+without much money. Anthropic's key is pasted once into the keyring and never shown to a model; every call's cost is
+logged and a budget per project is checked before each one. The first runs with Haiku as the Finisher taught a lot in
+a day: one tool with a nested choice gave unusable replies (now every action is its own simple tool); it couldn't see
+pictures (now it reads them itself); an empty answer reached the person as a blank reply (now it's sent back). A new
+project now keeps its first request in `original-request.txt`, and every project has a `screenshots/` folder for the
+person or the AI — both things Ian had been doing by hand.
+
+## 2026-10-12 (night) to 10-13 — the cloud leads, the cloud advises
+
+**What Haiku alone showed.** On a big project the Finisher lost the thread at every stop: told to continue, it read
+the same files again, trusted a screenshot taken before its own fix, and hunted for tests that didn't exist. The
+local team picked the same project straight back up. Three fixes for every model: the next request is told what the
+last one read, changed and thought (and a restart picks up from the checkpoint); an old screenshot is said to be old;
+the Finisher works the plan's open goals.
+
+**Lead.** Ian: "turn the 2 local models into tool calls locally to conserve tokens. Fetch this, write that, test this,
+correct that with this." The cloud model takes the Senior's seat; one or two local models are its contributors with
+set functions — write, fix, check, test, read, fetch. Getting it right took a night: handing out work hadn't counted
+as progress, so the step limit stopped a lead that was directing; the model's earlier steps went to it as JSON text
+while it had to answer with tool calls, and it mixed the two (now they go as the tool calls they were); a field named
+`thinking` invited Claude's own markup into it (now `reason`).
+
+**Advisor.** Then the other way round, Ian's wish: the local models do all the work and ask the cloud when it helps,
+and AICUI asks by itself when the work stalls or a step is refused twice. On its first big run it was called once, for
+half a cent, and turned a loop around. The advice now shows in its own blue bubble.
+
+**Smaller things the runs found.** A question to the person waited unseen behind a helper's task (now it goes out at
+once). A file being rewritten in parts looked empty when read, so the model started over three times (now reading it
+shows the draft). With automatic login the keyring stays locked after a restart, and AICUI took the locked key for a
+missing one (now it says so and offers the desktop's unlock prompt). The bottom-right box became the cloud model
+picker, filled from the provider's own model list.
+
+## 2026-10-13 to 10-14 — the ISO builds again, and a security plan
+
+**The ISO.** It had stopped building on 10-08. Ubuntu packages from the dated snapshot could only install, never
+upgrade one already in the image, and two new dependencies needed newer versions of what the image had (Python 3.12
+for project environments, X server parts for the models' screen). They may upgrade now, only where ours need it, and
+the check names every addition and every upgrade. Then Ubuntu's snapshot server spent an afternoon answering "503";
+apt now retries, and everything the ISO takes from the snapshot is kept on the build machine, so the next build
+doesn't need that server at all. The full pipeline passed: every check, the boot test and the install test in a VM.
+Next, a real install on a drive kept for that.
+
+**A security plan.** A long conversation with Ian about where this goes, all written into PLAN §5b as ideas (the
+decision freeze holds): teaching security as a priority, starting with a plain-words "is my computer secure?"; a
+security suite of our own — a USB key with a rolling key, a PIN and a biometric, keys behind the TPM; an open
+alternative to Microsoft's Pluton as the long-term plan, built on open roots of trust with the community; and a
+sketch of the AI-OS to come — a sentinel and the vaults at the bottom, the desktop a disposable VM on top, the
+sentinel updated only by hand, through libraries. First after the alpha: a local watcher on the places a program
+that copies itself has to touch.
