@@ -3,7 +3,11 @@
 chat's background; a default font, size and text colour; and each speaker's own — its font, size, text colour and,
 in bubbles or boxes, its background. In the terminal style there are no bubbles or boxes, so only the chat's
 background has a colour. Kept per person (~/.config/cinminai/aicui-chat.json), not per project, and turned into the
-CSS AICUI applies above its own (css())."""
+CSS AICUI applies above its own (css()).
+
+The AI terminal too (Ian, 2026-10-14: "I want the AI terminal customizable also… people like to be creative and feel
+personalized when they sit down"): its background, text colour, one font and size (a terminal has one), and a text
+colour for each speaker's lines — which the agent itself prints in that colour (paint())."""
 
 from __future__ import annotations
 
@@ -18,13 +22,19 @@ WHO = (("user", "You"),
        ("cloud", "The cloud advisor"),
        ("app", "AICUI's own notes"))
 NAMES = {"user": "you", "ai": "ai", "junior": "junior", "cloud": "☁ advisor", "app": "aicui"}  # the terminal's prompts
+# the speakers in the AI terminal: the lines the agent prints for each (the AI's own, the second model's, the advisor's)
+TERM_WHO = (("user", "You (your prompt)"),
+            ("ai", "The AI (the lead model)"),
+            ("junior", "The second model (Junior, helpers, contributors)"),
+            ("cloud", "The cloud advisor"))
 STYLES = (("bubbles", "Bubbles"), ("boxes", "Boxes"), ("terminal", "Straight terminal"))
 FIELDS = ("background", "font", "color")   # "" = as the theme (or the chat's default) has it
 
 
 def defaults() -> dict:
     return {"style": "bubbles", "background": "", "font": "", "color": "",
-            "who": {w: {f: "" for f in FIELDS} for w, _ in WHO}}
+            "who": {w: {f: "" for f in FIELDS} for w, _ in WHO},
+            "terminal": {"background": "", "color": "", "font": "", "who": {w: {"color": ""} for w, _ in TERM_WHO}}}
 
 
 def path() -> str:
@@ -58,6 +68,12 @@ def clean(prefs: dict) -> dict:
     fill(out, prefs)
     for w, _ in WHO:
         fill(out["who"][w], (prefs.get("who") or {}).get(w))
+    term = prefs.get("terminal") if isinstance(prefs.get("terminal"), dict) else {}
+    fill(out["terminal"], term)
+    for w, _ in TERM_WHO:
+        fill(out["terminal"]["who"][w], (term.get("who") or {}).get(w))
+        for f in ("background", "font"):  # one font in a terminal; no backgrounds behind lines
+            out["terminal"]["who"][w].pop(f, None)
     return out
 
 
@@ -95,15 +111,47 @@ def font_css(font: str) -> str:
     return " ".join(props)
 
 
-def dark(color: str) -> bool:
-    """Whether text needs to be light on this colour (its luminance; a see-through colour counts as it shows)."""
+def rgb(color: str) -> tuple[int, int, int]:
+    """A colour as written here (#rgb, #rrggbb, rgb(), rgba()) → its red, green and blue, 0-255."""
     if color.startswith("#"):
         h = color[1:]
         h = "".join(c * 2 for c in h[:3]) if len(h) in (3, 4) else h[:6]
         r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
-    else:
-        r, g, b = (float(x) for x in re.findall(r"[\d.]+", color)[:3])
+        return r, g, b
+    r, g, b = (int(float(x)) for x in re.findall(r"[\d.]+", color)[:3])
+    return r, g, b
+
+
+def dark(color: str) -> bool:
+    """Whether text needs to be light on this colour (its luminance; a see-through colour counts as it shows)."""
+    r, g, b = rgb(color)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128
+
+
+# --- the AI terminal: the agent prints each speaker's lines in the colour chosen for it -------------------------------
+_cache = {"mtime": None, "prefs": None}
+
+
+def current() -> dict:
+    """The person's choices, read again only when the file changed — so a new colour holds from the next line."""
+    try:
+        mtime = os.path.getmtime(path())
+    except OSError:
+        mtime = None
+    if _cache["prefs"] is None or mtime != _cache["mtime"]:
+        _cache["mtime"], _cache["prefs"] = mtime, load()
+    return _cache["prefs"]
+
+
+def paint(who: str, text: str, fallback: str = "", prefs: dict | None = None) -> str:
+    """text in the terminal colour chosen for this speaker (24-bit colour, as VTE shows it), else in fallback (the
+    agent's own ANSI code for it); the resets inside the text keep the speaker's colour after them."""
+    p = prefs or current()
+    color = p["terminal"]["who"].get(who, {}).get("color", "")
+    code = "\033[38;2;{};{};{}m".format(*rgb(color)) if color else fallback
+    if not code:
+        return text
+    return code + text.replace("\033[0m", "\033[0m" + code) + "\033[0m"
 
 
 def rules(spec: dict, background: bool) -> str:

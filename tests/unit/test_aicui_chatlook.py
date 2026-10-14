@@ -70,5 +70,42 @@ class ChatLookTest(unittest.TestCase):
         self.assertNotIn("#1e1e1e", C.css(p))  # the person's own choice stands
 
 
+class TerminalLookTest(unittest.TestCase):
+    def test_a_speaker_prints_in_its_chosen_colour(self):
+        p = C.defaults()
+        p["terminal"]["who"]["junior"]["color"] = "#33d17a"
+        out = C.paint("junior", "(junior) wrote \033[1mx\033[0m and more", "\033[2m", p)
+        self.assertTrue(out.startswith("\033[38;2;51;209;122m"))
+        self.assertIn("\033[0m\033[38;2;51;209;122m and more", out)  # the colour holds after a reset inside
+        self.assertTrue(out.endswith("\033[0m"))
+
+    def test_no_colour_chosen_keeps_the_agents_own(self):
+        p = C.defaults()
+        self.assertEqual(C.paint("junior", "hi", "\033[2m", p), "\033[2mhi\033[0m")
+        self.assertEqual(C.paint("ai", "hi", "", p), "hi")
+
+    def test_the_terminal_keeps_one_font_and_no_line_backgrounds(self):
+        p = C.clean({"terminal": {"background": "#101010", "font": "Monospace 13",
+                                  "who": {"ai": {"color": "#ffffff", "background": "#ff0000", "font": "Serif 20"},
+                                          "user": {"color": "nope"}}}})
+        self.assertEqual((p["terminal"]["background"], p["terminal"]["font"]), ("#101010", "Monospace 13"))
+        self.assertEqual(p["terminal"]["who"]["ai"], {"color": "#ffffff"})
+        self.assertEqual(p["terminal"]["who"]["user"], {"color": ""})
+
+    def test_new_colours_hold_from_the_next_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.environ["XDG_CONFIG_HOME"] = d
+            try:
+                self.assertEqual(C.paint("ai", "a"), "a")
+                p = C.defaults()
+                p["terminal"]["who"]["ai"]["color"] = "rgb(1,2,3)"
+                C.save(p)
+                os.utime(C.path(), (1, 1))  # a different time than any read before
+                self.assertEqual(C.paint("ai", "a"), "\033[38;2;1;2;3ma\033[0m")
+            finally:
+                del os.environ["XDG_CONFIG_HOME"]
+                C._cache.update(mtime=None, prefs=None)
+
+
 if __name__ == "__main__":
     unittest.main()

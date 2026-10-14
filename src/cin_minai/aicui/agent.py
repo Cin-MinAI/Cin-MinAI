@@ -28,7 +28,7 @@ import threading
 import time
 
 from .changelog import Changelog
-from . import intake, look
+from . import chatlook, intake, look
 from .project import (DATA_FILES, HIDE, Goals, entry_point, env_state, goal_stages, project_root, tree,
                       want_package)
 
@@ -2662,6 +2662,9 @@ def local_backend(say=print):
     return LlamaCppBackend(cfg, log), plan["model"]
 
 
+PLAIN = {"junior": "\033[2m"}  # a speaker's terminal colour when the person chose none (chatlook.paint)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="cinminai-code", description="The coding agent in AICUI's terminal.")
     ap.add_argument("folder", nargs="?", default=os.getcwd())
@@ -2719,8 +2722,8 @@ def main(argv=None) -> int:
         sys.stdout.write(f"\r\033[2m… {text}\033[0m\033[K")
         sys.stdout.flush()
 
-    def said(text: str) -> None:  # a line said; a question waiting is shown again below it
-        print(f"\r\033[K{text}")
+    def said(text: str, who: str = "ai") -> None:  # a line said, in its speaker's colour; a question waiting is
+        print(f"\r\033[K{chatlook.paint(who, text, PLAIN.get(who, ''))}")  # shown again below it
         if PENDING["prompt"]:
             sys.stdout.write(PENDING["prompt"])
             sys.stdout.flush()
@@ -2732,7 +2735,7 @@ def main(argv=None) -> int:
     team_b = None
     if crew:  # the cloud leads; its local contributors do the reading, writing, testing and fixing (pair.py)
         helpers = [Agent(root, b.chat, n, mode, a.admin, ctx=int(b.cfg.get("context", 8192)),
-                         say=lambda s, who=n: said(f"\033[2m({who}) {s}\033[0m")) for b, n in crew]
+                         say=lambda s, who=n: said(f"({who}) {s}", "junior")) for b, n in crew]
         for h in helpers:
             h.web = True  # "fetch this": the contributors search and fetch, each asked of the person first
         if len(helpers) == 2:
@@ -2746,7 +2749,7 @@ def main(argv=None) -> int:
     if both:  # style B: this agent is the Senior; the 9B Junior codes beside it (pair.py)
         junior = Agent(root, junior_backend.chat, junior_name, mode, a.admin,
                        ctx=int(junior_backend.cfg.get("context", 8192)),
-                       say=lambda s: said(f"\033[2m(junior) {s}\033[0m"))
+                       say=lambda s: said(f"(junior) {s}", "junior"))
         team_b = pair_mod.Pair(agent, junior, say=said)
         if senior_sees:
             agent.reader = lambda: agent.chat
@@ -2798,7 +2801,8 @@ def main(argv=None) -> int:
     try:
         while True:
             try:
-                text, first = (first, "") if first else (input("\033[1;34myou>\033[0m ").strip(), "")
+                prompt = chatlook.paint("user", "you>", "\033[1;34m") + " "  # in the colour chosen for you
+                text, first = (first, "") if first else (input(prompt).strip(), "")
             except EOFError:
                 break
             except KeyboardInterrupt:  # Stop while nothing runs: a fresh prompt — and the background work, as chosen

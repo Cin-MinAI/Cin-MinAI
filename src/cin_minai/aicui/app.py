@@ -123,6 +123,7 @@ class Workspace(Gtk.ApplicationWindow):
         # right: the AI terminal, a real one in the project folder
         self.term = Vte.Terminal()
         self.term.set_scrollback_lines(10000)
+        self.apply_look()  # the person's colours and font for the AI terminal too (chatlook.py)
         env = [f"CINMINAI_PROJECT={root}"] + ([f"PYTHONPATH={os.environ['PYTHONPATH']}"]
                                               if os.environ.get("PYTHONPATH") else [])
         screen = screen_fact()
@@ -520,8 +521,9 @@ class Workspace(Gtk.ApplicationWindow):
         context.set_tooltip_text("How much each local model keeps in view: fill the card, leave yourself room, or "
                                  "choose the sizes")
         context.connect("clicked", lambda b: self.context_dialog())
-        look = Gtk.Button(label="Chat look")
-        look.set_tooltip_text("Bubbles, boxes or a straight terminal; colours, fonts and sizes, for each speaker")
+        look = Gtk.Button(label="Look")
+        look.set_tooltip_text("The chat and the AI terminal: bubbles, boxes or a straight terminal; colours, fonts "
+                              "and sizes, for each speaker")
         look.connect("clicked", lambda b: self.look_dialog())
         box = Gtk.Box(spacing=6, margin_top=4, margin_start=4)
         for w in (file_button, self.team_button, context, look):
@@ -1173,14 +1175,27 @@ class Workspace(Gtk.ApplicationWindow):
         style.add_class(f"chat-{self.look['style']}")
         for name in self.prompts:
             name.set_visible(self.look["style"] == "terminal")
+        if hasattr(self, "term"):  # the AI terminal: background, text colour, one font (each speaker's colour is
+            t = self.look["terminal"]  # printed by the agent itself, chatlook.paint)
+            fg, bg = Gdk.RGBA(), Gdk.RGBA()
+            text = t["color"] or (("#e8e8e8" if chatlook.dark(t["background"]) else "#1e1e1e") if t["background"]
+                                  else "")
+            self.term.set_colors(fg if text and fg.parse(text) else None,
+                                 bg if t["background"] and bg.parse(t["background"]) else None, None)
+            self.term.set_font(Pango.FontDescription.from_string(t["font"]) if t["font"] else None)
 
     def look_dialog(self) -> None:
-        """Every choice shows at once in the chat and is kept (~/.config/cinminai/aicui-chat.json)."""
-        d = Gtk.Dialog(title="Chat look", transient_for=self, modal=False)
+        """Every choice shows at once in the chat or the AI terminal and is kept (~/.config/cinminai/aicui-chat.json).
+        Two tabs: the chat, and the AI terminal (Ian, 2026-10-14: "Let people make the look they want")."""
+        d = Gtk.Dialog(title="Look", transient_for=self, modal=False)
         d.add_button("Back to the theme's look", 1)
         d.add_button("Close", Gtk.ResponseType.CLOSE)
         grid = Gtk.Grid(row_spacing=6, column_spacing=10, margin=12)
-        d.get_content_area().add(grid)
+        tgrid = Gtk.Grid(row_spacing=6, column_spacing=10, margin=12)
+        tabs = Gtk.Notebook()
+        tabs.append_page(grid, Gtk.Label(label="Chat"))
+        tabs.append_page(tgrid, Gtk.Label(label="AI terminal"))
+        d.get_content_area().add(tabs)
         widgets = []   # (widget, spec dict, field) — refilled after a reset
 
         def changed(*_):
@@ -1193,7 +1208,7 @@ class Workspace(Gtk.ApplicationWindow):
             chatlook.save(self.look)
             terminal = self.look["style"] == "terminal"
             for w, spec, field in widgets:
-                if field == "background" and spec is not self.look:
+                if field == "background" and any(spec is v for v in self.look["who"].values()):
                     w.set_sensitive(not terminal)  # no bubbles or boxes: only the chat's background has a colour
 
         def color(spec: dict, field: str) -> Gtk.ColorButton:
@@ -1232,9 +1247,24 @@ class Workspace(Gtk.ApplicationWindow):
             return b
 
         def fill() -> None:
-            for child in grid.get_children():
-                grid.remove(child)
+            for child in grid.get_children() + tgrid.get_children():
+                child.get_parent().remove(child)
             widgets.clear()
+            term = self.look["terminal"]
+            for row, (label, widget) in enumerate((("Background", color(term, "background")),
+                                                   ("Text colour", color(term, "color")),
+                                                   ("Font and size", font(term)))):
+                tgrid.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
+                tgrid.attach(widget, 1, row, 1, 1)
+            note = Gtk.Label(xalign=0, wrap=True, max_width_chars=60, label=(
+                "A terminal has one font for everything. Each speaker's lines can have their own colour, from the "
+                "next line the AI prints."))
+            note.get_style_context().add_class("dim-label")
+            tgrid.attach(note, 0, 3, 2, 1)
+            for row, (who, label) in enumerate(chatlook.TERM_WHO, start=4):
+                tgrid.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
+                tgrid.attach(color(term["who"][who], "color"), 1, row, 1, 1)
+            tgrid.show_all()
             row = 0
             grid.attach(Gtk.Label(label="Style", xalign=0), 0, row, 1, 1)
             styles = Gtk.Box(spacing=8)

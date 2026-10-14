@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import os
 
-MAX_USES = 5        # advisor calls in one request
+from .chatlook import paint
+
+MAX_USES = 5       # advisor calls in one request
 STEPS_SHOWN = 8     # the last steps the advisor reads
 ANSWER_TOKENS = 900
 
@@ -49,8 +51,8 @@ class Advisor:
             return (f"error: the advisor has answered {MAX_USES} times in this request — go on with what it said, or "
                     "ask the person")
         self.agent.event("handoff", by="coder", to="advisor", text=(f"({why}) " if why else "") + question)
-        self.agent.say(f"\033[1;34m☁ Asking the cloud advisor ({self.name}){' — ' + why if why else ''}: "
-                       f"{question[:200]}\033[0m")
+        self.agent.say(paint("cloud", f"☁ Asking the cloud advisor ({self.name}){' — ' + why if why else ''}: "
+                                      f"{question[:200]}", "\033[1;34m"))
         try:
             text, _ = self.backend.chat([{"role": "system", "content": SYSTEM},
                                          {"role": "user", "content": self.brief(question)}], max_tokens=ANSWER_TOKENS)
@@ -59,7 +61,7 @@ class Advisor:
         self.uses += 1
         text = str(text).strip() or "(no advice)"
         self.agent.event("handoff", by="advisor", to="coder", text=text)
-        self.agent.say(f"\033[34m☁ The cloud advisor says:\n{text}\033[0m")
+        self.agent.say(paint("cloud", f"☁ The cloud advisor says:\n{text}", "\033[34m"))  # its terminal colour
         return f"Advice from {self.name} (the cloud advisor):\n{text}"
 
     def brief(self, question: str) -> str:
