@@ -309,6 +309,8 @@ class Workspace(Gtk.ApplicationWindow):
                 self.load_tree()
             elif e["kind"] == "goals":
                 self.load_goals()
+            elif e["kind"] == "bench":  # the Benchmark button's result (bench.py)
+                self.bubble("app", e.get("text", ""))
             elif e["kind"] == "errands":  # what the helper has out (tandem.py): asked about at Stop
                 self.errands = e.get("out", [])
         return True
@@ -521,12 +523,16 @@ class Workspace(Gtk.ApplicationWindow):
         context.set_tooltip_text("How much each local model keeps in view: fill the card, leave yourself room, or "
                                  "choose the sizes")
         context.connect("clicked", lambda b: self.context_dialog())
+        bench = Gtk.Button(label="Benchmark")
+        bench.set_tooltip_text("Measure the setup you're on: the context sizes that hold on this card, and how fast "
+                               "it reads and writes. The Context options use it.")
+        bench.connect("clicked", lambda b: self.benchmark())
         look = Gtk.Button(label="Look")
         look.set_tooltip_text("The chat and the AI terminal: bubbles, boxes or a straight terminal; colours, fonts "
                               "and sizes, for each speaker")
         look.connect("clicked", lambda b: self.look_dialog())
         box = Gtk.Box(spacing=6, margin_top=4, margin_start=4)
-        for w in (file_button, self.team_button, context, look):
+        for w in (file_button, self.team_button, context, bench, look):
             box.pack_start(w, False, False, 0)
         cloud = Gtk.Button(label="Cloud models")
         cloud.set_tooltip_text("A cloud model with your own API key: finish a project, or work with the cloud only")
@@ -1029,7 +1035,7 @@ class Workspace(Gtk.ApplicationWindow):
                   or contextfit.DEFAULT)] if m else []), machine
 
     def context_dialog(self) -> None:
-        from cin_minai.inference import contextfit
+        from cin_minai.inference import contextfit, matcher
         prefs = contextfit.load()
         d = Gtk.Dialog(title="Context", transient_for=self, modal=True)
         d.add_button("Cancel", Gtk.ResponseType.CANCEL)
@@ -1089,8 +1095,14 @@ class Workspace(Gtk.ApplicationWindow):
                     return pp["junior"]["card_gb"] + pp["senior"]["card_gb"] if pp else 0.0
                 plan = contextfit.fit(models[0][2], machine, choice, models[0][3])[1]
                 return plan["card_gb"] if plan else 0.0
+            from cin_minai.inference import benchmark
+            files = [m[2].file for m in models]
+            key = benchmark.setup_key(files, benchmark.card_of(machine))
             if two:
                 (a, b), pp = contextfit.fit_pair(models[0][2], models[1][2], machine, p)
+                (a, b), why = benchmark.cap([a, b], key)
+                if why:
+                    pp = matcher.pair_plan(models[0][2], models[1][2], machine, a, b)
                 lines = ([contextfit.say(models[0][1], models[0][2], a, pp and pp["junior"]),
                           contextfit.say(models[1][1], models[1][2], b, pp and pp["senior"])] if pp else
                          [f"{a // 1024}K and {b // 1024}K don't fit this computer together: the AI would start with "
@@ -1098,6 +1110,9 @@ class Workspace(Gtk.ApplicationWindow):
             else:
                 role, name, m, base = models[0]
                 ctx, plan = contextfit.fit(m, machine, p, base)
+                (ctx,), why = benchmark.cap([ctx], key)
+                if why:
+                    plan = matcher.plan(m, machine, ctx)
                 lines = [contextfit.say(name, m, ctx, plan) if plan else
                          f"{ctx // 1024}K doesn't fit this computer with {name}: the AI would start with "
                          f"{base // 1024}K, as Cin-MinAI picks."]
@@ -1114,6 +1129,9 @@ class Workspace(Gtk.ApplicationWindow):
                                  "for your own work." if freed >= 0.1 else
                                  "Half the context of Fill the card, but it frees little of the card here: this "
                                  "model's size on the card hardly changes with its context.")
+            if why:
+                lines.append(why + ": the AI starts with that instead.")
+            lines.append(benchmark.summary(key))
             if self.cloud_role() in ("exclusive", "finisher"):
                 lines.append("The cloud model is working on this project now; these sizes are for the local models.")
             result.set_label("\n".join(lines))
@@ -1156,6 +1174,25 @@ class Workspace(Gtk.ApplicationWindow):
                 self.bubble("app", "New context sizes, from the AI's next start (it's working now; Stop, then send "
                                    "your next request).")
         d.destroy()
+
+    def benchmark(self) -> None:
+        """The setup you're on, measured in the AI terminal (bench.py): the AI stops while it runs and starts again
+        after. Ian, 2026-10-14: "it benchmarks whatever setup you are currently using and tells you those things and
+        stores the benchmark for the context options"."""
+        if self.busy is not None:
+            self.bubble("app", "The AI is working: Stop it first, then Benchmark.")
+            return
+        if not self.yes_no("Benchmark this setup?",
+                           "The AI stops while it runs, and starts again after. Each context size, from 32K up, is "
+                           "loaded, filled with text and asked one question, until one fails — a few minutes, more for "
+                           "a big model. The results show in the terminal and here, and the Context options use them. "
+                           "Ctrl+C in the terminal stops it."):
+            return
+        self.term.feed_child(b"\x03")
+        bench = f"{sys.executable} -P -m cin_minai.aicui.bench {GLib.shell_quote(self.root)}"
+        GLib.timeout_add(800, lambda: (self.term.feed_child(b"\x04"), False)[1])
+        GLib.timeout_add(2500, lambda: (self.term.feed_child((f"{bench}; {self.agent_command()}\n").encode()),
+                                        False)[1])
 
     def cloud_role(self) -> str:
         from cin_minai.inference import cloud

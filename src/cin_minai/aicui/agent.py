@@ -2611,14 +2611,18 @@ def card_minded(backend, event, say):
 def sized(plan: dict, machine, model_path: str, say=print) -> dict:
     """The plan at the context the person chose (AICUI's Context button; contextfit.py): unchanged when the choice
     is Cin-MinAI's own sizes, or when the model or the chosen size doesn't fit (said)."""
-    from cin_minai.inference import contextfit, matcher
+    from cin_minai.inference import benchmark, contextfit, matcher
     prefs = contextfit.load()
-    if prefs["choice"] == "default":
-        return plan
     m = contextfit.model_for(plan["file"], model_path)
     if m is None:
         return plan
     ctx, p = contextfit.fit(m, machine, prefs, plan.get("context", contextfit.DEFAULT))
+    (kept,), why = benchmark.cap([ctx], benchmark.setup_key([plan["file"]], benchmark.card_of(machine)))
+    if why:  # a size that failed here when measured (the Benchmark button, or a crash at work) isn't used again
+        say(f"\033[33m{why}: {kept // 1024}K for {plan['model']}.\033[0m")
+        ctx, p = kept, matcher.plan(m, machine, kept)
+    elif prefs["choice"] == "default":
+        return plan
     if p is None:
         say(f"\033[33m{ctx // 1024}K context doesn't fit this computer with {plan['model']}; "
             f"{plan.get('context', 0) // 1024}K as Cin-MinAI picks.\033[0m")
@@ -2652,9 +2656,11 @@ def local_backend(say=print):
         m, p = have[0]
         plan = {"model": m.name, "file": m.file, **p, "context": matcher.CONTEXT["coding"],
                 "reserve_mib": matcher.margin_mib(machine.cards[0]) if machine.cards else 0}
+    default_ctx = int(plan.get("context") or 0)
     plan = sized(plan, machine, store.path(plan["file"]), say)
     cfg = backend_cfg(config.load()["inference"], plan, store.path(plan["file"]))
     cfg["socket_name"] = "llama-code.sock"
+    cfg["fallback_context"] = default_ctx  # a crash at a bigger size steps down to Cin-MinAI's own, not 4K
     say(f"\033[2mModel: {plan['model']} ({plan.get('context', 0) // 1024}K context, {plan['mode']}), loading…\033[0m")
     log_path = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
                             "code-server.log")
@@ -2664,7 +2670,18 @@ def local_backend(say=print):
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
     log(f"plan: {plan['model']} | {plan['mode']} | {' '.join(plan.get('args', []))}")
-    return LlamaCppBackend(cfg, log), plan["model"]
+    backend = LlamaCppBackend(cfg, log)
+    backend.on_crash = crash_recorder([plan["file"]], machine)
+    return backend, plan["model"]
+
+
+def crash_recorder(files: list[str], machine):
+    """A crash at work, recorded as a failed size for this setup on this card (benchmark.py): the next start, the
+    Context options and the Benchmark button know it."""
+    from cin_minai.inference import benchmark
+    key = benchmark.setup_key(files, benchmark.card_of(machine))
+    return lambda ctx: benchmark.record(key, [ctx] * len(files), False,
+                                        why="stopped while working (out of graphics memory, most likely)")
 
 
 PLAIN = {"junior": "\033[2m"}  # a speaker's terminal colour when the person chose none (chatlook.paint)

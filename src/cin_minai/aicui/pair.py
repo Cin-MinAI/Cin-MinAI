@@ -674,7 +674,13 @@ def pair_backends(say=print):
     machine = matcher.read_machine(models_dir=store.root)
     from cin_minai.inference import contextfit
     prefs = contextfit.load()  # the sizes the person chose (AICUI's Context button): the Junior first, the Senior second
+    from cin_minai.inference import benchmark
     sizes, plan = contextfit.fit_pair(junior, senior, machine, prefs)
+    key = benchmark.setup_key([JUNIOR_FILE, SENIOR_FILE], benchmark.card_of(machine))
+    kept, why = benchmark.cap(list(sizes), key)
+    if why:  # sizes that failed here when measured (the Benchmark button, or a crash at work) aren't used again
+        say(f"\033[33m{why}: {kept[0] // 1024}K and {kept[1] // 1024}K.\033[0m")
+        sizes, plan = tuple(kept), matcher.pair_plan(junior, senior, machine, *kept)
     if plan is None and prefs["choice"] != "default":
         say(f"\033[33m{sizes[0] // 1024}K and {sizes[1] // 1024}K of context don't fit this computer together; "
             "the sizes Cin-MinAI picks instead.\033[0m")
@@ -704,7 +710,10 @@ def pair_backends(say=print):
     say(f"\033[2mTeam B: {plan['senior']['model']} (Senior, {plan['senior']['context'] // 1024}K context, "
         f"{plan['senior']['mode']}) and {plan['junior']['model']} (Junior, {plan['junior']['context'] // 1024}K "
         f"context, {plan['junior']['mode']}), loading…\033[0m")
+    jcfg["fallback_context"] = scfg["fallback_context"] = contextfit.DEFAULT  # a crash steps down to 32K, not 4K
     jb = LlamaCppBackend(jcfg, log)
-    jb.chat([{"role": "user", "content": "ok"}], max_tokens=1)  # the Junior first: it's placed whole on the card
     sb = LlamaCppBackend(scfg, log)
+    from .agent import crash_recorder
+    jb.on_crash = sb.on_crash = crash_recorder([JUNIOR_FILE, SENIOR_FILE], machine)
+    jb.chat([{"role": "user", "content": "ok"}], max_tokens=1)  # the Junior first: it's placed whole on the card
     return sb, plan["senior"]["model"], jb, plan["junior"]["model"], sees

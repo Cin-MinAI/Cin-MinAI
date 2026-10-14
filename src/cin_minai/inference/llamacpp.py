@@ -212,6 +212,10 @@ class LlamaCppBackend(InferenceBackend):
         for b in builds:
             dev = "CUDA0" if b == "cuda" else "Vulkan0"
             steps.append(Profile(b, dev, ctx, "all"))
+            fallback = int(self.cfg.get("fallback_context") or 0)  # Cin-MinAI's own size, under a person's bigger one
+            if 4096 < fallback < ctx:
+                steps.append(Profile(b, dev, fallback, "all",
+                                     f"smaller context ({fallback // 1024}K): {ctx // 1024}K didn't hold on this card"))
             if ctx > 4096:
                 steps.append(Profile(b, dev, 4096, "all", "smaller context (4K): the graphics card's memory is busy"))
         if builds:
@@ -450,7 +454,17 @@ class LlamaCppBackend(InferenceBackend):
         except (OSError, http.client.HTTPException, ValueError) as e:
             if cancel is not None and cancel.is_set():
                 raise Cancelled("cancelled") from e
+            for _ in range(40):  # a crash takes seconds to end (its core dump is written first): wait for it
+                if not self.alive():  # (test14: refused while still dying, the same size started five times)
+                    break
+                time.sleep(0.25)
             if not self.alive():
+                hook = getattr(self, "on_crash", None)
+                if callable(hook) and self.profile is not None:
+                    try:
+                        hook(self.profile.context)  # recorded: this size failed here (benchmark.py)
+                    except Exception:
+                        pass
                 # died while answering: most likely out of memory; next load starts one step lower
                 with self.lock:
                     idx = next((i for i, p in enumerate(self.ladder()) if p == self.profile), 0)
