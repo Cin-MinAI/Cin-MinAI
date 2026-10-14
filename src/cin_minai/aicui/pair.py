@@ -635,7 +635,8 @@ class Crew:
 
 
 FOLLOW_UP = 3   # the Senior's steps of progress while a task is with the Junior before a word on how it's going
-TEAM = os.path.join(".cinminai", "team.json")   # {"team": "A" | "B"} — chosen in AICUI's top bar
+TEAM = os.path.join(".cinminai", "team.json")   # {"team": "solo" | "A" | "B"} — chosen in AICUI's top bar
+TEAMS = ("solo", "A", "B")                      # solo: one local model, the coder alone (Ian, 2026-10-14)
 JUNIOR_FILE = "Qwen3.5-9B-Q4_K_M.gguf"          # the 9B coder, whole on the card
 SENIOR_FILE = "Qwen3.6-35B-A3B-Q4_K_M.gguf"     # the MoE Senior, its experts in RAM (Flash-Next comes second)
 
@@ -643,7 +644,8 @@ SENIOR_FILE = "Qwen3.6-35B-A3B-Q4_K_M.gguf"     # the MoE Senior, its experts in
 def team_of(root: str) -> str:
     try:
         with open(os.path.join(root, TEAM), encoding="utf-8") as f:
-            return "B" if json.load(f).get("team") == "B" else "A"
+            team = json.load(f).get("team")
+            return team if team in TEAMS else "A"
     except (OSError, ValueError):
         return "A"
 
@@ -669,7 +671,13 @@ def pair_backends(say=print):
                            " in the model store (the Models view brings them in)")
     unload_guide()
     machine = matcher.read_machine(models_dir=store.root)
-    plan = matcher.pair_plan(junior, senior, machine)
+    from cin_minai.inference import contextfit
+    prefs = contextfit.load()  # the sizes the person chose (AICUI's Context button): the Junior first, the Senior second
+    sizes, plan = contextfit.fit_pair(junior, senior, machine, prefs)
+    if plan is None and prefs["choice"] != "default":
+        say(f"\033[33m{sizes[0] // 1024}K and {sizes[1] // 1024}K of context don't fit this computer together; "
+            "the sizes Cin-MinAI picks instead.\033[0m")
+        plan = matcher.pair_plan(junior, senior, machine)
     if plan is None:
         raise RuntimeError("the two models don't fit this computer together (the card, or the RAM for the experts)")
     log_path = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
@@ -692,8 +700,9 @@ def pair_backends(say=print):
     for who in ("junior", "senior"):
         p = plan[who]
         log(f"team B {who}: {p['model']} | {p['mode']} | {' '.join(p.get('args', []))}")
-    say(f"\033[2mTeam B: {plan['senior']['model']} (Senior, {plan['senior']['mode']}) and {plan['junior']['model']} "
-        f"(Junior, {plan['junior']['mode']}), loading…\033[0m")
+    say(f"\033[2mTeam B: {plan['senior']['model']} (Senior, {plan['senior']['context'] // 1024}K context, "
+        f"{plan['senior']['mode']}) and {plan['junior']['model']} (Junior, {plan['junior']['context'] // 1024}K "
+        f"context, {plan['junior']['mode']}), loading…\033[0m")
     jb = LlamaCppBackend(jcfg, log)
     jb.chat([{"role": "user", "content": "ok"}], max_tokens=1)  # the Junior first: it's placed whole on the card
     sb = LlamaCppBackend(scfg, log)

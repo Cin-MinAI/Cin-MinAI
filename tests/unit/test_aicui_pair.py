@@ -559,6 +559,12 @@ class PairTest(unittest.TestCase):
         with open(os.path.join(self.root, ".cinminai", "team.json"), "w") as f:
             json.dump({"team": "B"}, f)
         self.assertEqual(P.team_of(self.root), "B")
+        with open(os.path.join(self.root, ".cinminai", "team.json"), "w") as f:
+            json.dump({"team": "solo"}, f)
+        self.assertEqual(P.team_of(self.root), "solo")  # one local model, after a team
+        with open(os.path.join(self.root, ".cinminai", "team.json"), "w") as f:
+            json.dump({"team": "Z"}, f)
+        self.assertEqual(P.team_of(self.root), "A")  # anything else: team A
 
     def test_team_b_says_why_it_cant_start(self):
         """A model missing from the store: a plain reason (the agent then works as team A)."""

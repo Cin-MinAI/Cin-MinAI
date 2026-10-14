@@ -23,6 +23,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Vte", "2.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 
+from . import chatlook  # noqa: E402
 from .changelog import Changelog  # noqa: E402
 from .project import (Goals, build_env, can_be_project, declare_env, entry_point, env_header, env_state,  # noqa: E402
                       known_projects, make_project, orphan_envs, project_root, token_of, tree, venv_python)
@@ -32,6 +33,8 @@ CSS = b"""
 .pane-title { font-weight: bold; padding: 4px 6px; }
 .bubble-user { background: alpha(@theme_selected_bg_color, 0.25); border-radius: 6px; padding: 6px; }
 .bubble-ai { background: alpha(@theme_fg_color, 0.06); border-radius: 6px; padding: 6px; }
+.bubble-junior { background: alpha(#33d17a, 0.10); border-radius: 6px; padding: 6px; }
+.bubble-app { background: alpha(@theme_fg_color, 0.03); border-radius: 6px; padding: 6px; }
 .bubble-cloud { background: alpha(#3584e4, 0.16); border-left: 4px solid #3584e4; border-radius: 6px; padding: 6px; }
 .waiting { background: rgba(255, 170, 0, 0.30); border-radius: 6px; padding: 2px 6px; font-weight: bold; }
 """
@@ -60,9 +63,12 @@ class Workspace(Gtk.ApplicationWindow):
         self.root, self.goals, self.log = root, Goals(root), Changelog(root)
         self.set_default_size(1700, 960)
 
-        # left: chat history (thinking will stream in and collapse into bubbles, slice 4)
+        # left: chat history (thinking will stream in and collapse into bubbles, slice 4), in the person's chosen look
+        self.look, self.prompts = chatlook.load(), []
         self.chat = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.bubble("ai", f"Working in {root}. The coding agent runs in the terminal on the right and asks there before "
+        self.chat.get_style_context().add_class("chat-pane")
+        self.apply_look()
+        self.bubble("app", f"Working in {root}. The coding agent runs in the terminal on the right and asks there before "
                           "it changes anything. Tell it about the project here or there; goals go in the middle.")
         left = titled("Chat history", scrolled(self.chat))
 
@@ -126,7 +132,7 @@ class Workspace(Gtk.ApplicationWindow):
         shell = os.environ.get("SHELL", "/bin/bash")
         self.term.spawn_async(Vte.PtyFlags.DEFAULT, root, [shell, "-c", f"{self.agent_command()}; exec {shell}"],
                               env, GLib.SpawnFlags.DEFAULT, None, None, -1, None, None, None)
-        self.term.connect("child-exited", lambda *a: self.bubble("ai", "The terminal's shell ended. Open the folder "
+        self.term.connect("child-exited", lambda *a: self.bubble("app", "The terminal's shell ended. Open the folder "
                                                                        "again to get a new one."))
         self.events_at = os.path.getsize(self.events_path()) if os.path.exists(self.events_path()) else 0
         GLib.timeout_add(400, self.follow_events)
@@ -257,11 +263,12 @@ class Workspace(Gtk.ApplicationWindow):
             if e["kind"] == "user":
                 self.bubble("user", e.get("text", ""))
             elif e["kind"] == "thinking":  # the Junior's own, in style B, marked as its
-                self.thought(e.get("text", ""), "Junior's thought" if e.get("who") == "junior" else "Thought")
+                junior = e.get("who") == "junior"
+                self.thought(e.get("text", ""), "Junior's thought" if junior else "Thought", "junior" if junior else "ai")
             elif e["kind"] == "answer":
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "note":  # a step that went wrong (cut off, not valid), told to the model as it was
-                self.thought(e.get("text", ""), "Note")
+                self.thought(e.get("text", ""), "Note", "app")
             elif e["kind"] == "handover":  # every 60 steps: where the work stands; the AI goes on
                 self.bubble("ai", e.get("text", ""))
             elif e["kind"] == "handoff":  # the two cards passing work: the coder (Senior) and its helper (Junior)
@@ -275,13 +282,14 @@ class Workspace(Gtk.ApplicationWindow):
                                           f"☁ The cloud advisor says:\n{e.get('text', '')}\n\n"
                                           f"(${cloud.spent(self.root):.3f} spent on the cloud for this project)"))
                 else:
-                    self.thought(e.get("text", ""), who.get(e.get("to", ""), "Junior"))
+                    self.thought(e.get("text", ""), who.get(e.get("to", ""), "Junior"),
+                                 "junior" if e.get("by") in ("junior", "helper") else "ai")
             elif e["kind"] == "look":  # what the AI looked at, shown here (the person's screen: before it may read it)
                 self.show_look(e.get("picture", ""), e.get("target", ""), e.get("problems", []))
             elif e["kind"] == "env_request":  # the AI declared a package the work needs: the person decides
                 self.offer_build()
             elif e["kind"] == "check":  # a problem found in a file the AI just changed
-                self.thought(f"{e.get('file', '')}: {e.get('problem', '')}", "Check")
+                self.thought(f"{e.get('file', '')}: {e.get('problem', '')}", "Check", "app")
             elif e["kind"] == "busy":
                 if self.busy is None or e.get("step") != self.busy.get("step"):
                     self.busy_since = e.get("t", time.time())
@@ -398,20 +406,29 @@ class Workspace(Gtk.ApplicationWindow):
         return True
 
     # --- chat --------------------------------------------------------------------------------------------
-    def thought(self, text: str, title: str = "Thought") -> None:
+    def thought(self, text: str, title: str = "Thought", who: str = "ai") -> None:
         """The model's thinking: a bubble that stays collapsed, to open when you want to see how it got there."""
         exp = Gtk.Expander(label=title)
         exp.add(Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48))
-        exp.get_style_context().add_class("bubble-ai")
+        exp.get_style_context().add_class(f"bubble-{who if who in chatlook.NAMES else 'ai'}")
         row = Gtk.ListBoxRow(activatable=False)
         row.add(exp)
         self.chat.add(row)
         row.show_all()
+
     def bubble(self, who: str, text: str) -> None:
-        label = Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48)
-        label.get_style_context().add_class({"user": "bubble-user", "cloud": "bubble-cloud"}.get(who, "bubble-ai"))
+        """A message in the chat, in its speaker's look (chatlook.py); in the terminal style it starts with the
+        speaker's prompt, as a terminal line would."""
+        who = who if who in chatlook.NAMES else "ai"
+        box = Gtk.Box(spacing=6)
+        box.get_style_context().add_class(f"bubble-{who}")
+        name = Gtk.Label(label=chatlook.NAMES[who] + ">", yalign=0, no_show_all=True)
+        name.set_visible(self.look["style"] == "terminal")
+        self.prompts.append(name)
+        box.pack_start(name, False, False, 0)
+        box.pack_start(Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48), True, True, 0)
         row = Gtk.ListBoxRow(activatable=False)
-        row.add(label)
+        row.add(box)
         self.chat.add(row)
         row.show_all()
 
@@ -422,12 +439,12 @@ class Workspace(Gtk.ApplicationWindow):
         opened and closed at once — and nothing on screen said why)."""
         entry = entry_point(self.root)
         if not entry:
-            self.bubble("ai", "Nothing to run yet: no run.sh, main.py or index.html in this project.")
+            self.bubble("app", "Nothing to run yet: no run.sh, main.py or index.html in this project.")
             return
         full = os.path.join(self.root, entry)
         if entry.endswith(".html"):
             Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(full).get_uri(), None)
-            self.bubble("ai", f"Opened {entry} in your browser.")
+            self.bubble("app", f"Opened {entry} in your browser.")
             return
         argv = ["bash", full] if entry.endswith(".sh") else [venv_python(self.root), full]
         launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
@@ -439,9 +456,9 @@ class Workspace(Gtk.ApplicationWindow):
         try:
             proc = launcher.spawnv(argv)
         except GLib.Error as e:
-            self.bubble("ai", f"Couldn't start {entry}: {e.message}")
+            self.bubble("app", f"Couldn't start {entry}: {e.message}")
             return
-        self.bubble("ai", f"Running {entry}…")
+        self.bubble("app", f"Running {entry}…")
         proc.communicate_utf8_async(None, None, self.ran, entry)
 
     def ran(self, proc: Gio.Subprocess, result, entry: str) -> None:
@@ -451,7 +468,7 @@ class Workspace(Gtk.ApplicationWindow):
             out = e.message
         out = (out or "").strip()
         if proc.get_if_exited() and proc.get_exit_status() == 0:
-            self.bubble("ai", f"{entry} finished normally.")
+            self.bubble("app", f"{entry} finished normally.")
             return
         code = proc.get_exit_status() if proc.get_if_exited() else f"signal {proc.get_term_sig()}"
         tail = "\n".join(out.splitlines()[-25:]) or "(no output)"
@@ -463,7 +480,7 @@ class Workspace(Gtk.ApplicationWindow):
         send.set_tooltip_text("Hand this error to the AI in its terminal")
         send.connect("clicked", lambda b: self.hand_over(report, b))
         box.pack_start(send, False, False, 0)
-        box.get_style_context().add_class("bubble-ai")
+        box.get_style_context().add_class("bubble-app")
         row = Gtk.ListBoxRow(activatable=False)
         row.add(box)
         self.chat.add(row)
@@ -471,7 +488,7 @@ class Workspace(Gtk.ApplicationWindow):
 
     def hand_over(self, report: str, button: Gtk.Button) -> None:
         if self.busy is not None:  # typed into a busy agent, it would land in a permission answer
-            self.bubble("ai", "The AI is still working: press Send again when it has finished (or Stop it first).")
+            self.bubble("app", "The AI is still working: press Send again when it has finished (or Stop it first).")
             return
         button.set_sensitive(False)
         self.term.feed_child((" ".join(report.splitlines()) + "\n").encode())
@@ -492,13 +509,23 @@ class Workspace(Gtk.ApplicationWindow):
             item = Gtk.MenuItem(label=label)
             item.connect("activate", lambda w, f=act: f())
             menu.append(item)
-        file_item = Gtk.MenuItem(label="File")
-        file_item.set_submenu(menu)
-        bar = Gtk.MenuBar()
-        bar.append(file_item)
-        bar.append(self.team_menu())
-        box = Gtk.Box(spacing=6)
-        box.pack_start(bar, False, False, 0)
+        menu.show_all()
+        # buttons, all of them (Ian, 2026-10-14: "add these as buttons up top also to smooth out the menu ui")
+        file_button = Gtk.MenuButton(label="File", popup=menu)
+        self.team_button = Gtk.Button()
+        self.team_button.set_tooltip_text("Which local models work on this project: one, or a team of two")
+        self.team_button.connect("clicked", self.team_menu)
+        self.show_team()
+        context = Gtk.Button(label="Context")
+        context.set_tooltip_text("How much each local model keeps in view: fill the card, leave yourself room, or "
+                                 "choose the sizes")
+        context.connect("clicked", lambda b: self.context_dialog())
+        look = Gtk.Button(label="Chat look")
+        look.set_tooltip_text("Bubbles, boxes or a straight terminal; colours, fonts and sizes, for each speaker")
+        look.connect("clicked", lambda b: self.look_dialog())
+        box = Gtk.Box(spacing=6, margin_top=4, margin_start=4)
+        for w in (file_button, self.team_button, context, look):
+            box.pack_start(w, False, False, 0)
         cloud = Gtk.Button(label="Cloud models")
         cloud.set_tooltip_text("A cloud model with your own API key: finish a project, or work with the cloud only")
         cloud.connect("clicked", self.cloud_menu)
@@ -577,7 +604,7 @@ class Workspace(Gtk.ApplicationWindow):
         try:
             accounts.store_cloud_key("anthropic", key)
         except accounts.AccountError as e:
-            self.bubble("ai", f"Not saved: {e}")
+            self.bubble("app", f"Not saved: {e}")
             return
         del key
 
@@ -590,7 +617,7 @@ class Workspace(Gtk.ApplicationWindow):
                        "(top right) says what the cloud does on this project.")
             except cloud.CloudError as e:
                 msg = f"The key is saved, but Anthropic didn't accept it ({e}). Check it in the Console, or remove it."
-            GLib.idle_add(lambda: self.bubble("ai", msg) and False)
+            GLib.idle_add(lambda: self.bubble("app", msg) and False)
         threading.Thread(target=check, daemon=True).start()
 
     def fill_cloud_pick(self) -> None:
@@ -650,13 +677,13 @@ class Workspace(Gtk.ApplicationWindow):
             return
         cloud.save_settings(self.root, provider="anthropic", model=chosen)
         if cs["role"] == "off":
-            self.bubble("ai", f"{cloud.label(chosen)} is this project's cloud model. Cloud models (top right) says what "
+            self.bubble("app", f"{cloud.label(chosen)} is this project's cloud model. Cloud models (top right) says what "
                               "it does: finish the project, lead the local models, or work alone.")
         elif self.busy is None:
-            self.bubble("ai", f"{cloud.label(chosen)} takes over ({cs['role']}). The AI restarts with it in the terminal.")
+            self.bubble("app", f"{cloud.label(chosen)} takes over ({cs['role']}). The AI restarts with it in the terminal.")
             self.restart_with("")
         else:
-            self.bubble("ai", f"{cloud.label(chosen)} from the AI's next start (it's working now; Stop, then send "
+            self.bubble("app", f"{cloud.label(chosen)} from the AI's next start (it's working now; Stop, then send "
                               "your next request).")
 
     def cloud_unlock(self) -> None:
@@ -664,11 +691,11 @@ class Workspace(Gtk.ApplicationWindow):
         restart, and the key behind it can't be read (2026-10-13)."""
         from cin_minai.daemon import accounts
         if accounts.unlock_keyring():
-            self.bubble("ai", "The login keyring is unlocked: your cloud key is back.")
+            self.bubble("app", "The login keyring is unlocked: your cloud key is back.")
             self.fill_cloud_pick()
             self.refresh_cloud_models()
         else:
-            self.bubble("ai", "The keyring is still locked. It opens with your login password; Passwords and Keys "
+            self.bubble("app", "The keyring is still locked. It opens with your login password; Passwords and Keys "
                               "(in the menu) can unlock it too.")
 
     def cloud_role_dialog(self, role: str) -> None:
@@ -728,14 +755,14 @@ class Workspace(Gtk.ApplicationWindow):
         cloud.save_settings(self.root, provider="anthropic", model=chosen, role=role, budget_usd=round(limit, 2),
                             crew=helpers)
         self.fill_cloud_pick()
-        self.bubble("ai", f"{cloud.label(chosen)} takes over this project ({role}), up to ${limit:.2f}. The AI restarts "
+        self.bubble("app", f"{cloud.label(chosen)} takes over this project ({role}), up to ${limit:.2f}. The AI restarts "
                           "with it in the terminal.")
         self.restart_with(self.FINISH if role == "finisher" else "")
 
     def cloud_off(self) -> None:
         from cin_minai.inference import cloud
         cloud.save_settings(self.root, role="off")
-        self.bubble("ai", "Back to the local models: the AI restarts with them in the terminal.")
+        self.bubble("app", "Back to the local models: the AI restarts with them in the terminal.")
         self.restart_with("")
 
     def cloud_remove_key(self) -> None:
@@ -747,7 +774,7 @@ class Workspace(Gtk.ApplicationWindow):
             accounts.forget_cloud_key("anthropic")
             if cloud.settings(self.root)["role"] != "off":
                 self.cloud_off()
-            self.bubble("ai", "The Anthropic key is removed from this computer.")
+            self.bubble("app", "The Anthropic key is removed from this computer.")
             self.fill_cloud_pick()
 
     def open_screenshots(self) -> None:
@@ -803,7 +830,7 @@ class Workspace(Gtk.ApplicationWindow):
         try:
             start = github.start()
         except AccountError as e:
-            self.bubble("ai", f"GitHub sign-in couldn't start: {e}")
+            self.bubble("app", f"GitHub sign-in couldn't start: {e}")
             return
         d = Gtk.Dialog(title="Sign in to GitHub", transient_for=self, modal=True)
         d.add_button("Cancel", Gtk.ResponseType.CANCEL)
@@ -839,14 +866,14 @@ class Workspace(Gtk.ApplicationWindow):
                 msg = f"Linked to GitHub as {login}." + (
                     "" if installed else " One more step: install Cin-MinAI on your GitHub account (all repositories, "
                     "or the ones you choose), so it can reach your repositories — the page is opening.")
-                GLib.idle_add(lambda: (d.response(Gtk.ResponseType.OK), self.bubble("ai", msg),
+                GLib.idle_add(lambda: (d.response(Gtk.ResponseType.OK), self.bubble("app", msg),
                                        None if installed or not github.install_url() else
                                        Gio.AppInfo.launch_default_for_uri(github.install_url(), None)) and False)
             except AccountError as e:
                 why = str(e)
                 if not cancel.is_set():
                     GLib.idle_add(lambda: (d.response(Gtk.ResponseType.CANCEL),
-                                           self.bubble("ai", f"Not linked to GitHub: {why}")) and False)
+                                           self.bubble("app", f"Not linked to GitHub: {why}")) and False)
         threading.Thread(target=wait, daemon=True).start()
         d.run()
         cancel.set()
@@ -901,20 +928,20 @@ class Workspace(Gtk.ApplicationWindow):
                 return
             github_link.link(self.root, url, github.status()["login"])
         except (AccountError, ValueError, KeyError) as e:
-            self.bubble("ai", f"Not linked: {e}")
+            self.bubble("app", f"Not linked: {e}")
             return
-        self.bubble("ai", f"This project is linked to {full} on GitHub. Save to GitHub (push) sends it there; AICUI's "
+        self.bubble("app", f"This project is linked to {full} on GitHub. Save to GitHub (push) sends it there; AICUI's "
                           "own folder (.cinminai) and the Python environment stay on this computer.")
 
     def github_run(self, what: str) -> None:
         from . import github_link
-        self.bubble("ai", "Saving to GitHub…" if what == "push" else "Bringing in changes from GitHub…")
+        self.bubble("app", "Saving to GitHub…" if what == "push" else "Bringing in changes from GitHub…")
 
         def work() -> None:
             ok, out = (github_link.push if what == "push" else github_link.pull)(self.root)
             msg = ("Saved to GitHub." if what == "push" else "Up to date with GitHub.") if ok else \
                 f"GitHub {what} didn't go through:\n{out}"
-            GLib.idle_add(lambda: (self.bubble("ai", msg), self.load_tree()) and False)
+            GLib.idle_add(lambda: (self.bubble("app", msg), self.load_tree()) and False)
         threading.Thread(target=work, daemon=True).start()
 
     def github_sign_out(self) -> None:
@@ -923,7 +950,7 @@ class Workspace(Gtk.ApplicationWindow):
                        "The link is removed from your login keyring; the repositories stay as they are. To remove "
                        "Cin-MinAI's access on GitHub's side too: github.com/settings/applications."):
             github.sign_out()
-            self.bubble("ai", "Signed out of GitHub on this computer.")
+            self.bubble("app", "Signed out of GitHub on this computer.")
 
     @staticmethod
     def _safe(fn, fallback):
@@ -932,36 +959,324 @@ class Workspace(Gtk.ApplicationWindow):
         except Exception:
             return fallback
 
-    def team_menu(self) -> Gtk.MenuItem:
-        """The two cards (PLAN §1b): team A — the coder with the 4B as its errand intern; team B — a MoE Senior with
-        the 9B coding as its Junior. Both models load when the agent starts, so the choice holds from the next open."""
-        path = os.path.join(self.root, ".cinminai", "team.json")
-        try:
-            with open(path, encoding="utf-8") as f:
-                now = "B" if json.load(f).get("team") == "B" else "A"
-        except (OSError, ValueError):
-            now = "A"
+    TEAM_LABELS = {"solo": "One model — the coder alone",
+                   "A": "Team A — the coder, with a helper for errands",
+                   "B": "Team B — a senior and a junior coder (two models)"}
+
+    def show_team(self) -> None:
+        from .pair import team_of
+        now = team_of(self.root)
+        self.team_button.set_label("One model" if now == "solo" else f"Team {now}")
+
+    def team_menu(self, button) -> None:
+        """One local model, or the two cards (PLAN §1b): team A — the coder with the 4B as its errand intern; team B —
+        a MoE Senior with the 9B coding as its Junior. One model again after a team (Ian, 2026-10-14)."""
+        from .pair import team_of
+        now = team_of(self.root)
         menu, group = Gtk.Menu(), None
-        for key, label in (("A", "Team A — the coder, with a helper for errands"),
-                           ("B", "Team B — a senior and a junior coder (two models)")):
-            item = Gtk.RadioMenuItem(label=label, group=group)
+        for key in ("solo", "A", "B"):
+            item = Gtk.RadioMenuItem(label=self.TEAM_LABELS[key], group=group)
             group = group or item
             item.set_active(key == now)
-            item.connect("toggled", lambda w, k=key: w.get_active() and self.set_team(k))
+            item.connect("toggled", lambda w, k=key: w.get_active() and k != now and self.set_team(k))
             menu.append(item)
-        top = Gtk.MenuItem(label="Team")
-        top.set_submenu(menu)
-        return top
+        menu.show_all()
+        menu.popup_at_widget(button, Gdk.Gravity.SOUTH_WEST, Gdk.Gravity.NORTH_WEST, None)
 
     def set_team(self, team: str) -> None:
-        path = os.path.join(self.root, ".cinminai", "team.json")
+        """Written for the project; the AI restarts with it now when it isn't working (the models of a team load when
+        it starts), else from its next start."""
+        from .pair import TEAM
+        path = os.path.join(self.root, TEAM)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "w", encoding="utf-8") as f:
             json.dump({"team": team}, f)
         os.replace(path + ".tmp", path)
-        self.bubble("ai", f"Team {team} is chosen. Both of a team's models load when the AI starts: close and reopen "
-                          "this project to work with it." + (" Team B needs Qwen3.5-9B and Qwen3.6-35B-A3B in your "
-                                                              "model store." if team == "B" else ""))
+        self.show_team()
+        need = " Team B needs Qwen3.5-9B and Qwen3.6-35B-A3B in your model store." if team == "B" else ""
+        if self.busy is None:
+            self.bubble("app", f"{self.TEAM_LABELS[team]}. The AI restarts with it in the terminal.{need}")
+            self.restart_with("")
+        else:
+            self.bubble("app", f"{self.TEAM_LABELS[team]}, from the AI's next start (it's working now; Stop, then "
+                               f"send your next request).{need}")
+
+    # --- context sizes (contextfit.py, PLAN D93): chosen by the person, kept for this computer ----------------------
+    def context_models(self):
+        """The local models this project's team loads: [(role, name, Model, default context)], and the machine as
+        the models will find it (our own servers counted as free)."""
+        from cin_minai.daemon.models import ModelStore
+        from cin_minai.inference import contextfit, matcher
+
+        from .pair import JUNIOR_FILE, SENIOR_FILE, team_of
+        store = ModelStore()
+        machine = matcher.read_machine(models_dir=store.root)
+        if team_of(self.root) == "B":
+            out = []
+            for role, file in (("Junior", JUNIOR_FILE), ("Senior", SENIOR_FILE)):
+                m = contextfit.model_for(file, store.path(file))
+                if m is not None:
+                    out.append((role, m.name, m, contextfit.DEFAULT))
+            return out, machine
+        ours = matcher.match(machine).get("coding")
+        plan = store.in_use("coding") or ours
+        if not plan:
+            return [], machine
+        m = contextfit.model_for(plan["file"], store.path(plan["file"]))
+        return ([("Coder", plan["model"], m, max(plan.get("context", 0), (ours or {}).get("context", 0))
+                  or contextfit.DEFAULT)] if m else []), machine
+
+    def context_dialog(self) -> None:
+        from cin_minai.inference import contextfit
+        prefs = contextfit.load()
+        d = Gtk.Dialog(title="Context", transient_for=self, modal=True)
+        d.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        d.add_button("Use these", Gtk.ResponseType.OK)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin=12)
+        d.get_content_area().add(box)
+        intro = Gtk.Label(xalign=0, wrap=True, max_width_chars=70, label=(
+            "Context is how much a model keeps in view at once: the request, the files it read, its steps so far. "
+            "More lets it hold more of a project, and costs graphics memory for every word it can hold. A long "
+            "context also takes longer to read the first time; after that only what's new is read."))
+        box.pack_start(intro, False, False, 0)
+        radios, group = {}, None
+        for key, label in contextfit.CHOICES:
+            r = Gtk.RadioButton(label=label, group=group)
+            group = group or r
+            radios[key] = r
+            box.pack_start(r, False, False, 0)
+        radios[prefs["choice"]].set_active(True)
+        split_box = Gtk.Box(spacing=6)
+        split = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 5)
+        split.set_value(prefs["split"] * 100)
+        split.set_draw_value(False)
+        split.set_hexpand(True)
+        split_box.pack_start(Gtk.Label(label="More for the Senior"), False, False, 0)
+        split_box.pack_start(split, True, True, 0)
+        split_box.pack_start(Gtk.Label(label="More for the Junior"), False, False, 0)
+        box.pack_start(split_box, False, False, 0)
+        sizes = Gtk.Grid(column_spacing=8, row_spacing=4)
+        box.pack_start(sizes, False, False, 0)
+        result = Gtk.Label(xalign=0, wrap=True, max_width_chars=70, selectable=True, label="Reading this computer…")
+        box.pack_start(result, False, False, 6)
+        state = {"models": None, "machine": None, "spins": {}}
+
+        def chosen() -> dict:
+            p = dict(prefs)
+            p["choice"] = next(k for k, r in radios.items() if r.get_active())
+            p["split"] = split.get_value() / 100
+            for key, spin in state["spins"].items():
+                p[key] = int(spin.get_value()) * 1024
+            return contextfit.clean(p)
+
+        def show(*_) -> None:
+            models, machine = state["models"], state["machine"]
+            if models is None:
+                return
+            p = chosen()
+            two = len(models) == 2
+            split_box.set_visible(two and p["choice"] in ("fill", "room"))
+            sizes.set_visible(p["choice"] == "custom")
+            if not models:
+                result.set_label("No local model for this project's team is on this computer yet (the Models view "
+                                 "brings them in).")
+                return
+            def card(choice: dict) -> float:  # what the models hold of the card with a choice (GB)
+                if two:
+                    pp = contextfit.fit_pair(models[0][2], models[1][2], machine, choice)[1]
+                    return pp["junior"]["card_gb"] + pp["senior"]["card_gb"] if pp else 0.0
+                plan = contextfit.fit(models[0][2], machine, choice, models[0][3])[1]
+                return plan["card_gb"] if plan else 0.0
+            if two:
+                (a, b), pp = contextfit.fit_pair(models[0][2], models[1][2], machine, p)
+                lines = ([contextfit.say(models[0][1], models[0][2], a, pp and pp["junior"]),
+                          contextfit.say(models[1][1], models[1][2], b, pp and pp["senior"])] if pp else
+                         [f"{a // 1024}K and {b // 1024}K don't fit this computer together: the AI would start with "
+                          "the sizes Cin-MinAI picks."])
+            else:
+                role, name, m, base = models[0]
+                ctx, plan = contextfit.fit(m, machine, p, base)
+                lines = [contextfit.say(name, m, ctx, plan) if plan else
+                         f"{ctx // 1024}K doesn't fit this computer with {name}: the AI would start with "
+                         f"{base // 1024}K, as Cin-MinAI picks."]
+            if p["choice"] in ("fill", "room"):
+                fill = card({**p, "choice": "fill"})
+                if p["choice"] == "fill":
+                    lines.append("Each stays about as quick to answer as at Cin-MinAI's sizes (at most a tenth "
+                                 "slower).")
+                    if fill and abs(fill - card({**p, "choice": "default"})) < 0.1:
+                        lines.append("This already fills the card at Cin-MinAI's sizes: no more fits here.")
+                else:
+                    freed = fill - card(p)
+                    lines.append(f"Half the context of Fill the card: {freed:.1f} GB more of the card stays free "
+                                 "for your own work." if freed >= 0.1 else
+                                 "Half the context of Fill the card, but it frees little of the card here: this "
+                                 "model's size on the card hardly changes with its context.")
+            if self.cloud_role() in ("exclusive", "finisher"):
+                lines.append("The cloud model is working on this project now; these sizes are for the local models.")
+            result.set_label("\n".join(lines))
+
+        def loaded(models, machine) -> bool:
+            state["models"], state["machine"] = models, machine
+            keys = {1: (("solo", "Coder"),), 2: (("first", "Junior"), ("second", "Senior"))}.get(len(models), ())
+            for row, ((key, role), (_, name, _, _)) in enumerate(zip(keys, models)):
+                spin = Gtk.SpinButton.new_with_range(contextfit.MIN // 1024, contextfit.MAX // 1024, 4)
+                spin.set_value(prefs[key] // 1024)
+                spin.connect("value-changed", show)
+                state["spins"][key] = spin
+                sizes.attach(Gtk.Label(label=f"{role} ({name})", xalign=0), 0, row, 1, 1)
+                sizes.attach(spin, 1, row, 1, 1)
+                sizes.attach(Gtk.Label(label="K", xalign=0), 2, row, 1, 1)
+            sizes.show_all()
+            show()
+            return False
+
+        def read() -> None:
+            try:
+                models, machine = self.context_models()
+            except Exception as e:  # no card reader, no store: said, and nothing else changes
+                GLib.idle_add(lambda: result.set_label(f"Couldn't read this computer: {e}") and False)
+                return
+            GLib.idle_add(loaded, models, machine)
+        for r in radios.values():
+            r.connect("toggled", show)
+        split.connect("value-changed", show)
+        d.show_all()
+        split_box.set_visible(False)
+        sizes.set_visible(False)
+        threading.Thread(target=read, daemon=True).start()
+        if d.run() == Gtk.ResponseType.OK and state["models"] is not None:
+            contextfit.save(chosen())
+            if self.busy is None:
+                self.bubble("app", "New context sizes: the AI restarts with them in the terminal.")
+                self.restart_with("")
+            else:
+                self.bubble("app", "New context sizes, from the AI's next start (it's working now; Stop, then send "
+                                   "your next request).")
+        d.destroy()
+
+    def cloud_role(self) -> str:
+        from cin_minai.inference import cloud
+        try:
+            return cloud.settings(self.root)["role"]
+        except Exception:
+            return "off"
+
+    # --- the chat's look (chatlook.py): chosen by the person, kept for every project --------------------------------
+    CSS_LOOK = Gtk.CssProvider()
+
+    def apply_look(self) -> None:
+        self.CSS_LOOK.load_from_data(chatlook.css(self.look).encode())
+        style = self.chat.get_style_context()
+        for key, _ in chatlook.STYLES:
+            style.remove_class(f"chat-{key}")
+        style.add_class(f"chat-{self.look['style']}")
+        for name in self.prompts:
+            name.set_visible(self.look["style"] == "terminal")
+
+    def look_dialog(self) -> None:
+        """Every choice shows at once in the chat and is kept (~/.config/cinminai/aicui-chat.json)."""
+        d = Gtk.Dialog(title="Chat look", transient_for=self, modal=False)
+        d.add_button("Back to the theme's look", 1)
+        d.add_button("Close", Gtk.ResponseType.CLOSE)
+        grid = Gtk.Grid(row_spacing=6, column_spacing=10, margin=12)
+        d.get_content_area().add(grid)
+        widgets = []   # (widget, spec dict, field) — refilled after a reset
+
+        def changed(*_):
+            for w, spec, field in widgets:
+                if isinstance(w, Gtk.ColorButton):
+                    spec[field] = w.get_rgba().to_string() if w.get_name() == "set" else spec[field]
+                elif isinstance(w, Gtk.FontButton):
+                    spec[field] = w.get_font() if w.get_name() == "set" else spec[field]
+            self.apply_look()
+            chatlook.save(self.look)
+            terminal = self.look["style"] == "terminal"
+            for w, spec, field in widgets:
+                if field == "background" and spec is not self.look:
+                    w.set_sensitive(not terminal)  # no bubbles or boxes: only the chat's background has a colour
+
+        def color(spec: dict, field: str) -> Gtk.ColorButton:
+            b = Gtk.ColorButton(use_alpha=True)
+            rgba = Gdk.RGBA()
+            if spec[field] and rgba.parse(spec[field]):
+                b.set_rgba(rgba)
+                b.set_name("set")
+            else:  # as the theme has it until chosen
+                b.set_rgba(self.get_style_context().get_color(Gtk.StateFlags.NORMAL) if field == "color"
+                           else Gdk.RGBA(0.5, 0.5, 0.5, 0.15))
+                b.set_tooltip_text("As the theme has it — choose a colour to change it")
+
+            def picked(btn):
+                btn.set_name("set")
+                btn.set_tooltip_text(None)
+                changed()
+            b.connect("color-set", picked)
+            widgets.append((b, spec, field))
+            return b
+
+        def font(spec: dict) -> Gtk.FontButton:
+            b = Gtk.FontButton(use_font=True, use_size=True)
+            if spec["font"]:
+                b.set_font(spec["font"])
+                b.set_name("set")
+            else:
+                b.set_tooltip_text("As the theme has it — choose a font and size to change it")
+
+            def picked(btn):
+                btn.set_name("set")
+                btn.set_tooltip_text(None)
+                changed()
+            b.connect("font-set", picked)
+            widgets.append((b, spec, "font"))
+            return b
+
+        def fill() -> None:
+            for child in grid.get_children():
+                grid.remove(child)
+            widgets.clear()
+            row = 0
+            grid.attach(Gtk.Label(label="Style", xalign=0), 0, row, 1, 1)
+            styles = Gtk.Box(spacing=8)
+            group = None
+            for key, label in chatlook.STYLES:
+                r = Gtk.RadioButton(label=label, group=group)
+                group = group or r
+                r.set_active(self.look["style"] == key)
+                r.connect("toggled", lambda w, k=key: w.get_active() and (self.look.update(style=k), changed()))
+                styles.pack_start(r, False, False, 0)
+            grid.attach(styles, 1, row, 3, 1)
+            row += 1
+            grid.attach(Gtk.Label(label="Chat background", xalign=0), 0, row, 1, 1)
+            grid.attach(color(self.look, "background"), 1, row, 1, 1)
+            row += 1
+            for col, head in enumerate(("", "Background", "Text colour", "Font and size"), start=0):
+                lab = Gtk.Label(label=head, xalign=0)
+                lab.get_style_context().add_class("dim-label")
+                grid.attach(lab, col, row, 1, 1)
+            row += 1
+            grid.attach(Gtk.Label(label="Everyone (the default)", xalign=0), 0, row, 1, 1)
+            grid.attach(color(self.look, "color"), 2, row, 1, 1)
+            grid.attach(font(self.look), 3, row, 1, 1)
+            for who, label in chatlook.WHO:
+                row += 1
+                spec = self.look["who"][who]
+                grid.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
+                grid.attach(color(spec, "background"), 1, row, 1, 1)
+                grid.attach(color(spec, "color"), 2, row, 1, 1)
+                grid.attach(font(spec), 3, row, 1, 1)
+            grid.show_all()
+            changed()
+
+        def response(dialog, r):
+            if r == 1:
+                self.look = chatlook.defaults()
+                fill()
+            else:
+                dialog.destroy()
+        d.connect("response", response)
+        fill()
+        d.show_all()
 
     def open_project(self) -> None:
         d = Gtk.FileChooserNative(title="Open a project folder", action=Gtk.FileChooserAction.SELECT_FOLDER,
@@ -998,7 +1313,7 @@ class Workspace(Gtk.ApplicationWindow):
         os.sync()
         if not quiet:
             where = (f" The AI was {cp.get('state', 'idle')} on: {cp['request'][:120]}" if cp.get("request") else "")
-            self.bubble("ai", f"Progress saved ({rel}).{where}")
+            self.bubble("app", f"Progress saved ({rel}).{where}")
         return rel
 
     def save_and_shutdown(self) -> None:
@@ -1033,7 +1348,7 @@ class Workspace(Gtk.ApplicationWindow):
                 try:
                     Gio.Subprocess.new(["systemctl", "poweroff"], Gio.SubprocessFlags.NONE)
                 except GLib.Error as e:
-                    self.bubble("ai", f"The computer couldn't be shut down from here ({e.message}); everything is "
+                    self.bubble("app", f"The computer couldn't be shut down from here ({e.message}); everything is "
                                       "saved — use the system menu.")
             if choice in (1, 2):
                 self.close()
@@ -1056,7 +1371,7 @@ class Workspace(Gtk.ApplicationWindow):
     def resume(self) -> None:
         cp = self.checkpoint()
         if not cp.get("request"):
-            self.bubble("ai", "Nothing to resume: no request was left unfinished.")
+            self.bubble("app", "Nothing to resume: no request was left unfinished.")
             return
         last = " / ".join(cp.get("thoughts", [])[-2:])
         text = (f"Resume where you left off. The request was: {cp['request'][:600]} — it stopped at step "
@@ -1126,7 +1441,7 @@ class Workspace(Gtk.ApplicationWindow):
         closure 4: Ian's design)."""
         if not token_of(self.root):
             if not can_be_project(self.root):
-                self.bubble("ai", "This is your home folder or a folder outside it: AICUI can work here, but it won't "
+                self.bubble("app", "This is your home folder or a folder outside it: AICUI can work here, but it won't "
                                   "set up a project or a Python environment in it.")
                 return False
             if not self.yes_no("Make this folder an AICUI project?",
@@ -1194,10 +1509,10 @@ class Workspace(Gtk.ApplicationWindow):
                            f"The AI asks for:\n{lines}\n\nThey're downloaded from PyPI (the Python package index) "
                            "into this project's own environment, outside its folder — nothing else on the computer "
                            "changes."):
-            self.bubble("ai", "Not installed. The AI can go on without " + ", ".join(wanted) + ", or ask again.")
+            self.bubble("app", "Not installed. The AI can go on without " + ", ".join(wanted) + ", or ask again.")
             return
         self.building = True
-        self.bubble("ai", "Building the project's environment…")
+        self.bubble("app", "Building the project's environment…")
 
         def work() -> None:
             try:
@@ -1205,7 +1520,7 @@ class Workspace(Gtk.ApplicationWindow):
                 done = f"Environment ready: Python {h['python']} · " + (", ".join(h["packages"]) or "no packages")
             except (OSError, RuntimeError, ValueError) as e:
                 done = f"The environment couldn't be built: {e}"
-            GLib.idle_add(lambda: (self.bubble("ai", done), self.load_tree(), setattr(self, "building", False))
+            GLib.idle_add(lambda: (self.bubble("app", done), self.load_tree(), setattr(self, "building", False))
                           and False)
         threading.Thread(target=work, daemon=True).start()
 
@@ -1267,6 +1582,8 @@ class App(Gtk.Application):
         css.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), Workspace.CSS_LOOK,  # the person's chat look
+                                                 Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
     def do_activate_or_open(self) -> None:
         """With AICUI up, the assistant's sidebar steps aside (Ian: not cluttered by default); Super+A brings it back."""

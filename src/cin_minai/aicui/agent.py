@@ -2603,6 +2603,25 @@ def card_minded(backend, event, say):
     return chat
 
 
+def sized(plan: dict, machine, model_path: str, say=print) -> dict:
+    """The plan at the context the person chose (AICUI's Context button; contextfit.py): unchanged when the choice
+    is Cin-MinAI's own sizes, or when the model or the chosen size doesn't fit (said)."""
+    from cin_minai.inference import contextfit, matcher
+    prefs = contextfit.load()
+    if prefs["choice"] == "default":
+        return plan
+    m = contextfit.model_for(plan["file"], model_path)
+    if m is None:
+        return plan
+    ctx, p = contextfit.fit(m, machine, prefs, plan.get("context", contextfit.DEFAULT))
+    if p is None:
+        say(f"\033[33m{ctx // 1024}K context doesn't fit this computer with {plan['model']}; "
+            f"{plan.get('context', 0) // 1024}K as Cin-MinAI picks.\033[0m")
+        return plan
+    full = matcher.full_plan(m, machine, ctx, plan.get("why", ""))
+    return {**plan, **full, "model": plan["model"]} if full else plan
+
+
 def local_backend(say=print):
     """The matcher's coding model from the user's model store; the daemon's guide is unloaded first (one card)."""
     from cin_minai.daemon import config
@@ -2628,9 +2647,10 @@ def local_backend(say=print):
         m, p = have[0]
         plan = {"model": m.name, "file": m.file, **p, "context": matcher.CONTEXT["coding"],
                 "reserve_mib": matcher.margin_mib(machine.cards[0]) if machine.cards else 0}
+    plan = sized(plan, machine, store.path(plan["file"]), say)
     cfg = backend_cfg(config.load()["inference"], plan, store.path(plan["file"]))
     cfg["socket_name"] = "llama-code.sock"
-    say(f"\033[2mModel: {plan['model']} ({plan['mode']}), loading…\033[0m")
+    say(f"\033[2mModel: {plan['model']} ({plan.get('context', 0) // 1024}K context, {plan['mode']}), loading…\033[0m")
     log_path = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
                             "code-server.log")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -2664,6 +2684,8 @@ def main(argv=None) -> int:
     cloud = cloud_mod.settings(root)
     use_cloud = cloud["role"] in ("finisher", "exclusive", "lead")  # docs/accounts-and-cloud.md
     team, both, crew = pair_mod.team_of(root), None, []  # crew: the cloud lead's local contributors (backend, name)
+    if team == "solo":  # one local model after a team (Ian, 2026-10-14): the coder alone, as --solo
+        a.solo = True
     if use_cloud:
         from cin_minai.daemon import accounts
         backend = cloud_mod.Anthropic(root, lambda: accounts.cloud_key("anthropic"), cloud["model"])
