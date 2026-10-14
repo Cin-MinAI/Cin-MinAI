@@ -1058,6 +1058,16 @@ record is detected; a lost USB is recovered with the printed code.
   signature itself; updates need several independent maintainers' signatures (e.g. 3 of 5); reproducible builds and a
   public log of every release; applied only with the person's key, PIN and voice; the same update by mail or carried
   from another computer for those far from a library; a defined, still-offline emergency path for a serious flaw.
+  **Two checks, the owner each time** (Ian: "Basically you want a free source of trust. The key wouldnt take the update
+  without the pin, then it wouldnt apply the update without the pin and key phrase, or eye scan, or thumb print, or
+  some sort of biometric verification that the person updating this computer is the person that started the computer
+  and the person who owns the computer"): the key takes an update onto itself only with the PIN (a stolen key carries
+  nothing); the computer applies it only with the key, the PIN and a biometric, checked against the **owner enrolled
+  at first setup** (key, PIN, biometric template in the security chip's vault). To handle: several people in one home
+  (more than one enrolled, or delegated update rights); selling or giving the computer away (the old owner releases it
+  with their key, the new one enrolls; a recovery path for a lost key, so a used PC isn't a brick); people biometrics
+  fail for (injury, disability, a voice changed by illness) — alternatives of equal strength, a second key or a
+  recovery code, so security never shuts anyone out.
   Open questions: what the Sentinel may see of the desktop (local, open, inspectable — or it's surveillance); the AI
   acting on the desktop only through typed, recorded actions (D85, the action record); updating and recovering the
   bottom layer itself (D42's recovery USB, the key); a VM desktop that feels native (GPU passthrough, no lag).
