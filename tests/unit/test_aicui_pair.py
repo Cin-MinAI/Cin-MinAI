@@ -333,7 +333,8 @@ class PairTest(unittest.TestCase):
                          [("senior", [{"what": "the official rulebook", "kind": "text"}], ["data/rules.json"]),
                           ("junior", [{"what": "the official card list", "kind": "text"}], ["data/cards.json"]),
                           ("senior", [], ["engine.py"])])
-        blocked = senior.do({"tool": "write", "path": "data/rules.json", "content": "[]\n"})
+        self.assertEqual({(g["by"], g.get("via")) for g in goals}, {("user", "plan")})  # approved: the person's goals
+        blocked =senior.do({"tool": "write", "path": "data/rules.json", "content": "[]\n"})
         self.assertIn("belongs to goal 1", blocked)
         self.assertIn("takes from outside the official rulebook (text) — still missing: the official rulebook (text)", blocked)
         self.assertIn("logged as change", senior.do({"tool": "write", "path": "engine.py", "content": "x = 1\n"}))
@@ -485,7 +486,10 @@ class PairTest(unittest.TestCase):
         junior.chat = lambda messages, **kw: (
             "JUNIOR read " + messages[0]["content"].split("This is ")[1].split(".")[0], {})
         senior.ask = lambda prompt: "y"
+        for g in senior.goals.load():
+            senior.goals.remove(g["id"])
         senior.goals.add("an old open goal", by="ai")
+        mine = senior.goals.add("The person's own goal", by="user", via="plan")
         senior.turn("pick the project up")
         with open(os.path.join(self.root, "notes", "project-summary.md")) as f:
             summary = f.read()
@@ -497,7 +501,21 @@ class PairTest(unittest.TestCase):
         self.assertIn("Large File Distillation is done: 5 files", planning)
         self.assertIn("your context is fresh", planning)
         self.assertNotIn("Take the project in.", planning)  # the dumped steps are gone
-        self.assertEqual([g["text"] for g in senior.goals.load()], ["Finish the rules from the summary"])
+        # the AI's own open goal gave way; the person's stays as it was (Ian, 2026-10-14: test14's replan rewrote the
+        # person's goals as "(complete) — Mark complete"), and the new plan's goals are the AI's
+        self.assertEqual([(g["text"], g["by"]) for g in senior.goals.load()],
+                         [("The person's own goal", "user"), ("Finish the rules from the summary", "ai")])
+        self.assertEqual(senior.goals.load()[0]["id"], mine["id"])
+        self.assertIn("(the person's)", senior.system())
+
+    def test_the_ai_ticks_the_persons_goals_but_never_erases_them(self):
+        senior, junior, p = self.pair()
+        g = senior.goals.add("Make the duel playable", by="user")
+        own = senior.goals.add("A helper module", by="ai")
+        self.assertFalse(senior.goals.remove(g["id"], by="ai"))
+        self.assertTrue(senior.goals.remove(own["id"], by="ai"))  # its own: a different course is the AI's choice
+        self.assertIn(g["id"], [x["id"] for x in senior.goals.load()])
+        self.assertTrue(senior.goals.remove(g["id"]))  # the person removes anything
 
     def test_a_brief_has_the_junior_read_files_and_answer_between_steps(self):
         """Ian, 2026-10-10 (test9): "Have your assistant scan each file and summarize to you" — the Senior read fifteen

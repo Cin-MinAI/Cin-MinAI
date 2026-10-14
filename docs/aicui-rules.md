@@ -55,6 +55,7 @@ So each rule is one of two kinds:
 | A36 | every request | the next request is told what the last one read, changed and thought; a new session starts from the checkpoint; a screenshot older than the last change is said to be old | 2026-10-12 (Haiku on test11 re-read main.py 17 times and trusted a stale screenshot) |
 | A37 | cloud Lead | the cloud is the Senior; one or two local contributors take assign (write, fix, check, test), brief, distill and LFD; one numbering, Stop lists both | 2026-10-12 (Ian) |
 | A38 | cloud Advisor | the local models work; the lead one asks the cloud (`advisor`, its question with the request, goals, last steps and checks); AICUI asks by itself after 12 steps without progress; 5 a request; advice is progress (a create) | 2026-10-13 (Ian) |
+| A39 | whose goals | the person's goals (typed, or from the first plan they approved) are ticked by the AI, never reworded or erased; the AI erases only its own (a replan replaces its open goals); the model sees each goal marked (the person's) or (yours) | 2026-10-14 (Ian) |
 | A25 | every step | the same refused step twice in a row: stuck, said where it is (a junior's stuck point to its senior) | today (test7: one refused step fifteen times; tool calls are greedy, temperature 0, so an unchanged state repeats) |
 
 ## B. On the model

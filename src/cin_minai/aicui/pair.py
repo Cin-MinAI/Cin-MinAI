@@ -323,8 +323,9 @@ class Pair:
             f"Large File Distillation is done: {r['files']} files, {r['by_junior']} summarized by your junior (from the "
             f"smallest), {r['by_senior']} by you (from the largest), in {r['path']}. Your earlier steps in this request "
             "are cleared, so your context is fresh. The project summary:\n\n" + text + "\n\nNow make the plan for "
-            "moving forward with plan — roles for you and your assistant; the open goals give way to it, the ticked ones "
-            "stay — then work it.")
+            "moving forward with plan — roles for you and your assistant. The person's goals stay as they are (you tick "
+            "them when they're really done, never reword or erase them); your own open goals give way to the new plan, "
+            "the ticked ones stay — then work it.")
         self.senior.replan_ok = True
         return (f"Large File Distillation done: {r['files']} files in {r['seconds']} s — {r['by_junior']} by your "
                 f"junior, {r['by_senior']} by you — into {r['path']}. Your context is cleared next; the summary comes "

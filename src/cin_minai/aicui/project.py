@@ -350,8 +350,14 @@ class Goals:
                 g.update(fields)
         self.save(goals)
 
-    def remove(self, gid: int) -> None:
-        self.save([g for g in self.load() if g["id"] != gid])
+    def remove(self, gid: int, by: str = "user") -> bool:
+        """The person removes any goal; the AI only its own (Ian, 2026-10-14: "the ai should only be able to check a
+        persons as done, not erase it. They can erase their own though"). False when it isn't the remover's to erase."""
+        goals = self.load()
+        if by == "ai" and any(g["id"] == gid and g.get("by") == "user" for g in goals):
+            return False
+        self.save([g for g in goals if g["id"] != gid])
+        return True
 
     def current(self) -> dict | None:
         return next((g for g in self.load() if not g["done"]), None)

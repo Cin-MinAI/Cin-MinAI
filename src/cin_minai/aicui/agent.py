@@ -902,7 +902,8 @@ class Agent:
             files += self.request_and_screenshots()
         lines = []
         for g in self.goals.load():  # each goal with where it stands in the cycle (fetched, structured, checked…)
-            lines.append(f"  {g['id']}. [{'x' if g['done'] else ' '}] {g['text']}")
+            lines.append(f"  {g['id']}. [{'x' if g['done'] else ' '}] {g['text']}"  # whose: the person's stay
+                         + ("  (the person's)" if g.get("by") == "user" else "  (yours)"))
             lines += [f"       {s}" for s in goal_stages(self.root, g)["lines"]]
         goals = "\n".join(lines) or "  (none yet)"
         venv = ""
@@ -1836,12 +1837,16 @@ class Agent:
             return "the person said no to the plan — ask what they want instead"
         if reply.lower() not in ("y", "yes", "ok", "a"):
             return f"the person wants changes to the plan: {reply[:500]} — make the plan again with them"
-        if replan:  # the open goals give way to the new plan; the ticked ones stay
+        if replan:  # the AI's own open goals give way to the new plan; the person's stay, and the ticked ones
             for g in self.goals.load():
                 if not g["done"]:
-                    self.goals.remove(g["id"])
+                    self.goals.remove(g["id"], by="ai")  # refused for the person's goals
             self.replan_ok = False
-        made = [self.goals.add(g["text"], by="ai", from_outside=g["from_outside"], files=g["files"], who=g["who"])
+        # the first plan is the person's request, approved by them: their goals, which the AI ticks but never erases
+        # (Ian, 2026-10-14; test14's replan rewrote them as "(complete) — Mark complete" and ticked them)
+        by = "ai" if replan else "user"
+        made = [self.goals.add(g["text"], by=by, from_outside=g["from_outside"], files=g["files"], who=g["who"],
+                               **({} if replan else {"via": "plan"}))
                 for g in goals]
         self.event("goals")
         planned = getattr(self, "planned", None)
