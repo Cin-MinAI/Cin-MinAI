@@ -508,6 +508,37 @@ class PairTest(unittest.TestCase):
         self.assertEqual(senior.goals.load()[0]["id"], mine["id"])
         self.assertIn("(the person's)", senior.system())
 
+    def test_the_lead_waits_for_its_junior_instead_of_asking_the_person(self):
+        """Ian, 2026-10-14 (test18): the cloud lead asked the person "What is the current status of task 1? Has the
+        junior finished?" — 48 seconds before the junior answered. wait costs no call; a question waits for the
+        junior's next result; with tasks out the nudge says wait, not ask."""
+        import threading
+        senior, junior, p = self.pair()
+        self.assertIn("nothing to wait for", senior.do({"tool": "wait"}))
+        out = {"n": 1}
+        senior.errands_pending = lambda: out["n"] > 0
+        senior.inbox = []
+
+        def back():  # the junior's task comes back a moment later
+            time.sleep(0.5)
+            senior.inbox.append((1, "task", "index.html written and checked"))
+            out["n"] = 0
+        threading.Thread(target=back).start()
+        self.assertTrue(senior.do({"tool": "wait"}).startswith("back"))
+        self.assertTrue(senior.progressed({"tool": "wait"}, "back: your junior's result is in your notes"))
+        self.assertNotIn("wait", senior.excluded())
+        self.assertIn("wait", junior.excluded())  # the junior has nothing to wait for
+
+        # a question with a task out: the junior's result first, then the lead decides again
+        out["n"], senior.inbox = 1, []
+        threading.Thread(target=back).start()
+        senior.chat = Scripted([step("Is the junior done?", tool="ask", question="Has the junior finished task 1?"),
+                                step("It's back; nothing to ask.", tool="answer", text="index.html is done")])
+        senior.ask = lambda prompt: self.fail("the person was asked: " + prompt)
+        said = senior.turn("make the page")
+        self.assertEqual(said, "index.html is done")
+        self.assertIn("Task 1 is back from your junior", json.dumps(senior.chat.sent[-1]))
+
     def test_the_ai_ticks_the_persons_goals_but_never_erases_them(self):
         senior, junior, p = self.pair()
         g = senior.goals.add("Make the duel playable", by="user")

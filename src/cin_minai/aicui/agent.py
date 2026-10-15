@@ -94,9 +94,12 @@ ACTIONS = [
     {"tool": "lfd", "focus": STR},
     {"tool": "permit", "n": {"type": "integer"}, "allow": {"type": "boolean"}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
+    {"tool": "wait"},
 ]
 OPTIONAL = {"start", "goal", "into", "format", "kind", "network"}
-SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit"}  # style B's Senior
+SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit", "wait"}  # style B's Senior
+WAIT_MAX_S = 900  # wait: until the junior's next result, or this long (Ian, 2026-10-14: wait, don't ask the person)
+ASK_WAIT_S = 180  # a question to the person waits this long at most for the junior's next result (2026-10-13: never unseen)
 BEFORE_PLAN = {"read", "list", "search", "look", "ask", "answer", "plan", "advisor"}  # a new project's first steps, before its plan
 JUNIOR_TOOLS = {"read", "list", "search", "distill", "edit", "replace_lines", "write", "append", "run", "ask",
                 "answer"}
@@ -274,7 +277,8 @@ give it one file with assign (`path`, `task`, `kind`). Its results come between 
 `note`). It reads ~25x faster than you: brief (`files`, `question`) has it read files and answer you; lfd (`focus`,
 Large File Distillation) has you both summarize every file of a project you don't have in mind, then you plan from
 the summary. Its questions (may it change a file, run a command) come to you too: permit (`n`, `allow`), or leave
-them to the person. Pages you fetch go to the junior first; its notes come to you. You have the final word."""
+them to the person. Pages you fetch go to the junior first; its notes come to you. Tasks out, nothing else to do:
+wait; never ask the person how they're going. You have the final word."""
 
 SENIOR_CLOUD = """
 You lead from the cloud. Your contributors are local models on the person's computer: their work costs nothing, and
@@ -287,7 +291,9 @@ what's wrong and how to correct it), check it, or test (run the program or its t
 to find and where it goes); distill and the pages you fetch go to them first, their notes
 come to you; lfd (`focus`): they summarize the whole project for you to plan from. Their results come between your
 steps: review_task (`n`, `accept`, `note`); a long task gets a progress report: let it work, or direct it with
-follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). You have the final word."""
+follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
+else of yours to do: wait (until their next result comes back; waiting costs nothing, each check costs a call) —
+never ask the person how their work is going. You have the final word."""
 
 ADVISOR_LINE = """
 A stronger model in the cloud ({name}) is your advisor: advisor (`question`) gives it your request, the goals, your
@@ -876,6 +882,16 @@ class Agent:
             self.event("busy", doing="waiting for the helper's errand", tokens=0)
             time.sleep(2)
 
+    def wait_next(self, cancel: threading.Event | None, deadline_s: float = WAIT_MAX_S) -> bool:
+        """Until the junior's next result (a task back, its progress, a question) or none is out: no model call meanwhile,
+        so a cloud lead's waiting costs nothing. True when something came in."""
+        end = time.time() + deadline_s
+        while self.errands_out() and not getattr(self, "inbox", None) and time.time() < end and \
+                not (cancel and cancel.is_set()):
+            self.event("busy", doing="waiting for your junior's next result", tokens=0)
+            time.sleep(2)
+        return bool(getattr(self, "inbox", None))
+
     def deliver(self, steps: list[dict]) -> bool:
         """What the helper finished since the last step, as notes the model reads now. True when one of them is a
         junior's brief or gathered record: new knowledge for the project, a create (Ian, 2026-10-10)."""
@@ -1134,6 +1150,7 @@ class Agent:
                 f"{tail}\nContinue with append from there — don't write those lines again.")
 
     def turn(self, text: str, cancel: threading.Event | None = None) -> str:
+        self.cancel_event = cancel
         self.event("user", text=text)
         self.request_text = text
         reset = getattr(self, "advisor_reset", None)
@@ -1288,6 +1305,8 @@ class Agent:
                 # never before a question to the person (2026-10-13: Haiku's question waited unseen behind a brief)
                 if act["tool"] == "answer":
                     self.wait_errands(cancel)
+                elif not getattr(self, "inbox", None):  # a question: after the junior's next result, not before
+                    self.wait_next(cancel, ASK_WAIT_S)  # (Ian, 2026-10-14: Haiku asked how its junior's task was going)
                 if getattr(self, "inbox", None):
                     self.deliver(steps)
                     continue
@@ -1353,8 +1372,11 @@ class Agent:
                     last_progress = n  # new knowledge: the advice gets its own steps to be tried
             elif n - last_progress in (NUDGE_STEPS, NUDGE_STEPS * 2):  # the one progress rule: said, then said again
                 self.note(steps, f"No progress in the last {n - last_progress} steps: no file changed, no new result, "
-                                 "no goal moved. Make the change now (lines the checks or the map name can go by number "
-                                 "with replace_lines), or ask the person.")
+                                 "no goal moved. " + ("Your junior has tasks out: wait for their results, or make a change "
+                                                      "of your own — don't ask the person how they're going."
+                                                      if self.errands_out() and "wait" not in self.excluded() else
+                                                      "Make the change now (lines the checks or the map name can go by "
+                                                      "number with replace_lines), or ask the person."))
             if n % CHECKPOINT_STEPS == 0:  # a handover in the chat, and on it goes (Ian: as automated as possible)
                 self.event("handover", text=self.handover(steps, f"{n} steps so far — still working."))
             if n - last_progress >= STUCK_STEPS:
@@ -1407,6 +1429,8 @@ class Agent:
         project — a page or file fetched, a gathered record — is a create (Ian, 2026-10-10: "new source is progress":
         told "make the change now" while it gathered, a model would type facts from memory)."""
         tool = act.get("tool")
+        if tool == "wait" and result.startswith("back"):  # its junior's result came in: the lead's wait was right
+            return True
         if "logged as change" in result:  # write / delete
             return True
         if result.startswith(("the person said no", "the user said no")):  # reject (the person decided)
@@ -2129,6 +2153,12 @@ class Agent:
                         "(you, or your assistant, the junior). The person sees it once.")
             if t == "plan":
                 return self.make_plan(a.get("goals") or [])
+            if t == "wait":
+                if not self.errands_out() and not getattr(self, "inbox", None):
+                    return "nothing to wait for: your junior has no tasks out — give it one, or work yourself"
+                got = self.wait_next(getattr(self, "cancel_event", None))
+                return ("back: your junior's result is in your notes" if got else
+                        f"still out after {WAIT_MAX_S // 60} minutes: check on it with follow_up, or go on yourself")
             if t in CHANGES and os.path.normpath(a.get("path", "")) == REQUEST_FILE:
                 return f"error: {REQUEST_FILE} is the person's own words; it isn't changed"
             if t in CHANGES:

@@ -547,8 +547,13 @@ class AgentTest(unittest.TestCase):
         os.utime(shot, None)
         self.assertNotIn("it shows the program as it was", a.system())
 
-    def test_a_question_to_the_person_never_waits_behind_the_helpers(self):
-        """2026-10-13: Haiku's question waited unseen while its contributor worked on a brief."""
+    def test_a_question_to_the_person_waits_for_one_result_at_most(self):
+        """2026-10-13: Haiku's question waited unseen while its contributor worked on a brief; 2026-10-14 (Ian): it asked
+        the person how its junior's task was going. A question waits for the junior's next result, ASK_WAIT_S at most."""
+        from unittest import mock
+        from cin_minai.aicui import agent as A
+        mock.patch.object(A, "ASK_WAIT_S", 1).start()
+        self.addCleanup(mock.patch.stopall)
         a = Agent(self.root, Scripted([step("", tool="ask", question="Which decks?")]), "m", "auto",
                   say=self.said.append)
         a.errands_pending = lambda: True  # a contributor still working, for as long as it takes
