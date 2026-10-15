@@ -699,6 +699,11 @@ JS_NAME = re.compile(r"""getElementById\(\s*['"]([\w-]+)['"]|querySelector(?:All
                      r"""classList\.(?:add|remove|toggle|contains)\(\s*['"]([\w-]+)['"]""")
 
 
+JS_MADE = re.compile(r"""\.className\s*\+?=\s*[`'"]\s*([\w\s-]+?)\s*[`'"$]|"""
+                     r"""setAttribute\(\s*['"]class['"]\s*,\s*[`'"]([\w\s-]+)""")
+JS_ID = re.compile(r"""\.id\s*=\s*[`'"]([\w-]+)[`'"]|setAttribute\(\s*['"]id['"]\s*,\s*[`'"]([\w-]+)""")
+
+
 def web_names(root: str) -> str:
     """Names that don't connect across a web project's files: classes and ids the CSS styles or the script looks up
     that no HTML element has (2026-10-03: the wedding page's CSS styled .nav/.menu/.menu-btn while the HTML said
@@ -718,6 +723,13 @@ def web_names(root: str) -> str:
     classes = {c for group in re.findall(r"""\bclass\s*=\s*["']([^"']+)["']""", html) for c in group.split()}
     # classes the script adds itself (an open menu, a shown section) exist while the page runs
     classes |= {cls for _, js in files[".js"] for _, _, cls in JS_NAME.findall(js) if cls}
+    # and the elements it makes (2026-10-15, test18: game.js made each card with className = 'card' and its rank as
+    # `<div class="rank">` in a string; the check said .card styles nothing and no goal could be ticked)
+    for _, js in files[".js"]:
+        classes |= {c for found in JS_MADE.findall(js) for made in found for c in made.split()}
+        classes |= {c for group in re.findall(r"""\bclass\s*=\s*\\?["']([^"'\\$]+)""", js) for c in group.split()}
+        ids |= {i for found in JS_ID.findall(js) for i in found if i}
+        ids |= set(re.findall(r"""\bid\s*=\s*\\?["']([\w-]+)""", js))
     problems = []
     for rel, css in files[".css"]:
         css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)

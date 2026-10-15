@@ -956,6 +956,24 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(ok, report)
         self.assertIn("names and tags line up", report)
 
+    def test_elements_the_script_makes_have_names_too(self):
+        """2026-10-15, test18: game.js made each card with className = 'card' and wrote its rank as <div class="rank">
+        inside a string; the check said .card styled nothing, and no goal of the finished game could be ticked."""
+        from cin_minai.aicui.agent import web_names
+        with open(os.path.join(self.root, "index.html"), "w") as f:
+            f.write('<div id="player-cards"></div>\n<script src="game.js"></script>\n')
+        with open(os.path.join(self.root, "styles.css"), "w") as f:
+            f.write(".card { }\n.card.red { }\n.rank { }\n.suit { }\n#result { }\n.chip { }\n")
+        with open(os.path.join(self.root, "game.js"), "w") as f:
+            f.write("const c = document.createElement('div');\nc.className = 'card';\nc.classList.add('red');\n"
+                    "c.innerHTML = `<div class=\"rank\">${r}</div><div class=\"suit\">${s}</div>`;\n"
+                    "const m = document.createElement('p');\nm.id = 'result';\n")
+        r = web_names(self.root)
+        self.assertNotIn(".card", r)
+        self.assertNotIn(".rank", r)
+        self.assertNotIn("#result", r)
+        self.assertIn("styles.css styles .chip", r)  # still caught: nothing makes it
+
     def test_the_card_is_asked_for_before_every_load_and_a_slow_fallback_is_said(self):
         """2026-10-03: the daemon reloaded its guide between the agent's start and its first request; the 27B went
         to the processor at 1.1 tok/s and nothing said so."""
