@@ -1819,3 +1819,48 @@ alternative to Microsoft's Pluton as the long-term plan, built on open roots of 
 sketch of the AI-OS to come — a sentinel and the vaults at the bottom, the desktop a disposable VM on top, the
 sentinel updated only by hand, through libraries. First after the alpha: a local watcher on the places a program
 that copies itself has to touch.
+
+## 2026-10-14 (evening) to 10-15 — contexts measured, the lead waits, and a lesson in scripting
+
+**What was built.** AICUI can run one local model again after a team; the chat and the AI terminal take the look
+each person wants (bubbles, boxes or a straight terminal; colours, fonts and sizes per speaker). Context sizes are
+the person's to choose — Cin-MinAI's own, fill the card, leave me room, or set sizes — and a **Benchmark** button
+measures what really holds on this card instead of trusting an estimate: on the GTX 1080 Ti the 27B held 48K and
+crashed at 64K, the 35B MoE held every size up to 128K and still wrote about 20 words a second there. A crash at work
+now steps down instead of looping. The person's goals are theirs: the AI ticks them, never rewords or erases them.
+And a cloud lead now **waits** for its local helper — no paid call while it waits — instead of asking the person how
+the helper's work is going.
+
+**A teaching moment: why Run didn't open the page.** A blackjack site built in AICUI worked, but the Run button stopped
+opening it. Run starts `run.sh` when a project has one, and the AI had written a `run.sh` that only started a small
+web server — `python3 -m http.server 8000 --bind 127.0.0.1` — and then waited. A server serves; it doesn't open a
+browser. Ian fixed it himself, with three lines:
+
+```bash
+python3 -m http.server 8000 --bind 127.0.0.1 &
+sleep 1 && xdg-open http://localhost:8000
+wait
+```
+
+`&` sends the server to the background so the script can go on; `xdg-open` opens an address in whatever browser is
+the default; `wait` keeps the script — and the server — running until it's stopped. A script runs its lines in order
+and each one waits for the last, unless you tell it not to: most "it starts but nothing happens" puzzles are that.
+
+**Network safety, and what "localhost" means.** *Localhost* sounds like something exposed. It's the opposite: it's
+the computer's name for itself. `localhost` and `127.0.0.1` are addresses that never leave the machine; no other
+device can reach them — not a phone on the same Wi-Fi, not anyone on the internet.
+
+- **The bind is the lock.** `--bind 127.0.0.1` tells the server to listen only there. Left out, Python's server
+  listens on every network the computer is on (we checked: its default is all of them). At home that's the family's
+  devices; on café or hotel Wi-Fi, it's strangers. A firewall is a second lock; the bind is the first.
+- **A server shares the whole folder,** not just the page: every file where it started. Here that included AICUI's
+  own notes (the request, the models' steps, the cloud spend). Harmless on localhost; one more reason never to open
+  it to a network without thinking.
+- **A port is a door number.** One program per door: pressing Run twice failed the second time because the first
+  server still held door 8000. Stop servers when you're done (`pkill -f "http.server 8000"`).
+- **Publishing is the other direction.** GitHub Pages is public to the world, and what's published is exactly what's
+  pushed. When a project is linked to GitHub, AICUI keeps its own notes and the Python environment out of it
+  (`.gitignore`); before a push, it's still worth a look for keys and personal files.
+
+The rule of thumb we'd teach: *something on localhost is just for you; something on the internet is for everyone —
+know which one you're starting.*
