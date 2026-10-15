@@ -75,13 +75,19 @@ def record(key: str, sizes: list[int] | int, ok: bool, file: str | None = None, 
     os.replace(file + ".tmp", file)
 
 
+def passed(run: dict) -> bool:
+    """Held, and really read: a run marked held with nothing read was a crash that ended the stream quietly (the
+    first benchmark, 2026-10-14, recorded 64K that way)."""
+    return bool(run.get("ok")) and ("read" not in run or int(run.get("read") or 0) > 0)
+
+
 def limits(key: str, file: str | None = None) -> dict:
     """{"held": the largest size that held below the smallest that failed (a pair: per model), "failed": that
     smallest failure, "runs": every measurement} — held/failed None when not measured."""
     runs = load(file).get(key, [])
-    failed = [r["sizes"] for r in runs if not r.get("ok")]
+    failed = [r["sizes"] for r in runs if not passed(r)]
     low = min(failed, key=lambda s: max(s)) if failed else None
-    held = [r["sizes"] for r in runs if r.get("ok") and (low is None or max(r["sizes"]) < max(low))]
+    held = [r["sizes"] for r in runs if passed(r) and (low is None or max(r["sizes"]) < max(low))]
     return {"held": max(held, key=lambda s: max(s)) if held else None, "failed": low, "runs": runs}
 
 

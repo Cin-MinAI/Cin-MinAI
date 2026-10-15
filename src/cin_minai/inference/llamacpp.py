@@ -451,6 +451,8 @@ class LlamaCppBackend(InferenceBackend):
                             on_text(piece)
             if cancel is not None and cancel.is_set():
                 raise Cancelled("cancelled")  # a closed connection can also end the stream quietly
+            if not text and not timings:  # a crash ends the stream quietly too (2026-10-14: 64K, nothing read)
+                raise ConnectionError("the answer ended with nothing")
         except (OSError, http.client.HTTPException, ValueError) as e:
             if cancel is not None and cancel.is_set():
                 raise Cancelled("cancelled") from e

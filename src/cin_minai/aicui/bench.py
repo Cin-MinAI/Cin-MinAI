@@ -76,6 +76,13 @@ def fill(backend, ctx: int) -> dict:
     answer, timings = backend.chat([{"role": "user", "content": text + "\nIn one sentence: what is this text about?"}],
                                    max_tokens=48)
     t = timings[-1] if isinstance(timings, list) and timings else timings or {}
+    if not int(t.get("prompt_n") or 0) or not answer.strip():  # a stream that ended quietly: it never answered
+        for _ in range(40):  # (2026-10-14: 64K "held" with nothing read — the server had dumped core)
+            if not backend.alive():
+                break
+            time.sleep(0.25)
+        raise RuntimeError("the model stopped while reading (out of graphics memory, most likely)"
+                           if not backend.alive() else "it gave no answer")
     return {"read": int(t.get("prompt_n") or 0), "prompt_tps": round(float(t.get("prompt_per_second") or 0), 1),
             "gen_tps": round(float(t.get("predicted_per_second") or 0), 1),
             "seconds": round(time.monotonic() - start, 1), "answer": answer.strip()[:120]}

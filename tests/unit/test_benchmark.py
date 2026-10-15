@@ -49,6 +49,14 @@ class StoreTest(unittest.TestCase):
         B.record(key, [98304, 98304], False, self.file)
         self.assertEqual(B.cap([90112, 126976], key, self.file)[0], [65536, 65536])
 
+    def test_held_with_nothing_read_was_a_crash(self):
+        """The first real benchmark (2026-10-14) recorded 64K as held with 0 tokens read: the server had dumped core
+        and the stream ended quietly."""
+        B.record(self.key, 49152, True, self.file, read=42909, gen_tps=7.6)
+        B.record(self.key, 65536, True, self.file, read=0, gen_tps=0.0)
+        self.assertEqual(B.limits(self.key, self.file)["failed"], [65536])
+        self.assertEqual(B.cap([65536], self.key, self.file)[0], [49152])
+
     def test_a_new_engine_or_card_is_measured_again(self):
         self.assertNotEqual(self.key, B.setup_key(["Qwen3.8-27B-UD-IQ3_XXS.gguf"], "NVIDIA GeForce GTX 1080 Ti",
                                                    "0.0.1+git2"))
