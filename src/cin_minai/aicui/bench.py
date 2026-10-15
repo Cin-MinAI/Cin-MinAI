@@ -198,53 +198,79 @@ def run(root: str, say=print, sizes=benchmark.LADDER) -> list[str]:
     return [summary, *lines, *coding]
 
 
-def coding_run(store, machine, file: str, m, name: str, say=print, rounds=None) -> list[str]:
-    """The junior's limits, measured (benchcode.py): the model as a junior on 2, 4, 8, 16 specified functions, until
-    a round's tests fail. Run at Cin-MinAI's own context size, alone on the card."""
+def coding_run(store, machine, file: str, m, name: str, say=print, targets=None) -> list[str]:
+    """How much load the model carries as a junior (benchcode.py): one project grows — ~100 lines, then +200 holding
+    them, +400, +800… — each stage a fresh task, until one fails (if the first fails: 50 lines instead). Each stage
+    is checked by us: new code, earlier code held, changed code, the report that calls it all."""
     import shutil
     import tempfile
 
-    from .agent import Agent
     from . import benchcode
+    from .agent import Agent
     card = benchmark.card_of(machine)
-    plan = matcher.full_plan(m, machine, contextfit.DEFAULT)
+    ctx, _ = contextfit.fit(m, machine, {"choice": "fill"})  # the most it can hold here, as measured above
+    (ctx,), _ = benchmark.cap([ctx], benchmark.setup_key([file], card))
+    plan = matcher.full_plan(m, machine, ctx)
     if not plan:
-        return ["coding run: the model doesn't fit this card at 32K"]
+        return ["coding run: the model doesn't fit this card"]
     backend = backend_for(store, plan, file, "llama-code.sock", lambda msg: None)
+    benchmark.reset_coding(file, card)  # this run replaces the last one
+    written = {"tokens": 0}
+
+    def counted(messages, **kw):  # the words it writes, for efficiency (tokens a line)
+        text, timings = backend.chat(messages, **kw)
+        t = timings[-1] if isinstance(timings, list) and timings else timings or {}
+        written["tokens"] += int(t.get("predicted_n") or 0)
+        return text, timings
     lines = []
-    say(f"\033[1mCoding run: {name} as a junior — functions to fill in, the tests already written, until a round "
-        "fails.\033[0m")
+    say(f"\033[1mCoding run: {name} as a junior, at {ctx // 1024}K — one project grows (~100 lines, then +200, +400, "
+        "+800…) and every stage must keep everything before it working. Ctrl+C stops it.\033[0m")
+    targets = list(targets or benchcode.TARGETS)
+    root = tempfile.mkdtemp(prefix="cinminai-bench-")
+    project, first, fallback = benchcode.Project(root), True, False
     try:
-        for k in rounds or benchcode.ROUNDS:
-            root = tempfile.mkdtemp(prefix=f"cinminai-bench-{k}-")
+        while targets:
+            target = targets.pop(0)
+            before, start, tokens0 = project.lines(), time.monotonic(), written["tokens"]
+            task = project.grow(target)
+            new_types = len([e for e in project.ents if e["stage"] == project.stage])
+            junior = Agent(root, counted, name, "auto", ctx=ctx, say=lambda s: None)  # fresh: the protocol
+            junior.role, junior.max_steps = "junior", min(400, 30 + 6 * new_types)
             try:
-                task = benchcode.lay_out(root, k)
-                junior = Agent(root, backend.chat, name, "auto", ctx=contextfit.DEFAULT, say=lambda s: None)
-                junior.role, junior.max_steps = "junior", 60
-                start = time.monotonic()
                 junior.work(task, None)
-                ok, why = benchcode.passes(root)
-                steps = 1 + len([s for s in getattr(junior, "steps", []) if isinstance(s, dict) and s.get("did")])
-                # (+1: its final answer is a step too, kept apart from the acting steps)
-                wrote = benchcode.written(root)
-                seconds = round(time.monotonic() - start)
-                benchmark.record_coding(file, card, k, ok, lines=wrote, steps=steps, seconds=seconds,
-                                        why="" if ok else why[:160])
-                said = (f"{k} functions: {'passed' if ok else 'failed'} — {wrote} lines written in {steps} steps, "
-                        f"{seconds} s" + ("" if ok else f" ({why[:100]})"))
-                say(("\033[32m  " if ok else "\033[33m  ") + said + "\033[0m")
-                lines.append(said)
-                if not ok:
-                    break
-            finally:
-                shutil.rmtree(root, ignore_errors=True)
+            except Exception as e:  # the model server failed: the stage failed
+                say(f"\033[33m  stage {project.stage}: the model stopped ({str(e)[:120]})\033[0m")
+            res = project.check()
+            total = project.lines()
+            steps = 1 + len([s for s in getattr(junior, "steps", []) if isinstance(s, dict) and s.get("did")])
+            seconds, tokens = round(time.monotonic() - start), written["tokens"] - tokens0
+            added = max(0, total - before)
+            kinds = {k: res[k] for k in ("new", "held", "changed", "report") if k in res}
+            benchmark.record_coding(file, card, (0 if fallback else project.stage), res["ok"], target=target,
+                                    total=total, added=added, steps=steps, seconds=seconds, tokens=tokens,
+                                    context=ctx, why=res.get("why", "")[:200], **kinds)
+            said = (f"stage {project.stage}: {'held' if res['ok'] else 'failed'} — {total:,} lines in all (+{added:,} "
+                    f"written), {', '.join(f'{k} {v}' for k, v in kinds.items())}; {steps} steps, {seconds // 60} min "
+                    f"{seconds % 60} s" + (f", {tokens / max(1, added):.0f} tokens a line" if added else ""))
+            say(("\033[32m  " if res["ok"] else "\033[33m  ") + said + "\033[0m")
+            lines.append(said)
+            if not res["ok"]:
+                if first and not fallback:  # too much to start with: a smaller first step, on a fresh project
+                    shutil.rmtree(root, ignore_errors=True)
+                    root = tempfile.mkdtemp(prefix="cinminai-bench-")
+                    project, fallback, targets = benchcode.Project(root), True, [benchcode.FIRST_FALLBACK]
+                    say(f"  the first stage failed: {benchcode.FIRST_FALLBACK} lines instead.")
+                    continue
+                break
+            first = False
     except KeyboardInterrupt:
         say("  stopped.")
     finally:
         backend.unload()
+        shutil.rmtree(root, ignore_errors=True)
     lim = benchmark.coding_limits(file, card)
-    summary = (f"Junior limits for {name}: {lim['lines']} lines and {lim['steps']} steps a task"
-               + (" (measured)." if lim["measured"] else " (stand-ins: no round passed)."))
+    summary = (f"Junior load for {name}: carries {lim['capacity']:,} lines in all; {lim['lines']} lines and "
+               f"{lim['steps']} steps a task" + (" (measured)." if lim["measured"] else " (stand-ins: no stage held)."))
     say(f"\033[1m{summary}\033[0m")
     return [summary, *lines]
 

@@ -132,26 +132,38 @@ def coding_key(file: str, card: str, engine: str | None = None) -> str:
 
 
 def coding_limits(file: str, card: str, store: str | None = None) -> dict:
-    """{"lines", "steps", "measured"}: what the model's largest passing coding task took (steps with headroom), or the
-    stand-ins when it hasn't been measured here."""
+    """{"lines", "steps", "capacity", "measured"} from the coding run's stages that held: lines = the most it wrote in
+    one stage (a task's limit), steps = what that stage took, with half again as headroom, capacity = the most it
+    held in all. The stand-ins when nothing was measured here."""
     runs = load(store).get(coding_key(file, card), [])
     passed = [r for r in runs if r.get("ok")]
     if not passed:
-        return {"lines": JUNIOR_LINES, "steps": JUNIOR_STEPS, "measured": False}
-    best = max(passed, key=lambda r: r.get("lines", 0))
-    steps = max(int(r.get("steps", 0)) for r in passed)
-    return {"lines": max(40, int(best.get("lines", 0)) // 10 * 10), "steps": max(15, min(60, -(-steps * 3 // 2))),
-            "measured": True}
+        return {"lines": JUNIOR_LINES, "steps": JUNIOR_STEPS, "capacity": 0, "measured": False}
+    best = max(passed, key=lambda r: r.get("added", 0))
+    return {"lines": max(40, int(best.get("added", 0)) // 10 * 10),
+            "steps": max(15, min(400, -(-int(best.get("steps", 0)) * 3 // 2))),
+            "capacity": max(int(r.get("total", 0)) for r in passed), "measured": True}
 
 
-def record_coding(file: str, card: str, functions: int, ok: bool, store: str | None = None, **measured) -> None:
-    """One coding run: `functions` asked for, whether its tests passed, with lines written and steps taken."""
+def reset_coding(file: str, card: str, store: str | None = None) -> None:
+    """A new coding run replaces the last one (a shorter run must not keep an older run's higher stages)."""
+    store = store or path()
+    data = load(store)
+    if data.pop(coding_key(file, card), None) is not None:
+        with open(store + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=1)
+        os.replace(store + ".tmp", store)
+
+
+def record_coding(file: str, card: str, stage: int, ok: bool, store: str | None = None, **measured) -> None:
+    """One stage of the coding run (0: the smaller first step after a failed first stage): whether every test held,
+    with what was measured (target, total, added, steps, seconds, tokens, and new/held/changed/report passed)."""
     store = store or path()
     data = load(store)
     key = coding_key(file, card)
-    runs = [r for r in data.get(key, []) if r.get("functions") != functions]
-    runs.append({"functions": functions, "ok": bool(ok), "when": time.strftime("%Y-%m-%dT%H:%M:%S"), **measured})
-    data[key] = sorted(runs, key=lambda r: r["functions"])
+    runs = [r for r in data.get(key, []) if r.get("stage") != stage]
+    runs.append({"stage": stage, "ok": bool(ok), "when": time.strftime("%Y-%m-%dT%H:%M:%S"), **measured})
+    data[key] = sorted(runs, key=lambda r: r["stage"])
     os.makedirs(os.path.dirname(store), exist_ok=True)
     with open(store + ".tmp", "w", encoding="utf-8") as f:
         json.dump(data, f, indent=1)
