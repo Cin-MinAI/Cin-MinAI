@@ -1184,8 +1184,10 @@ class Workspace(Gtk.ApplicationWindow):
             return
         if not self.yes_no("Benchmark this setup?",
                            "The AI stops while it runs, and starts again after. Each context size, from 32K up, is "
-                           "loaded, filled with text and asked one question, until one fails — a few minutes, more for "
-                           "a big model. The results show in the terminal and here, and the Context options use them. "
+                           "loaded, filled with text and asked one question, until one fails. Then the model that works "
+                           "as the junior codes: 2, 4, 8, then 16 functions with their tests, until a round fails — "
+                           "that sets its limits per task. Allow 10–30 minutes. The results show in the terminal and "
+                           "here; the Context options and the junior's limits use them. "
                            "Ctrl+C in the terminal stops it."):
             return
         self.term.feed_child(b"\x03")

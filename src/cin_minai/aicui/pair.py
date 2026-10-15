@@ -59,6 +59,8 @@ class Pair:
         self.worker: threading.Thread | None = None
         self.listing: dict[int, dict] = {}           # tasks out, as AICUI lists them at Stop
         self.held: dict[str, int] = {}               # file -> the Junior task that holds it
+        self.attempts: dict[int, int] = {}           # task -> 1 (first try) or 2 (its one correction attempt)
+        self.taken_over: set[str] = set()            # files whose corrections are the senior's now
         self.current: set[str] = set()               # the files of the task the Junior works now
         self.done: dict[int, dict] = {}              # finished tasks, for review_task
         self.stop_junior = threading.Event()
@@ -165,8 +167,10 @@ class Pair:
         self.senior.event("errands", out=sorted(self.listing.values(), key=lambda x: x["n"]))
 
     # --- the Senior's tools ----------------------------------------------------------------------------------
-    def assign(self, path: str, task: str, kind: str = "write") -> str:
-        """One file for the Junior: it must exist (the skeleton first) and not be held already."""
+    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1) -> str:
+        """One file for the Junior: it must exist (the skeleton first) and not be held already. The protocol (Ian,
+        2026-10-15): the senior gives the code specifics; the junior starts each task fresh, within its limits; a
+        rejected task goes back once with the corrections, and after that the senior makes the corrections itself."""
         root = os.path.realpath(self.senior.root)
         full = os.path.realpath(os.path.join(root, path))
         if not full.startswith(root + os.sep):
@@ -184,10 +188,20 @@ class Pair:
             return f"error: {rel} is already held by task {self.held[rel]}"
         if len(task.strip()) < 8:
             return "error: say what the junior should do in this file"
-        return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200])
+        if kind == "fix" and rel in self.taken_over:
+            return (f"error: your junior had its correction attempt on {rel}; the corrections there are yours now "
+                    "(edit or replace_lines)")
+        if kind in ("write", "fix") and attempt == 1 and len(task.split()) < DETAIL_WORDS:
+            return (f"error: give your junior the code specifics ({DETAIL_WORDS} words at least): the functions or "
+                    "classes with their signatures, the imports, what each must do, and how to check it")
+        cap = int(getattr(self.junior, "ctx", 32768) * TASK_SHARE * 3.5)  # D95: a task is 5 % of the receiver's context
+        if len(task) > cap:
+            return (f"error: that task is {len(task):,} characters, over the {cap:,} your junior takes in one task (5 % "
+                    "of its context): split it into tasks of one function or part each")
+        return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200], attempt=attempt)
 
     def queue(self, rel: str, task: str, kind: str, what: str, hold: list | None = None,
-              goal: dict | None = None) -> str:
+              goal: dict | None = None, attempt: int = 1) -> str:
         goal = goal or self.senior.goals.current()
         towards = f"goal {goal['id']}: {goal['text'][:120]}" if goal else "no session goal"
         table = None
@@ -200,6 +214,7 @@ class Pair:
         with self.lock:
             self.out += 1
             n = next(self.numbers)
+            self.attempts[n] = attempt
             for path in (hold if hold is not None else [rel] if rel else []):
                 self.held[path] = n
             self.listing[n] = {"n": n, "what": what, "goal": towards, "task": table["id"] if table else None}
@@ -444,6 +459,14 @@ class Pair:
         return (f"Your junior reads it first and keeps notes in {into}; they come to you between steps (read {rel} "
                 f"yourself only for what the notes don't hold). " + said.split("\n")[0])
 
+    def limits(self) -> dict:
+        """The junior's per-task limits: measured by the Benchmark's coding run for its model on this card, else the
+        stand-ins (inference/benchmark.py)."""
+        from cin_minai.inference import benchmark
+        f = getattr(self.junior, "model_file", "")
+        return (benchmark.coding_limits(f, getattr(self.junior, "card", "")) if f else
+                {"lines": benchmark.JUNIOR_LINES, "steps": benchmark.JUNIOR_STEPS, "measured": False})
+
     def review(self, n: int, accept: bool, note: str = "") -> str:
         """The Senior's word on a finished task: accepted, or back to the Junior with the note."""
         done = self.done.get(n)
@@ -459,8 +482,13 @@ class Pair:
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n} {verdict}" + (f": {note}" if note else ""))
         if accept:
             return f"task {n} accepted"
-        return self.assign(done["path"], f"Rework of task {n} — your senior's note: {note}\nThe task was: {done['task']}",
-                           done["kind"])
+        if self.attempts.get(n, 1) >= 2 and done["path"]:  # its correction attempt was rejected: the senior's now
+            self.taken_over.add(done["path"])
+            return (f"task {n} was your junior's correction attempt and it's rejected: the corrections to "
+                    f"{done['path']} are yours now — make them yourself (edit or replace_lines); the file is free")
+        said = self.assign(done["path"], f"Correction of task {n} — your senior's corrections: {note}\n"
+                                         f"The task was: {done['task']}", done["kind"], attempt=2)
+        return said if said.startswith("error") else said + " This is its one correction attempt; after it, they're yours."
 
     # --- the Junior ------------------------------------------------------------------------------------------
     def work_queue(self) -> None:
@@ -531,11 +559,23 @@ class Pair:
             task += "\nYour senior adds: " + " ".join(notes)
         may = ("Change no file: run what's needed and report what works and what fails, with the errors as they "
                "were printed." if kind == "test" else f"You may change only {rel}.")
+        lim = self.limits()
+        may += (f"\nThis task's limits: {lim['steps']} steps" + ("" if kind == "test" else
+                f", {lim['lines']} lines of code written or changed") + ("" if lim["measured"] else
+                " (not measured for this model yet)") + ". At a limit, answer with what's done and what's left.")
+        # every task starts fresh: only its instruction, nothing from earlier tasks (Ian, 2026-10-15: "dumping context
+        # from task to task, only keeping what it needs for its specific detailed instruction from senior")
+        self.junior.history = []
+        self.junior.__dict__.pop("resumed", None)
+        self.junior.task_lines, self.junior.line_limit = 0, (0 if kind == "test" else lim["lines"])
+        steps_were, self.junior.max_steps = self.junior.max_steps, lim["steps"]
         try:
             said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\n{may}", self.stop_junior)
         finally:
             self.current, self.current_table, self.running = set(), None, None
             self.junior.inbox.clear()
+            self.junior.max_steps, self.junior.line_limit = steps_were, 0
+            self.junior.history = []  # accepted or not, the next task starts fresh
         changes = self.junior.log.entries()[before:] if hasattr(self.junior.log, "entries") else []
         changed = sorted({c.get("file", "") for c in changes} - {""})
         found = [p for p in self.senior.problems() if any(p.startswith(f + ":") for f in (files or [rel]))]
@@ -635,6 +675,8 @@ class Crew:
             p.stopped()
 
 
+DETAIL_WORDS = 20  # a write or fix task names the code specifics (Ian, 2026-10-15: "Sr gives detail on code specifics")
+TASK_SHARE = 0.05  # D95: a task is at most 5 % of the receiving model's context
 FOLLOW_UP = 3   # the Senior's steps of progress while a task is with the Junior before a word on how it's going
 TEAM = os.path.join(".cinminai", "team.json")   # {"team": "solo" | "A" | "B"} — chosen in AICUI's top bar
 TEAMS = ("solo", "A", "B")                      # solo: one local model, the coder alone (Ian, 2026-10-14)
@@ -715,5 +757,7 @@ def pair_backends(say=print):
     sb = LlamaCppBackend(scfg, log)
     from .agent import crash_recorder
     jb.on_crash = sb.on_crash = crash_recorder([JUNIOR_FILE, SENIOR_FILE], machine)
+    jb.model_file, jb.card = JUNIOR_FILE, benchmark.card_of(machine)  # the junior's measured limits (benchmark.py)
+    sb.model_file, sb.card = SENIOR_FILE, benchmark.card_of(machine)
     jb.chat([{"role": "user", "content": "ok"}], max_tokens=1)  # the Junior first: it's placed whole on the card
     return sb, plan["senior"]["model"], jb, plan["junior"]["model"], sees

@@ -118,3 +118,41 @@ def summary(key: str, file: str | None = None) -> str:
     if lim["failed"]:
         parts.append(f"{k(lim['failed'])} failed")
     return "Measured on this card: " + ", ".join(parts) + "."
+
+
+# --- the junior's limits, measured by the Benchmark's coding run (aicui/bench.py) ------------------------------------
+# Ian, 2026-10-15: the junior's script limit and step limit per task "should be part of benchmark". Until a model is
+# measured on this card, these stand in (said so wherever they're used).
+JUNIOR_LINES = 150
+JUNIOR_STEPS = 25
+
+
+def coding_key(file: str, card: str, engine: str | None = None) -> str:
+    return "coding|" + setup_key([file], card, engine)
+
+
+def coding_limits(file: str, card: str, store: str | None = None) -> dict:
+    """{"lines", "steps", "measured"}: what the model's largest passing coding task took (steps with headroom), or the
+    stand-ins when it hasn't been measured here."""
+    runs = load(store).get(coding_key(file, card), [])
+    passed = [r for r in runs if r.get("ok")]
+    if not passed:
+        return {"lines": JUNIOR_LINES, "steps": JUNIOR_STEPS, "measured": False}
+    best = max(passed, key=lambda r: r.get("lines", 0))
+    steps = max(int(r.get("steps", 0)) for r in passed)
+    return {"lines": max(40, int(best.get("lines", 0)) // 10 * 10), "steps": max(15, min(60, -(-steps * 3 // 2))),
+            "measured": True}
+
+
+def record_coding(file: str, card: str, functions: int, ok: bool, store: str | None = None, **measured) -> None:
+    """One coding run: `functions` asked for, whether its tests passed, with lines written and steps taken."""
+    store = store or path()
+    data = load(store)
+    key = coding_key(file, card)
+    runs = [r for r in data.get(key, []) if r.get("functions") != functions]
+    runs.append({"functions": functions, "ok": bool(ok), "when": time.strftime("%Y-%m-%dT%H:%M:%S"), **measured})
+    data[key] = sorted(runs, key=lambda r: r["functions"])
+    os.makedirs(os.path.dirname(store), exist_ok=True)
+    with open(store + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1)
+    os.replace(store + ".tmp", store)

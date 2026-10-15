@@ -694,6 +694,12 @@ def check_file(full: str) -> str:
     return ""
 
 
+def changed_lines(a: dict) -> int:
+    """The lines of code a change writes: a write's or an append's content, an edit's or a replace's new text."""
+    text = str(a.get("content") if a.get("tool") in ("write", "append") else a.get("new") or "")
+    return len([line for line in text.splitlines() if line.strip()])
+
+
 CSS_NAME = re.compile(r"([.#])(-?[A-Za-z_][\w-]*)")
 JS_NAME = re.compile(r"""getElementById\(\s*['"]([\w-]+)['"]|querySelector(?:All)?\(\s*['"]([^'"]+)['"]|"""
                      r"""classList\.(?:add|remove|toggle|contains)\(\s*['"]([\w-]+)['"]""")
@@ -2341,8 +2347,16 @@ class Agent:
             why = guard(os.path.relpath(self.path(a["path"]), self.root).replace(os.sep, "/"))
             if why:
                 return f"error: {why}"
+        limit = int(getattr(self, "line_limit", 0) or 0)  # the junior's script limit for this task (Pair.run_task)
+        lines = changed_lines(a)
+        if limit and self.role == "junior" and getattr(self, "task_lines", 0) + lines > limit:
+            return (f"error: that would bring this task to {self.task_lines + lines} lines of code, over its limit of "
+                    f"{limit}. Answer now with what's done and what's left; your senior gives the rest as its own task.")
         with CHANGE_LOCK:
-            return self._change(a, filled)
+            result = self._change(a, filled)
+        if "logged as change" in result:
+            self.task_lines = getattr(self, "task_lines", 0) + lines
+        return result
 
     def shrinks(self, rel: str, old: str, new: str) -> str:
         """The Junior (style B) never replaces most of a file on its own (2026-10-10: a finished draft replaced 1,088 of
@@ -2714,7 +2728,13 @@ def local_backend(say=print):
     log(f"plan: {plan['model']} | {plan['mode']} | {' '.join(plan.get('args', []))}")
     backend = LlamaCppBackend(cfg, log)
     backend.on_crash = crash_recorder([plan["file"]], machine)
+    backend.model_file, backend.card = plan["file"], benchmark_card(machine)  # its measured limits (benchmark.py)
     return backend, plan["model"]
+
+
+def benchmark_card(machine) -> str:
+    from cin_minai.inference import benchmark
+    return benchmark.card_of(machine)
 
 
 def crash_recorder(files: list[str], machine):
@@ -2800,8 +2820,9 @@ def main(argv=None) -> int:
     if crew:  # the cloud leads; its local contributors do the reading, writing, testing and fixing (pair.py)
         helpers = [Agent(root, b.chat, n, mode, a.admin, ctx=int(b.cfg.get("context", 8192)),
                          say=lambda s, who=n: said(f"({who}) {s}", "junior")) for b, n in crew]
-        for h in helpers:
+        for h, (b, _) in zip(helpers, crew):
             h.web = True  # "fetch this": the contributors search and fetch, each asked of the person first
+            h.model_file, h.card = getattr(b, "model_file", ""), getattr(b, "card", "")  # their measured limits
         if len(helpers) == 2:
             team_b = pair_mod.Crew(agent, helpers[0], helpers[1], say=said)
             agent.cloud_crew = (f"Two contributors: {crew[0][1]} writes, fixes, checks and tests; {crew[1][1]}, the "
@@ -2814,6 +2835,7 @@ def main(argv=None) -> int:
         junior = Agent(root, junior_backend.chat, junior_name, mode, a.admin,
                        ctx=int(junior_backend.cfg.get("context", 8192)),
                        say=lambda s: said(f"(junior) {s}", "junior"))
+        junior.model_file, junior.card = getattr(junior_backend, "model_file", ""), getattr(junior_backend, "card", "")
         team_b = pair_mod.Pair(agent, junior, say=said)
         if senior_sees:
             agent.reader = lambda: agent.chat
