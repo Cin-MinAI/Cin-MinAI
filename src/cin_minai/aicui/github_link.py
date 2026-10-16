@@ -22,8 +22,13 @@ def git(root: str, *args: str, helper: str = HELPER) -> tuple[int, str]:
     """git in the project, signing in to github.com through the helper only; it never asks in a terminal."""
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/bin/false"}
     cmd = ["git", "-C", root, "-c", "credential.helper=", "-c", f"credential.helper=!{helper}", *args]
+    import contextlib
+
+    from cin_minai.inference import reach
+    away = args[0] in ("push", "pull", "fetch", "clone", "ls-remote")  # the ones that go to GitHub
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
+        with reach.out("web", "GitHub") if away else contextlib.nullcontext():  # the panel's WEB sign
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env)
     except subprocess.TimeoutExpired:
         return 124, f"git {args[0]} took longer than {TIMEOUT // 60} minutes and was stopped"
     return r.returncode, (r.stdout + r.stderr).strip()

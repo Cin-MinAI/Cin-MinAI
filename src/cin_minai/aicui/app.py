@@ -552,10 +552,16 @@ class Workspace(Gtk.ApplicationWindow):
               "tests if it has any; fix what fails, one cause at a time. Read only the files you need, in the parts you "
               "need — every token is paid for. Tick each goal when its checks pass, and say what you changed.")
 
+    def connected(self) -> list[str]:
+        """The cloud providers with a key on this computer, in the box's order."""
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud
+        return [p for p in cloud.PROVIDERS if accounts.cloud_key(p)]
+
     def cloud_menu(self, button) -> None:
         from cin_minai.daemon import accounts
         from cin_minai.inference import cloud
-        cs, has_key = cloud.settings(self.root), bool(accounts.cloud_key("anthropic"))
+        cs, have = cloud.settings(self.root), self.connected()
         menu = Gtk.Menu()
 
         def item(label, act=None):
@@ -563,12 +569,9 @@ class Workspace(Gtk.ApplicationWindow):
             if act is not None:
                 it.connect("activate", lambda w: act())
             menu.append(it)
-        if not has_key and accounts.keyring_locked():
+        if not have and accounts.keyring_locked():
             item("Unlock the login keyring (your key may be in it)…", self.cloud_unlock)
-            item("Add an Anthropic API key…", self.cloud_add_key)
-        elif not has_key:
-            item("Add an Anthropic API key…", self.cloud_add_key)
-        else:
+        if have:
             item("Advise the local models (they work; the cloud is asked when it helps)…",
                  lambda: self.cloud_role_dialog("advisor"))
             item("Lead with the cloud (the local models do the work)…", lambda: self.cloud_role_dialog("lead"))
@@ -579,30 +582,35 @@ class Workspace(Gtk.ApplicationWindow):
             menu.append(Gtk.SeparatorMenuItem())
             item(f"Spent on this project: ${cloud.spent(self.root):.2f} of ${cs['budget_usd']:.2f}"
                  + (f" · {cloud.label(cs['model'])}, {cs['role']}" if cs["role"] != "off" else ""))
-            item("Remove the Anthropic key from this computer", self.cloud_remove_key)
+            menu.append(Gtk.SeparatorMenuItem())
+        for p, info in cloud.PROVIDERS.items():
+            if p in have:
+                item(f"Remove the {info['name']} key from this computer", lambda p=p: self.cloud_remove_key(p))
+            else:
+                item(f"Add an {info['name']} API key…", lambda p=p: self.cloud_add_key(p))
         menu.show_all()
         menu.popup_at_widget(button, Gdk.Gravity.SOUTH_EAST, Gdk.Gravity.NORTH_EAST, None)
 
-    def cloud_add_key(self) -> None:
+    def cloud_add_key(self, provider: str = "anthropic") -> None:
         """Pasted once into a masked box; straight into the login keyring, checked with one free call."""
         from cin_minai.daemon import accounts
         from cin_minai.inference import cloud
-        d = Gtk.Dialog(title="Add an Anthropic API key", transient_for=self, modal=True)
+        info, where = accounts.CLOUD[provider], accounts.CLOUD[provider]["name"]
+        d = Gtk.Dialog(title=f"Add an {where} API key", transient_for=self, modal=True)
         d.add_button("Cancel", Gtk.ResponseType.CANCEL)
         d.add_button("Save", Gtk.ResponseType.OK)
         box = d.get_content_area()
         box.set_spacing(8)
         box.set_border_width(16)
         text = Gtk.Label(xalign=0, wrap=True, max_width_chars=52, label=(
-            "Make a key in your Anthropic Console (an API account with prepaid credit and a spending limit keeps it "
-            "apart from your personal accounts), then paste it here. It goes straight into your login keyring: AICUI "
-            "never shows it again, and no model ever sees it."))
+            f"Make a key on your {where} API account (prepaid credit and a spending limit keep it apart from your "
+            "personal accounts), then paste it here. It goes straight into your login keyring: AICUI never shows it "
+            "again, and no model ever sees it."))
         box.pack_start(text, False, False, 0)
-        console = Gtk.Button(label="Open the Anthropic Console")
-        console.connect("clicked", lambda b: Gio.AppInfo.launch_default_for_uri(
-            accounts.CLOUD["anthropic"]["console"], None))
+        console = Gtk.Button(label=f"Open {where}'s key page")
+        console.connect("clicked", lambda b: Gio.AppInfo.launch_default_for_uri(info["console"], None))
         box.pack_start(console, False, False, 0)
-        entry = Gtk.Entry(visibility=False, placeholder_text="sk-ant-…", activates_default=True)
+        entry = Gtk.Entry(visibility=False, placeholder_text=info.get("hint", ""), activates_default=True)
         box.pack_start(entry, False, False, 0)
         d.set_default_response(Gtk.ResponseType.OK)
         d.show_all()
@@ -612,7 +620,7 @@ class Workspace(Gtk.ApplicationWindow):
         if not ok:
             return
         try:
-            accounts.store_cloud_key("anthropic", key)
+            accounts.store_cloud_key(provider, key)
         except accounts.AccountError as e:
             self.bubble("app", f"Not saved: {e}")
             return
@@ -620,15 +628,21 @@ class Workspace(Gtk.ApplicationWindow):
 
         def check() -> None:
             try:
-                models = cloud.Anthropic(self.root, lambda: accounts.cloud_key("anthropic")).models()
-                cloud.cache_models(cloud.offered(models))
+                models = cloud.backend(self.root, provider, cloud.PROVIDERS[provider]["default"]).models()
+                cloud.cache_models(cloud.offered_openai(models) if provider == "openai" else cloud.offered(models),
+                                   provider)
                 GLib.idle_add(lambda: self.fill_cloud_pick() and False)
-                msg = ("Anthropic key saved and working. Its models are in the box at the bottom right; Cloud models "
+                msg = (f"{where} key saved and working. Its models are in the box at the bottom right; Cloud models "
                        "(top right) says what the cloud does on this project.")
             except cloud.CloudError as e:
-                msg = f"The key is saved, but Anthropic didn't accept it ({e}). Check it in the Console, or remove it."
+                msg = f"The key is saved, but {where} didn't accept it ({e}). Check it on {where}'s key page, or remove it."
             GLib.idle_add(lambda: self.bubble("app", msg) and False)
         threading.Thread(target=check, daemon=True).start()
+
+    def cloud_models(self) -> list[str]:
+        """Every connected provider's offered models (each provider's own list as last asked, else its default)."""
+        from cin_minai.inference import cloud
+        return [m for p in self.connected() for m in (cloud.cached_models(p) or [cloud.PROVIDERS[p]["default"]])]
 
     def fill_cloud_pick(self) -> None:
         """The box: each connected provider's models, with their prices; the project's choice selected."""
@@ -637,7 +651,7 @@ class Workspace(Gtk.ApplicationWindow):
         cs = cloud.settings(self.root)
         self.cloud_pick.handler_block(self.cloud_pick_id)
         self.cloud_pick.remove_all()
-        models = (cloud.cached_models() or [cloud.DEFAULT_MODEL]) if accounts.cloud_key("anthropic") else []
+        models = self.cloud_models()
         if not models and accounts.keyring_locked():  # the key may be there, behind a locked keyring
             self.cloud_pick.append("locked", "Cloud: keyring locked — unlock it")
             self.cloud_pick.set_active_id("locked")
@@ -645,31 +659,30 @@ class Workspace(Gtk.ApplicationWindow):
             self.cloud_pick.append("none", "Cloud: none connected")
             self.cloud_pick.set_active_id("none")
         else:
-            if cs["model"] not in models:
+            if cs["model"] not in models and cloud.provider_of(cs["model"]) in self.connected():
                 models = [cs["model"]] + models
             for m in models:
                 p = cloud.price_of(m)
                 price = f"${p[0]:g}/${p[1]:g}" if cloud.price_checked(m) else f"≈${p[0]:g}/${p[1]:g}, unchecked"
-                self.cloud_pick.append(m, f"☁ Anthropic · {cloud.label(m)} · {price}")
-            self.cloud_pick.set_active_id(cs["model"])
+                who = cloud.PROVIDERS[cloud.provider_of(m)]["name"]
+                self.cloud_pick.append(m, f"☁ {who} · {cloud.label(m)} · {price}")
+            self.cloud_pick.set_active_id(cs["model"] if cs["model"] in models else models[0])
         self.cloud_pick.handler_unblock(self.cloud_pick_id)
 
     def refresh_cloud_models(self) -> bool:
-        """The provider's own list, asked once a start (a free call), so new models appear by themselves."""
-        from cin_minai.daemon import accounts
+        """Each provider's own list, asked once a start (a free call), so new models appear by themselves."""
         from cin_minai.inference import cloud
-        if not accounts.cloud_key("anthropic"):
-            return False
-
-        def ask() -> None:
-            try:
-                got = cloud.offered(cloud.Anthropic(self.root, lambda: accounts.cloud_key("anthropic")).models())
-            except cloud.CloudError:
-                return
-            if got and got != cloud.cached_models():
-                cloud.cache_models(got)
-                GLib.idle_add(lambda: self.fill_cloud_pick() and False)
-        threading.Thread(target=ask, daemon=True).start()
+        for provider in self.connected():
+            def ask(provider=provider) -> None:
+                try:
+                    models = cloud.backend(self.root, provider, cloud.PROVIDERS[provider]["default"]).models()
+                except cloud.CloudError:
+                    return
+                got = cloud.offered_openai(models) if provider == "openai" else cloud.offered(models)
+                if got and got != cloud.cached_models(provider):
+                    cloud.cache_models(got, provider)
+                    GLib.idle_add(lambda: self.fill_cloud_pick() and False)
+            threading.Thread(target=ask, daemon=True).start()
         return False
 
     def cloud_pick_changed(self, combo) -> None:
@@ -685,7 +698,7 @@ class Workspace(Gtk.ApplicationWindow):
         cs = cloud.settings(self.root)
         if chosen == cs["model"]:
             return
-        cloud.save_settings(self.root, provider="anthropic", model=chosen)
+        cloud.save_settings(self.root, provider=cloud.provider_of(chosen), model=chosen)
         if cs["role"] == "off":
             self.bubble("app", f"{cloud.label(chosen)} is this project's cloud model. Cloud models (top right) says what "
                               "it does: finish the project, lead the local models, or work alone.")
@@ -729,16 +742,16 @@ class Workspace(Gtk.ApplicationWindow):
                         "request, the goals and the last steps, and says what to do next. A few times a request — "
                         "the cheapest way to use the cloud."}.get(
                 role, "The cloud model does all the work on this project; no model is loaded on this computer.")
-            + " What it reads of the project, its goals and what the commands print go to Anthropic. It stops at the "
-              "budget below.")), False, False, 0)
+            + " What it reads of the project, its goals and what the commands print go to the model's provider "
+              "(Anthropic or OpenAI, as below). It stops at the budget below.")), False, False, 0)
         model = Gtk.ComboBoxText()
-        offered = cloud.cached_models() or [cloud.DEFAULT_MODEL]
-        if cs["model"] not in offered:
+        offered = self.cloud_models() or [cloud.DEFAULT_MODEL]
+        if cs["model"] not in offered and cloud.provider_of(cs["model"]) in self.connected():
             offered = [cs["model"]] + offered
-        for m in offered:  # the provider's own list, as in the box at the bottom right
-            model.append(m, f"{cloud.label(m)} — ${cloud.price_of(m)[0]:g} / ${cloud.price_of(m)[1]:g} per million "
+        for m in offered:  # the providers' own lists, as in the box at the bottom right
+            model.append(m, f"{cloud.PROVIDERS[cloud.provider_of(m)]['name']} {cloud.label(m)} — ${cloud.price_of(m)[0]:g} / ${cloud.price_of(m)[1]:g} per million "
                             "tokens in / out" + ("" if cloud.price_checked(m) else " (not checked: an estimate)"))
-        model.set_active_id(cs["model"])
+        model.set_active_id(cs["model"] if cs["model"] in offered else offered[0])
         box.pack_start(model, False, False, 0)
         crew = Gtk.ComboBoxText()
         crew.append("one", "One local model works for it (the coding model you use)")
@@ -762,7 +775,8 @@ class Workspace(Gtk.ApplicationWindow):
         d.destroy()
         if not ok:
             return
-        cloud.save_settings(self.root, provider="anthropic", model=chosen, role=role, budget_usd=round(limit, 2),
+        cloud.save_settings(self.root, provider=cloud.provider_of(chosen), model=chosen, role=role,
+                            budget_usd=round(limit, 2),
                             crew=helpers)
         self.fill_cloud_pick()
         self.bubble("app", f"{cloud.label(chosen)} takes over this project ({role}), up to ${limit:.2f}. The AI restarts "
@@ -775,16 +789,18 @@ class Workspace(Gtk.ApplicationWindow):
         self.bubble("app", "Back to the local models: the AI restarts with them in the terminal.")
         self.restart_with("")
 
-    def cloud_remove_key(self) -> None:
+    def cloud_remove_key(self, provider: str = "anthropic") -> None:
         from cin_minai.daemon import accounts
         from cin_minai.inference import cloud
-        if self.yes_no("Remove the Anthropic key from this computer?",
-                       "It's deleted from your login keyring. To stop the key working everywhere, delete it in your "
-                       "Anthropic Console too."):
-            accounts.forget_cloud_key("anthropic")
-            if cloud.settings(self.root)["role"] != "off":
+        where = accounts.CLOUD[provider]["name"]
+        if self.yes_no(f"Remove the {where} key from this computer?",
+                       "It's deleted from your login keyring. To stop the key working everywhere, delete it on "
+                       f"{where}'s key page too."):
+            accounts.forget_cloud_key(provider)
+            cs = cloud.settings(self.root)
+            if cs["role"] != "off" and cloud.provider_of(cs["model"]) == provider:
                 self.cloud_off()
-            self.bubble("app", "The Anthropic key is removed from this computer.")
+            self.bubble("app", f"The {where} key is removed from this computer.")
             self.fill_cloud_pick()
 
     def open_screenshots(self) -> None:
@@ -1699,4 +1715,6 @@ class App(Gtk.Application):
 
 
 def main() -> int:
+    from cin_minai.inference import reach
+    reach.install()  # its key checks and model lists are marked too (D35)
     return App().run(sys.argv)

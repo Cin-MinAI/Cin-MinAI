@@ -46,6 +46,8 @@ def main() -> None:
     ap.add_argument("--ask", action="append", help="answer this message on the terminal (repeat for a conversation)")
     ap.add_argument("--lang", help="the desktop language for names on screen (default: from the locale)")
     o = ap.parse_args()
+    from cin_minai.inference import reach
+    reach.install()  # every request out is marked for the panel's WEB / CLOUD sign (D35, D28)
     cfg = config.load()
     backend, guide = build(cfg, o.lang)
     if o.ask:

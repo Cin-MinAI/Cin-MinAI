@@ -189,6 +189,11 @@ def _local(params: dict, wait: float = 20.0) -> dict:
     path = search_socket()
 
     def ask() -> dict:
+        from cin_minai.inference import reach
+        with reach.out("web", "DuckDuckGo and Bing (Cin-MinAI's search)"):  # our search goes out for us
+            return asked()
+
+    def asked() -> dict:
         conn = UnixHTTPConnection(path, timeout=30)
         try:
             conn.request("GET", "/search?" + urllib.parse.urlencode({**params, "format": "json"}))

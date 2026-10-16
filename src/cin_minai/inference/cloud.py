@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Cloud models for AICUI (docs/accounts-and-cloud.md): Anthropic by API key, for now.
+"""Cloud models for AICUI (docs/accounts-and-cloud.md): Anthropic and OpenAI, each by API key.
 
 Ian, 2026-10-12: "develop mostly locally and then have cloud come in and finalize. This way you save tokens where you
 can." So every call here is made to cost little and to say what it cost:
@@ -45,7 +45,8 @@ def settings(root: str) -> dict:
             s = json.load(f)
     except (OSError, ValueError):
         s = {}
-    return {"provider": s.get("provider", "anthropic"), "model": s.get("model", DEFAULT_MODEL),
+    model = s.get("model", DEFAULT_MODEL)
+    return {"provider": provider_of(model), "model": model,
             "role": s.get("role", "off"), "budget_usd": float(s.get("budget_usd", 1.0)),
             "crew": "two" if s.get("crew") == "two" else "one"}
 
@@ -120,11 +121,49 @@ CHECKED = ("claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-8")  # prices
 
 def price_checked(model: str) -> bool:
     """Is this model's price one we read? Others are counted at their family's price — an estimate, said so."""
-    return model.startswith(CHECKED)
+    return model in OPENAI_PRICES or model.startswith(CHECKED)  # OpenAI's: read on its pricing page, 2026-10-16
 
 
 def price_of(model: str) -> tuple[float, float, float, float]:
+    """(input, output, writing the cache, reading the cache) in dollars per million tokens. OpenAI writes its cache
+    for free: its third figure is the input price (the uncached tokens) and the fourth its cached-input price."""
+    if provider_of(model) == "openai":
+        p = OPENAI_PRICES.get(model) or next((v for k, v in sorted(OPENAI_PRICES.items(), key=lambda kv: -len(kv[0]))
+                                              if model.startswith(k)), OPENAI_PRICES["gpt-6.1-sol"])
+        return (p[0], p[2], p[0], p[1])
     return next((p for k, p in PRICES.items() if k in model), PRICES["sonnet"])  # unknown: the dearer guess
+
+
+# --- OpenAI (D35, 2026-10-16): by API key, through the Responses API (the GPT-6 models take tools only there) ----------
+OPENAI_API = "https://api.openai.com/v1"
+# dollars per million tokens: input, cached input, output — OpenAI's pricing page, read 2026-10-16
+OPENAI_PRICES = {"gpt-6-astra": (10.00, 1.00, 50.00), "gpt-6.1-sol": (2.00, 0.10, 10.00), "gpt-6-luna": (0.10, 0.01, 0.50),
+                 "gpt-6-sol": (2.00, 0.20, 10.00), "gpt-5.6-sol": (4.00, 0.40, 20.00),
+                 "gpt-5.6-terra": (2.00, 0.20, 12.00), "gpt-5.6-luna": (0.20, 0.02, 1.20), "gpt-5.5": (5.00, 0.50, 30.00),
+                 "gpt-5.4": (2.50, 0.25, 15.00), "gpt-5.4-mini": (0.75, 0.075, 4.50), "gpt-5.4-nano": (0.20, 0.02, 1.25),
+                 "gpt-5": (1.25, 0.125, 10.00), "gpt-5-mini": (0.25, 0.025, 2.00), "gpt-5-nano": (0.05, 0.005, 0.40),
+                 "gpt-4.1": (2.00, 0.50, 8.00), "gpt-4.1-mini": (0.40, 0.10, 1.60)}
+OPENAI_OFFER = ("gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.6-luna")  # the box, in this order
+OPENAI_DEFAULT = "gpt-6.1-sol"
+PROVIDERS = {"anthropic": {"name": "Anthropic", "default": DEFAULT_MODEL},
+             "openai": {"name": "OpenAI", "default": OPENAI_DEFAULT}}
+
+
+def provider_of(model: str) -> str:
+    return "openai" if model.startswith(("gpt-", "o1", "o3", "o4", "chatgpt-")) else "anthropic"
+
+
+def offered_openai(models: list) -> list:
+    """OpenAI's models worth offering: the current ones we've read the price of, in our order."""
+    have = set(models)
+    return [m for m in OPENAI_OFFER if m in have] or [m for m in OPENAI_PRICES if m in have][:5]
+
+
+def backend(root: str, provider: str, model: str, context: int = 32768):
+    """The cloud backend for a provider, its key read from the keyring at each call (never kept)."""
+    from cin_minai.daemon import accounts
+    cls = OpenAI if provider == "openai" else Anthropic
+    return cls(root, lambda: accounts.cloud_key(provider), model, context)
 
 
 def blocks(content) -> list[dict]:
@@ -212,7 +251,10 @@ def flat_tools(schema: dict) -> list[dict]:
 
 
 def label(model: str) -> str:
-    """claude-haiku-4-5-20251001 → Claude Haiku 4.5"""
+    """claude-haiku-4-5-20251001 → Claude Haiku 4.5; gpt-6.1-sol → GPT-6.1 Sol"""
+    if model.startswith("gpt-"):
+        head, *rest = model[4:].split("-")
+        return "GPT-" + head + "".join(" " + w.capitalize() for w in rest)
     parts = [x for x in model.split("-") if not (x.isdigit() and len(x) == 8)]
     words = [x.capitalize() for x in parts if not x.isdigit()]
     nums = [x for x in parts if x.isdigit()]
@@ -220,6 +262,8 @@ def label(model: str) -> str:
 
 
 def cost(model: str, usage: dict) -> float:
+    """Dollars for one call's usage. OpenAI's usage counts cached tokens inside input_tokens; ours is logged the
+    Anthropic way (input apart from cache reads), so both cost the same sum."""
     p_in, p_out, p_write, p_read = price_of(model)
     return (usage.get("input_tokens", 0) * p_in + usage.get("output_tokens", 0) * p_out
             + usage.get("cache_creation_input_tokens", 0) * p_write
@@ -382,3 +426,149 @@ class Anthropic:
             f.write(json.dumps({"time": time.strftime("%Y-%m-%dT%H:%M:%S"), "model": self.model, **{
                 k: usage.get(k, 0) for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens",
                                              "cache_read_input_tokens")}, "usd": round(usd, 6)}) + "\n")
+
+
+class OpenAI(Anthropic):
+    """OpenAI by API key, through the Responses API (D35; the GPT-6 models take tools only there): the same chat()
+    as Anthropic's — budget first, every call logged with its cost, the agent's step as one forced tool call among
+    flat tools — in OpenAI's shapes. OpenAI caches repeated prompt beginnings by itself; cached input is cheaper."""
+
+    def __init__(self, root: str, key: Callable[[], str], model: str = OPENAI_DEFAULT, context: int = 32768,
+                 opener: Callable = urllib.request.urlopen) -> None:
+        super().__init__(root, key, model, context, opener)
+
+    def _post(self, path: str, body: dict | None = None) -> dict:
+        key = self.key()
+        if not key:
+            from cin_minai.daemon import accounts
+            if accounts.keyring_locked():
+                raise CloudError("the login keyring is locked, so the OpenAI key can't be read — unlock it from "
+                                 "AICUI's Cloud models menu (or Passwords and Keys), then continue")
+            raise CloudError("no OpenAI key on this computer — add one from AICUI's Cloud models menu")
+        req = urllib.request.Request(f"{OPENAI_API}/{path}", data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"Authorization": f"Bearer {key}", "content-type": "application/json",
+                                              "User-Agent": "Cin-MinAI"},
+                                     method="POST" if body is not None else "GET")
+        try:
+            with self.opener(req, timeout=300) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            try:
+                said = json.loads(e.read() or b"{}").get("error", {}).get("message", "")
+            except (ValueError, AttributeError):
+                said = ""
+            raise CloudError(f"OpenAI said {e.code}" + (f": {said[:200]}" if said else "")) from None
+        except OSError as e:
+            raise CloudError(f"OpenAI didn't answer: {getattr(e, 'reason', e)}") from None
+
+    def models(self) -> list[str]:
+        return [m["id"] for m in self._post("models").get("data", [])]
+
+    @staticmethod
+    def shape_input(messages: list[dict], names: set | frozenset = frozenset()) -> tuple[str, list[dict]]:
+        """Our messages as the Responses API's: the system text as instructions; each earlier step (our JSON) as the
+        function call it was, and the result after it as its function_call_output; pictures as input images."""
+        instructions = "\n\n".join(m["content"] for m in messages if m["role"] == "system" and
+                                   isinstance(m["content"], str))
+        items: list[dict] = []
+        calls, open_call = 0, None
+        for m in messages:
+            if m["role"] == "system":
+                continue
+            content = m["content"]
+            if m["role"] == "assistant":
+                call = as_call(content, names)
+                if open_call:  # two steps in a row: the first had no result to show
+                    items.append({"type": "function_call_output", "call_id": open_call, "output": "(nothing)"})
+                    open_call = None
+                if call:
+                    calls += 1
+                    open_call = f"call_step{calls}"
+                    items.append({"type": "function_call", "call_id": open_call, "name": call["name"],
+                                  "arguments": json.dumps(call["input"], ensure_ascii=False)})
+                    continue
+                text = content if isinstance(content, str) else " ".join(
+                    p.get("text", "") for p in content or [] if p.get("type") == "text")
+                items.append({"role": "assistant", "content": [{"type": "output_text",
+                                                                "text": text.strip() or "(nothing)"}]})
+                continue
+            parts = [{"type": "text", "text": content}] if isinstance(content, str) else list(content or [])
+            texts = "\n\n".join(str(p.get("text") or "") for p in parts if p.get("type") == "text").strip()
+            pictures = [{"type": "input_image", "image_url": (p.get("image_url") or {}).get("url", "")}
+                        for p in parts if p.get("type") == "image_url"]
+            if open_call:  # the answer to that call
+                said = texts[len("Result: "):] if texts.startswith("Result: ") else texts
+                items.append({"type": "function_call_output", "call_id": open_call, "output": said or "(nothing)"})
+                open_call = None
+                if pictures:
+                    items.append({"role": "user", "content": pictures})
+                continue
+            body = ([{"type": "input_text", "text": texts}] if texts else []) + pictures
+            items.append({"role": "user", "content": body or [{"type": "input_text", "text": "(nothing)"}]})
+        if open_call:  # a call with no answer yet can't be sent alone
+            items.append({"type": "function_call_output", "call_id": open_call, "output": "(nothing)"})
+        return instructions, items
+
+    def chat(self, messages: list[dict], schema: dict | None = None, max_tokens: int = 0, cancel=None, on_text=None,
+             **_kw) -> tuple[str, dict]:
+        s = settings(self.root)
+        already = spent(self.root)
+        if already >= s["budget_usd"]:
+            raise CloudError(f"the cloud budget for this project is used up (${already:.2f} of ${s['budget_usd']:.2f}"
+                             "); raise it in AICUI's Cloud models menu to go on")
+        tools = flat_tools(schema) if schema is not None else None
+        instructions, items = self.shape_input(messages, {t["name"] for t in tools or []})
+        body = {"model": self.model, "input": items, "max_output_tokens": int(max_tokens or 4096), "store": False}
+        if instructions:
+            body["instructions"] = instructions
+        if self.model.startswith(("gpt-5", "gpt-6", "o")):  # reasoning models: a little thinking, to spend less
+            body["reasoning"] = {"effort": "low"}
+        if tools:
+            body["tools"] = [{"type": "function", "name": t["name"], "description": t["description"],
+                              "parameters": t["input_schema"], "strict": False} for t in tools]
+            body["tool_choice"] = "required"
+        elif schema is not None:
+            body["tools"] = [{"type": "function", "name": "reply", "description": "Your reply.", "parameters": schema,
+                              "strict": False}]
+            body["tool_choice"] = {"type": "function", "name": "reply"}
+        start = time.monotonic()
+        got = self._post("responses", body)
+        u = got.get("usage") or {}
+        cached = int((u.get("input_tokens_details") or {}).get("cached_tokens") or 0)
+        usage = {"input_tokens": max(0, int(u.get("input_tokens") or 0) - cached),
+                 "output_tokens": int(u.get("output_tokens") or 0), "cache_creation_input_tokens": 0,
+                 "cache_read_input_tokens": cached}
+        usd = cost(self.model, usage)
+        self.log(usage, usd)
+        out = got.get("output") or []
+        call = next((o for o in out if o.get("type") == "function_call"), None)
+        said = "".join(c.get("text", "") for o in out if o.get("type") == "message"
+                       for c in o.get("content") or [] if c.get("type") == "output_text")
+        if schema is not None:
+            if call is None:
+                text = said.strip()
+                self.keep({"stop_reason": got.get("status"), "content": out, "usage": u})
+            else:
+                try:
+                    inputs = json.loads(call.get("arguments") or "{}")
+                except ValueError:
+                    inputs = {}
+                if tools:
+                    need = next((t["input_schema"]["required"] for t in tools if t["name"] == call.get("name")), [])
+                    inputs = unleak(dict(inputs), need)
+                    thinking = str(inputs.pop(WHY, "") or inputs.pop("thinking", ""))
+                    text = json.dumps({"thinking": thinking, "action": {"tool": call.get("name", ""), **inputs}},
+                                      ensure_ascii=False)
+                else:
+                    text = json.dumps(inputs, ensure_ascii=False)
+        else:
+            text = said
+        if on_text:
+            on_text(text)
+        seconds = time.monotonic() - start
+        out_n = usage["output_tokens"]
+        capped = got.get("status") == "incomplete" and (got.get("incomplete_details") or {}).get("reason") == \
+            "max_output_tokens"
+        return text, {"prompt_n": usage["input_tokens"], "cache_n": cached, "gen_n": out_n, "predicted_n": out_n,
+                      "seconds": round(seconds, 1), "gen_tps": round(out_n / seconds, 1) if seconds else 0,
+                      "usd": round(usd, 5), "capped": capped}

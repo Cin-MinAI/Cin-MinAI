@@ -2756,6 +2756,8 @@ PLAIN = {"junior": "\033[2m"}  # a speaker's terminal colour when the person cho
 
 
 def main(argv=None) -> int:
+    from cin_minai.inference import reach
+    reach.install()  # every request out is marked for the panel's WEB / CLOUD sign (D35, D28)
     ap = argparse.ArgumentParser(prog="cinminai-code", description="The coding agent in AICUI's terminal.")
     ap.add_argument("folder", nargs="?", default=os.getcwd())
     ap.add_argument("--auto", action="store_true", help="work without asking (approved for this session)")
@@ -2781,11 +2783,12 @@ def main(argv=None) -> int:
         a.solo = True
     if use_cloud:
         from cin_minai.daemon import accounts
-        backend = cloud_mod.Anthropic(root, lambda: accounts.cloud_key("anthropic"), cloud["model"])
+        backend = cloud_mod.backend(root, cloud["provider"], cloud["model"])
+        where = cloud_mod.PROVIDERS[cloud["provider"]]["name"]
         name = cloud_mod.label(cloud["model"]) + " (cloud)"
         team = "cloud"
         print(f"\033[1m{name}, {cloud['role']}: up to ${cloud['budget_usd']:.2f} for this project "
-              f"(${cloud_mod.spent(root):.2f} spent so far). What the model reads of the project goes to Anthropic; "
+              f"(${cloud_mod.spent(root):.2f} spent so far). What the model reads of the project goes to {where}; "
               "the key stays in your keyring.\033[0m")
         if cloud["role"] == "lead":  # Ian, 2026-10-12: the local models as the cloud's contributors, one or two
             try:
@@ -2848,12 +2851,13 @@ def main(argv=None) -> int:
     if cloud["role"] == "advisor":  # the local models work; the cloud is asked when it helps (advisor.py)
         from cin_minai.daemon import accounts as keys
         from .advisor import MAX_USES, Advisor
-        adv = Advisor(agent, cloud_mod.Anthropic(root, lambda: keys.cloud_key("anthropic"), cloud["model"]),
+        adv = Advisor(agent, cloud_mod.backend(root, cloud["provider"], cloud["model"]),
                       cloud_mod.label(cloud["model"]))
         agent.advisor_fn, agent.advisor_reset, agent.advisor_name = adv.ask, adv.reset, adv.name
         print(f"\033[1m{adv.name} (cloud) advises {name}: when it asks, or after 12 steps without progress; at most "
               f"{MAX_USES} times a request, up to ${cloud['budget_usd']:.2f} for this project "
-              f"(${cloud_mod.spent(root):.2f} spent so far). What it's sent goes to Anthropic.\033[0m")
+              f"(${cloud_mod.spent(root):.2f} spent so far). What it's sent goes to "
+              f"{cloud_mod.PROVIDERS[cloud['provider']]['name']}.\033[0m")
     print(f"cinminai-code in {root} — {name}, mode: {mode}{', admin' if a.admin else ''}. Type your request; "
           "Ctrl+C stops the AI, Ctrl+D leaves.")
     from . import tandem as tandem_mod

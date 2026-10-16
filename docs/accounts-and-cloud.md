@@ -66,6 +66,24 @@ Fill in OpenAI's interest form for Sign in with ChatGPT (openai.com/form/sign-in
 open-source, desktop, no backend, public client with PKCE and a loopback redirect. When the client ID comes, it ships in
 the package like GitHub's. Until then OpenAI works with an API key.
 
+**Built 2026-10-16: OpenAI by API key** (`inference/cloud.py`, `class OpenAI`). The key is pasted once in AICUI's Cloud
+models menu ("Add an OpenAI API key…"), checked with the free model list, and kept in the login keyring like
+Anthropic's. Calls go through OpenAI's **Responses API** — the GPT-6 models take tools only there — with the same
+contract as Anthropic's: the budget checked first, every call logged with its cost, the agent's step as one required
+function call among flat tools (`strict` off, so optional fields stay optional), earlier steps sent back as the calls
+and results they were, pictures as input images, `store: false` (OpenAI keeps nothing of the call for later), and low
+reasoning effort on the reasoning models to spend less. Prices from OpenAI's pricing page, read 2026-10-16 (dollars per
+million tokens, input / cached input / output): GPT-6.1 Sol 2.00 / 0.10 / 10.00 (the default), GPT-6 Luna 0.10 / 0.01 /
+0.50, GPT-6 Astra 10.00 / 1.00 / 50.00, GPT-5.6 Terra 2.00 / 0.20 / 12.00, GPT-5.6 Luna 0.20 / 0.02 / 1.20. All four
+roles (Finisher, Exclusive, Lead, Advisor) work with either provider; the provider follows the model chosen.
+
+**The panel's WEB / CLOUD sign** (`inference/reach.py`, the applet): every request out of the daemon or AICUI is
+marked while it's out and eight seconds after — CLOUD for a cloud model's API, WEB for anything else (our own search
+and git to GitHub mark themselves) — and the panel icon shows WEB or CLOUD beside it, its tooltip naming where;
+nothing extra when everything is local. Each request is also a line in a local record of where things were sent
+(`~/.local/state/cinminai/sent.jsonl`: when, what kind, where — never what was in it), the start of D28's "what has
+this computer sent?" page.
+
 ## Build order
 
 1. ✔ **Accounts and GitHub** (built 2026-10-11/12, signed in and working on Ian's PC; using it waits for GitHub to lift

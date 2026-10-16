@@ -269,3 +269,84 @@ class LockedKeyring(unittest.TestCase):
         with self.assertRaises(cloud.CloudError) as e:
             cloud.Anthropic(root, lambda: "").chat([{"role": "user", "content": "x"}])
         self.assertIn("the login keyring is locked", str(e.exception))
+
+
+OPENAI_REPLY = {"status": "completed", "output": [
+    {"type": "reasoning", "summary": []},
+    {"type": "function_call", "call_id": "call_1", "name": "run",
+     "arguments": json.dumps({"reason": "Run it.", "command": "bash run.sh"})}],
+    "usage": {"input_tokens": 10000, "output_tokens": 200, "input_tokens_details": {"cached_tokens": 8000}}}
+
+
+class OpenAITest(unittest.TestCase):
+    """D35, 2026-10-16: OpenAI by API key, through the Responses API (the GPT-6 models take tools only there)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def backend(self, answers, model="gpt-6.1-sol"):
+        self.fake = FakeAnthropic(answers)
+        return cloud.OpenAI(self.root, lambda: "sk-proj-test-key-0123456789abcdef", model, opener=self.fake)
+
+    def test_a_step_is_one_required_function_call_and_its_cost_is_logged(self):
+        from cin_minai.aicui.agent import schema
+        b = self.backend([OPENAI_REPLY])
+        text, t = b.chat([{"role": "system", "content": "You are the coder."},
+                          {"role": "user", "content": "start it"}], schema=schema(), max_tokens=900)
+        self.assertEqual(json.loads(text), STEP)
+        url, body, headers = self.fake.sent[0]
+        self.assertEqual(url, "https://api.openai.com/v1/responses")
+        self.assertEqual(headers["Authorization"], "Bearer sk-proj-test-key-0123456789abcdef")
+        self.assertEqual((body["tool_choice"], body["max_output_tokens"], body["store"]), ("required", 900, False))
+        self.assertEqual(body["instructions"], "You are the coder.")
+        run = next(x for x in body["tools"] if x["name"] == "run")
+        self.assertEqual((run["type"], run["strict"]), ("function", False))
+        self.assertEqual(body["input"], [{"role": "user", "content": [{"type": "input_text", "text": "start it"}]}])
+        # 2,000 new input at $2, 8,000 cached at $0.10, 200 out at $10 (per million): $0.0068
+        self.assertAlmostEqual(t["usd"], 0.0068, places=6)
+        self.assertAlmostEqual(cloud.spent(self.root), 0.0068, places=6)
+        self.assertNotIn("sk-proj", open(os.path.join(self.root, cloud.USAGE)).read())
+
+    def test_earlier_steps_go_as_their_calls_and_results_and_pictures_as_images(self):
+        step = json.dumps(STEP)
+        _, items = cloud.OpenAI.shape_input([
+            {"role": "user", "content": "start it"},
+            {"role": "assistant", "content": step},
+            {"role": "user", "content": [{"type": "text", "text": "Result: it printed 'ok'"},
+                                         {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAA"}}]},
+            {"role": "assistant", "content": "All done."}], {"run"})
+        self.assertEqual(items[1], {"type": "function_call", "call_id": "call_step1", "name": "run",
+                                    "arguments": json.dumps({"reason": "Run it.", "command": "bash run.sh"})})
+        self.assertEqual(items[2], {"type": "function_call_output", "call_id": "call_step1", "output": "it printed 'ok'"})
+        self.assertEqual(items[3], {"role": "user", "content": [{"type": "input_image",
+                                                                  "image_url": "data:image/png;base64,AAA"}]})
+        self.assertEqual(items[4]["content"][0], {"type": "output_text", "text": "All done."})
+
+    def test_the_budget_and_the_errors_are_said(self):
+        cloud.save_settings(self.root, budget_usd=0.001, model="gpt-6.1-sol")
+        b = self.backend([OPENAI_REPLY, OPENAI_REPLY])
+        b.chat([{"role": "user", "content": "go"}])
+        with self.assertRaises(cloud.CloudError) as e:
+            b.chat([{"role": "user", "content": "go"}])
+        self.assertIn("budget for this project is used up", str(e.exception))
+        refused = urllib.error.HTTPError("u", 401, "no", {}, io.BytesIO(b'{"error": {"message": "Incorrect API key"}}'))
+        with self.assertRaises(cloud.CloudError) as e:
+            cloud.OpenAI(tempfile.mkdtemp(), lambda: "sk-x" * 10, opener=FakeAnthropic([refused])).chat(
+                [{"role": "user", "content": "go"}])
+        self.assertIn("OpenAI said 401: Incorrect API key", str(e.exception))
+
+    def test_models_prices_names_and_keys(self):
+        self.assertEqual(cloud.offered_openai(["gpt-4o", "gpt-6-luna", "gpt-6.1-sol", "whisper-1", "gpt-6-astra"]),
+                         ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"])
+        self.assertEqual(cloud.label("gpt-6.1-sol"), "GPT-6.1 Sol")
+        self.assertEqual(cloud.provider_of("gpt-6-luna"), "openai")
+        self.assertEqual(cloud.provider_of("claude-haiku-4-5-20251001"), "anthropic")
+        self.assertEqual(cloud.price_of("gpt-6-luna")[:2], (0.10, 0.50))
+        self.assertTrue(cloud.price_checked("gpt-6.1-sol"))
+        cloud.save_settings(self.root, model="gpt-6-luna")
+        self.assertEqual(cloud.settings(self.root)["provider"], "openai")  # the provider follows the model
+        self.assertIsInstance(cloud.backend(self.root, "openai", "gpt-6-luna"), cloud.OpenAI)
+        import re
+        self.assertTrue(re.fullmatch(accounts.CLOUD["openai"]["shape"], "sk-proj-" + "a" * 40))
+        self.assertFalse(re.fullmatch(accounts.CLOUD["openai"]["shape"], "sk-ant-" + "a" * 40))  # an Anthropic key

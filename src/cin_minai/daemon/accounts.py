@@ -232,7 +232,9 @@ class GitHub:
 
 # --- cloud model keys (docs/accounts-and-cloud.md): pasted once, kept in the keyring, read only by the cloud backend --
 CLOUD = {"anthropic": {"name": "Anthropic", "shape": r"sk-ant-[A-Za-z0-9_-]{20,300}",
-                       "console": "https://console.anthropic.com/settings/keys"}}
+                       "console": "https://console.anthropic.com/settings/keys", "hint": "sk-ant-…"},
+         "openai": {"name": "OpenAI", "shape": r"sk-(?!ant-)[A-Za-z0-9_-]{20,300}",
+                    "console": "https://platform.openai.com/api-keys", "hint": "sk-…"}}
 
 
 def cloud_key(provider: str, keyring=None) -> str:
