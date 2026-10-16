@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **61 filled (64 %)**, 22 partly,
+**Count:** 95 live decisions (D18 superseded) — **62 filled (65 %)**, 21 partly,
 6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 filled). 90 % is **86 filled**: 25 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled). 90 % is **86 filled**: 24 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -187,7 +187,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 filled). 90 % is **86 filled**: 25
 | D32 | filled | the transition corpus, published |
 | D33 | filled | standing rule (A/B before adopting) |
 | D34 | filled | standing scope |
-| D35 | partly | Anthropic by API key in the keyring, the cloud backend with the same sandbox and approvals, AICUI's Cloud models menu (2026-10-12); OpenAI (key and Sign in with ChatGPT) and the CLOUD state in the sidebar's indicator not built |
+| D35 | filled | Anthropic and OpenAI by API key in the keyring (OpenAI through the Responses API, 2026-10-16; live on Ian's PC the same day: GPT-5.6 Luna finishing a project, 19 calls, $0.0094), the cloud backend with the same sandbox and approvals, AICUI's Cloud models menu for both; the panel's WEB / CLOUD sign (inference/reach.py). One-button Sign in with ChatGPT waits on OpenAI's form — the key covers it, as D35 allows |
 | D36 | filled | docs/HELP-WANTED.md |
 | D37 | partly | requirements stated (hardware.md); no testing on 6 GB laptops |
 | D38 | filled | standing rule |
