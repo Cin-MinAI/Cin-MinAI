@@ -24,7 +24,7 @@ gi.require_version("Vte", "2.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 
 from . import chatlook  # noqa: E402
-from .changelog import Changelog  # noqa: E402
+from .changelog import Changelog, Watcher  # noqa: E402
 from .project import (Goals, build_env, can_be_project, declare_env, entry_point, env_header, env_state,  # noqa: E402
                       known_projects, make_project, orphan_envs, project_root, token_of, tree, venv_python)
 
@@ -137,6 +137,8 @@ class Workspace(Gtk.ApplicationWindow):
                                                                        "again to get a new one."))
         self.events_at = os.path.getsize(self.events_path()) if os.path.exists(self.events_path()) else 0
         GLib.timeout_add(400, self.follow_events)
+        self.watcher = Watcher(self.log)  # changes made outside AICUI, into the changelog too (D61)
+        GLib.timeout_add_seconds(3, self.watch_outside)
         right = titled("AI terminal", self.term)
 
         inner = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -1457,13 +1459,29 @@ class Workspace(Gtk.ApplicationWindow):
             entry.set_text("")
             self.term.feed_child((" ".join(text.splitlines()) + "\n").encode())
 
+    def watch_outside(self) -> bool:
+        """Every few seconds: the project's own files changed outside AICUI (the person's editor, a program the project
+        ran) go into the changelog, with undo, and the AI is told before its next step."""
+        try:
+            got = self.watcher.sweep()
+        except Exception:  # never in the person's way: the next look tries again
+            return True
+        if got:
+            self.load_changes()
+            self.load_tree()
+            names = ", ".join(e["file"] for e in got[:4]) + (" …" if len(got) > 4 else "")
+            self.bubble("app", f"Changed outside AICUI: {names}. It's in the changelog, with undo, and the AI will "
+                               "read it before changing it.")
+        return True
+
     def load_changes(self) -> None:
         for child in self.changes.get_children():
             child.destroy()
         entries = list(reversed(self.log.entries()))
         if not entries:
-            self.changes.add(Gtk.Label(label="No AI changes yet. Every file the AI changes is listed here, with what "
-                                             "changed and an undo.", wrap=True, xalign=0, margin=8))
+            self.changes.add(Gtk.Label(label="No changes yet. Every file the AI changes is listed here, with what "
+                                             "changed and an undo — and so are changes made outside AICUI.",
+                                       wrap=True, xalign=0, margin=8))
         for e in entries:
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin=4)
             head = Gtk.Box(spacing=4)

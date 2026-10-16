@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **60 filled (63 %)**, 23 partly,
+**Count:** 95 live decisions (D18 superseded) — **61 filled (64 %)**, 22 partly,
 6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked). 90 % is **86 filled**: 26 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 filled). 90 % is **86 filled**: 25 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -213,7 +213,7 @@ partly; 2026-10-16: D25 partly -> parked). 90 % is **86 filled**: 26 to go.
 | D58 | filled | Make a manuscript |
 | D59 | filled | self-restart after updates |
 | D60 | filled | writing model offered by the matcher |
-| D61 | partly | AICUI slices 1-2, the checks from code, the one progress rule, the project token and environment header (2026-10-08); the plan and team B (10-10), cloud by API key, GitHub, Screenshots and the original request (10-11/13); a file-watching changelog and model switch while idle not built |
+| D61 | filled | AICUI slices 1-2, the checks from code, the one progress rule, the project token and environment header (2026-10-08); the plan and team B (10-10), cloud by API key, GitHub, Screenshots and the original request (10-11/13); model switch while idle (Team and the cloud model restart the AI when it isn't working, 10-14); the changelog watches the project too — changes made outside AICUI go in with undo, and the AI is told (10-16) |
 | D62 | partly | GitHub sign-in by device flow, the token in the keyring, link a repo, push and pull from AICUI (2026-10-11/12; the CinMin bot account waits on GitHub's flag); publishing to GitHub Pages and the guided dev-identity setup not built |
 | D63 | filled | the cloud Lead (2026-10-12): the cloud model is the Senior — plan, assign, reviews, follow-up, stuck points sent up — and one or two local models do the volume; in AICUI's process rather than over D-Bus |
 | D64 | filled | update 3; in AICUI, looks at a program, a page or the screen (2026-10-09) |

@@ -940,6 +940,10 @@ class Agent:
                          + ("  (the person's)" if g.get("by") == "user" else "  (yours)"))
             lines += [f"       {s}" for s in goal_stages(self.root, g)["lines"]]
         goals = "\n".join(lines) or "  (none yet)"
+        outside = [e for e in self.log.entries() if e.get("model") == "outside AICUI" and not e.get("undone")][-5:]
+        if outside:  # the person's own edits (or a program's): read before changing those files, never undo them
+            goals += ("\nChanged outside AICUI (by the person, or a program the project ran) — read before you change "
+                      "them, and keep what they did: " + ", ".join(f"{e['file']} ({e['time'][11:16]})" for e in outside))
         venv = ""
         if self.venv:
             pkgs = ", ".join(venv_packages(self.venv)) or "nothing yet"

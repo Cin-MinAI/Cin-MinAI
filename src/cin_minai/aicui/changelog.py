@@ -15,6 +15,7 @@ import os
 import subprocess
 import time
 
+OUTSIDE = "outside AICUI"  # who made a change nobody in AICUI made
 AUTHOR = ["-c", "user.name=AICUI changelog", "-c", "user.email=changelog@cinminai.local", "-c", "commit.gpgsign=false"]
 
 
@@ -101,6 +102,90 @@ class Changelog:
             f.writelines(json.dumps(x, ensure_ascii=False) + "\n" for x in entries)
         os.replace(tmp, self.index)
         return e
+
+
+    # --- changes made outside AICUI: the person in an editor, or a program the project ran ------------------------
+    def known(self, rel: str) -> bool:
+        """Whether the store has this file (its last state is what the next change is measured from)."""
+        self._ensure()
+        return bool(self._git("ls-tree", "--name-only", "HEAD", "--", rel, check=False).strip())
+
+    def same_as_kept(self, rel: str) -> bool:
+        path = os.path.join(self.root, rel)
+        kept = self._git("rev-parse", "-q", "--verify", f"HEAD:{rel}", check=False).strip()
+        if not os.path.exists(path):
+            return not kept
+        return bool(kept) and self._git("hash-object", "--", path, check=False).strip() == kept  # (a full path:
+        # hash-object reads paths from the process's folder, not the work tree)
+
+    def baseline(self, rels: list[str]) -> None:
+        """Files already there when AICUI opened: kept as they are, quietly, so later changes have a "before"."""
+        self._ensure()
+        self._git("add", "-f", "--", *rels)
+        self._git("commit", "-q", "--allow-empty", "-m", f"baseline: {len(rels)} files")
+
+    def outside(self, rel: str, who: str = OUTSIDE) -> dict | None:
+        """A change nobody in AICUI made, recorded like the AI's (with undo); None when the file is as kept."""
+        self._ensure()
+        if self.same_as_kept(rel):
+            return None
+        before = self._git("rev-parse", "HEAD").strip()
+        gone = not os.path.exists(os.path.join(self.root, rel))
+        return self.after(rel, before, model=who, what="deleted outside AICUI" if gone else "changed outside AICUI")
+
+
+WATCH_EXT = {".py", ".js", ".ts", ".html", ".css", ".json", ".md", ".txt", ".sh", ".c", ".cc", ".cpp", ".h", ".hpp",
+             ".rs", ".go", ".java", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".xml", ".svg", ".csv"}
+WATCH_MAX = 512 * 1024   # bigger files aren't the project's code: not watched
+SETTLE_S = 3.0           # a file changed in the last few seconds is looked at next time (an AI change may be finishing)
+
+
+class Watcher:
+    """Changes made outside AICUI, into the same changelog with undo (PLAN D61: "a changelog of every file … with
+    undo"; Ian, 2026-10-15, fixed a run.sh himself). The project's own text files are looked at every few seconds;
+    the AI's changes are already recorded, so they're never counted twice."""
+
+    def __init__(self, log: Changelog, started: float | None = None) -> None:
+        self.log, self.started, self.seen = log, started or time.time(), {}
+
+    def candidates(self) -> dict:
+        from . import intake
+        from .project import tree
+        out = {}
+        for rel, is_dir, _ in tree(self.log.root):
+            if is_dir or os.path.splitext(rel)[1].lower() not in WATCH_EXT or rel.split("/")[0] in ("sources",):
+                continue
+            try:
+                st = os.stat(os.path.join(self.log.root, rel))
+            except OSError:
+                continue
+            if st.st_size <= WATCH_MAX and not intake.came_in(self.log.root, rel):
+                out[rel] = (st.st_mtime, st.st_size)
+        return out
+
+    def sweep(self, now: float | None = None) -> list[dict]:
+        now = now or time.time()
+        found, entries, quiet = self.candidates(), [], []
+        for rel, sig in found.items():
+            if self.seen.get(rel) == sig or now - sig[0] < SETTLE_S:
+                continue
+            first = rel not in self.seen
+            self.seen[rel] = sig
+            if not self.log.known(rel) and first and sig[0] < self.started:
+                quiet.append(rel)  # there before AICUI opened: its starting point, not a change
+                continue
+            e = self.log.outside(rel)
+            if e:
+                entries.append(e)
+        for rel in [r for r in self.seen if r not in found]:  # gone
+            self.seen.pop(rel)
+            if self.log.known(rel):
+                e = self.log.outside(rel)
+                if e:
+                    entries.append(e)
+        if quiet:
+            self.log.baseline(quiet)
+        return entries
 
 
 def hide_from_repo(root: str) -> None:
