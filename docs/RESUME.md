@@ -1,10 +1,27 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-14** (latest: journal "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-16** (latest: journal "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-16) — update 6 out; the junior measured; next: the 9B, then the alpha
+
+- **Update 6 is live** (2026-10-14, signed, 18 packages; release note `docs/release-notes/update-6.md`; apt
+  `cinminai-apt` 2f519e4, checked with the devtools apt-check: 18/18).
+- **Built and pushed since:** one local model again, the Look tabs (chat and AI terminal), Context sizes (D93), the
+  Benchmark (context ladder + crash step-down + the staged load run), the goals rule (A39), the lead's `wait` (A40),
+  the page check for script-made elements, the junior protocol (A41: specifics, fresh tasks, measured limits, one
+  correction attempt), and the senior told its junior's measured load. Rules `docs/aicui-rules.md` A39–A41.
+- **Measured on the 1080 Ti:** the 27B holds 48K (64K crashes); the 35B holds 128K (~20 words/s there) and, as a
+  junior, carried a 2,902-line project — limits 1,510 lines and 93 steps a task (`~/.local/share/cinminai/benchmarks.json`
+  on Ian's NVMe). Team B's 9B junior isn't measured yet.
+- **Ian's NVMe runs build `…065055`.**
+- **Open:** `need` installs PyPI names only (it took "nodejs" for a Python package); the Run button with web
+  servers (each `run.sh` must open its page); the junior's task queue (a cap or an "urgent" mark — test16 queued 21);
+  one intermittent unit test seen once on 10-15.
+- **Next:** benchmark team B (the 9B); then the near-done decisions toward the alpha (PLAN §1b).
 
 ## Where we stopped (2026-10-14) — the ISO builds again; next: the alpha release
 

@@ -54,14 +54,15 @@ Architecture in one breath:
   USB through install. Bigger models are optional downloads. **6 GB GPU floor, NVIDIA and AMD** (D24).
   **v1 languages** (D25): English, Spanish, Portuguese, French, German, Japanese.
 
-## Status (2026-10-14)
+## Status (2026-10-16)
 
 Cin-MinAI 0.0.1 is public (ISO on Hugging Face `CinMin/Cin-MinAI-OS`, signed apt repo, website
-`cin-minai.github.io`); four signed updates since. M0–M3 done; **M4** (one action path, D67/D85) has slices 1–3.
-Since 10-08 the work has been AICUI: two-model teams (style B: a MoE Senior and a 9B Junior, a plan, LFD), GitHub
-sign-in, a virtual screen for the models' commands, and cloud models by API key in four roles (Finisher, Exclusive,
-Lead, Advisor — `docs/accounts-and-cloud.md`); the ISO pipeline was fixed on 10-13 (VM boot and install tests pass).
-The alpha phase closes with a release and the near-done decisions (60 of 95 filled; PLAN §1b, D97).
+`cin-minai.github.io`); update 6 went out 2026-10-14 (signed, 18 packages). Since 10-08 the work has been AICUI: one
+model or two-model teams, a plan, LFD, GitHub sign-in, a virtual screen for the models' commands, cloud models by API
+key in four roles (`docs/accounts-and-cloud.md`), context sizes the person chooses (D93), and a **Benchmark** that
+measures each setup on the person's own card — the context sizes that hold and, for the junior, how much code it
+carries (`inference/benchmark.py`, `aicui/benchcode.py`). The junior works to a protocol (`docs/aicui-rules.md` A41).
+The alpha phase closes with the near-done decisions (60 of 95 filled; PLAN §1b, D97).
 Read `docs/RESUME.md` first — it is always the current state — then the latest `docs/dev-journal.md` entry.
 
 ## Credits

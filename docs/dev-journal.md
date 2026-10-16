@@ -1878,3 +1878,43 @@ sing Flo Rida's "Right Round" in Latin. Its AI answer, kept here because it dese
 
 Ian calls it an ADHD moment. It's also the project in small: a machine doing the patient work in the background,
 and a person free to follow a "but what if I did this instead?" wherever it goes.
+
+## 2026-10-15 to 10-16 — a protocol for the junior, and how much it can carry
+
+**Update 6 went out** on 10-14 (signed, 18 packages, `cinminai-search` and `cinminai-table` new), and the builds since
+went to Ian's own install: the cloud lead now **waits** for its local helper instead of asking the person how the work
+is going; AICUI's page check knows the elements a script creates (a finished blackjack site had every goal refused
+because its cards were made in code); the person's goals stay theirs.
+
+**A protocol for the junior** (Ian: "Sr gives detail on code specifics and jr executes on script, gives back to sr,
+sr checks, if good jr dumps. if no good sr gives corrections. After the 1st attempt at correction sr takes all script
+corrections"). A senior's task now has to spell out the code — the functions, signatures, imports, what each must do,
+how to check it — or it comes back to be said again. The junior starts every task fresh, with nothing but that
+instruction, and forgets it after. Each task has a step limit and a limit on lines of code. A rejected task goes back
+once, with the corrections; after that, the corrections are the senior's.
+
+**And the limits are measured, not guessed** (Ian: "We go by lines of code expressed, held, re-expressed, and
+continued efficiently. We want to know how much load it can carry in the development cycle"). The Benchmark now has
+a second part: the junior's model builds one project in stages — about 100 lines, then +200, +400, +800… — and at
+every stage it must write the new code, keep everything earlier working, change some of it as asked, and write a
+report that calls all of it. The tests come from a reference answer and are run by us. The first full run, the 35B on
+the GTX 1080 Ti:
+
+| Stage | Lines in all | Written | Everything held | Steps | Time |
+|---|---|---|---|---|---|
+| 1 | 238 | +238 | yes | 29 | 10 min |
+| 2 | 605 | +367 | yes | 17 | 7 min |
+| 3 | 1,385 | +780 | yes | 26 | 13 min |
+| 4 | 2,902 | +1,517 | yes (363 new, 330 held, all changes) | 62 | 35 min |
+| 5 | 5,102 | +2,200 | no — 394 of 737 new; **693 of 693 held** | 93 | 60 min |
+
+It carried a 2,902-line project without a single failing test, and when it finally failed it was by running out of
+room, not by breaking anything. That's the useful part: past its load, the junior still helps if the tasks get
+smaller. So the senior is now told, every step, what its junior was measured to handle — and, once the project is
+bigger than that, to give it one file at a time with exactly what it needs. The model writes about 2.4 times more
+lines than the reference for the same functions, at about 25 tokens a line; the benchmark counts its real lines.
+
+**Two lessons kept.** A web project's `run.sh` that only starts a server never opens the page (Ian fixed it himself,
+with three lines and a note on what "localhost" means — see 10-14 to 10-15). And `need`, which installs a project's
+Python packages, took "nodejs" for one: it installed a stub from PyPI instead of the program. Programs and Python
+packages need telling apart before the person is asked.
