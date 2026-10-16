@@ -948,6 +948,7 @@ record is detected; a lost USB is recovered with the printed code.
 
 ## 5b. Ideas for a later project (Ian, 2026-10-02: "future plans for the next project, I don't have the equipment yet")
 
+- **How the project lasts: hardware, after trust** (Ian, 2026-10-16: "Hardware is where the project lasts. Software is only the start… some sort of second hand hardware selling and trading system… But then there's the whole trust factor so before that, I'd rather just do the software for a bit to earn the trust of being around consistently"). Free software with no subscription, and never the user as the product; what's sold later is hardware and help. A second-hand market for machines that run local AI, each with its Benchmark numbers (what it holds, what it carries) so a buyer knows what they get — old hardware with a second life, as RAMenstein. First, years of the software being there.
 - **Community reviewers for held updates** (Ian, 2026-10-16: "If we can get volunteers I'd like the community to do this themselves"): volunteers watch what's held during D89's 2 days and flag anything suspicious, their findings one more source the hold checks — trust built by people who show their work. Needs a way to sign findings, a reputation for reviewers, and rules so a single report can hold but never release an update.
 - **A home model server:** one strong machine runs a big model (`llama-server`), the house's other Cin-MinAI PCs use it over
   the local network — still local and owned (D26). Needs discovery, pairing, encryption, the matcher listing "the house's model".
