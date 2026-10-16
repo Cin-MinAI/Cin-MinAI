@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **60 filled (63 %)**, 24 partly,
-6 open, 5 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly). 90 % is **86 filled**: 26 to go.
+**Count:** 95 live decisions (D18 superseded) — **60 filled (63 %)**, 23 partly,
+6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
+partly; 2026-10-16: D25 partly -> parked). 90 % is **86 filled**: 26 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -177,7 +177,7 @@ partly). 90 % is **86 filled**: 26 to go.
 | D22 | filled | standing rule |
 | D23 | filled | the guide on the ISO, offline from the live USB |
 | D24 | partly | CUDA and Vulkan built; AMD never run on real hardware (HELP-WANTED) |
-| D25 | partly | UI and help in six languages; no Japanese input method or CJK font on the ISO yet |
+| D25 | parked | UI and help in six languages; the Japanese input method and CJK fonts wait: they'd make an already long ISO download longer (Ian, 2026-10-16: parked for this alpha, "to resolve later with more resources") |
 | D26 | filled | public repos, decisions, evals |
 | D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
 | D28 | partly | the offline-mode button and the 'what has this computer sent?' page aren't built |
