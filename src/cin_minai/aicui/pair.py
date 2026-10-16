@@ -65,6 +65,7 @@ class Pair:
         self.done: dict[int, dict] = {}              # finished tasks, for review_task
         self.stop_junior = threading.Event()
         senior.inbox = []
+        senior.junior_profile = self.profile  # the senior plans with what its junior was measured to carry
         senior.errands_pending = lambda: self.out > 0
         senior.assign_fn = self.assign
         senior.distiller = self.distill
@@ -459,6 +460,21 @@ class Pair:
         return (f"Your junior reads it first and keeps notes in {into}; they come to you between steps (read {rel} "
                 f"yourself only for what the notes don't hold). " + said.split("\n")[0])
 
+    def profile(self) -> str:
+        """What the senior is told each step: the junior's measured load, and this project's size against it (Ian,
+        2026-10-16: "We can make that work as a task protocol and limiter for Sr. Now it knows what Jr can handle")."""
+        lim = self.limits()
+        if not lim["measured"]:
+            return (f"Your junior isn't measured on this card yet (the Benchmark measures it): keep its tasks to about "
+                    f"{lim['lines']} lines of code.")
+        line = (f"Your junior, measured on this card: up to {lim['lines']:,} lines of code and {lim['steps']} steps a "
+                f"task; it kept a {lim['capacity']:,}-line project working. Size each task to that.")
+        size = project_lines(self.senior.root)
+        if lim["capacity"] and size > lim["capacity"]:
+            line += (f" This project is {size:,} lines, past what it held: give it one file at a time with exactly what "
+                     "it needs from the rest (names, signatures), and check its work closely.")
+        return line
+
     def limits(self) -> dict:
         """The junior's per-task limits: measured by the Benchmark's coding run for its model on this card, else the
         stand-ins (inference/benchmark.py)."""
@@ -624,6 +640,7 @@ class Crew:
         for p in self.pairs:
             p.show = self.show
         lead.inbox = []
+        lead.junior_profile = lambda: " ".join(f"({p.junior.model_name}) {p.profile()}" for p in self.pairs)
         lead.errands_pending = lambda: self.out > 0
         lead.assign_fn = self.coder.assign
         lead.distiller = self.reader.distill
@@ -682,6 +699,25 @@ TEAM = os.path.join(".cinminai", "team.json")   # {"team": "solo" | "A" | "B"} â
 TEAMS = ("solo", "A", "B")                      # solo: one local model, the coder alone (Ian, 2026-10-14)
 JUNIOR_FILE = "Qwen3.5-9B-Q4_K_M.gguf"          # the 9B coder, whole on the card
 SENIOR_FILE = "Qwen3.6-35B-A3B-Q4_K_M.gguf"     # the MoE Senior, its experts in RAM (Flash-Next comes second)
+
+
+CODE_EXT = {".py", ".js", ".ts", ".html", ".css", ".c", ".cc", ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".sh"}
+
+
+def project_lines(root: str) -> int:
+    """The project's own code, in lines (not what came in from outside, not AICUI's folders)."""
+    from . import intake
+    from .project import tree
+    total = 0
+    for rel, is_dir, _ in tree(root):
+        if is_dir or os.path.splitext(rel)[1].lower() not in CODE_EXT or intake.came_in(root, rel):
+            continue
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
+                total += sum(1 for line in f if line.strip())
+        except OSError:
+            pass
+    return total
 
 
 def team_of(root: str) -> str:

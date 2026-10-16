@@ -147,6 +147,21 @@ class PairTest(unittest.TestCase):
         self.assertIn("logged as change", senior.do(
             {"tool": "edit", "path": "rules.py", "old": "    # TODO\n    pass\n", "new": "    return deck[0]\n"}))
 
+    def test_the_senior_plans_with_its_juniors_measured_load(self):
+        """Ian, 2026-10-16: "We can make that work as a task protocol and limiter for Sr. Now it knows what Jr can
+        handle." The 35B on the 1080 Ti: 1,510 lines and 93 steps a task, a 2,902-line project held."""
+        from unittest import mock
+        senior, junior, p = self.pair()
+        self.assertIn("isn't measured on this card yet", senior.system())
+        held = {"lines": 1510, "steps": 93, "capacity": 2902, "measured": True}
+        with mock.patch.object(p, "limits", return_value=held):
+            self.assertIn("up to 1,510 lines of code and 93 steps a task; it kept a 2,902-line project working",
+                          senior.system())
+            self.assertNotIn("past what it held", senior.system())
+        with mock.patch.object(p, "limits", return_value={**held, "capacity": 2}):
+            self.assertIn("past what it held: give it one file at a time", senior.system())
+        self.assertNotIn("Your junior", junior.system())
+
     def test_the_juniors_script_limit_stops_a_long_change(self):
         senior, junior, p = self.pair()
         p.current = {"rules.py"}  # its task's file

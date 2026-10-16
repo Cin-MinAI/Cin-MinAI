@@ -967,8 +967,10 @@ class Agent:
         crew = getattr(self, "cloud_crew", "")  # the cloud leads, local contributors work for it
         advisor = (ADVISOR_LINE.format(name=getattr(self, "advisor_name", "a cloud model"))
                    if callable(getattr(self, "advisor_fn", None)) else "")
+        profile = getattr(self, "junior_profile", None)  # its junior's measured load (Pair.profile)
+        profile = ("\n" + profile()) if callable(profile) and self.role == "senior" else ""
         return SYSTEM.format(**parts) + ((SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
-                                         if self.role == "senior" else "") + advisor
+                                         if self.role == "senior" else "") + profile + advisor
 
     def problems(self) -> list[str]:
         """What the checks find in the project's files now, one line a file."""
