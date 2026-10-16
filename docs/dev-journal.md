@@ -1864,3 +1864,17 @@ device can reach them — not a phone on the same Wi-Fi, not anyone on the inter
 
 The rule of thumb we'd teach: *something on localhost is just for you; something on the internet is for everyone —
 know which one you're starting.*
+
+## 2026-10-15 (night) — an ADHD moment
+
+While the test computer spent the night on the new load benchmark — the 35B building one project in stages, 100
+lines, then 300, then 700, holding all of it working — Ian, with nothing to do but wait, asked a search engine how to
+sing Flo Rida's "Right Round" in Latin. Its AI answer, kept here because it deserves to be:
+
+| The line | In Latin | Sung as |
+|---|---|---|
+| You spin my head right round, right round | *Caput meum rotas, rotas* (or *Circum rotas caput meum*) | CAH-put MAY-um ROH-tahs, ROH-tahs |
+| When you go down, when you go down, down | *Cum descendis, cum descendis, deorsum* | Koom deh-SCEN-dis, koom deh-SCEN-dis, DAY-or-soom |
+
+Ian calls it an ADHD moment. It's also the project in small: a machine doing the patient work in the background,
+and a person free to follow a "but what if I did this instead?" wherever it goes.
