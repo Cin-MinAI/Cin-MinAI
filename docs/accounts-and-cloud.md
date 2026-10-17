@@ -80,9 +80,10 @@ roles (Finisher, Exclusive, Lead, Advisor) work with either provider; the provid
 **The panel's WEB / CLOUD sign** (`inference/reach.py`, the applet): every request out of the daemon or AICUI is
 marked while it's out and eight seconds after — CLOUD for a cloud model's API, WEB for anything else (our own search
 and git to GitHub mark themselves) — and the panel icon shows WEB or CLOUD beside it, its tooltip naming where;
-nothing extra when everything is local. Each request is also a line in a local record of where things were sent
-(`~/.local/state/cinminai/sent.jsonl`: when, what kind, where — never what was in it), the start of D28's "what has
-this computer sent?" page.
+nothing extra when everything is local. **The internet log** (D28) is off until the person switches it on in the
+panel icon's menu ("Log every internet session on this computer"); on, each connection is one line in
+`~/.local/state/cinminai/internet-log.txt` — when, WEB or CLOUD, where; never what was in it. (The first build kept
+such a record without asking; Ian: it "comes off as spying". The update removes it.)
 
 ## Build order
 

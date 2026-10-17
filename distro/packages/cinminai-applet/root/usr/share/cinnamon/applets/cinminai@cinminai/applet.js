@@ -40,6 +40,17 @@ const REACH = {
     ja: { local: "すべてこのコンピューターの中にあります", web: "インターネットに接続中", cloud: "クラウドのモデルに送信中" },
 };
 const REACH_DIR = GLib.get_user_runtime_dir() + "/cinminai/reach";
+// D28 (Ian, 2026-10-16): a log the person switches on — off by default; a record kept unasked "comes off as spying"
+const LOG_SWITCH = GLib.get_user_config_dir() + "/cinminai/internet-log-on";
+const LOG_FILE = GLib.get_user_state_dir() + "/cinminai/internet-log.txt";
+const LOG_WORDS = {
+    en: ["Log every internet session on this computer", "Open the internet log"],
+    es: ["Registrar cada sesión de internet en este ordenador", "Abrir el registro de internet"],
+    pt: ["Registrar cada sessão de internet neste computador", "Abrir o registro de internet"],
+    fr: ["Journaliser chaque session internet sur cet ordinateur", "Ouvrir le journal internet"],
+    de: ["Jede Internetsitzung auf diesem Computer protokollieren", "Internetprotokoll öffnen"],
+    ja: ["このコンピューターのインターネット接続をすべて記録する", "インターネットの記録を開く"],
+};
 
 function reaching() {
     // the marks in force (inference/reach.py): [{kind, to, until}], cloud first
@@ -105,7 +116,30 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         const models = new PopupMenu.PopupMenuItem(MODELS[LANG] || MODELS.en);
         models.connect("activate", () => Util.spawn([SIDEBAR, "--models"]));
         ctx.addMenuItem(models, 6);
-        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 7);
+        // the internet log: off until the person switches it on; "Open" shows the plain text file
+        const words = LOG_WORDS[LANG] || LOG_WORDS.en;
+        this.logSwitch = new PopupMenu.PopupSwitchMenuItem(words[0], GLib.file_test(LOG_SWITCH, GLib.FileTest.EXISTS));
+        this.logSwitch.connect("toggled", (item, on) => {
+            try {
+                if (on) {
+                    GLib.mkdir_with_parents(GLib.path_get_dirname(LOG_SWITCH), 0o700);
+                    GLib.file_set_contents(LOG_SWITCH, "on\n");
+                } else {
+                    Gio.File.new_for_path(LOG_SWITCH).delete(null);
+                }
+            } catch (e) { global.logError(`cinminai applet: ${e}`); }
+            this.logOpen.actor.visible = on;
+        });
+        ctx.addMenuItem(this.logSwitch, 7);
+        this.logOpen = new PopupMenu.PopupMenuItem(words[1]);
+        this.logOpen.connect("activate", () => {
+            GLib.mkdir_with_parents(GLib.path_get_dirname(LOG_FILE), 0o700);
+            if (!GLib.file_test(LOG_FILE, GLib.FileTest.EXISTS)) GLib.file_set_contents(LOG_FILE, "");
+            Util.spawn(["xdg-open", LOG_FILE]);
+        });
+        this.logOpen.actor.visible = GLib.file_test(LOG_SWITCH, GLib.FileTest.EXISTS);
+        ctx.addMenuItem(this.logOpen, 8);
+        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 9);
 
         this.proxy = null;
         new AssistantProxy(Gio.DBus.session, BUS_NAME, OBJ_PATH, (proxy, error) => {

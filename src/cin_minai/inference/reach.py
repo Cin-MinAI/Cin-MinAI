@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Where Cin-MinAI is reaching right now: the LOCAL / WEB / CLOUD indicator's source (PLAN D35: "a CLOUD state in the
-LOCAL/WEB indicator"; D28: what this computer sent).
+LOCAL/WEB indicator"), and the internet log a person may switch on (D28).
 
 Every request out of the daemon or AICUI goes through Python's opener; install() wraps it, so each one is marked while
 it's out (and for a few seconds after, so a person can see it): to a cloud model's API it's CLOUD, anything else on
 the internet is WEB. The models on this computer talk over local sockets and never count. The few ways out that don't
 use the opener (our own search's process, git to GitHub) mark themselves with out(). Marks are small files in the
-user's runtime folder (gone at logout), read by the panel icon; each one is also a line in the local record of what
-was sent where (~/.local/state/cinminai/sent.jsonl) — never what was in it.
+user's runtime folder (gone at logout), read by the panel icon.
+
+The internet log is **off unless the person switches it on** (the panel icon's menu: "Log every internet session on
+this computer"; Ian, 2026-10-16: a record kept by default "comes off as spying"). On, each connection is one readable
+line in ~/.local/state/cinminai/internet-log.txt — when, WEB or CLOUD, and where; never what was in it.
 """
 
 from __future__ import annotations
@@ -32,9 +35,30 @@ def folder() -> str:
     return os.path.join(base, "cinminai", "reach")
 
 
-def record_path() -> str:
-    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    return os.path.join(base, "cinminai", "sent.jsonl")
+def state_dir() -> str:
+    return os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "cinminai")
+
+
+def log_path() -> str:
+    return os.path.join(state_dir(), "internet-log.txt")
+
+
+def switch_path() -> str:
+    """The log's switch: this file exists while the person has the log on (the panel icon makes and removes it)."""
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(base, "cinminai", "internet-log-on")
+
+
+def logging() -> bool:
+    return os.path.exists(switch_path())
+
+
+def forget_old_record() -> None:
+    """The record the 2026-10-16 builds kept without asking (sent.jsonl): removed — nobody switched it on."""
+    try:
+        os.remove(os.path.join(state_dir(), "sent.jsonl"))
+    except OSError:
+        pass
 
 
 def kind_of(url: str) -> tuple[str, str]:
@@ -54,17 +78,18 @@ def _write(path: str, data: dict) -> None:
 
 
 def begin(kind: str, to: str) -> tuple[str, dict]:
-    """A mark for a request going out now (and its line in the record); end() it when the answer's read."""
+    """A mark for a request going out now (and its line in the internet log, when the person has it on); end() it
+    when the answer's read."""
     path = os.path.join(folder(), f"{os.getpid()}-{next(_n)}.json")
     mark = {"kind": kind, "to": to, "since": time.time()}
     _write(path, {**mark, "until": mark["since"] + OPEN_S})
-    try:
-        rec = record_path()
-        os.makedirs(os.path.dirname(rec), exist_ok=True)
-        with open(rec, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"time": time.strftime("%Y-%m-%dT%H:%M:%S"), "kind": kind, "to": to}) + "\n")
-    except OSError:
-        pass
+    if logging():
+        try:
+            os.makedirs(state_dir(), exist_ok=True)
+            with open(log_path(), "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {kind.upper():<5}  {to}\n")
+        except OSError:
+            pass
     return path, mark
 
 
@@ -125,6 +150,7 @@ def install() -> None:
     """Every request through Python's opener (urlopen, and the openers passed around as it) is marked."""
     if _installed:
         return
+    forget_old_record()
     opener = urllib.request.build_opener()
     plain = opener.open
 
