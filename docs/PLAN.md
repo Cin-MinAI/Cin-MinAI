@@ -203,7 +203,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled). 90 % is **86 fill
 | D48 | filled | how the assistant runs, as built |
 | D49 | filled | in the guide's prompt |
 | D50 | filled | screen-first boot |
-| D51 | partly | cinminai-diag with 23 codes; hardware tests from the USB not built |
+| D51 | partly | cinminai-diag with 23 codes; hardware tests from the USB not built; the live report ("is my computer secure?") planned after the alpha (PLAN §4, 2026-10-16) |
 | D52 | filled | standing rule |
 | D53 | filled | diagnose + spreadsheets |
 | D54 | filled | standing rule |
@@ -242,7 +242,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled). 90 % is **86 fill
 | D88 | partly | installs, standing watches; 'keep my computer updated' waits for D89 |
 | D89 | open | automatic updates with the hold |
 | D90 | open | waits for D66 |
-| D91 | partly | chains for video and news; other successive actions not built |
+| D91 | partly | chains for video and news; other successive actions not built; the live report, gathered by the guide and passed on by the person, planned after the alpha (2026-10-16) |
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; context sizes chosen per computer (AICUI, 2026-10-14); models in parts, sign-in repos, the setup helper not built |
 | D94 | partly | the two cards, Senior and Junior, built (styles A and B, PLAN §1b, 2026-10-09/10; GatheredData 2026-10-10); the guide holds system tools; the admin key and reviews by another model not built (Flash-Next as the reviewer: files ready on Ian's PC, measurement next) |
@@ -794,6 +794,7 @@ near-done decisions (PLAN §1b). Then, in this order:
    the security help cards and "is my computer secure?" (PLAN §5b). Why now: the threat of bots that spread on their
    own is real today ("I never dodge pragmatics and the threat is real right now, so measures should be taken").
    Local, no cloud; the AI's own commands are already sandboxed (D1) — this watches everything else.
+2. **The live report — "is my computer secure?" (fills D51 and D91, no new decision).** Ian, 2026-10-16: "a tool call for the onboard basic ai, that says 'Read live running only and prepare an information report' and the user can then take that report and give it to one of the cloud models for analysis on webtraffic like if theres a coinminer or tracker… a fair way to empower the user without sacrificing sovereignty." When the person asks, the guide (which holds the system tools, D94) reads the machine **as it is now** — processes with their CPU and graphics use, open connections and the program behind each, listening ports, what starts at login — no history, no log. Code flags the obvious first, locally (known mining-pool ports and Stratum servers, an unknown process pinning the CPU or graphics card at idle, a program running from /tmp, something new in startup). The report is shown to the person, says what it can't see (a miner that pauses while you're active, one that hides itself well, trackers inside the browser's encrypted traffic), and offers to trim personal details (username in paths, local addresses) before the person chooses to give it to a cloud model for a second opinion (D86: shown first, sent only by them). "Check again in 10 minutes, while I'm away" for miners that work when the computer is idle. It teaches as it checks.
 
 ### M2 — Assistant core on the desktop
 
