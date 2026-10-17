@@ -956,6 +956,24 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(ok, report)
         self.assertIn("names and tags line up", report)
 
+    def test_a_command_that_couldnt_reach_the_internet_says_how_to_ask(self):
+        """2026-10-17, test19: cargo couldn't reach crates.io in the sandbox, and the senior planned to rewrite the
+        game without its libraries — nothing said the internet was one question away."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.sandbox = True
+        cargo = ("    Updating crates.io index\nerror: failed to get `eframe` as a dependency of package `tetris`\n"
+                 "Caused by: [6] Could not resolve host: index.crates.io")
+        a.execute = lambda *args, **kw: (101, cargo)
+        said = a.run("cargo build")
+        self.assertIn("This command tried to reach the internet", said)
+        self.assertIn("run it again with `network` true", said)
+        a.execute = lambda *args, **kw: (1, "error[E0425]: cannot find value `x` in this scope")
+        self.assertNotIn("reach the internet", a.run("cargo build"))  # a real compile error: no such note
+        a.mode = "ask"
+        a.execute = lambda *args, **kw: (101, cargo)
+        a.allowed = lambda *args: True
+        self.assertIn("Auto mode lets the person allow it once", a.run("cargo build"))
+
     def test_elements_the_script_makes_have_names_too(self):
         """2026-10-15, test18: game.js made each card with className = 'card' and wrote its rank as <div class="rank">
         inside a string; the check said .card styled nothing, and no goal of the finished game could be ticked."""

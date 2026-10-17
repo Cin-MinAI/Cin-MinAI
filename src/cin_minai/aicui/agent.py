@@ -49,6 +49,11 @@ REQUEST_FILE = "original-request.txt"  # a new project's first request, the pers
 SCREENSHOTS = "screenshots"  # every project's folder for pictures of the program, the person's or the AI's
 PLAN_MAX = 12        # goals in one plan (team B's Senior)
 NET_LINE = "; `network` true for a command that needs the internet: the person is asked once"  # Auto only
+# what a command prints when it couldn't reach the internet (cargo, pip, npm, git, curl…), to say so in its result
+NO_NET = re.compile(r"Could not resolve host|Temporary failure in name resolution|Name or service not known|"
+                    r"Network is unreachable|failed to download|failed to get `[^`]+` as a dependency|"
+                    r"spurious network error|getaddrinfo|ENOTFOUND|EAI_AGAIN|unable to access 'https?://|"
+                    r"Failed to establish a new connection|No matching distribution found", re.I)
 # what a plan's outside item is, and which kept files meet it (intake.holds): a page counts once, by its text; a list of
 # search results isn't a source; pictures are met only by pictures (2026-10-10: a page's .html and .txt counted as two,
 # so one card-list page met "the card lists" and "the card images")
@@ -2504,6 +2509,14 @@ class Agent:
         if code == 124 and re.search(r"\btimeout\s+\d", command):  # 2026-10-12: read as "it hung"
             return (f"exit 124: still running when the timeout stopped it — for a program with a window or a main loop, "
                     f"that means it started and kept running (no crash in that time)\n{tail}")
+        if code and self.sandbox and not (network and self.net_ok) and NO_NET.search(out):
+            # 2026-10-17, test19: cargo couldn't reach crates.io, and the senior planned to rewrite the game without
+            # its libraries, five steps running — nothing said the internet was one question away
+            can = self.mode == "auto" and self.role != "junior"
+            return (f"exit {code}\n{tail}\n\nThis command tried to reach the internet. Commands run without it unless "
+                    + ("you ask: run it again with `network` true — the person is asked once, and it stays allowed for "
+                       "the session." if can else "the session allows it (Auto mode lets the person allow it once); "
+                                                      "pages and files come in through fetch and download meanwhile."))
         return f"exit {code}\n{tail}"
 
     def execute(self, command: str, timeout: int, sandbox: bool, network: bool = False) -> tuple[int | None, str]:
