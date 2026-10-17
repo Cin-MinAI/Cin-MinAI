@@ -298,7 +298,10 @@ class OpenAITest(unittest.TestCase):
         url, body, headers = self.fake.sent[0]
         self.assertEqual(url, "https://api.openai.com/v1/responses")
         self.assertEqual(headers["Authorization"], "Bearer sk-proj-test-key-0123456789abcdef")
-        self.assertEqual((body["tool_choice"], body["max_output_tokens"], body["store"]), ("required", 900, False))
+        # a reasoning model gets room to think on top of the step's limit (2026-10-16: Luna spent all 745 tokens
+        # of a step reasoning, four times, and the step came back empty)
+        self.assertEqual((body["tool_choice"], body["max_output_tokens"], body["store"]),
+                         ("required", 900 + cloud.REASONING_ROOM, False))
         self.assertEqual(body["instructions"], "You are the coder.")
         run = next(x for x in body["tools"] if x["name"] == "run")
         self.assertEqual((run["type"], run["strict"]), ("function", False))

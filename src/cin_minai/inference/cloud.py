@@ -145,6 +145,7 @@ OPENAI_PRICES = {"gpt-6-astra": (10.00, 1.00, 50.00), "gpt-6.1-sol": (2.00, 0.10
                  "gpt-4.1": (2.00, 0.50, 8.00), "gpt-4.1-mini": (0.40, 0.10, 1.60)}
 OPENAI_OFFER = ("gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.6-luna")  # the box, in this order
 OPENAI_DEFAULT = "gpt-6.1-sol"
+REASONING_ROOM = 4096  # output tokens a reasoning model may think with, besides the step itself (paid only if used)
 PROVIDERS = {"anthropic": {"name": "Anthropic", "default": DEFAULT_MODEL},
              "openai": {"name": "OpenAI", "default": OPENAI_DEFAULT}}
 
@@ -521,8 +522,10 @@ class OpenAI(Anthropic):
         body = {"model": self.model, "input": items, "max_output_tokens": int(max_tokens or 4096), "store": False}
         if instructions:
             body["instructions"] = instructions
-        if self.model.startswith(("gpt-5", "gpt-6", "o")):  # reasoning models: a little thinking, to spend less
-            body["reasoning"] = {"effort": "low"}
+        if self.model.startswith(("gpt-5", "gpt-6", "o")):  # reasoning models: a little thinking, to spend less —
+            body["reasoning"] = {"effort": "low"}  # and room for it on top of the answer's: OpenAI counts the hidden
+            body["max_output_tokens"] += REASONING_ROOM  # reasoning against the limit (2026-10-16: GPT-5.6 Luna spent
+            #   all 745 tokens of a step's limit reasoning, four times, and the step came back empty)
         if tools:
             body["tools"] = [{"type": "function", "name": t["name"], "description": t["description"],
                               "parameters": t["input_schema"], "strict": False} for t in tools]
