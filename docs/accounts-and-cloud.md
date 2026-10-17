@@ -64,7 +64,7 @@ keep it off this repository (AICUI never uses it).
 
 Fill in OpenAI's interest form for Sign in with ChatGPT (openai.com/form/sign-in-with-chatgpt-interest) for Cin-MinAI:
 open-source, desktop, no backend, public client with PKCE and a loopback redirect. When the client ID comes, it ships in
-the package like GitHub's. Until then OpenAI works with an API key.
+the package like GitHub's. Until then OpenAI works with an API key. **Sent 2026-10-16** by Ian, with a link to the project's page; OpenAI reviews the requests quarterly.
 
 **Built 2026-10-16: OpenAI by API key** (`inference/cloud.py`, `class OpenAI`). The key is pasted once in AICUI's Cloud
 models menu ("Add an OpenAI API key…"), checked with the free model list, and kept in the login keyring like
