@@ -229,6 +229,17 @@ KEYWORDS = {
              "programar entorno de desarrollo editor de código programação ambiente de desenvolvimento "
              "programmer environnement de développement éditeur de code programmieren entwicklungsumgebung "
              "code-editor プログラミング 開発環境 コードエディター",
+    # not "repository" in any language: that's the software-sources card's word (a test found it, 2026-10-21)
+    "aicui_github": "github github pages publish website put online share project web page push pull clone "
+                    "git sign in github desktop publicar sitio web página web compartir proyecto clonar publicar "
+                    "site página compartilhar projeto clonar publier site web page web partager projet cloner "
+                    "veröffentlichen webseite website teilen projekt klonen ウェブサイト 公開 ホームページ 共有 "
+                    "クローン",
+    "aicui_team_table": "team table several ai agents assistants together multi agent seats lead crown claude "
+                        "code codex cloud models local models varias ia agentes juntos equipo mesa líder "
+                        "várias ia agentes juntos equipe mesa líder plusieurs ia agents ensemble équipe table "
+                        "chef mehrere ki agenten zusammen team tisch leiter 複数のAI エージェント チーム "
+                        "一緒に リーダー",
     "usb_format": "format usb stick formatting wipe stick fat32 exfat ntfs file system reuse stick formatear "
                   "memoria usb sistema de archivos formatar pendrive sistema de arquivos formater clé usb système "
                   "de fichiers usb-stick formatieren dateisystem USBメモリをフォーマット フォーマット ファイルシステム",

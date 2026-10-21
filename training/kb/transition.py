@@ -395,7 +395,31 @@ TOPICS = [
              "the files and what changed, the goals for the session, the AI's own terminal, and a changelog where "
              "every change can be undone. It asks before it changes anything unless you choose otherwise. To start: "
              "open the Menu, then Programming, then AICUI (or click Open AICUI in the assistant's sidebar), choose "
-             "your project folder, type what you want in the box at the bottom and click Send to the AI.",
+             "your project folder, type what you want in the box at the bottom and click Send to the AI. To end "
+             "everything at once (the AI, its models, its commands and what Run started), click Stop everything in "
+             "the middle of the top bar; what was done stays, with undo.",
+     "must": [], "steps": True, "langs": ["en"]},
+    # --- update 7 (2026-10-21): AICUI's GitHub flow and the Team Table; words checked against aicui/app.py and
+    # aicui/tableview.py ------------------------------------------------------------------------------------------
+    {"id": "aicui_github", "windows": "putting a project online: GitHub Desktop, or publishing a website",
+     "card": "Publishing from AICUI: GitHub is a website that keeps projects, and GitHub Pages shows a project as a "
+             "web page anyone can open, so a page you built can be shared by its address. AICUI does the git work "
+             "for you and shows the files before anything goes: untick what should stay private. A published page "
+             "is public. To start: in AICUI, click GitHub at the top right, choose Sign in to GitHub… and type the "
+             "code it shows on GitHub's page in your browser (AICUI never sees your password). Then choose Link this "
+             "project to a repository… (AICUI can make a new one for you), and Save to GitHub (push) or Publish as a "
+             "web page (GitHub Pages)…. To start from someone's project: choose Clone a repository…, paste its "
+             "address, click Find, check what was found and click Clone this one.",
+     "must": [], "steps": True, "langs": ["en"]},
+    {"id": "aicui_team_table", "windows": "using several AI assistants together on one project",
+     "card": "The Team Table in AICUI: a table where several AIs work on one project together, like a meeting with "
+             "a chair. Each seat is a model on this computer (free), a cloud model by your own key (paid as it "
+             "works), or an outside agent such as Claude Code or Codex joining over a locked connection. One seat "
+             "wears the crown: the lead plans, hands out the work and accepts or rejects it, and you are above it. "
+             "Each file has one writer at a time, and the seats talk one at a time. To set it up: in AICUI, click "
+             "the people icon at the right end of the box you type in, click a seat to choose who sits there (+ "
+             "adds one), tick Wears the crown on the lead, click the paper in the middle for the session goals, "
+             "then click Sit down.",
      "must": [], "steps": True, "langs": ["en"]},
 
     # --- D84 batch 2 (2026-10-06): pictures for usb_format, software_sources and specs ("what's under the hood", the
