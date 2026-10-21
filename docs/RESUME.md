@@ -17,6 +17,11 @@ model's story: `docs/guide-model-journal.md`.
   address loaded, then a "Published at …" goal ticked by AICUI; commits under the account's own name. Unit tests:
   test_github_link (7), test_accounts (8), test_aicui_agent (+2). The full suite passes except
   test_selfupdate's installed-code check, which fails the same on the last commit (no installed Cin-MinAI in WSL).
+- **Fixed the same day (D52):** a model's sandboxed command reached the keyring service through the session bus (checked
+  on the NVMe, nothing read). AICUI's sandbox now hides `/run/user`, the key folders and files in home and key-named
+  variables (`agent.secret_walls`); checked on the NVMe: bus blocked with and without network, project and virtual
+  screen still work. Ian's idea for keys in people's own apps (`.env`, teaching, a virtual or prepaid card, auto-reload
+  off) is in PLAN §5b. The ISO now removes casper on install (its md5 check failed on every boot of installed systems).
 - **Ian, once:** add *Pages: Read and write* to the AICUI GitHub app, accept it on the installations.
 - **Next:** build and install on the NVMe; publish test20 through the menu (the look should flag its contact block,
   its © 2023, original-request.txt and the workflow); then the guided setup that names the machine. The store itself

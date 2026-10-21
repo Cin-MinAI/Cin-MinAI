@@ -778,6 +778,35 @@ class AgentTest(unittest.TestCase):
         self.assertIn("--unshare-net", argv[0])
         self.assertNotIn("--unshare-net", argv[1])
 
+    def test_a_sandboxed_command_sees_no_keys(self):
+        """The keyring's bus, key folders and files, the person's screen and key-named variables are out of reach of a
+        sandboxed command (2026-10-20: one reached the keyring service); the project still shows through."""
+        from unittest import mock
+        from cin_minai.aicui import agent as ag
+        home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, home, True)
+        os.makedirs(os.path.join(home, ".ssh"))
+        os.makedirs(os.path.join(home, ".local/share/keyrings"))
+        open(os.path.join(home, ".git-credentials"), "w").close()
+        walls = ag.secret_walls(home, uid=os.getpid() + 10**6)  # a /run/user that doesn't exist: no wall for it
+        self.assertEqual(walls, ["--tmpfs", os.path.join(home, ".ssh"), "--tmpfs", os.path.join(home, ".local/share/keyrings"),
+                                 "--ro-bind", "/dev/null", os.path.join(home, ".git-credentials")])
+        env = ag.without_secrets({"PATH": "/usr/bin", "HOME": home, "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1/bus",
+                                  "DISPLAY": ":0", "OPENAI_API_KEY": "x", "GH_TOKEN": "x", "MY_SECRET": "x",
+                                  "KEYBOARD_LAYOUT": "us", "LANG": "C.UTF-8"})
+        self.assertEqual(sorted(env), ["HOME", "KEYBOARD_LAYOUT", "LANG", "PATH"])
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ask=lambda p: "y")
+        argv = []
+        with mock.patch("subprocess.Popen", side_effect=lambda a, **k: (argv.append((a, k["env"])), mock.Mock(
+                returncode=0, pid=0, communicate=lambda timeout=None: ("", "")))[1]), \
+             mock.patch.dict(os.environ, {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/x", "ANTHROPIC_API_KEY": "x"}), \
+             mock.patch.object(ag, "secret_walls", return_value=["--tmpfs", "/run/user/1"]):
+            a.execute("true", 5, True)
+        cmd, cenv = argv[0]
+        self.assertLess(cmd.index("/run/user/1"), cmd.index("--bind"))  # the project mounted over the walls
+        self.assertNotIn("DBUS_SESSION_BUS_ADDRESS", cenv)
+        self.assertNotIn("ANTHROPIC_API_KEY", cenv)
+
     def test_a_picture_search_puts_the_projects_own_sites_first(self):
         """Image search (Cin-MinAI's own search): each picture's address, size and page; pictures from a site the project
         already fetched from first (a set keeps its look); kept as a source, so download may take the addresses."""

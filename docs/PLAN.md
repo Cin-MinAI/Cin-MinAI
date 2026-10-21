@@ -1011,6 +1011,19 @@ record is detected; a lost USB is recovered with the printed code.
   on the computer can and can't reach, and AICUI's sandbox; passwords and hardware keys), offered when relevant
   (D84); the **installer recommending disk encryption**, plainly (D47); **hardware advice** when choosing a PC
   (TPM 2.0 / Pluton; what a Pi lacks) with D24/D37.
+- **Keys in the person's own apps: no accident with them — an idea, no decision** (Ian, 2026-10-20: "We really need
+  to try and help them not push their api keys if they use api. That was one of the reasons I liked Oauth, no API key
+  for the ai to have an accident with"; and "I would recommend sandboxing your financial setup with a prepaid card").
+  OAuth leaves no long-lived key to mishandle, but Anthropic offers only keys, and an app a person builds that calls an
+  AI API needs its key somewhere it can read. Layers: (1) **where the key goes** — AICUI puts it in the project's
+  `.env`, private at every save like `.cinminai/`, never in the code; a key written into code stops the save; (2) **the
+  look before it goes** already stops on key patterns (A42, `github_link.review`); (3) **teaching** — a short plain note
+  the first time a person adds a key to their app: why it stays out of the code (with "Teaching security" above);
+  (4) **the money behind the key, walled off** — offered with the reason, never required (Rule 9): a **virtual card**
+  with a limit from the person's bank (freeze or delete it any time), or a **prepaid card** where the bank has none,
+  and the provider's **auto-reload off** (Anthropic and OpenAI bill prepaid credits; auto-reload is what turns a leaked
+  key into a growing bill): "if this key ever leaks, the most anyone can spend is what's on this card." Done the same
+  day as a D52 fix, not this idea: the models' own commands can't reach the keyring (`docs/accounts-and-cloud.md`, rule 2).
 - **Secure key hardware on every device, normalized — with the community** (Ian, 2026-10-13: "get the community on
   board with designing a universal secure hardware interface for making this process normalized in all devices").
   Back what exists rather than a rival standard: the interface is **TPM 2.0** (TCG; ISO/IEC 11889); open silicon roots

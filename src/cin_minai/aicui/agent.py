@@ -817,6 +817,38 @@ def with_screen(command: str, screen: tuple[int, int, int]) -> str:
             f"( {command}\n); _rc=$?; kill $_xv 2>/dev/null; wait $_xv 2>/dev/null; exit $_rc")
 
 
+# Where a command could find the person's keys and sign-ins (Ian, 2026-10-20: "no API key for the ai to have an accident
+# with"). A sandboxed command reached the keyring service through the session bus, one `secret-tool lookup` from a key.
+# The home folder stays (toolchains and venvs live there); these don't. Browser and mail profiles: their cookies are
+# sign-ins. ~/.Xauthority: the key to the person's own screen.
+SECRET_DIRS = (".ssh", ".gnupg", ".local/share/keyrings", ".password-store", ".config/gh", ".aws", ".kube",
+               ".mozilla", ".thunderbird", ".config/google-chrome", ".config/chromium", ".config/BraveSoftware")
+SECRET_FILES = (".git-credentials", ".netrc", ".pypirc", ".config/git/credentials", ".docker/config.json", ".Xauthority")
+SECRET_ENV = {"DBUS_SESSION_BUS_ADDRESS", "SSH_AUTH_SOCK", "GPG_AGENT_INFO", "GNOME_KEYRING_CONTROL", "DISPLAY",
+              "WAYLAND_DISPLAY", "XAUTHORITY"}
+SECRET_NAME = re.compile(r"(^|_)(API_?KEY|KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?)(_|$)")
+
+
+def secret_walls(home: str | None = None, uid: int | None = None) -> list[str]:
+    """bwrap options hiding the places above, and /run/user/$UID (the session bus, the keyring's and agents' sockets).
+    Only what exists: bwrap can't make a mount point in the read-only root."""
+    home = home or os.path.expanduser("~")
+    run = f"/run/user/{os.getuid() if uid is None else uid}"
+    walls = ["--tmpfs", run] if os.path.isdir(run) else []
+    for d in SECRET_DIRS:
+        if os.path.isdir(os.path.join(home, d)):
+            walls += ["--tmpfs", os.path.join(home, d)]
+    for f in SECRET_FILES:
+        if os.path.isfile(os.path.join(home, f)):
+            walls += ["--ro-bind", "/dev/null", os.path.join(home, f)]
+    return walls
+
+
+def without_secrets(env: dict) -> dict:
+    """The environment without the bus, the agents, the person's screen, or anything named like a key."""
+    return {k: v for k, v in env.items() if k not in SECRET_ENV and not SECRET_NAME.search(k.upper())}
+
+
 def kept_material(rel: str, root: str = "") -> bool:
     """Fetched material, kept as it came — not the project's code (2026-10-09: the checks found an "unclosed script
     tag" in a saved web page, and the coder was sent to fix it): by its recorded origin (intake.came_in); without a
@@ -2547,13 +2579,14 @@ class Agent:
             if self.venv else ""
         argv = ["bash", "-lc", prefix + (with_screen(command, look.screen_of()) if self.xvfb else command)]
         if sandbox:
+            # the walls before the project, so a project inside a hidden place still shows through
             argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
-                    "--bind", self.root, self.root, *([] if network else ["--unshare-net"]), "--die-with-parent",
-                    "--chdir", self.root, *argv]
+                    *secret_walls(), "--bind", self.root, self.root, *([] if network else ["--unshare-net"]),
+                    "--die-with-parent", "--chdir", self.root, *argv]
         # no .pyc from the agent's runs: an edit within the same second that keeps the file's size (a - b → a + b)
         # left Python running the old compiled code, and a fixed test still failed
-        env = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy",
-               "PYGAME_HIDE_SUPPORT_PROMPT": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {**(without_secrets(os.environ) if sandbox else os.environ), "SDL_VIDEODRIVER": "dummy",
+               "SDL_AUDIODRIVER": "dummy", "PYGAME_HIDE_SUPPORT_PROMPT": "1", "PYTHONDONTWRITEBYTECODE": "1"}
         # its own process group: at the limit everything it started stops with it (2026-10-12: a game window and its
         # virtual screen kept running after the command was cut off, outside the sandbox in No permissions)
         p = subprocess.Popen(argv, cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,

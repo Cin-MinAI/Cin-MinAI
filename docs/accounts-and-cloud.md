@@ -21,7 +21,11 @@ Jarvis setup") coming later, the approvals are one mechanism it can plug into.
    and the news sources' keys already do). Never in a file, a log, the action record or the conversation.
 2. **No model ever sees a key or a token.** Tools act through code that reads the keyring at the moment of the request:
    the cloud backend for its calls, a git credential helper of ours for pushes and pulls. A key pasted into the chat is
-   caught before the model sees it (keys.looks_like_key).
+   caught before the model sees it (keys.looks_like_key). The models' own commands can't reach them either (2026-10-20, a
+   D52 fix: a sandboxed command had reached the keyring service through the session bus): AICUI's sandbox hides
+   `/run/user/$UID` (the bus, the keyring's and agents' sockets), the key folders and files in home (ssh, gpg, the
+   keyring files, git and gh credentials, browser and mail profiles, `~/.Xauthority`) and every variable named like a
+   key (`agent.secret_walls`, `without_secrets`). In No permissions there's no sandbox: the person's own choice.
 3. **One hand-over, then it keeps itself.** Expiring tokens renew themselves from their refresh tokens; the person signs
    in again only when a refresh token runs out (GitHub: 6 months unused; OpenAI: 30 days unused) or they sign out.
 4. **Least access.** GitHub: Contents read/write and Metadata read on the repos the person chooses (Administration
