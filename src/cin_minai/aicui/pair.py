@@ -233,7 +233,7 @@ class Pair:
         self.senior.event("errands", out=sorted(self.listing.values(), key=lambda x: x["n"]))
 
     # --- the Senior's tools ----------------------------------------------------------------------------------
-    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1) -> str:
+    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1, to: str = "") -> str:
         """One file for the Junior: it must exist (the skeleton first) and not be held already. The protocol (Ian,
         2026-10-15): the senior gives the code specifics; the junior starts each task fresh, within its limits; a
         rejected task goes back once with the corrections, and after that the senior makes the corrections itself."""
@@ -344,7 +344,7 @@ class Pair:
         r["since"], r["kinds"] = done, len(kinds)
         self.senior.inbox.append((r["n"], "progress", report))
 
-    def brief(self, files: list, question: str) -> str:
+    def brief(self, files: list, question: str, to: str = "") -> str:
         """The Senior asks the Junior about some files (Ian, 2026-10-10: "have your assistant scan each file and
         summarize to you"): it reads them, each in a fresh context, and answers between the Senior's steps."""
         root = os.path.realpath(self.senior.root)
@@ -489,7 +489,8 @@ class Pair:
         """The plan's goals for the Junior (Ian, 2026-10-10): each goes to it once what it needs from outside is in,
         with its files held for it; one at a time per file. The Junior waits for these — it starts nothing itself."""
         for g in self.senior.goals.load():
-            if g["done"] or g.get("who") != "junior" or g.get("queued") or not self.senior.needs_met(g):
+            if g["done"] or g.get("who") not in getattr(self, "goal_whos", ("junior",)) or g.get("queued") or \
+                    not self.senior.needs_met(g):
                 continue
             files = list(g.get("files") or [])
             with self.lock:
@@ -777,7 +778,8 @@ DETAIL_WORDS = 20  # a write or fix task names the code specifics (Ian, 2026-10-
 TASK_SHARE = 0.05  # D95: a task is at most 5 % of the receiving model's context
 FOLLOW_UP = 3   # the Senior's steps of progress while a task is with the Junior before a word on how it's going
 TEAM = os.path.join(".cinminai", "team.json")   # {"team": "solo" | "A" | "B"} — chosen in AICUI's top bar
-TEAMS = ("solo", "A", "B")                      # solo: one local model, the coder alone (Ian, 2026-10-14)
+TEAMS = ("solo", "A", "B", "table")             # solo: one local model, the coder alone (Ian, 2026-10-14);
+#   table: the Team Table, the seats the person set (conference.py)
 JUNIOR_FILE = "Qwen3.5-9B-Q4_K_M.gguf"          # the 9B coder, whole on the card
 SENIOR_FILE = "Qwen3.6-35B-A3B-Q4_K_M.gguf"     # the MoE Senior, its experts in RAM (Flash-Next comes second)
 

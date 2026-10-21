@@ -26,6 +26,9 @@ Jarvis setup") coming later, the approvals are one mechanism it can plug into.
    `/run/user/$UID` (the bus, the keyring's and agents' sockets), the key folders and files in home (ssh, gpg, the
    keyring files, git and gh credentials, browser and mail profiles, `~/.Xauthority`) and every variable named like a
    key (`agent.secret_walls`, `without_secrets`). In No permissions there's no sandbox: the person's own choice.
+   An outside agent at the Team Table (SPEC §22.9) reaches this computer only through its seat: its SSH key is locked to
+   `cinminai-seat` for that seat and project (`restrict`), so it can't open a shell, read the keyring or leave the
+   project; removing the seat removes the key line.
 3. **One hand-over, then it keeps itself.** Expiring tokens renew themselves from their refresh tokens; the person signs
    in again only when a refresh token runs out (GitHub: 6 months unused; OpenAI: 30 days unused) or they sign out.
 4. **Least access.** GitHub: Contents read/write and Metadata read on the repos the person chooses (Administration

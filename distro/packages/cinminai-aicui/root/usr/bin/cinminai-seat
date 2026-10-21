@@ -1,0 +1,7 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# An outside agent's seat at the Team Table (MCP over stdio): cinminai-seat --project FOLDER --seat NAME
+# Started by Claude Code or Codex, here or over SSH with a key locked to this command (aicui/seatmcp.py).
+from cin_minai.aicui.seatmcp import main
+
+raise SystemExit(main())

@@ -2145,6 +2145,36 @@ section protects.)
    errors back to their owner — ending in a build whose tests pass.
 4. **Admin automation with the key, and cloud reviewers.**
 
+### 22.9 The Team Table: a conference table (D95, built 2026-10-21)
+
+Ian, 2026-10-21: "My original team table idea was a conference table Claude, Codex, Grok, and Gemini could sit at and
+build something together. Local came after… If I wanted to run 6 agents with 4 clouds and 2 local, well lets do it. Its
+all up to the user and the limitations of the systems." Opened from the icon at the right end of AICUI's chat input,
+or the Team menu (`aicui/tableview.py`, `aicui/conference.py`, `.cinminai/table.json`):
+
+- **The table, seen from above:** two seats to start and a + for more. A seat is a **local** model from the model
+  store (all local seats placed together on the card in seat order, `matcher.seats_plan`; a seat that doesn't fit
+  beside the others shows red and says so), a **cloud** model by the person's key, or an **outside agent** (Claude
+  Code, Codex). One seat wears the **crown**: the lead, chosen by the person, plans and accepts or rejects work; the
+  person is above it. **The paper** in the middle is the session goals, each assigned to a seat. **Sit down** seats
+  the team (team "table"); the AI restarts as it.
+- **Running:** every seat is a member on the Team Table and claims its own tasks (§22.4's backbone): a local or cloud
+  seat works its queue in AICUI; the lead's assign and brief take `to`, a seat's name; a goal on the paper goes to its
+  seat once its needs are in. One writer per file across all seats; the same permission modes for everyone; Stop
+  everything stops every seat in AICUI and cancels the outside seats' tasks.
+- **Talking:** beside the tasks, the table has a conversation, one speaker at a time — Team Table's floor (`say`,
+  `pass_floor`, `request_floor`, `take_floor`): the holder speaks, the floor passes by name, to whoever waits, or round
+  the table; the person and the lead speak whenever they need to; a holder silent for 3 minutes loses the floor. What's
+  said reaches each seat between its steps, capped at 5 % of its context. Work goes in tasks; talk stays short.
+- **Outside agents** join through `cinminai-seat` (`aicui/seatmcp.py`), an MCP server over stdio (standard library
+  only): on this computer directly, or from another one **over SSH** with a key the seat's dialog adds to
+  `~/.ssh/authorized_keys` locked to that seat (`command="cinminai-seat --project … --seat …",restrict`: no shell, no
+  forwarding; the seat's identity comes from that command, never from the agent). The seat sees the table, claims and
+  finishes its tasks, reads the project, changes only the files its task holds (each change in the changelog under
+  its name, with undo), and talks at the table. It runs no commands on this computer.
+- Not yet: Grok and Gemini (their providers come later); a seat's own budget beside the project's; the floor's news
+  for seats between tasks (they hear it during a task).
+
 ## 23. Habits: fetch, structure, check, use, review, assimilate (PLAN D96)
 
 One way of working for every job with bulk in it — code, a PDF, a video, a list, the system's logs. Ian, 2026-10-08:

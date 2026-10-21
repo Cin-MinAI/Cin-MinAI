@@ -330,6 +330,31 @@ def pair_plan(junior: Model, senior: Model, machine: Machine, ctx_junior: int = 
     return {"junior": j, "senior": s}
 
 
+def seats_plan(models: list[Model], machine: Machine, contexts: tuple[int, ...] = (32768, 16384)) -> list:
+    """The conference table's local seats on one machine (aicui/conference.py), in seat order: each placed in what the
+    ones before it left — the card first, then the processor for a small model — at the first context that fits.
+    A plan in full_plan's shape per seat, or None for a seat that doesn't fit beside the others."""
+    out, rest, servers = [], machine, 0
+    for m in models:
+        got = None
+        for ctx in contexts:
+            got = full_plan(m, rest, ctx)
+            if got is None and rest.cards:  # the card is full: a small model can still work on the processor
+                got = full_plan(m, dataclasses.replace(rest, cards=[]), ctx)
+            if got is not None:
+                break
+        out.append(got)
+        if got is None:
+            continue
+        servers += 1
+        cards = rest.cards
+        if cards and got.get("card_gb"):
+            used = int(got["card_gb"] * GiB / MiB) + (SECOND_SERVER_MIB if servers > 1 else 0)
+            cards = [{**cards[0], "free_mib": cards[0]["free_mib"] - used}]
+        rest = dataclasses.replace(rest, cards=cards, ram_avail_gib=rest.ram_avail_gib - got.get("ram_gb", 0))
+    return out
+
+
 def match(machine: Machine) -> dict:
     out = {}
     for task, models in CATALOG.items():

@@ -105,15 +105,20 @@ ACTIONS = [
                 "type": "object", "additionalProperties": False, "required": ["what", "kind"],
                 "properties": {"what": STR, "kind": {"enum": list(NEED_KINDS)}}}},
             "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
-    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "fix", "check", "test"]}},
+    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "fix", "check", "test"]}, "to": STR},
     {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
-    {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR},
+    {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR,
+     "to": STR},
     {"tool": "lfd", "focus": STR},
     {"tool": "permit", "n": {"type": "integer"}, "allow": {"type": "boolean"}},
     {"tool": "review_task", "n": {"type": "integer"}, "accept": {"type": "boolean"}, "note": STR},
     {"tool": "wait"},
+    {"tool": "say", "text": STR},
+    {"tool": "pass_floor", "to": STR},
+    {"tool": "request_floor"},
 ]
-OPTIONAL = {"start", "goal", "into", "format", "kind", "network"}
+OPTIONAL = {"start", "goal", "into", "format", "kind", "network", "to"}
+TABLE_TOOLS = {"say", "pass_floor", "request_floor"}  # the conference table's conversation (conference.py)
 SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit", "wait"}  # style B's Senior
 WAIT_MAX_S = 900  # wait: until the junior's next result, or this long (Ian, 2026-10-14: wait, don't ask the person)
 ASK_WAIT_S = 180  # a question to the person waits this long at most for the junior's next result (2026-10-13: never unseen)
@@ -208,7 +213,8 @@ def _asked(ask, prompt: str) -> str:
             PENDING["prompt"] = ""
 
 
-def schema(content_max: int | None = None, exclude: frozenset | set = frozenset(SENIOR_ONLY | {"advisor"})) -> dict:
+def schema(content_max: int | None = None,
+           exclude: frozenset | set = frozenset(SENIOR_ONLY | {"advisor"} | TABLE_TOOLS)) -> dict:
     """content_max: the most a write or append may hold, so a step always fits its token limit (2026-10-08: a model
     ignored "write in parts" five times, and each cut-off step cost ~5 minutes)."""
     variants = []
@@ -313,6 +319,23 @@ steps: review_task (`n`, `accept`, `note`); a long task gets a progress report: 
 follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
 else of yours to do: wait (until their next result comes back; waiting costs nothing, each check costs a call) —
 never ask the person how their work is going. You have the final word."""
+
+SENIOR_TABLE = """
+You lead the Team Table: you wear the crown, and the person chose who sits with you. The seats: {seats}.
+A local seat costs nothing; a cloud seat is paid by the token; an outside agent works from its own place and claims
+its tasks there. Give each seat what suits it — assign (`path`, `task`, `kind`, `to` the seat's name: write a file (it
+exists first: lay its skeleton), fix it, check it, or test), brief (`files`, `question`, `to`): a seat in AICUI reads
+files and answers you. The goals on the paper may be assigned to seats already: they go to their seat once their
+needs are in. Results come between your steps: review_task (`n`, `accept`, `note`); a long task gets a progress
+report: let it work, or direct it with follow_up (`n`, `note`). The table also talks, one speaker at a time: say
+(`text`) when you have something for everyone, pass_floor (`to` a seat) to let one answer; what's said comes to you
+between steps. Keep talk short: work goes in tasks. With tasks out and nothing else of yours to do: wait. You have the
+final word, the person above you."""
+
+JUNIOR_TABLE = """
+You sit at the Team Table with other seats; the lead wears the crown. Besides your task, the table talks one speaker
+at a time: request_floor to speak, say (`text`) when you have the floor (a question for everyone, a finding others
+need), pass_floor when you're done. What's said comes to you between steps. Keep it short: your task comes first."""
 
 ADVISOR_LINE = """
 A stronger model in the cloud ({name}) is your advisor: advisor (`question`) gives it your request, the goals, your
@@ -920,14 +943,20 @@ class Agent:
     # --- events for AICUI's panes --------------------------------------------------------------------------
     def excluded(self) -> set:
         """The tools this agent's card doesn't have."""
+        talk = TABLE_TOOLS if callable(getattr(self, "table_fn", None)) else set()  # at a conference table
         if self.role == "junior":  # a cloud lead's contributors fetch too (Ian: "Fetch this, write that")
-            return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS - (WEB_TOOLS if getattr(self, "web", False) else set())
+            return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS - talk - (WEB_TOOLS if getattr(self, "web", False)
+                                                                           else set())
+        return self.lead_excluded() - talk
+
+    def lead_excluded(self) -> set:
+        no_talk = set(TABLE_TOOLS)
         no_advisor = set() if callable(getattr(self, "advisor_fn", None)) else {"advisor"}  # the cloud as advisor
         if self.role == "senior":
-            return {"errand"} | no_advisor  # its reading goes to the Junior (distill, assign)
+            return {"errand"} | no_advisor | no_talk  # its reading goes to the Junior (distill, assign)
         if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
-            return set(SENIOR_ONLY) | {"errand"} | no_advisor
-        return set(SENIOR_ONLY) | no_advisor
+            return set(SENIOR_ONLY) | {"errand"} | no_advisor | no_talk
+        return set(SENIOR_ONLY) | no_advisor | no_talk
 
     def event(self, kind: str, **data) -> None:
         if self.role == "junior":  # its work shows as the Junior's, never as the Senior's status or answer
@@ -972,6 +1001,7 @@ class Agent:
             self.note(steps, f"Task {n} is back from your junior:\n{text}" if kind == "task" else
                       f"Task {n} is still with your junior — how it's going:\n{text}" if kind == "progress" else
                       f"Your senior's direction on task {n}:\n{text}" if kind == "direction" else
+                      f"Said at the table since your last step:\n{text}" if kind == "talk" else
                       f"Your junior asks (question {n}): may it {text}\nAnswer with permit (n {n}, allow true or false), "
                       "or leave it to the person, who sees it too." if kind == "question" else
                       f"Errand {n} ({kind}) is back from your helper:\n{text}")
@@ -1018,14 +1048,16 @@ class Agent:
                      sandbox=", sandboxed without network" if self.sandbox else "",
                      net=NET_LINE if self.sandbox and self.mode == "auto" and self.role != "junior" else "")
         if self.role == "junior":
-            return JUNIOR_SYSTEM.format(**parts, web=JUNIOR_WEB if getattr(self, "web", False) else "")
+            return JUNIOR_SYSTEM.format(**parts, web=JUNIOR_WEB if getattr(self, "web", False) else "") + \
+                (JUNIOR_TABLE if callable(getattr(self, "table_fn", None)) else "")
         crew = getattr(self, "cloud_crew", "")  # the cloud leads, local contributors work for it
         advisor = (ADVISOR_LINE.format(name=getattr(self, "advisor_name", "a cloud model"))
                    if callable(getattr(self, "advisor_fn", None)) else "")
         profile = getattr(self, "junior_profile", None)  # its junior's measured load (Pair.profile)
         profile = ("\n" + profile()) if callable(profile) and self.role == "senior" else ""
-        return SYSTEM.format(**parts) + ((SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
-                                         if self.role == "senior" else "") + profile + advisor
+        seats = getattr(self, "table_seats", "")  # the conference table (conference.py)
+        lead = (SENIOR_TABLE.format(seats=seats) if seats else SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
+        return SYSTEM.format(**parts) + (lead if self.role == "senior" else "") + profile + advisor
 
     def problems(self) -> list[str]:
         """What the checks find in the project's files now, one line a file."""
@@ -2255,8 +2287,10 @@ class Agent:
                 fn = getattr(self, t + "_fn", None)
                 if not callable(fn):
                     return "no junior is working with you here"
-                return fn(a.get("files") or [], str(a.get("question", ""))) if t == "brief" else \
-                    fn(str(a.get("focus", "")))
+                if t == "brief":
+                    return fn(a.get("files") or [], str(a.get("question", "")),
+                              **({"to": str(a["to"])} if a.get("to") else {}))
+                return fn(str(a.get("focus", "")))
             if t == "follow_up":  # style B's Senior: direction for a junior's task while it works (pair.py)
                 fn = getattr(self, "follow_up_fn", None)
                 if not callable(fn):
@@ -2266,8 +2300,12 @@ class Agent:
                 fn = getattr(self, t + "_fn", None)
                 if not callable(fn):
                     return "no junior is working with you here"
-                return (fn(a.get("path", ""), a.get("task", ""), a.get("kind", "write")) if t == "assign" else
+                return (fn(a.get("path", ""), a.get("task", ""), a.get("kind", "write"),
+                           **({"to": str(a["to"])} if a.get("to") else {})) if t == "assign" else
                         fn(int(a.get("n") or 0), bool(a.get("accept")), a.get("note", "")))
+            if t in TABLE_TOOLS:  # the conference table's conversation: one speaker at a time (conference.py)
+                fn = getattr(self, "table_fn", None)
+                return fn(t, a) if callable(fn) else "there's no table conversation here"
             if t == "distill":  # GatheredData: in team B the Senior's reading goes to the Junior (pair.py)
                 delegate = getattr(self, "distiller", None)
                 args = (a.get("sources") or [], a.get("intent", ""), a.get("into", ""), a.get("format") or "json")
@@ -2865,14 +2903,34 @@ def main(argv=None) -> int:
                     crew = [local_backend()]
             except (Exception, SystemExit) as e:  # a missing model, or they don't fit: the cloud works alone
                 print(f"\033[33mThe local contributors can't start here ({e}); the cloud model works alone.\033[0m")
-    if team == "B":
+    seats, setup = {}, None  # the conference table (conference.py): the seats the person set
+    if team == "table":
+        from . import conference
+        setup = conference.load(root)
+        bad = conference.problems(setup)
+        if bad:
+            print(f"\033[33mThe Team Table can't sit down yet ({'; '.join(bad)}); working as team A.\033[0m")
+            team, setup = "A", None
+        else:
+            try:
+                seats = conference.backends(root, setup, say=print)
+            except (Exception, SystemExit) as e:
+                print(f"\033[33mThe Team Table can't sit down here ({e}); working as team A.\033[0m")
+                team, setup, seats = "A", None, {}
+    if setup is not None:  # the crowned seat leads: its model is this agent's
+        crowned = conference.lead_of(setup)
+        backend, name = seats[crowned["name"]]
+        use_cloud = crowned["kind"] == "cloud"
+        print(f"\033[1mThe Team Table: {crowned['name']} leads ({name}); with "
+              f"{conference.describe_all(setup)}.\033[0m")
+    elif team == "B":
         try:
             both = pair_mod.pair_backends(say=print)
         except Exception as e:  # a missing model, or the pair doesn't fit: team A, said plainly
             print(f"\033[33mTeam B can't start here ({e}); working as team A (the coder with its helper).\033[0m")
     if both:
         backend, name, junior_backend, junior_name, senior_sees = both
-    elif not use_cloud:
+    elif not use_cloud and setup is None:
         backend, name = local_backend()
 
     def tick(text: str) -> None:  # one progress line, rewritten in place; anything said after it starts clean
@@ -2923,6 +2981,22 @@ def main(argv=None) -> int:
             print(f"\033[33mTeam B can't start ({e}); the Senior works alone.\033[0m")
         if senior_sees:
             agent.reader = lambda: agent.chat
+    if setup is not None:  # the conference table: each seat in AICUI an Agent working its own queue on the table
+        helpers = {}
+        for st in setup["seats"]:
+            if st.get("lead") or st["name"] not in seats:
+                continue
+            b, label = seats[st["name"]]
+            h = Agent(root, b.chat, label, mode, a.admin, ctx=int(b.cfg.get("context", 8192)),
+                      say=lambda s, who=st["name"]: said(f"({who}) {s}", "junior"))
+            h.web = True  # "fetch this": seats search and fetch, each asked of the person first
+            h.model_file, h.card = getattr(b, "model_file", ""), getattr(b, "card", "")
+            helpers[st["name"]] = h
+        try:
+            team_b = conference.Table(agent, helpers, setup, say=said)
+        except RuntimeError as e:
+            team_b = None
+            print(f"\033[33mThe Team Table can't sit down ({e}); {name} works alone.\033[0m")
     if cloud["role"] == "advisor":  # the local models work; the cloud is asked when it helps (advisor.py)
         from cin_minai.daemon import accounts as keys
         from .advisor import MAX_USES, Advisor
@@ -3001,6 +3075,9 @@ def main(argv=None) -> int:
             junior_backend.unload()
         for b, _ in crew:
             b.unload()
+        for b, _ in seats.values():
+            if b is not backend and hasattr(b, "unload"):
+                b.unload()
         if pair["junior"] is not None:
             pair["junior"].unload()
     return 0

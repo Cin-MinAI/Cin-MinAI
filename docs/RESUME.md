@@ -33,6 +33,14 @@ model's story: `docs/guide-model-journal.md`.
   were swallowed: `except Exception: table = None`); a task stopped before it started is still answered; no team
   without the table. SPEC §22.4 "as built". Not yet: one model alone on the table; the Junior's results still reach
   the lead through its in-process inbox (the table holds them too).
+- **Stop everything (2026-10-21):** the red button in the middle of the top bar ends the whole session at once
+  (`aicui/stopall.py`: freeze then kill the process tree; tasks cancelled on the table); other windows go on.
+- **The Team Table as a conference table (2026-10-21, SPEC §22.9):** seats of local, cloud and outside agents, a
+  crowned lead, the goals on the paper assigned to seats, a conversation with one speaker at a time (the floor, built in
+  team-table 8057cbb — the submodule moved to it; **team-table not pushed yet**), outside agents over SSH through
+  `cinminai-seat`. Checked: unit tests (table, seat server, floor), the window drawn on the NVMe (5 seats, the 9B and
+  the 4B fitting together), the seat server over real SSH. Not yet run with real models: Ian's big project is the
+  first run (Haiku and GPT-6 Luna by API, locals for grunt work, Claude Code at a seat).
 - **Ian, once:** add *Pages: Read and write* to the AICUI GitHub app, accept it on the installations.
 - **Next:** build and install on the NVMe; publish test20 through the menu (the look should flag its contact block,
   its © 2023, original-request.txt and the workflow); then the guided setup that names the machine. The store itself

@@ -152,6 +152,11 @@ class Workspace(Gtk.ApplicationWindow):
         # bottom: the typing box and model selection
         self.entry = Gtk.Entry(placeholder_text="Tell the AI what to do…", hexpand=True)
         self.entry.connect("activate", self.send)
+        # the Team Table, at the input's right end (Ian, 2026-10-21): the conference table, its seats and the paper
+        self.entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "system-users-symbolic")
+        self.entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY,
+                                         "The Team Table: seats for local, cloud and outside agents, and the goals")
+        self.entry.connect("icon-press", lambda e, pos, ev: self.open_table())
         # the cloud model the Cloud models menu uses, from the providers connected (Ian, 2026-10-13: "the little
         # bottom right box gets changed to be filled by cloud providers if you have it connected"); the local models
         # are chosen as before (the Team menu, the Models view)
@@ -1315,12 +1320,13 @@ class Workspace(Gtk.ApplicationWindow):
 
     TEAM_LABELS = {"solo": "One model — the coder alone",
                    "A": "Team A — the coder, with a helper for errands",
-                   "B": "Team B — a senior and a junior coder (two models)"}
+                   "B": "Team B — a senior and a junior coder (two models)",
+                   "table": "The Team Table — the seats you set (local, cloud, outside agents)"}
 
     def show_team(self) -> None:
         from .pair import team_of
         now = team_of(self.root)
-        self.team_button.set_label("One model" if now == "solo" else f"Team {now}")
+        self.team_button.set_label("One model" if now == "solo" else "Team Table" if now == "table" else f"Team {now}")
 
     def team_menu(self, button) -> None:
         """One local model, or the two cards (PLAN §1b): team A — the coder with the 4B as its errand intern; team B —
@@ -1328,14 +1334,24 @@ class Workspace(Gtk.ApplicationWindow):
         from .pair import team_of
         now = team_of(self.root)
         menu, group = Gtk.Menu(), None
-        for key in ("solo", "A", "B"):
+        for key in ("solo", "A", "B", "table"):
             item = Gtk.RadioMenuItem(label=self.TEAM_LABELS[key], group=group)
             group = group or item
             item.set_active(key == now)
-            item.connect("toggled", lambda w, k=key: w.get_active() and k != now and self.set_team(k))
+            item.connect("toggled", lambda w, k=key: w.get_active() and k != now and (
+                self.open_table() if k == "table" else self.set_team(k)))  # the table: its seats first, then Sit down
             menu.append(item)
         menu.show_all()
         menu.popup_at_widget(button, Gdk.Gravity.SOUTH_WEST, Gdk.Gravity.NORTH_WEST, None)
+
+    def open_table(self) -> None:
+        from .tableview import TableWindow
+        if getattr(self, "table_window", None) is not None and self.table_window.get_visible():
+            self.table_window.present()
+            return
+        self.table_window = TableWindow(self)
+        self.table_window.connect("destroy", lambda w: setattr(self, "table_window", None))
+        self.table_window.show_all()
 
     def set_team(self, team: str) -> None:
         """Written for the project; the AI restarts with it now when it isn't working (the models of a team load when

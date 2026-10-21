@@ -44,6 +44,22 @@ class Matcher(unittest.TestCase):
         self.assertIsNone(pair_plan(nine, moe, machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354, avail=10)))  # RAM
         self.assertIsNone(pair_plan(nine, moe, machine("NVIDIA GeForce RTX 3050", 6144, 5600)))  # no room beside it
 
+    def test_the_tables_local_seats_share_the_machine_in_seat_order(self):
+        """The conference table (aicui/conference.py): each local seat placed in what the seats before it left — the
+        9B whole on the card, the 4B guide beside it, and one that fits nowhere said so (None), not squeezed in."""
+        from cin_minai.inference.matcher import CATALOG, seats_plan
+        nine = next(m for m in CATALOG["coding"] if m.file == "Qwen3.5-9B-Q4_K_M.gguf")
+        guide = CATALOG["help"][0]
+        big = next(m for m in CATALOG["coding"] if m.file == "Qwen3.8-27B-UD-IQ3_XXS.gguf")
+        plans = seats_plan([nine, guide, big], machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))
+        self.assertEqual(plans[0]["mode"], "all on the graphics card")
+        self.assertIsNotNone(plans[1])  # the small one: on the card's rest, or on the processor
+        self.assertIsNone(plans[2])  # the 27B can't fit beside them: that seat says so
+        on_card = sum(p["card_gb"] for p in plans if p)
+        self.assertLessEqual(on_card, 10354 / 1024)
+        alone = seats_plan([big], machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))
+        self.assertIsNotNone(alone[0])  # alone at the table, it fits
+
     def test_1080ti_desktop_on_the_card(self):
         r = match(machine("NVIDIA GeForce GTX 1080 Ti", 11264, 10354))
         # the 27B no longer fits whole: a near-fit, a few layers' feed-forward weights in RAM (12.9 tok/s with one)
