@@ -133,6 +133,25 @@ class AgentTest(unittest.TestCase):
         a = self.agent([])
         self.assertIn("aren't allowed", a.run("sudo rm -rf /"))
 
+    def test_git_that_changes_the_repository_is_aicuis_and_looking_stays_the_models(self):
+        # test20 (2026-10-20): the Senior's `git init && git add .` staged .cinminai/ for publishing
+        a = self.agent([])
+        for command in ("git init && git add .", "git add -A", "cd site && git commit -m x", "git -C . push",
+                        "git remote add origin https://github.com/x/y.git", "ls; git config user.name x"):
+            self.assertIn("AICUI's GitHub menu", a.run(command), command)
+        self.assertFalse(os.path.isdir(os.path.join(self.root, ".git")))
+        for command in ("git status", "git log --oneline -3", "git diff", "echo digit add"):
+            self.assertNotIn("AICUI's GitHub menu", a.run(command), command)
+
+    def test_a_model_writes_no_github_workflow(self):
+        a = self.agent([step("", tool="write", path=".github/workflows/deploy.yml", content="on: push\n"),
+                        step("", tool="write", path="./.github/workflows/x.yml", content="on: push\n"),
+                        step("", tool="answer", text="ok")], replies=["y"])
+        a.turn("publish it")
+        results = [m["content"] for m in a.chat.sent[-1] if m["role"] == "user" and m["content"].startswith("Result")]
+        self.assertTrue(all("GitHub workflows run code" in r for r in results[:2]), results)
+        self.assertFalse(os.path.exists(os.path.join(self.root, ".github")))
+
     def test_a_written_file_is_not_sent_again(self):
         big = "\n".join(f"line {i} " + "x" * 60 for i in range(300))
         a = self.agent([step("Write it.", tool="write", path="big.py", content=big),

@@ -46,6 +46,7 @@ github.com → Settings (of the CinMin account) → Developer settings → GitHu
 - **Webhook → Active:** off (nothing is sent to us; there's no server)
 - **Repository permissions:** Contents **Read and write** · Metadata **Read-only** (required) · Administration **Read and
   write** (only to create a new repository for a project; leave it off if you'd rather create repos on github.com)
+  · **Pages Read and write** (added 2026-10-20: AICUI turns on GitHub Pages for a site, from the branch's top folder)
 - **Account permissions:** none
 - **Where can this GitHub App be installed?** Any account
 - **Create GitHub App**, then copy its **Client ID** (starts `Iv`). No client secret and no private key are needed for
@@ -111,5 +112,14 @@ such a record without asking; Ian: it "comes off as spying". The update removes 
    run on their servers, so it can't serve a local model; here AICUI makes the call. Within Anthropic's terms: the
    person's own API key, the outputs used in their app, nothing trained on them. Was: **Cloud:** API keys for Anthropic and OpenAI (pasted once into the keyring); a cloud backend with schema-held tool
    calls; AICUI's Cloud button — provider, model, role (Senior or Exclusive); what's sent said first.
-3. **The models' own GitHub work** (push and pull as tools, under the same approvals); Sign in with ChatGPT when the
+3. ✔ **The git flow** (built 2026-10-20 after test20, PLAN D62, rules A42): git that changes a repository is AICUI's,
+   not a model's; AICUI's folders kept out at every save; the look before it goes; **Publish as a web page (GitHub
+   Pages)** in the GitHub menu — Pages on from the branch's top folder, then the live address checked; commits under
+   the account's own name on GitHub (the machine's, e.g. Simon). **Needs, once, by the app's owner (Ian):** add
+   *Pages: Read and write* to the AICUI GitHub app (github.com → Settings → Developer settings → GitHub Apps →
+   aicui-github → Permissions & events), then accept the new permission on each account that installed it (GitHub
+   asks on its installations page). Until then, publishing says the permission is missing. **The machine's
+   identity:** its owner names it on its GitHub profile (Name: Simon) and says who keeps it (Bio: "Simon is maintained
+   by Brickmii") — the guided setup that offers this isn't built yet.
+4. **The models' own GitHub work** (push and pull as tools, under the same approvals); Sign in with ChatGPT when the
    client ID comes.

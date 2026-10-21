@@ -76,6 +76,68 @@ class Link(unittest.TestCase):
         with mock.patch.object(github_link, "remote", return_value=""):
             self.assertEqual(github_link.push(self.root), (False, "this project isn't linked to a GitHub repository yet"))
 
+    def test_a_repository_a_model_made_with_aicuis_folder_staged_still_keeps_it_here(self):
+        # test20 (2026-10-20): the model ran `git init && git add .` before AICUI linked anything, so .cinminai/ and
+        # .venv/ were staged; ignore rules added later don't take them back
+        subprocess.run(["git", "-C", self.root, "init", "-q", "-b", "main"], check=True)
+        subprocess.run(["git", "-C", self.root, "add", "."], check=True)
+        bare = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, bare, True)
+        subprocess.run(["git", "init", "--bare", "-b", "main", bare], capture_output=True, check=True)
+        github_link.link(self.root, "https://github.com/brickmii/test20.git", "cinminaidevbox", "Simon")
+        self.assertEqual(github_link.private_staged(self.root), [])  # taken back out at linking
+        self.assertEqual(github_link.git(self.root, "config", "user.name")[1], "Simon")  # the machine's own name
+        github_link.git(self.root, "remote", "set-url", "origin", bare)
+        with mock.patch.object(github_link, "remote", return_value=bare):
+            subprocess.run(["git", "-C", self.root, "add", "-f", ".cinminai/changelog.jsonl"], check=True)  # again
+            ok, out = github_link.push(self.root, "first save")
+            self.assertTrue(ok, out)
+        shown = subprocess.run(["git", "-C", bare, "ls-tree", "-r", "--name-only", "main"],
+                               capture_output=True, text=True).stdout.split()
+        self.assertIn("main.py", shown)
+        self.assertFalse([p for p in shown if p.startswith((".cinminai/", ".venv/"))], shown)
+        self.assertTrue(os.path.exists(os.path.join(self.root, ".cinminai", "changelog.jsonl")))  # still on disk
+
+    def test_a_file_the_person_leaves_out_stays_here(self):
+        with open(os.path.join(self.root, "original-request.txt"), "w") as f:
+            f.write("a store\n")
+        subprocess.run(["git", "-C", self.root, "init", "-q", "-b", "main"], check=True)
+        subprocess.run(["git", "-C", self.root, "add", "original-request.txt", "main.py"], check=True)
+        github_link.leave_out(self.root, "original-request.txt")
+        self.assertNotIn("original-request.txt", github_link.review(self.root)["files"])
+        self.assertIn("main.py", github_link.review(self.root)["files"])
+        self.assertTrue(os.path.exists(os.path.join(self.root, "original-request.txt")))
+
+    def test_push_stops_when_a_private_file_would_still_go(self):
+        with mock.patch.object(github_link, "remote", return_value="https://github.com/brickmii/x.git"), \
+                mock.patch.object(github_link, "keep_private", return_value=[]), \
+                mock.patch.object(github_link, "private_staged", return_value=[".cinminai/events.jsonl"]), \
+                mock.patch.object(github_link, "git", return_value=(0, "")) as g:
+            ok, out = github_link.push(self.root)
+        self.assertFalse(ok)
+        self.assertIn("Nothing was sent", out)
+        self.assertNotIn("push", [c.args[1] for c in g.call_args_list])
+
+    def test_the_look_before_publishing_names_what_goes_and_what_looks_personal_or_unfinished(self):
+        page = ("<p>Email: info@secondhandhandbags.com</p>\n<p>Phone: (555) 123-4567</p>\n"
+                "<p>123 Thrift Lane, Secondhand City</p>\n<footer>&copy; 2023 Store</footer>\n"
+                "<img src='/home/brickmii/Pictures/bag.jpg'>\n<p>Call 412-867-0199</p>\n")
+        for rel, text in (("index.html", page), ("original-request.txt", "a store\n"),
+                          (".github/workflows/deploy.yml", "on: push\n")):
+            os.makedirs(os.path.dirname(os.path.join(self.root, rel)) or self.root, exist_ok=True)
+            with open(os.path.join(self.root, rel), "w") as f:
+                f.write(text)
+        got = github_link.review(self.root)
+        self.assertIn("index.html", got["files"])
+        self.assertFalse([p for p in got["files"] if p.startswith((".cinminai/", ".venv/"))])
+        kinds = {(f, k) for f, _, k, _ in got["flags"]}
+        for want in (("index.html", "an email address"), ("index.html", "placeholder text"),
+                     ("index.html", "a street address"), ("index.html", "an old year"),
+                     ("index.html", "a path on this computer"), ("index.html", "a phone number"),
+                     ("original-request.txt", "AICUI's note of your request"),
+                     (".github/workflows/deploy.yml", "a GitHub workflow")):
+            self.assertIn(want, kinds)
+
 
 if __name__ == "__main__":
     unittest.main()

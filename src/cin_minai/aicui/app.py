@@ -840,7 +840,8 @@ class Workspace(Gtk.ApplicationWindow):
             item("Link this project to a repository…" if not url else "Link to another repository…",
                  self.github_link_dialog)
             if url:
-                item("Save to GitHub (push)", lambda: self.github_run("push"))
+                item("Save to GitHub (push)", self.github_save)
+                item("Publish as a web page (GitHub Pages)…", self.github_publish_pages)
                 item("Bring in changes from GitHub (pull)", lambda: self.github_run("pull"))
                 item("Open the repository on GitHub", lambda: Gio.AppInfo.launch_default_for_uri(
                     url.removesuffix(".git"), None))
@@ -952,14 +953,17 @@ class Workspace(Gtk.ApplicationWindow):
                 url, full = found[chosen], chosen
             else:
                 return
-            github_link.link(self.root, url, github.status()["login"])
+            # commits under the account's own name on GitHub: a machine's name, e.g. Simon (PLAN D62, 2026-10-20)
+            github_link.link(self.root, url, github.status()["login"],
+                             self._safe(lambda: github.profile()["name"], ""))
         except (AccountError, ValueError, KeyError) as e:
             self.bubble("app", f"Not linked: {e}")
             return
         self.bubble("app", f"This project is linked to {full} on GitHub. Save to GitHub (push) sends it there; AICUI's "
                           "own folder (.cinminai) and the Python environment stay on this computer.")
 
-    def github_run(self, what: str) -> None:
+    def github_run(self, what: str, then=None) -> None:
+        """Push or pull in the background; `then` (publishing) runs after a push that went through."""
         from . import github_link
         self.bubble("app", "Saving to GitHub…" if what == "push" else "Bringing in changes from GitHub…")
 
@@ -968,7 +972,139 @@ class Workspace(Gtk.ApplicationWindow):
             msg = ("Saved to GitHub." if what == "push" else "Up to date with GitHub.") if ok else \
                 f"GitHub {what} didn't go through:\n{out}"
             GLib.idle_add(lambda: (self.bubble("app", msg), self.load_tree()) and False)
+            if ok and then:
+                then()
         threading.Thread(target=work, daemon=True).start()
+
+    # --- the look before it goes, and Pages (PLAN D62; Ian, 2026-10-20 after test20) ---------------------------------
+    def github_save(self, then=None, public: bool = False) -> None:
+        """A save shows what will go first — the first time, whenever something looks personal or unfinished, and
+        always before a site goes public — and goes only on the person's yes."""
+        from . import github_link
+
+        def look() -> None:
+            got = github_link.review(self.root)
+            first = github_link.git(self.root, "rev-parse", "--abbrev-ref", "@{u}")[0] != 0
+            GLib.idle_add(lambda: (self._after_review(got, first or public, then, public), False)[1])
+        threading.Thread(target=look, daemon=True).start()
+
+    def _after_review(self, got: dict, show: bool, then, public: bool) -> None:
+        from . import github_link
+        if show or got["flags"]:
+            go, leave = self.review_dialog(got, public)
+            if not go:
+                self.bubble("app", "Not saved to GitHub. Nothing was sent.")
+                return
+            for rel in leave:
+                github_link.leave_out(self.root, rel)
+        self.github_run("push", then)
+
+    def review_dialog(self, got: dict, public: bool) -> tuple[bool, list[str]]:
+        """What goes, and what code spotted in it. Returns (go ahead, AICUI files to leave out)."""
+        d = Gtk.Dialog(title="Before it goes to GitHub", transient_for=self, modal=True)
+        d.add_button("Not now", Gtk.ResponseType.CANCEL)
+        d.add_button("Publish" if public else "Save to GitHub", Gtk.ResponseType.OK)
+        d.set_default_size(620, 460)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(16)
+        head = f"{len(got['files'])} files will be saved to GitHub."
+        if public:
+            head += " A GitHub Pages site is public: anyone with its address can see every file in it."
+        box.pack_start(Gtk.Label(label=head, xalign=0, wrap=True, max_width_chars=70), False, False, 0)
+        notes = [f for f in got["flags"] if f[1]]
+        aicui = [f[0] for f in got["flags"] if f[2] == "AICUI's note of your request"]
+        other = [f for f in got["flags"] if not f[1] and f[2] != "AICUI's note of your request"]
+        if notes or other:
+            box.pack_start(Gtk.Label(label="Worth a look before it goes (what code could spot — look the page over "
+                                           "too):", xalign=0, wrap=True), False, False, 0)
+            text = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+            text.get_buffer().set_text("\n".join(
+                [f"• {f}, line {n}: {kind} — {seen}" for f, n, kind, seen in notes] +
+                [f"• {f}: {kind} — {seen}" for f, _, kind, seen in other] +
+                (["• …and more"] if got.get("more") else [])))
+            scroll = Gtk.ScrolledWindow(min_content_height=160)
+            scroll.add(text)
+            box.pack_start(scroll, True, True, 0)
+        else:
+            box.pack_start(Gtk.Label(label="Nothing personal or unfinished that code could spot.", xalign=0),
+                           False, False, 0)
+        checks = []
+        for rel in aicui:
+            c = Gtk.CheckButton(label=f"Leave out {rel} (AICUI's note of your request)", active=True)
+            checks.append((rel, c))
+            box.pack_start(c, False, False, 0)
+        files = Gtk.Expander(label="The files")
+        listing = Gtk.Label(label="\n".join(got["files"][:200]) + ("\n…" if len(got["files"]) > 200 else ""),
+                            xalign=0, selectable=True)
+        files.add(listing)
+        box.pack_start(files, False, False, 0)
+        d.show_all()
+        go = d.run() == Gtk.ResponseType.OK
+        leave = [rel for rel, c in checks if c.get_active()]
+        d.destroy()
+        return go, leave
+
+    def github_publish_pages(self) -> None:
+        """Save, then GitHub Pages on from the branch's top folder, then the live address checked: done is a page that
+        loads, not a push that went through."""
+        from cin_minai.daemon.accounts import AccountError, github
+        from . import github_link
+        url = github_link.remote(self.root)
+        full = url.removeprefix("https://github.com/").removesuffix(".git")
+        if not full:
+            return
+        try:
+            repo = github.repo(full)
+        except AccountError as e:
+            self.bubble("app", f"Couldn't reach the repository on GitHub: {e}")
+            return
+        if repo["private"]:
+            self.bubble("app", f"{full} is private. GitHub Pages from a private repository needs a paid GitHub plan; "
+                               "make it public on GitHub (its Settings → General → Danger zone), or link this project "
+                               "to a new public repository, then publish again.")
+            return
+        if not os.path.exists(os.path.join(self.root, "index.html")):
+            self.bubble("app", "There's no index.html at the project's top: GitHub Pages opens that page first.")
+            return
+        branch = github_link.git(self.root, "rev-parse", "--abbrev-ref", "HEAD")[1] or "main"
+
+        def publish() -> None:
+            import urllib.request
+
+            from cin_minai.inference import reach
+            try:
+                site = github.enable_pages(full, branch)
+                for _ in range(36):  # GitHub builds the site: up to about three minutes
+                    if site.get("status") in ("built", "errored"):
+                        break
+                    time.sleep(5)
+                    site = github.pages(full) or site
+                live = ""
+                if site.get("url") and site.get("status") == "built":
+                    with reach.out("web", "GitHub Pages"):
+                        for _ in range(12):  # the address can lag the build by a little
+                            try:
+                                with urllib.request.urlopen(site["url"], timeout=20) as r:
+                                    if r.status == 200 and r.read(4096).strip():
+                                        live = site["url"]
+                                        break
+                            except OSError:
+                                pass
+                            time.sleep(5)
+            except AccountError as e:
+                why = str(e)
+                GLib.idle_add(lambda: (self.bubble("app", f"Saved, but not published: {why}"), False)[1])
+                return
+            if live:
+                g = self.goals.add(f"Published at {live}", by="aicui")
+                self.goals.set_done(g["id"], True)
+                msg = f"Published: {live} — it loads. Anyone with the address can see it."
+            else:
+                msg = (f"Saved and Pages is on, but the page didn't load yet ({site.get('status') or 'no status'}). "
+                       f"GitHub can take a few minutes: {site.get('url') or 'its address isn’t ready yet'}")
+            GLib.idle_add(lambda: (self.bubble("app", msg), self.load_goals(), False)[2])
+        self.github_save(then=publish, public=True)
 
     def github_sign_out(self) -> None:
         from cin_minai.daemon.accounts import github
@@ -1647,7 +1783,8 @@ class Workspace(Gtk.ApplicationWindow):
         for g in self.goals.load():
             box = Gtk.Box(spacing=4)
             tick = Gtk.CheckButton(active=g["done"])
-            tick.add(Gtk.Label(label=g["text"] + ("  (AI)" if g.get("by") == "ai" else ""), wrap=True, xalign=0))
+            mark = {"ai": "  (AI)", "aicui": "  (checked by AICUI)"}.get(g.get("by"), "")
+            tick.add(Gtk.Label(label=g["text"] + mark, wrap=True, xalign=0))
             tick.connect("toggled", lambda b, gid=g["id"]: self.goals.set_done(gid, b.get_active()))
             drop = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
             drop.set_relief(Gtk.ReliefStyle.NONE)

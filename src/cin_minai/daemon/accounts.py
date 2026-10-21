@@ -33,7 +33,9 @@ RENEW_BEFORE = 300  # seconds: an access token this close to its end is renewed 
 
 
 class AccountError(Exception):
-    pass
+    def __init__(self, message: str, code: int = 0) -> None:
+        super().__init__(message)
+        self.code = code  # the HTTP status when GitHub answered with one
 
 
 def config() -> dict:
@@ -121,7 +123,7 @@ class GitHub:
                 said = json.loads(e.read() or b"{}").get("message", "")
             except ValueError:
                 said = ""
-            raise AccountError(f"GitHub said {e.code}" + (f": {said[:200]}" if said else "")) from None
+            raise AccountError(f"GitHub said {e.code}" + (f": {said[:200]}" if said else ""), e.code) from None
         except OSError as e:
             raise AccountError(f"GitHub didn't answer: {getattr(e, 'reason', e)}") from None
         return json.loads(raw or b"{}")
@@ -228,6 +230,44 @@ class GitHub:
         got = self._call(f"{API}/user/repos", {"name": name, "private": private, "description": description,
                                                "auto_init": False}, token=self.token())
         return {"full_name": got["full_name"], "private": got["private"], "clone_url": got["clone_url"]}
+
+    def profile(self) -> dict:
+        """The account as GitHub shows it: its login and the name its owner gave it (a machine's name, e.g. "Simon")."""
+        got = self._call(f"{API}/user", token=self.token())
+        return {"login": got.get("login", ""), "name": got.get("name") or "", "bio": got.get("bio") or ""}
+
+    def repo(self, full_name: str) -> dict:
+        got = self._call(f"{API}/repos/{full_name}", token=self.token())
+        return {"full_name": got["full_name"], "private": got["private"],
+                "default_branch": got.get("default_branch") or "main"}
+
+    def pages(self, full_name: str) -> dict | None:
+        """The repository's GitHub Pages site ({"url", "status"}), or None when it has none."""
+        try:
+            got = self._call(f"{API}/repos/{full_name}/pages", token=self.token())
+        except AccountError as e:
+            if e.code == 404:
+                return None
+            raise
+        return {"url": got.get("html_url", ""), "status": got.get("status") or ""}
+
+    def enable_pages(self, full_name: str, branch: str = "main") -> dict:
+        """Pages on, served from the branch's top folder: a static site needs no workflow (PLAN D62, 2026-10-20)."""
+        try:
+            self._call(f"{API}/repos/{full_name}/pages", {"build_type": "legacy",
+                                                          "source": {"branch": branch, "path": "/"}},
+                       token=self.token())
+        except AccountError as e:
+            if e.code == 409:  # it was on already
+                pass
+            elif e.code in (403, 404):
+                raise AccountError("GitHub didn't let AICUI turn on Pages for this repository. Either the AICUI app "
+                                   "hasn't been given the Pages permission yet (its owner adds it, then you accept "
+                                   "it on GitHub), or the repository is private on a plan without private Pages — "
+                                   "a public repository works on every plan.", e.code) from None
+            else:
+                raise
+        return self.pages(full_name) or {"url": "", "status": ""}
 
 
 # --- cloud model keys (docs/accounts-and-cloud.md): pasted once, kept in the keyring, read only by the cloud backend --

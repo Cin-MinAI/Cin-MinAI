@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 import urllib.parse
 from unittest import mock
 
@@ -49,6 +50,8 @@ class FakeGitHub:
             else (json.loads(req.data) if req.data else {})
         self.asked.append((req.full_url, body, req.headers.get("Authorization", "")))
         answer = self.answers[req.full_url].pop(0)
+        if isinstance(answer, tuple):  # (status, body): GitHub answering with an error
+            raise urllib.error.HTTPError(req.full_url, answer[0], "no", {}, io.BytesIO(json.dumps(answer[1]).encode()))
         return io.BytesIO(json.dumps(answer).encode())
 
 
@@ -150,6 +153,29 @@ class GitHubLink(unittest.TestCase):
                                                   "auto_init": False})  # private unless the person says otherwise
         self.assertEqual(self.fake.asked[-1][2], "Bearer ghu_x")
         self.assertEqual(gh.install_url(), "https://github.com/apps/cin-minai/installations/new")
+
+    def test_the_machines_name_and_its_pages(self):
+        pages = f"{accounts.API}/repos/cinminaidevbox/test20/pages"
+        gh = self.gh({f"{accounts.API}/user": [{"login": "cinminaidevbox", "name": "Simon",
+                                                "bio": "Simon is maintained by Brickmii"}],
+                      pages: [(404, {"message": "Not Found"}),  # no site yet
+                              {"html_url": "https://cinminaidevbox.github.io/test20/", "status": None},  # turned on
+                              {"html_url": "https://cinminaidevbox.github.io/test20/", "status": "built"},
+                              (409, {"message": "already exists"}),  # on already: fine
+                              {"html_url": "https://cinminaidevbox.github.io/test20/", "status": "built"},
+                              (403, {"message": "Resource not accessible by integration"})]})
+        self.keys.items["github"] = {"access": "ghu_x", "expires": 99999, "refresh": "r", "refresh_expires": 99999,
+                                     "login": "cinminaidevbox"}
+        self.assertEqual(gh.profile()["name"], "Simon")
+        self.assertIsNone(gh.pages("cinminaidevbox/test20"))
+        site = gh.enable_pages("cinminaidevbox/test20")
+        self.assertEqual(self.fake.asked[-2][1], {"build_type": "legacy", "source": {"branch": "main", "path": "/"}})
+        self.assertEqual(site, {"url": "https://cinminaidevbox.github.io/test20/", "status": "built"})
+        self.assertEqual(gh.enable_pages("cinminaidevbox/test20")["status"], "built")
+        with self.assertRaises(accounts.AccountError) as e:
+            gh.enable_pages("cinminaidevbox/test20")
+        self.assertIn("Pages permission", str(e.exception))
+        self.assertEqual(e.exception.code, 403)
 
 
 class CredentialHelper(unittest.TestCase):

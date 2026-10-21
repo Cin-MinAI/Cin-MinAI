@@ -49,6 +49,18 @@ REQUEST_FILE = "original-request.txt"  # a new project's first request, the pers
 SCREENSHOTS = "screenshots"  # every project's folder for pictures of the program, the person's or the AI's
 PLAN_MAX = 12        # goals in one plan (team B's Senior)
 NET_LINE = "; `network` true for a command that needs the internet: the person is asked once"  # Auto only
+# git that changes the repository is AICUI's (PLAN D62, Ian 2026-10-20): its GitHub menu links, saves and publishes, and
+# keeps AICUI's folders out. test20: the Senior's own `git init && git add .` staged .cinminai/ for the world to see.
+# Looking (status, log, diff, show) stays the model's.
+GIT_CHANGE = re.compile(r"(?:^|[;&|(`]|\s)git\s+(?:-[Cc]\s+\S+\s+)*(init|add|commit|push|pull|fetch|clone|remote|rm|mv|"
+                        r"reset|checkout|switch|branch|merge|rebase|tag|config|stash|restore|clean|cherry-pick|revert|"
+                        r"am|apply|submodule|worktree|update-index|filter-branch|gc)\b")
+GIT_REFUSED = ("error: git that changes the repository is AICUI's, not a command's — the person links and saves the "
+               "project from AICUI's GitHub menu (it keeps AICUI's own folders out, shows what will go public, and "
+               "turns on GitHub Pages for a site). Looking is fine: git status, log, diff, show. To get a project "
+               "ready to publish, make its files right (a README, a .gitignore for its own build files) and tell "
+               "the person it's ready for the GitHub menu.")
+WORKFLOWS = ".github/workflows/"  # code that runs on GitHub's machines: never written by a model (Pages is AICUI's)
 # what a command prints when it couldn't reach the internet (cargo, pip, npm, git, curl…), to say so in its result
 NO_NET = re.compile(r"Could not resolve host|Temporary failure in name resolution|Name or service not known|"
                     r"Network is unreachable|failed to download|failed to get `[^`]+` as a dependency|"
@@ -247,7 +259,9 @@ windowless), so `timeout 5` around the program shows its errors; look shows a pr
 loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
 button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
 project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
-seconds; a goal whose checks fail stays open. Never edit tests or the entry point to pass.{venv}
+seconds; a goal whose checks fail stays open. Never edit tests or the entry point to pass.
+GitHub and publishing are the person's (AICUI's GitHub menu): no git that changes the repository, no workflows; a
+site is ready with its index.html at the top.{venv}
 
 The project's files (first lines):
 {files}
@@ -2287,6 +2301,9 @@ class Agent:
                 if kept_material(a.get("path", ""), self.root):  # what came in stays as it came
                     return (f"error: {a.get('path')} is gathered material: it came in from outside and stays as it came. "
                             "Nothing in it needs fixing — distill what you need from it into the project's own files.")
+                if os.path.normpath(a.get("path", "")).replace(os.sep, "/").startswith(WORKFLOWS):
+                    return ("error: GitHub workflows run code on GitHub's machines, and publishing is AICUI's: the "
+                            "person turns on GitHub Pages from AICUI's GitHub menu, no workflow needed for a site.")
                 said = self.change(a)
                 rel = os.path.normpath(a.get("path", "")).replace(os.sep, "/")
                 if "logged as change" in said and intake.origins(self.root).get(rel, {}).get("kind") == "compiled":
@@ -2485,6 +2502,9 @@ class Agent:
         self.refresh()
         if not self.admin and re.match(r"\s*(sudo|pkexec|su)\b", command):
             return "error: administrator commands aren't allowed in this session (no admin)"
+        if GIT_CHANGE.search(command):  # in every mode: a boundary of the design, not a permission
+            self.event("note", text="refused: git that changes the repository (AICUI's GitHub menu does that)")
+            return GIT_REFUSED
         if network and self.sandbox:  # Ian, 2026-10-10: never in Ask; in Auto, asked once (No permissions: no sandbox)
             if self.mode != "auto" or self.role == "junior":
                 return ("error: commands have no internet here — the web goes through fetch, download and web_search "

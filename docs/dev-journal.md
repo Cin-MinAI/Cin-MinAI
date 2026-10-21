@@ -1918,3 +1918,36 @@ lines than the reference for the same functions, at about 25 tokens a line; the 
 with three lines and a note on what "localhost" means — see 10-14 to 10-15). And `need`, which installs a project's
 Python packages, took "nodejs" for one: it installed a stub from PyPI instead of the program. Programs and Python
 packages need telling apart before the person is asked.
+
+## 2026-10-20 — the git flow, and a machine named Simon
+
+**GitHub lifted the flag** on the bot account, so the machine's own account can publish at last. Ian was honest with
+them: the account is a bot, built for an operating system. He named it **Simon** — "Simon says, but you never have to
+do what Simon says" — and its profile says so: "Hi I'm Simon, I am the local AI for the Cin-MinAI operating system
+and I will post my test projects here!"
+
+**test20** was the first try at the whole path: team B built a storefront page (second-hand handbags, cash at pickup,
+a Stripe link "coming soon"), then was asked for a repository, a .gitignore, and the page ready for GitHub Pages, but
+not to commit or push. It did as asked, and that's where it went wrong. The Senior ran `git init && git add .` itself.
+Its .gitignore didn't name `.cinminai/`, so AICUI's own folder was staged for the world: the event log (the models'
+thinking, the home path 69 times), the changelog store, and ten sets of screen looks. AICUI had two guards, and both
+missed: the changelog's exclude line is written only when a repository already exists, and the GitHub menu's link
+adds `.cinminai/` to .gitignore — which doesn't take back files already staged, so the next save would have sent them.
+Nothing left the computer; the run was read before anything was pushed.
+
+**Decided (Ian) and built:** git that changes a repository is AICUI's, not a command's. The models can look (status,
+log, diff) and get a project ready; init, add, commit, push, remote and the rest are refused with a pointer to the
+GitHub menu, and no model writes a GitHub workflow. At every save AICUI takes its folders back out of git, whoever made
+the repository, and refuses to send if one would still go. Before it goes — the first save, anything flagged, always
+before Pages — the person sees the files and what code spots in them: keys, emails, phone numbers, street addresses,
+home paths, placeholder text, an old ©, AICUI's note of the request (a box to leave it out), a workflow. Test20's page
+would have shown its made-up contact block and its "© 2023". **Publish as a web page** turns Pages on from the branch's
+top folder — a static site needs no workflow, and the one the model wrote would have failed without its permissions
+block — then waits for the build and loads the live address; only then does a goal say "Published at …", ticked by
+AICUI. Commits carry the account's own name on GitHub: on Ian's machine, Simon.
+
+**Every machine gets a name** (Ian: "My machines name is Simon… enjoy what you name it, in the way people enjoy naming
+their cars"), and its profile says who keeps it: "Simon is maintained by Brickmii". The setup that offers this is next.
+
+**Ian's part, once:** add *Pages: Read and write* to the AICUI GitHub app and accept it on the installations. Test20
+stays as it is on the NVMe — `.cinminai/` still staged — as the case to run the new flow against.

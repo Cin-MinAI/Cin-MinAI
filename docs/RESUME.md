@@ -1,10 +1,27 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-16** (latest: journal "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-20** (latest: journal "the git flow, and a machine named Simon"; before it "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-20) — the git flow built; next: test20 published through it
+
+- **GitHub lifted the bot account's flag**; the machine's account (named **Simon**, "maintained by Brickmii") publishes.
+- **test20** (team B, a storefront page) showed the gap: the Senior's own `git init && git add .` staged `.cinminai/`.
+  Read before anything went; nothing left the computer. The run stays on Ian's NVMe as the test case.
+- **Built (A42, PLAN D62):** git that changes a repository is AICUI's (refused in `run`, no workflows written);
+  AICUI's folders kept out at every save, and a save stops if one would still go; the look before it goes
+  (`github_link.review`); **Publish as a web page (GitHub Pages)** — Pages on from the branch's top folder, the live
+  address loaded, then a "Published at …" goal ticked by AICUI; commits under the account's own name. Unit tests:
+  test_github_link (7), test_accounts (8), test_aicui_agent (+2). The full suite passes except
+  test_selfupdate's installed-code check, which fails the same on the last commit (no installed Cin-MinAI in WSL).
+- **Ian, once:** add *Pages: Read and write* to the AICUI GitHub app, accept it on the installations.
+- **Next:** build and install on the NVMe; publish test20 through the menu (the look should flag its contact block,
+  its © 2023, original-request.txt and the workflow); then the guided setup that names the machine. The store itself
+  (inventory in a JSON file, no admin buttons, real details) waits; its findings: localStorage inventory, Edit only an
+  alert, no .modal CSS, via.placeholder.com gone, a run.sh that stops its server after 5 s.
 
 ## Where we stopped (2026-10-16) — update 6 out; the junior measured; next: the 9B, then the alpha
 
