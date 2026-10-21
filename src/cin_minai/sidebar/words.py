@@ -1136,3 +1136,41 @@ def fit_lines(fit: dict, lang: str | None = None) -> list[str]:
     return [f"{t('job_' + job, lang)}: "
             + t("m_no_fit" if not f["fits"] else "m_fast" if f.get("tok_s", 0) >= 6 else "m_slow", lang)
             for job, f in fit.items()]
+
+
+# a fault's tree walked on a card (D51, D7): the fix, what "fixed" looks like, Check again — the rule decides
+# (written by Claude, not a native speaker of es/pt/fr/de/ja: wants a native speaker's review, D36)
+DIAG = {
+    "en": {"head": "Fix {i} of {n}: {fix}", "head_one": "The fix: {fix}", "fixed_is": "Fixed looks like: {verify}",
+           "restart": "This one needs a restart. After it, the assistant checks by itself and tells you.",
+           "check": "Check again", "checking": "Checking…", "later": "Not now"},
+    "es": {"head": "Arreglo {i} de {n}: {fix}", "head_one": "El arreglo: {fix}",
+           "fixed_is": "Arreglado se ve así: {verify}",
+           "restart": "Este necesita reiniciar. Después, el asistente lo comprueba solo y te lo dice.",
+           "check": "Comprobar de nuevo", "checking": "Comprobando…", "later": "Ahora no"},
+    "pt": {"head": "Correção {i} de {n}: {fix}", "head_one": "A correção: {fix}",
+           "fixed_is": "Resolvido fica assim: {verify}",
+           "restart": "Esta precisa reiniciar. Depois, o assistente verifica sozinho e avisa você.",
+           "check": "Verificar de novo", "checking": "Verificando…", "later": "Agora não"},
+    "fr": {"head": "Solution {i} sur {n} : {fix}", "head_one": "La solution : {fix}",
+           "fixed_is": "Réglé, cela donne : {verify}",
+           "restart": "Celle-ci demande un redémarrage. Ensuite, l'assistant vérifie tout seul et vous le dit.",
+           "check": "Vérifier à nouveau", "checking": "Vérification…", "later": "Pas maintenant"},
+    "de": {"head": "Lösung {i} von {n}: {fix}", "head_one": "Die Lösung: {fix}",
+           "fixed_is": "Behoben sieht so aus: {verify}",
+           "restart": "Diese braucht einen Neustart. Danach prüft der Assistent von selbst und sagt es Ihnen.",
+           "check": "Erneut prüfen", "checking": "Wird geprüft…", "later": "Nicht jetzt"},
+    "ja": {"head": "直し方 {i}/{n}：{fix}", "head_one": "直し方：{fix}", "fixed_is": "直ったときの様子：{verify}",
+           "restart": "これは再起動が必要です。再起動後、アシスタントが自分でチェックしてお知らせします。",
+           "check": "もう一度チェック", "checking": "チェック中…", "later": "今はしない"},
+}
+
+
+def diag(key: str, lang: str | None = None, **kw) -> str:
+    return DIAG.get(lang or ui_lang(), DIAG["en"])[key].format(**kw)
+
+
+def diag_head(step: dict, lang: str | None = None) -> str:
+    if step.get("fixes", 1) > 1:
+        return diag("head", lang, i=step["fix_n"] + 1, n=step["fixes"], fix=step["fix"])
+    return diag("head_one", lang, fix=step["fix"])

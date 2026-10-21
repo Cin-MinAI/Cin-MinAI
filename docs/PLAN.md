@@ -159,7 +159,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 an
 | D4 | filled | the model is configuration, chosen by bakeoff (D43) |
 | D5 | filled | our llama.cpp packages: CUDA incl. sm_61, Vulkan, CPU (amended by D35) |
 | D6 | filled | schema-constrained JSON for every tool call |
-| D7 | partly | off by default; the opt-in for multi-step diagnosis isn't built |
+| D7 | partly | off by default. Multi-step diagnosis (Ian, 2026-10-21) is D51's tree walked by code, not by the model thinking: the diagnosis card (fix n of N, what fixed looks like, Check again, the rule decides; a fix that needs a restart is checked after it), built 2026-10-21. Left: the opt-in "Think it through?" where the tree ends (no code, cause unknown, fixes used up), measured on D51 fixtures first |
 | D8 | filled | decided after the baseline (D43) |
 | D9 | filled | in effect; the private part ended with going public (D26, D70) |
 | D10 | filled | the ISO, public since 2026-10-04 |
@@ -203,7 +203,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 an
 | D48 | filled | how the assistant runs, as built |
 | D49 | filled | in the guide's prompt |
 | D50 | filled | screen-first boot |
-| D51 | partly | cinminai-diag with 23 codes; hardware tests from the USB not built; the live report ("is my computer secure?") planned after the alpha (PLAN §4, 2026-10-16) |
+| D51 | partly | cinminai-diag with 23 codes; the trees walked on a card in the sidebar (2026-10-21, `diag/walk.py`: code walks them, the guide explains — not a model tool, so no retraining); hardware tests from the USB not built; the live report ("is my computer secure?") planned after the alpha (PLAN §4, 2026-10-16) |
 | D52 | filled | standing rule |
 | D53 | filled | diagnose + spreadsheets |
 | D54 | filled | standing rule |

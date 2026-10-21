@@ -99,6 +99,7 @@ class Sidebar(Gtk.Application):
         self.reply_started = False
         self.pending_ask: str | None = None
         self.cards: list[dict] = []        # commands from the tools' results, shown under the answer (D53)
+        self.diag_step: dict | None = None  # a fault's tree, walked on a card under the answer (D51, D7)
         self.terminal_turn = False         # this answer read the shared terminal: cards get "To terminal" (M3)
 
     # --- window ------------------------------------------------------------------------------------
@@ -600,6 +601,8 @@ class Sidebar(Gtk.Application):
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
         elif signal == "Action" and args[1] == "queue" and args[3] == "waiting":  # turn tokens: its turn comes
             self.progress_line(words.t("queued", ahead=max(1, json.loads(args[4] or "{}").get("ahead", 1))))
+        elif signal == "Action" and args[1] == "diagnosis" and args[3] == "proposal":
+            self.diag_step = json.loads(args[4] or "{}")  # shown under the answer, after its command
         elif signal == "Action" and args[1] == "watch" and args[3] == "proposal":
             self.watch_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "key_needed" and args[3] == "proposal":
@@ -1616,6 +1619,58 @@ class Sidebar(Gtk.Application):
         box.show_all()
         said.hide()
 
+    def diagnosis_card(self, step: dict) -> None:
+        """A fault's tree, walked (D51, D7): this fix, what fixed looks like, and Check again — the checks run again
+        and the rule decides (gone, the next fix, or the end of the tree), never the model."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.diag_head(step), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        for s in step.get("steps", []):
+            box.pack_start(Gtk.Label(label="• " + s, xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+        notes = ([words.diag("fixed_is", verify=step["verify"])] if step.get("verify") else []) +             ([words.diag("restart")] if step.get("restart") else [])
+        for text in notes:
+            note = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+            note.get_style_context().add_class("note")
+            box.pack_start(note, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        check, later = Gtk.Button(label=words.diag("check")), Gtk.Button(label=words.diag("later"))
+        check.get_style_context().add_class("suggested-action")
+
+        def checked(proxy, result) -> None:
+            try:
+                out = json.loads(proxy.call_finish(result).unpack()[0])
+            except (GLib.Error, ValueError) as e:
+                out = {"outcome": "error", "said": str(e)}
+            buttons.destroy()
+            said = Gtk.Label(label=out.get("said", ""), xalign=0, wrap=True, max_width_chars=30)  # its own line,
+            said.get_style_context().add_class("action")                                    # in the walk's order
+            self.chat.pack_start(said, False, False, 0)
+            said.show()
+            nxt = out.get("next")
+            if nxt:
+                if nxt.get("command"):
+                    self.command_card({"command": nxt["command"], "explain": nxt.get("command_explained", ""),
+                                       "undo": nxt.get("undo", "")})
+                self.diagnosis_card(nxt)
+
+        def on_check(b) -> None:
+            check.set_sensitive(False)
+            later.set_sensitive(False)
+            check.set_label(words.diag("checking"))
+            self.proxy.call("DiagCheck", GLib.Variant("(s)", (json.dumps(
+                {"code": step["code"], "n": step.get("fix_n", 0), "title": step.get("title", "")}),)),
+                Gio.DBusCallFlags.NONE, 60000, None, checked)
+
+        check.connect("clicked", on_check)
+        later.connect("clicked", lambda b: buttons.destroy())
+        buttons.pack_start(check, False, False, 0)
+        buttons.pack_start(later, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
     def bigger_card(self, offer: dict) -> None:
         """A terminal error the built-in help doesn't cover: the person may ask the bigger model they already have
         (Ian, 2026-10-04: only when no card fits, and only if they say so). Nothing loads before the click."""
@@ -1908,9 +1963,11 @@ class Sidebar(Gtk.Application):
         if self.reply is not None and not error:
             for card in words.merge_cards(self.cards, words.commands_in_text(self.reply.get_text())):
                 self.command_card(card)
+            if self.diag_step:
+                self.diagnosis_card(self.diag_step)
             if self.reply_started and words.worth_a_document(self.reply.get_text()):
                 self.writer_button(self.reply.get_text())
-        self.cards = []
+        self.cards, self.diag_step = [], None
         if self.reply is not None:
             if error:
                 self.reply.set_text(error)

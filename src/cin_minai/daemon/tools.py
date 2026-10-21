@@ -68,7 +68,7 @@ class Tools:
     def __init__(self, labels: dict, desktop: dict, lang: str | None = None, ui: dict | None = None) -> None:
         self.labels, self.desktop, self.ui = labels, desktop, ui or {}
         self.lang = lang or desktop_lang()
-        self._diag: tuple[float, dict] | None = None
+        self._diag: tuple[float, dict, dict] | None = None  # (when, the guide's view, the whole report)
 
     def label(self, key: str) -> str:
         row = self.labels.get(key) or self.ui.get(key, {})
@@ -99,19 +99,46 @@ class Tools:
         state = run(["nmcli", "-t", "-f", "CONNECTIVITY", "general"]).strip()
         return state in ("full", "") or state == "unknown"
 
-    def diagnose(self) -> dict:
-        """The diagnostics' short view (cinminai-diag, D51), reused for DIAG_TTL seconds. CINMINAI_DIAG_FIXTURE
-        reads a recorded case instead of this machine (tests, the boot test)."""
+    def diagnose(self, fresh: bool = False) -> dict:
+        """The diagnostics' short view (cinminai-diag, D51), reused for DIAG_TTL seconds (fresh: read again, for
+        Check again). CINMINAI_DIAG_FIXTURE reads a recorded case instead of this machine (tests, the boot test)."""
         import time
-        if self._diag and time.monotonic() - self._diag[0] < DIAG_TTL:
+        if self._diag and not fresh and time.monotonic() - self._diag[0] < DIAG_TTL:
             return self._diag[1]
         from cin_minai.diag import probes, report, rules
         from cin_minai.diag.source import FixtureSource, LiveSource
         fixture = os.environ.get("CINMINAI_DIAG_FIXTURE")
         ev = probes.collect(FixtureSource(fixture) if fixture else LiveSource())
-        view = report.guide_view(report.build(ev, rules.evaluate(ev)), limit=None)  # filtered per topic below
-        self._diag = (time.monotonic(), view)
+        rep = report.build(ev, rules.evaluate(ev))
+        view = report.guide_view(rep, limit=None)  # filtered per topic below
+        self._diag = (time.monotonic(), view, rep)
         return view
+
+    def report(self, fresh: bool = False) -> dict:
+        """The whole report the short view came from (the diagnosis card walks its trees)."""
+        self.diagnose(fresh)
+        return self._diag[2]
+
+    def walk_start(self, result: str) -> dict | None:
+        """The diagnosis card for an inspect_system result with problems: the first problem's first fix (the first
+        problem causes the others), from the same reading the guide got."""
+        from cin_minai.diag import walk
+        try:
+            found = json.loads(result).get("problems_found") or []
+        except (ValueError, AttributeError):
+            return None
+        if not found or not self._diag:
+            return None
+        kept = walk.kept()
+        for f in self._diag[2]["findings"]:
+            if f["code"] == found[0].get("code") and f["status"] == "active":
+                # still there after a fix that needed a restart: on from the next fix, not back to the first
+                n = kept["n"] + 1 if kept and kept["code"] == f["code"] and walk.step(f, kept["n"] + 1) else 0
+                step = walk.step(f, n)
+                if step["restart"]:
+                    walk.keep(f["code"], n, f["title"])
+                return step
+        return None
 
     def problems(self, topic: str) -> list[dict]:
         if topic not in DIAG_TOPICS or live_session():

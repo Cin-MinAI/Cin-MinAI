@@ -64,6 +64,10 @@ XML = f"""
     <!-- "To terminal" on a command card (M3, SPEC §6.4): put the command at the prompt of the terminal the assistant
          last read, as if typed, without Enter. JSON out: ok, error, warnings (root, ssh) -->
     <method name="TerminalSend"><arg type="s" name="text" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <!-- Check again on a diagnosis card (D51, D7): JSON in: code, n (the fix just tried), title; the checks run
+         again and the rule decides. JSON out: outcome "gone" / "still" (with "next", the next fix) / "end", and
+         "said" (the plain sentence) -->
+    <method name="DiagCheck"><arg type="s" name="step" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- terminal sharing (D77: offered, then on): "on" / "off" (new terminals), "never" (don't offer again), "later",
          or "state"; JSON out: available (cinminai-shell installed), on, open (shared terminals now) -->
     <method name="TerminalSharing"><arg type="s" name="choice" direction="in"/><arg type="s" name="json" direction="out"/></method>
@@ -289,6 +293,7 @@ class Service:
         if self.turns is not None:
             self.turns.close_stale()
         GLib.timeout_add_seconds(STANDING_CHECK_S, self.standing_tick)
+        GLib.timeout_add_seconds(45, self.diag_after_restart)  # D51: a fix that needed a restart, checked once
         # M4: one path for every action (PLAN D67, D85)
         self.actions = Actions(mode=actions_mode(), notify=self.action_notify)
         admin.register(self.actions)     # the root mechanism's verbs; each asks, then polkit asks for the password
@@ -691,6 +696,19 @@ class Service:
                 return {"tool": "web_search", "sources": out["sources"], "reply_chars": len(out["reply"]),
                         "loop_stopped": out.get("loop_stopped", False)}
             self.job(self.next_id, search)
+        elif method == "DiagCheck":
+            try:
+                step = json.loads(params.unpack()[0])
+                code, n, title = str(step["code"]), int(step.get("n", 0)), str(step.get("title", ""))
+            except (ValueError, KeyError, TypeError) as e:
+                inv.return_dbus_error(f"{IFACE}.Error.Diag", f"not a diagnosis step: {e}")
+                return
+
+            def check():  # the checks read ten boots' logs (~2 s): not on the bus's thread
+                out = self.diag_check(code, n, title)
+                GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+                              and False)
+            threading.Thread(target=check, daemon=True).start()
         elif method == "TerminalSend":
             (text,) = params.unpack()
             from . import terminal
@@ -1196,6 +1214,47 @@ class Service:
                 lang = result.get("lang", "en")
                 what = quoted(result["topic"], lang) if result["topic"] else say(lang, "watch_top")
                 self.notify(say(lang, "notify_title"), say(lang, "notify_body", n=result["new"], what=what))
+        return False
+
+    # --- diagnosis: walking a fault's tree (D51, D7) ------------------------------------------------------------
+    def diag_check(self, code: str, n: int, title: str) -> dict:
+        """Check again after fix n: the rule decides, never a model (Rule 6). A next fix that needs a restart is
+        remembered and checked when the assistant starts again."""
+        from cin_minai.diag import walk
+        lang = self.guide.tools.lang
+        try:
+            out = walk.check(self.guide.tools.report(fresh=True), code, n, title)
+        except Exception as e:  # diagnostics must never take the assistant down
+            log(f"diag check {code}: {type(e).__name__}: {e}")
+            return {"outcome": "error", "said": f"The checks couldn't run: {e}"}
+        out["said"] = walk.words(out["outcome"], lang, title=out["title"])
+        nxt = out.get("next")
+        if nxt and nxt["restart"]:
+            walk.keep(code, nxt["fix_n"], nxt["title"])
+        else:
+            walk.forget()
+        return out
+
+    def diag_after_restart(self) -> bool:
+        """Once, after the assistant starts: a fix that needed a restart is checked now, and the person is told."""
+        from cin_minai.diag import walk
+        kept = walk.kept()
+        if not kept:
+            return False
+        lang = self.guide.tools.lang
+
+        def work():
+            try:
+                rep = self.guide.tools.report(fresh=True)
+            except Exception as e:
+                log(f"diag after restart: {type(e).__name__}: {e}")
+                return
+            gone = walk.check(rep, kept["code"], kept["n"], kept["title"])["outcome"] == "gone"
+            if gone:
+                walk.forget()  # still there: kept, so "check my computer" goes on from the next fix
+            GLib.idle_add(lambda: self.notify("Cin-MinAI", walk.words("restart_gone" if gone else "restart_still",
+                                                                      lang, title=kept["title"])) and False)
+        threading.Thread(target=work, daemon=True).start()
         return False
 
     def notify(self, title: str, body: str) -> None:

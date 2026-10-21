@@ -284,6 +284,10 @@ class Guide:
                 continue
             break
         on_action(tool, args, "done", result)
+        if tool == "inspect_system":  # a fault found: its tree is walked on a card (D51, D7), the guide explains
+            step = self.tools.walk_start(result)
+            if step:
+                on_action("diagnosis", {"code": step["code"]}, "proposal", json.dumps(step, ensure_ascii=False))
         followup = {"role": "user", "content": self.data["result_format"].format(
             tool=tool, result=result, style=self.data["style"])}
         direct = facts.direct_reply(tool, args, result, self.tools.lang)
