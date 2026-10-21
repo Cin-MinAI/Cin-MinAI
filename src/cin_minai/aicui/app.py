@@ -829,22 +829,31 @@ class Workspace(Gtk.ApplicationWindow):
             if act is not None:
                 it.connect("activate", lambda w: act())
             menu.append(it)
+
+        def project_items(url):
+            # always listed, greyed until signed in and linked (Ian, 2026-10-20: "We shouldnt have it disappeared, we
+            # should have it greyed out and not pickable"): people see what GitHub can do before they set it up
+            on = (lambda act: act) if url else (lambda act: None)
+            item("Save to GitHub (push)", on(self.github_save))
+            item("Publish as a web page (GitHub Pages)…", on(self.github_publish_pages))
+            item("Bring in changes from GitHub (pull)", on(lambda: self.github_run("pull")))
+            item("Open the repository on GitHub", on(lambda: Gio.AppInfo.launch_default_for_uri(
+                url.removesuffix(".git"), None)))
         if not st["ready"]:
             item("GitHub sign-in isn't set up in this build yet")
+            menu.append(Gtk.SeparatorMenuItem())
+            project_items(None)
         elif not st["linked"]:
             item("Sign in to GitHub…", self.github_sign_in)
+            menu.append(Gtk.SeparatorMenuItem())
+            project_items(None)
         else:
             url = github_link.remote(self.root)
             item(f"Signed in as {st['login']}")
             menu.append(Gtk.SeparatorMenuItem())
             item("Link this project to a repository…" if not url else "Link to another repository…",
                  self.github_link_dialog)
-            if url:
-                item("Save to GitHub (push)", self.github_save)
-                item("Publish as a web page (GitHub Pages)…", self.github_publish_pages)
-                item("Bring in changes from GitHub (pull)", lambda: self.github_run("pull"))
-                item("Open the repository on GitHub", lambda: Gio.AppInfo.launch_default_for_uri(
-                    url.removesuffix(".git"), None))
+            project_items(url)
             menu.append(Gtk.SeparatorMenuItem())
             item("Sign out of GitHub", self.github_sign_out)
         menu.show_all()
