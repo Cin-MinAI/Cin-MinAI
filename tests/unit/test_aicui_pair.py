@@ -85,22 +85,66 @@ class PairTest(unittest.TestCase):
         junior.work = lambda text, cancel: (gate.wait(10), work(text, cancel))[1]
         said = senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw(): take the top card" + DETAIL,
                           "kind": "write"})
-        self.assertIn("task 1 given to your junior (write rules.py); rules.py is held for it", said)
+        self.assertIn("task 2 given to your junior (write rules.py); rules.py is held for it", said)
         blocked = senior.do({"tool": "edit", "path": "rules.py", "old": "pass", "new": "return None"})
-        self.assertIn("rules.py is held by your junior's task 1", blocked)
+        self.assertIn("rules.py is held by your junior's task 2", blocked)
         gate.set()
         self.wait(p)
         with open(os.path.join(self.root, "rules.py")) as f:
             self.assertIn("return deck.pop(0)", f.read())
         self.assertFalse(os.path.exists(os.path.join(self.root, "other.py")))  # outside its task: refused
         ((n, kind, result),) = senior.inbox
-        self.assertEqual((n, kind), (1, "task"))
-        self.assertIn("task 1 (write rules.py) — done. It said: draw() takes the top card", result)
+        self.assertEqual((n, kind), (2, "task"))
+        self.assertIn("task 2 (write rules.py) — done. It said: draw() takes the top card", result)
         self.assertIn("Changed: rules.py", result)
         (child,) = self.engine.db.task_tree(p.root["id"])["children"]
         self.assertEqual((child["assignee"], child["kind"], child["status"]), (p.second, "write", "done"))
         self.assertIn("logged as change", senior.do({"tool": "edit", "path": "rules.py", "old": "deck.pop(0)",
                                                      "new": "deck.pop(0)  # the top card"}))  # free again once closed
+
+    def test_the_table_is_the_backbone(self):
+        """Ian, 2026-10-21: "make the table the backbone". The Junior's queue, its holds and its instructions are on the
+        table; the table's refusals reach the Senior; a cancel there frees the file; no team without it."""
+        import threading
+        senior, junior, p = self.pair(junior_steps=[step("", tool="answer", text="Ran it: it imports.")])
+        gate = threading.Event()
+        work = junior.work
+        junior.work = lambda text, cancel: (gate.wait(10), work(text, cancel))[1]
+        long = "run rules.py and report what fails; " + "check each rule in turn. " * 80  # past the 5 % of an 8K junior
+        self.engine.member("junior", 8192)  # a small junior: a task for it is at most 1,228 characters
+        said = senior.do({"tool": "assign", "path": "rules.py", "task": long, "kind": "test"})
+        self.assertIn("task 2 given to your junior", said)
+        t = self.engine.get(2)
+        self.assertEqual((t["assignee"], len(t["refs"])), (p.second, 1))  # the bulk by reference
+        self.assertEqual(p.instruction(t), long.strip())
+        gate.set()
+        self.wait(p)
+        self.assertIn(("check each rule in turn. " * 80).strip(), junior.chat.sent[0][-1]["content"])  # whole, from the table
+        # the hold is the table's: cancelled there (the Requests view's Stop), the file is free at once
+        junior.chat = Scripted([step("", tool="answer", text="never")])
+        gate.clear()
+        senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw(): take the top card" + DETAIL,
+                   "kind": "write"})
+        self.assertEqual(set(p.held), {"rules.py"})
+        self.engine.cancel(p.root["id"])
+        self.assertEqual(p.held, {})
+        gate.set()
+        self.wait(p)
+        # the request's budget, spent: the table's words are the Senior's answer
+        small = engine.Engine("test0004", self.root, db_path=os.path.join(self.root, ".small.db"), budget=2)
+        self.addCleanup(small.db.close)
+        p2 = Pair(senior, junior, engine=small)
+        p2.root = small.request("one small request", p2.lead)
+        junior.work = lambda text, cancel: (gate.wait(10), work(text, cancel))[1]
+        gate.clear()
+        self.assertIn("given to your junior", senior.do({"tool": "assign", "path": "rules.py", "kind": "test",
+                                                         "task": "run it and report what fails"}))
+        refused = senior.do({"tool": "brief", "files": ["rules.py"], "question": "what does draw do"})
+        self.assertIn("the Team Table refused this task: This request's budget is spent (2 of 2 tasks)", refused)
+        gate.set()
+        self.wait(p2)
+        with self.assertRaises(RuntimeError):
+            Pair(senior, junior, engine=None)
 
     def test_the_senior_reviews_and_a_rejection_goes_back(self):
         senior, junior, p = self.pair(junior_steps=[
@@ -110,13 +154,13 @@ class PairTest(unittest.TestCase):
         senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw(): take the top card" + DETAIL, "kind": "write"})
         self.wait(p)
         senior.inbox.clear()
-        back = senior.do({"tool": "review_task", "n": 1, "accept": False, "note": "the stub is still there"})
-        self.assertIn("task 2 given to your junior", back)
+        back = senior.do({"tool": "review_task", "n": 2, "accept": False, "note": "the stub is still there"})
+        self.assertIn("task 3 given to your junior", back)
         self.wait(p)
         sent = junior.chat.sent[-2][-1]["content"]
-        self.assertIn("Correction of task 1 — your senior's corrections: the stub is still there", sent)
+        self.assertIn("Correction of task 2 — your senior's corrections: the stub is still there", sent)
         self.assertIn("This task's limits: 25 steps, 150 lines of code", sent)  # not measured yet: the stand-ins
-        self.assertEqual(senior.do({"tool": "review_task", "n": 2, "accept": True, "note": ""}), "task 2 accepted")
+        self.assertEqual(senior.do({"tool": "review_task", "n": 3, "accept": True, "note": ""}), "task 3 accepted")
         first = next(c for c in self.engine.db.task_tree(p.root["id"])["children"] if "Correction" not in c["title"])
         self.assertEqual(json.loads(first["result"])["verdict"], "rejected")
 
@@ -135,10 +179,10 @@ class PairTest(unittest.TestCase):
         first = json.dumps(junior.chat.sent[0])
         self.assertNotIn("an earlier task", first)  # a fresh start: only this task's instruction
         self.assertEqual(junior.history, [])  # and dumped after
-        back = senior.do({"tool": "review_task", "n": 1, "accept": False, "note": "the stub is still there"})
+        back = senior.do({"tool": "review_task", "n": 2, "accept": False, "note": "the stub is still there"})
         self.assertIn("its one correction attempt", back)
         self.wait(p)
-        theirs = senior.do({"tool": "review_task", "n": 2, "accept": False, "note": "still the stub"})
+        theirs = senior.do({"tool": "review_task", "n": 3, "accept": False, "note": "still the stub"})
         self.assertIn("the corrections to rules.py are yours now", theirs)
         self.assertEqual(p.out, 0)  # nothing went back to the junior
         self.assertIn("had its correction attempt on rules.py", senior.do(
@@ -204,7 +248,7 @@ class PairTest(unittest.TestCase):
         senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw(): take the top card" + DETAIL, "kind": "write"})
         self.wait(p)
         ((n, kind, result),) = senior.inbox
-        self.assertIn("task 1 (write rules.py) — STUCK POINT from your junior", result)
+        self.assertIn("task 2 (write rules.py) — STUCK POINT from your junior", result)
         self.assertIn("Its last steps:\n- Looking.", result)
         self.assertIn("Distill its next step: a smaller, exact task", result)
         senior.inbox.clear()
@@ -697,7 +741,7 @@ class PairTest(unittest.TestCase):
                      kind="write"),
                 step("Meanwhile, the deck.", tool="write", path="deck.py", content="DECK = []\n"),
                 step("", tool="answer", text="Waiting."),
-                step("", tool="review_task", n=1, accept=True, note=""),
+                step("", tool="review_task", n=3, accept=True, note=""),
                 step("", tool="answer", text="Skeleton laid; battle filled by the junior and accepted.")],
             junior_steps=[
                 step("Fill it.", tool="edit", path="battle.py", old="    # TODO\n    pass\n",
@@ -707,7 +751,7 @@ class PairTest(unittest.TestCase):
         out = p.turn("Build the battle step")
         self.assertEqual(out, "Skeleton laid; battle filled by the junior and accepted.")
         sent = "\n".join(m[-1]["content"] for m in senior.chat.sent)
-        self.assertIn("Task 1 is back from your junior", sent)
+        self.assertIn("Task 3 is back from your junior", sent)
         with open(os.path.join(self.root, "battle.py")) as f:
             self.assertIn("return a if a >= b else b", f.read())
         events = [json.loads(line) for line in open(os.path.join(self.root, ".cinminai", "events.jsonl"))]
@@ -737,7 +781,8 @@ class CrewTest(unittest.TestCase):
         reader = Agent(self.root, Scripted([("draw() returns nothing yet.", {})]), "Qwen3.5-9B", "auto",
                        say=lambda s: None, ctx=32768)
         lead.goals.add("Cards are drawn", by="user")
-        crew = Crew(lead, coder, reader, engine=None)
+        crew = Crew(lead, coder, reader, engine=engine.Engine("test0003", self.root,
+                                                          db_path=os.path.join(self.root, ".table.db")))
         lead.cloud_crew = "Two contributors: Qwen3.6-35B-A3B writes, fixes, checks and tests; Qwen3.5-9B reads."
         self.assertIn("You lead from the cloud", lead.system())
         self.assertIn("Two contributors", lead.system())
@@ -747,9 +792,9 @@ class CrewTest(unittest.TestCase):
         self.assertNotIn("web_search", reader.excluded())
         self.assertNotIn("fetch", reader.excluded())
         self.assertIn("web_search (a `query`", reader.system())
-        self.assertIn("task 1 given to your junior (write rules.py)", lead.do(
+        self.assertIn("task 2 given to your junior (write rules.py)", lead.do(
             {"tool": "assign", "path": "rules.py", "task": "fill draw so it takes the top card" + DETAIL, "kind": "write"}))
-        self.assertIn("task 2 given to your junior", lead.do(
+        self.assertIn("task 3 given to your junior", lead.do(
             {"tool": "brief", "files": ["rules.py"], "question": "what does draw do now"}))
         for _ in range(200):
             if crew.out == 0:
@@ -759,19 +804,19 @@ class CrewTest(unittest.TestCase):
         with open(os.path.join(self.root, "rules.py")) as f:
             self.assertIn("return deck.pop(0)", f.read())  # the coder wrote it
         got = {n: text for n, kind, text in lead.inbox}
-        self.assertIn("draw() returns nothing yet.", got[2])  # the reader briefed
-        self.assertIs(crew.holder(1), crew.coder)
-        self.assertIs(crew.holder(2), crew.reader)
-        self.assertIn("task 1 accepted", lead.do({"tool": "review_task", "n": 1, "accept": True, "note": ""}))
+        self.assertIn("draw() returns nothing yet.", got[3])  # the reader briefed
+        self.assertIs(crew.holder(2), crew.coder)
+        self.assertIs(crew.holder(3), crew.reader)
+        self.assertIn("task 2 accepted", lead.do({"tool": "review_task", "n": 2, "accept": True, "note": ""}))
         # test: run and report, nothing held, nothing changed
-        self.assertIn("task 3 given to your junior", lead.do(
+        self.assertIn("task 4 given to your junior", lead.do(
             {"tool": "assign", "path": "rules.py", "task": "run it and say what fails", "kind": "test"}))
         self.assertEqual(crew.coder.held, {})
         for _ in range(200):
             if crew.out == 0:
                 break
             time.sleep(0.05)
-        self.assertIn("It imports; nothing fails.", {n: t for n, k, t in lead.inbox}[3])
+        self.assertIn("It imports; nothing fails.", {n: t for n, k, t in lead.inbox}[4])
 
 
 if __name__ == "__main__":

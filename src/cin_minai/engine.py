@@ -173,6 +173,24 @@ class Engine:
         result = json.dumps({"model": model, "verdict": verdict, "note": outcome[:1500]}, ensure_ascii=False)
         self.db.update_task(task["id"], state, result=result[:4800], agent_name=member)
 
+    def get(self, task_id: int) -> dict | None:
+        """One task as it stands now."""
+        row = self.db._get_conn().execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+        return self.db._task(row) if row is not None else None
+
+    def open_for(self, member: str) -> list[dict]:
+        """A member's tasks not finished yet (waiting or being worked), oldest first: its queue as the table holds it."""
+        rows = self.db._get_conn().execute(
+            "SELECT * FROM tasks WHERE assignee=? AND status IN ('pending', 'in_progress') ORDER BY id",
+            (member,)).fetchall()
+        return [self.db._task(r) for r in rows]
+
+    def kept(self, ref: str) -> str:
+        """What keep() put under a key, without its label line."""
+        got = self.db.get_shared_context(ref)
+        value = got.get("value", "") if isinstance(got, dict) else ""
+        return value.split("\n", 1)[1] if "\n" in value else value
+
     def state(self, task_id: int) -> str:
         """A task's status now (pending, in_progress, done, blocked, cancelled…)."""
         row = self.db._get_conn().execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
@@ -203,3 +221,15 @@ def open_engine(project: str, root_dir: str = "", **kw) -> Engine | None:
         return Engine(project, root_dir, **kw)
     except Exception:
         return None
+
+
+def team_engine(project: str, root_dir: str = "", **kw) -> Engine:
+    """The engine a team works through (Ian, 2026-10-21: "make the table the backbone"): opened, or RuntimeError with
+    why — a team doesn't run beside the table."""
+    try:
+        e = Engine(project, root_dir, **kw)
+    except Exception as err:
+        raise RuntimeError(f"the Team Table can't be opened here ({type(err).__name__}: {str(err)[:160]}); a team "
+                           "works through it") from None
+    e.close_stale()
+    return e

@@ -97,9 +97,9 @@ class TandemTest(Base):
                          ["Stone Giant 3000", "nothing here", "River Knight 2500"])
         self.assertEqual(t.turn("make the list and fix gui.py"), "Done.")
         sent = [m[-1]["content"] for m in a.chat.sent]
-        self.assertIn("errand 1 given to your helper (read sources/list.txt: Which entries score over 2000?)", sent[1])
+        self.assertIn("errand 2 given to your helper (read sources/list.txt: Which entries score over 2000?)", sent[1])
         back = "\n".join(sent)
-        self.assertIn("Errand 1 (read) is back from your helper", back)
+        self.assertIn("Errand 2 (read) is back from your helper", back)
         self.assertIn("the helper read sources/list.txt in 3 parts", back)
         self.assertIn("Stone Giant 3000", back)
         with open(os.path.join(self.root, "gui.py")) as f:
@@ -149,7 +149,7 @@ class TandemTest(Base):
         (child,) = self.tree()["children"]
         self.assertEqual((child["assignee"], child["kind"]), (t.helper_name, "read"))
         listed = [e for e in self.events() if e["kind"] == "errands"][-1]["out"]
-        self.assertEqual(listed, [{"n": 1, "what": "read sources/list.txt: what's on it?", "goal": "goal 1: A round runs",
+        self.assertEqual(listed, [{"n": 2, "what": "read sources/list.txt: what's on it?", "goal": "goal 1: A round runs",
                                    "task": child["id"]}])
         gate.set()
         self.wait_out(t)

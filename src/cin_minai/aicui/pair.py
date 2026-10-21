@@ -13,6 +13,10 @@ the small model has a domain to work in and should hallucinate less and make les
   the Senior between its steps; the Senior accepts it or sends it back with a note (`review_task`).
 * Every request is the Senior's task on the Team Table, every Junior task a child task with its verdict; the chat shows
   each exchange; Stop works on the table's tokens, as in style A.
+* **The table is the backbone** (Ian, 2026-10-21): the Junior claims its next task from the table (the person's first),
+  a task's number is its number there, what it holds and what attempt it is are written on it, and its instruction
+  travels on it (or by reference when it's long). The table's refusals — the request's budget spent, hand-offs too
+  deep, a task too big for its member — reach the Senior as its answer. A team doesn't run without the table.
 """
 
 from __future__ import annotations
@@ -21,8 +25,8 @@ import hashlib
 import itertools
 import json
 import os
-import queue
 import threading
+import time
 
 from cin_minai import engine as engine_mod
 
@@ -30,40 +34,51 @@ from .project import token_of
 
 KEEP = os.path.join(".cinminai", "keep-errands")   # AICUI: Stop the Senior only — the Junior's tasks go on
 HALT = os.path.join(".cinminai", "stop-errands")   # AICUI: Stop the Junior only (when the table can't be reached)
+SPEC = "aicui "    # a Junior task's first line on the table: {"kind", "rel", "hold", "attempt", "goal"} as JSON
+IDLE = 5.0         # seconds the Junior's worker waits for a new task before it ends (the next task starts it again)
+
+
+def spec_of(task: dict | None) -> dict:
+    """What AICUI wrote on a Junior task: its kind, its file, the files it holds, its attempt, its goal."""
+    first = ((task or {}).get("description") or "").split("\n", 1)[0]
+    if not first.startswith(SPEC):
+        return {}
+    try:
+        got = json.loads(first[len(SPEC):])
+    except ValueError:
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def project_of(root: str) -> str:
+    return token_of(root) or hashlib.sha1(os.path.realpath(root).encode()).hexdigest()
 
 
 class Pair:
-    """senior and junior: two Agents on the same project, each with its own model."""
+    """senior and junior: two Agents on the same project, each with its own model. `name`: the junior's name on the
+    table (a crew's two contributors each have their own queue)."""
 
-    def __init__(self, senior, junior, say=print, engine=False, where: str = "local") -> None:
+    def __init__(self, senior, junior, say=print, engine=False, where: str = "local", name: str = "junior") -> None:
         self.senior, self.junior, self.say = senior, junior, say
         senior.role, junior.role = "senior", "junior"
         if engine is False:
-            project = token_of(senior.root) or hashlib.sha1(os.path.realpath(senior.root).encode()).hexdigest()
-            engine = engine_mod.open_engine(project, senior.root)
-            if engine is not None:
-                engine.close_stale()
+            engine = engine_mod.team_engine(project_of(senior.root), senior.root)
+        if engine is None:
+            raise RuntimeError("a team works through the Team Table, and there's none here")
         self.engine = engine
-        self.lead, self.second = "senior", "junior"
-        if engine is not None:
-            self.lead = engine.member("senior", senior.ctx, getattr(senior, "model_name", ""), where)
-            self.second = engine.member("junior", junior.ctx, getattr(junior, "model_name", ""), where)
+        self.lead = engine.member("senior", senior.ctx, getattr(senior, "model_name", ""), where)
+        self.second = engine.member(name, junior.ctx, getattr(junior, "model_name", ""), where)
         self.models = {self.lead: getattr(senior, "model_name", ""), self.second: getattr(junior, "model_name", "")}
         self.root: dict | None = None
         self.cancel: threading.Event | None = None
-        self.tasks: queue.Queue = queue.Queue()     # the Junior's queue: tasks stack, done one at a time
-        self.out = 0
-        self.numbers = itertools.count(1)            # task numbers (a crew's contributors share them)
-        self.question_numbers = itertools.count(1)   # the junior's questions, numbered the same way
-        self.lock = threading.Lock()
+        self.question_numbers = itertools.count(1)   # the junior's questions (a crew's contributors share them)
+        self.lock = threading.RLock()  # the worker's claim and settle() take it, also from within each other
         self.worker: threading.Thread | None = None
-        self.listing: dict[int, dict] = {}           # tasks out, as AICUI lists them at Stop
-        self.held: dict[str, int] = {}               # file -> the Junior task that holds it
-        self.attempts: dict[int, int] = {}           # task -> 1 (first try) or 2 (its one correction attempt)
         self.taken_over: set[str] = set()            # files whose corrections are the senior's now
         self.current: set[str] = set()               # the files of the task the Junior works now
-        self.done: dict[int, dict] = {}              # finished tasks, for review_task
         self.stop_junior = threading.Event()
+        self.delivering = 0                          # the task the Junior has claimed, until its result is delivered
+        self.owed: dict[int, str] = {}               # tasks given and not answered yet: id -> what
         senior.inbox = []
         senior.junior_profile = self.profile  # the senior plans with what its junior was measured to carry
         senior.errands_pending = lambda: self.out > 0
@@ -87,6 +102,53 @@ class Pair:
         self.current_table: dict | None = None
         junior.halt = lambda: self.halted(self.current_table)  # Stop every step, as the Senior's own rules
 
+    # --- the Junior's queue, as the table holds it -------------------------------------------------------------
+    def open_tasks(self) -> list[dict]:
+        try:
+            return self.engine.open_for(self.second)
+        except Exception:
+            return []
+
+    def settle(self) -> None:
+        """A task stopped on the table before the Junior started it (Stop, or the Requests view) is answered all the
+        same: the Senior hears it wasn't done."""
+        with self.lock:  # never the task the worker has claimed: that one is answered by the worker
+            for n, what in list(self.owed.items()):
+                if n != self.delivering and self.engine.state(n) == "cancelled":
+                    self.owed.pop(n, None)
+                    self.senior.inbox.append((n, "task", f"task {n} ({what[:120]}) — not done: stopped by the person."))
+
+    @property
+    def out(self) -> int:
+        """Tasks not back yet: open on the table, and the one whose result is on its way to the Senior."""
+        self.settle()
+        return len({t["id"] for t in self.open_tasks()} | ({self.delivering} if self.delivering else set()))
+
+    @property
+    def held(self) -> dict[str, int]:
+        """file -> the Junior task that holds it (one writer per file)."""
+        return {path: t["id"] for t in self.open_tasks() for path in spec_of(t).get("hold", [])}
+
+    @property
+    def listing(self) -> dict[int, dict]:
+        """The tasks out, as AICUI lists them at Stop."""
+        return {t["id"]: {"n": t["id"], "what": t["title"], "goal": spec_of(t).get("goal", ""), "task": t["id"]}
+                for t in self.open_tasks()}
+
+    def instruction(self, task: dict) -> str:
+        """A task's instruction: on it, or under its reference when it was too long to carry."""
+        body = (task.get("description") or "").split("\n", 1)
+        text = body[1] if len(body) > 1 and body[0].startswith(SPEC) else (task.get("description") or "")
+        if not text.strip() and task.get("refs"):
+            text = self.engine.kept(task["refs"][0])
+        return text
+
+    def request_root(self) -> dict:
+        """The request the Junior's tasks belong to (the Senior's work between requests gets one of its own)."""
+        if self.root is None or self.engine.state(self.root["id"]) in ("done", "cancelled", "blocked"):
+            self.root = self.engine.request("(the senior's own work, between requests)", self.lead)
+        return self.root
+
     # --- the write guards ------------------------------------------------------------------------------------
     def senior_may_write(self, rel: str) -> str:
         n = self.held.get(rel)
@@ -102,11 +164,12 @@ class Pair:
         self.root = None
         if self.out == 0:
             self.stop_junior.clear()
-        if self.engine is not None:
-            try:
-                self.root = self.engine.request(request, self.lead)
-            except Exception as e:  # the record failing never loses the request
-                self.senior.event("note", text=f"The Team Table couldn't take this request ({str(e)[:160]}).")
+        try:
+            self.root = self.engine.request(request, self.lead)
+        except Exception as e:  # the team works through the table: without the request on it, nothing starts
+            said = f"The Team Table couldn't take this request ({str(e)[:200]}), so the team didn't start on it."
+            self.senior.event("answer", text=said)
+            return said
         try:
             out = self.senior.turn(request, self.cancel)
         except BaseException:
@@ -121,7 +184,7 @@ class Pair:
         return out
 
     def close(self, text: str, verdict: str) -> None:
-        if self.engine is not None and self.root:
+        if self.root:
             try:
                 self.engine.finish(self.root, self.lead, self.models[self.lead], verdict, text,
                                    "done" if verdict == "done" else "blocked")
@@ -141,11 +204,13 @@ class Pair:
             self.close("stopped by the person; the junior's tasks go on in the background", "stopped")
             return
         self.stop_junior.set()
-        if self.engine is not None and self.root:
-            try:
-                self.engine.cancel(self.root["id"])
+        for root in {t["root_id"] for t in self.open_tasks() if t.get("root_id")} | ({self.root["id"]} if self.root
+                                                                                    else set()):
+            try:  # every request the Junior has tasks from, not only this one
+                self.engine.cancel(root)
             except Exception:
                 pass
+        self.settle()
 
     def halted(self, task: dict | None) -> bool:
         halt = os.path.join(self.senior.root, HALT)
@@ -157,7 +222,7 @@ class Pair:
             self.stop_junior.set()
         if self.stop_junior.is_set():
             return True
-        if task is not None and self.engine is not None:
+        if task is not None:
             try:
                 return self.engine.state(task["id"]) == "cancelled"
             except Exception:
@@ -203,27 +268,29 @@ class Pair:
 
     def queue(self, rel: str, task: str, kind: str, what: str, hold: list | None = None,
               goal: dict | None = None, attempt: int = 1) -> str:
+        """The task onto the table for the Junior; the table's refusal, if it refuses, is the answer."""
         goal = goal or self.senior.goals.current()
         towards = f"goal {goal['id']}: {goal['text'][:120]}" if goal else "no session goal"
-        table = None
-        if self.engine is not None and self.root:
-            try:
-                table = self.engine.order(self.root["id"], self.lead, self.second, what, f"{what}\nfor {towards}",
-                                          {"write": "write", "distill": "read", "brief": "read"}.get(kind, "check"))
-            except Exception:
-                table = None
-        with self.lock:
-            self.out += 1
-            n = next(self.numbers)
-            self.attempts[n] = attempt
-            for path in (hold if hold is not None else [rel] if rel else []):
-                self.held[path] = n
-            self.listing[n] = {"n": n, "what": what, "goal": towards, "task": table["id"] if table else None}
+        spec = SPEC + json.dumps({"kind": kind, "rel": rel, "hold": list(hold if hold is not None else
+                                                                          [rel] if rel else []),
+                                  "attempt": attempt, "goal": towards}, ensure_ascii=False)
+        try:
+            root = self.request_root()
+            refs = []
+            body = task
+            if len(what) + len(spec) + 1 + len(task) > self.engine.cap(self.second):  # the bulk by reference
+                refs, body = [self.engine.keep(f"task for {self.second}: {what}", task)], ""
+            table = self.engine.order(root["id"], self.lead, self.second, what[:200], f"{spec}\n{body}",
+                                      {"write": "write", "distill": "read", "brief": "read"}.get(kind, "check"), refs)
+        except Exception as e:  # the request's budget spent, hand-offs too deep, too big — said as the table says it
+            return f"error: the Team Table refused this task: {str(e)[:300]}"
+        n = table["id"]
+        self.owed[n] = what
         self.show()
-        self.tasks.put((n, rel, task, kind, table))
-        if self.worker is None or not self.worker.is_alive():
-            self.worker = threading.Thread(target=self.work_queue, daemon=True)
-            self.worker.start()
+        with self.lock:
+            if self.worker is None or not self.worker.is_alive():
+                self.worker = threading.Thread(target=self.work_queue, daemon=True)
+                self.worker.start()
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n}: {what}")
         if kind == "goal":
             return f"task {n} given to your junior ({what}); its files are held for it until it's done."
@@ -412,7 +479,7 @@ class Pair:
             return f"sent to your junior: it reads it at its next step on task {n}"
         with self.lock:
             waiting = n in self.listing
-            if waiting:
+            if waiting:  # kept here until the task starts: a direction is for this session's Junior
                 self.pending_notes.setdefault(n, []).append(note)
         if waiting:
             return f"task {n} hasn't started: your junior gets this with it"
@@ -485,20 +552,21 @@ class Pair:
 
     def review(self, n: int, accept: bool, note: str = "") -> str:
         """The Senior's word on a finished task: accepted, or back to the Junior with the note."""
-        done = self.done.get(n)
-        if not done:
+        table = self.engine.get(n)
+        s = spec_of(table)
+        if not table or table.get("assignee") != self.second or not s or table["status"] != "done":
             return f"error: task {n} isn't finished (or doesn't exist)"
+        done = {"path": s.get("rel", ""), "task": self.instruction(table), "kind": s.get("kind", "write")}
         verdict = "accepted" if accept else "rejected"
-        if done.get("table") is not None and self.engine is not None:
-            try:
-                self.engine.db.update_task(done["table"]["id"], "done", agent_name=self.lead, result=json.dumps(
-                    {"model": self.models[self.lead], "verdict": verdict, "note": note[:300]}, ensure_ascii=False))
-            except Exception:
-                pass
+        try:
+            self.engine.db.update_task(n, "done", agent_name=self.lead, result=json.dumps(
+                {"model": self.models[self.lead], "verdict": verdict, "note": note[:300]}, ensure_ascii=False))
+        except Exception:
+            pass
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n} {verdict}" + (f": {note}" if note else ""))
         if accept:
             return f"task {n} accepted"
-        if self.attempts.get(n, 1) >= 2 and done["path"]:  # its correction attempt was rejected: the senior's now
+        if s.get("attempt", 1) >= 2 and done["path"]:  # its correction attempt was rejected: the senior's now
             self.taken_over.add(done["path"])
             return (f"task {n} was your junior's correction attempt and it's rejected: the corrections to "
                     f"{done['path']} are yours now — make them yourself (edit or replace_lines); the file is free")
@@ -507,12 +575,35 @@ class Pair:
         return said if said.startswith("error") else said + " This is its one correction attempt; after it, they're yours."
 
     # --- the Junior ------------------------------------------------------------------------------------------
-    def work_queue(self) -> None:
-        while True:
+    def claim(self) -> dict | None:
+        """The next task, claimed and marked as the worker's in one step (settle() never answers it too)."""
+        with self.lock:
             try:
-                n, rel, task, kind, table = self.tasks.get(timeout=5)
-            except queue.Empty:
-                return
+                task = self.engine.claim(self.second)
+            except Exception:
+                task = None
+            self.delivering = task["id"] if task else 0
+            return task
+
+    def work_queue(self) -> None:
+        """The Junior's next task, claimed from the table (the person's requests first, then oldest), one at a time;
+        after IDLE seconds with none, the worker ends (the next task starts it again)."""
+        idle = time.monotonic()
+        while True:
+            table = self.claim()
+            if table is None:
+                self.settle()
+                if time.monotonic() - idle < IDLE:
+                    time.sleep(0.2)
+                    continue
+                with self.lock:  # once more under the lock: a task queued just now isn't left without a worker
+                    table = self.claim()
+                    if table is None:
+                        self.worker = None
+                        return
+            s = spec_of(table)
+            n, rel, kind = table["id"], s.get("rel", ""), s.get("kind", "write")
+            task = self.instruction(table)
             try:
                 if self.halted(table):
                     result = "not done: stopped by the person"
@@ -528,22 +619,20 @@ class Pair:
                     result = self.run_task(n, rel, task, kind, table)
             except Exception as e:  # a failing task never stops the Senior
                 result = f"error: the junior couldn't do it ({type(e).__name__})"
-            with self.lock:
-                for path in [p for p, m in self.held.items() if m == n]:
-                    self.held.pop(path, None)
-                self.listing.pop(n, None)
-                self.done[n] = {"path": rel, "task": task, "kind": kind, "table": table}
-                self.out -= 1
+            if self.engine.state(n) == "in_progress":  # closed on the table whatever happened: its files are free
+                try:
+                    self.engine.finish(table, self.second, self.models[self.second], "not done", result)
+                    self.engine.claim(self.lead)
+                except Exception:
+                    pass
+            self.owed.pop(n, None)
             self.senior.inbox.append((n, "task", result))
+            self.delivering = 0
             self.show()
+            idle = time.monotonic()
 
     def run_distill(self, n: int, rel: str, spec: str, table: dict | None) -> str:
         s = json.loads(spec)
-        if table is not None and self.engine is not None:
-            try:
-                self.engine.db.claim_task(table["id"], self.second)
-            except Exception:
-                pass
         self.current, self.current_table = ({rel} if rel else set()), table
         try:
             got = self.junior.distill_now(s["sources"], s["intent"], s["into"], s["format"])
@@ -560,12 +649,7 @@ class Pair:
         return result
 
     def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None, files: list | None = None) -> str:
-        if table is not None and self.engine is not None:
-            try:
-                self.engine.db.claim_task(table["id"], self.second)
-            except Exception:
-                pass
-        self.current = set() if kind == "test" else set(files) if files is not None else {rel}
+        self.current =set() if kind == "test" else set(files) if files is not None else {rel}
         self.current_table = table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
         self.running = {"n": n, "what": f"{kind} {rel}", "since": getattr(self.senior, "progress_total", 0),
@@ -628,14 +712,13 @@ class Crew:
 
     def __init__(self, lead, coder, reader, say=print, engine=False) -> None:
         if engine is False:
-            project = token_of(lead.root) or hashlib.sha1(os.path.realpath(lead.root).encode()).hexdigest()
-            engine = engine_mod.open_engine(project, lead.root)
-            if engine is not None:
-                engine.close_stale()
+            engine = engine_mod.team_engine(project_of(lead.root), lead.root)
         self.lead, self.say = lead, say
-        self.reader = Pair(lead, reader, say, engine)
-        self.coder = Pair(lead, coder, say, engine)   # second: the lead's own hooks are the coder's, then set below
-        self.reader.numbers, self.reader.question_numbers = self.coder.numbers, self.coder.question_numbers
+        # each contributor its own queue on the table; task numbers are the table's, so they never collide
+        self.reader = Pair(lead, reader, say, engine, name="reader")
+        self.coder = Pair(lead, coder, say, engine, name="coder")  # second: the lead's hooks are the coder's, set below
+        self.reader.question_numbers = self.coder.question_numbers
+        self.reader.request_root = self.coder.request_root  # the reader's tasks belong to the request the lead works
         self.pairs = (self.coder, self.reader)
         for p in self.pairs:
             p.show = self.show
@@ -659,11 +742,9 @@ class Crew:
         return sum(p.out for p in self.pairs)
 
     def holder(self, n: int) -> Pair:
-        """The contributor with task n: working on it, waiting with it, or finished with it."""
-        for p in self.pairs:
-            if n in p.listing or n in p.done or (p.running and p.running["n"] == n):
-                return p
-        return self.coder
+        """The contributor with task n: the one it's assigned to on the table."""
+        who = (self.coder.engine.get(n) or {}).get("assignee")
+        return next((p for p in self.pairs if p.second == who), self.coder)
 
     def show(self) -> None:
         out = [x for p in self.pairs for x in p.listing.values()]

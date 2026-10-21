@@ -25,6 +25,14 @@ model's story: `docs/guide-model-journal.md`.
 - **Then (2026-10-21):** the GitHub menu's project actions greyed until signed in and linked, never hidden; **Clone a
   repository…** (File and GitHub menus): address, Find, the search shown back with what was found, then the clone.
   Driven on the NVMe on a hidden screen: a typo'd scheme, a misspelt repo and octocat/Hello-World all as designed.
+- **Published (2026-10-21):** test20 is live at https://cinminaidevbox.github.io/test20/ through the menu (10 files; the
+  workflow and original-request.txt left out by the look's boxes). Also built: workflow Leave-out box, the link dialog
+  saying "Make <name> and link".
+- **The Team Table is AICUI's backbone (2026-10-21):** teams claim their tasks from the table (no queue beside it);
+  task numbers are the table's; long instructions by reference; the budget/depth/size refusals reach the lead (they
+  were swallowed: `except Exception: table = None`); a task stopped before it started is still answered; no team
+  without the table. SPEC §22.4 "as built". Not yet: one model alone on the table; the Junior's results still reach
+  the lead through its in-process inbox (the table holds them too).
 - **Ian, once:** add *Pages: Read and write* to the AICUI GitHub app, accept it on the installations.
 - **Next:** build and install on the NVMe; publish test20 through the menu (the look should flag its contact block,
   its © 2023, original-request.txt and the workflow); then the guided setup that names the machine. The store itself

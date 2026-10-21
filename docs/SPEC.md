@@ -2065,6 +2065,15 @@ failed, cancelled) and its result. Every token is written to the record.
   a framework the 27B lays in 1:53 on the card); working *at the same time* is where the gain is.
 - **Stop** cancels a request and every token under it.
 
+*As built for AICUI's teams (2026-10-21, Ian: "make the table the backbone"; `aicui/pair.py`, `aicui/tandem.py`,
+`engine.py`):* the Junior, a crew's coder and reader, and team A's helper each claim their next task from the table
+(`next_task`: the person's first, then oldest); there's no queue beside it. A task's number is its number on the table
+(as the Requests view shows it); what it holds, its kind and its attempt are written on it, and an instruction too long
+for its member travels by reference. The table's refusals — the request's budget spent, hand-offs too deep, a task too
+big — are the lead's answer, never swallowed. A task stopped on the table before it started (Stop, or the Requests
+view) is still answered: "not done: stopped by the person". A team doesn't run without the table: if it can't be
+opened, AICUI says why and the lead works alone. One model alone isn't on the table yet.
+
 ### 22.5 Roles and hand-offs (D94)
 
 - **The guide** (the model we trained and measured) holds the system and admin tools; it orchestrates, retrieves

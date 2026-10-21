@@ -2898,20 +2898,29 @@ def main(argv=None) -> int:
         for h, (b, _) in zip(helpers, crew):
             h.web = True  # "fetch this": the contributors search and fetch, each asked of the person first
             h.model_file, h.card = getattr(b, "model_file", ""), getattr(b, "card", "")  # their measured limits
+        try:  # the crew works through the Team Table too; without it, the cloud model works alone and says why
+            team_b = pair_mod.Crew(agent, helpers[0], helpers[1], say=said) if len(helpers) == 2 else \
+                pair_mod.Pair(agent, helpers[0], say=said)
+        except RuntimeError as e:
+            team_b, helpers = None, []
+            print(f"\033[33mThe crew can't start ({e}); the cloud model works alone.\033[0m")
         if len(helpers) == 2:
-            team_b = pair_mod.Crew(agent, helpers[0], helpers[1], say=said)
             agent.cloud_crew = (f"Two contributors: {crew[0][1]} writes, fixes, checks and tests; {crew[1][1]}, the "
                                 "faster, fetches, reads and briefs.")
-        else:
-            team_b = pair_mod.Pair(agent, helpers[0], say=said)
+        elif helpers:
             agent.cloud_crew = f"One contributor: {crew[0][1]} — it reads, writes, tests and fixes."
-        print(f"\033[2m{agent.cloud_crew}\033[0m")
+        if helpers:
+            print(f"\033[2m{agent.cloud_crew}\033[0m")
     if both:  # style B: this agent is the Senior; the 9B Junior codes beside it (pair.py)
         junior = Agent(root, junior_backend.chat, junior_name, mode, a.admin,
                        ctx=int(junior_backend.cfg.get("context", 8192)),
                        say=lambda s: said(f"(junior) {s}", "junior"))
         junior.model_file, junior.card = getattr(junior_backend, "model_file", ""), getattr(junior_backend, "card", "")
-        team_b = pair_mod.Pair(agent, junior, say=said)
+        try:  # a team works through the Team Table (pair.py): without it, the Senior works alone and says why
+            team_b = pair_mod.Pair(agent, junior, say=said)
+        except RuntimeError as e:
+            team_b = None
+            print(f"\033[33mTeam B can't start ({e}); the Senior works alone.\033[0m")
         if senior_sees:
             agent.reader = lambda: agent.chat
     if cloud["role"] == "advisor":  # the local models work; the cloud is asked when it helps (advisor.py)
@@ -2950,7 +2959,12 @@ def main(argv=None) -> int:
         if a.solo or use_cloud or guide() is None:  # the cloud works alone: no local model loads
             return None
         if pair["tandem"] is None:
-            pair["tandem"] = tandem_mod.Tandem(agent, pair["junior"].chat, say=lambda s: print(f"\r\033[K{s}"))
+            try:  # the tandem works through the Team Table: without it, the coder works alone and says why, once
+                pair["tandem"] = tandem_mod.Tandem(agent, pair["junior"].chat, say=lambda s: print(f"\r\033[K{s}"))
+            except RuntimeError as e:
+                pair["failed"] = True
+                print(f"\033[33mThe helper can't work beside the coder ({e}); the coding model works alone.\033[0m")
+                return None
         return pair["tandem"]
 
     def reader():  # look's one question goes to the guide when it has its picture reader (look.py)
