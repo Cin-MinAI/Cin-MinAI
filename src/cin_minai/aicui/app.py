@@ -925,14 +925,21 @@ class Workspace(Gtk.ApplicationWindow):
         from . import github_link
         d = Gtk.Dialog(title="Link this project to GitHub", transient_for=self, modal=True)
         d.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        d.add_button("Link", Gtk.ResponseType.OK)
+        ok = d.add_button("Link", Gtk.ResponseType.OK)
         box = d.get_content_area()
         box.set_spacing(8)
         box.set_border_width(16)
-        new = Gtk.RadioButton(label="A new repository")
+        new = Gtk.RadioButton(label="A new repository (AICUI makes it on GitHub for you)")
         name = Gtk.Entry(text=os.path.basename(self.root.rstrip("/")))
         private = Gtk.CheckButton(label="Private (only you can see it)", active=True)
         old = Gtk.RadioButton(label="One of my repositories", group=new)
+
+        def say(*_) -> None:
+            # the button says what it's about to do (Ian, 2026-10-21: he made his own repository, unsure it would)
+            ok.set_label(f"Make {name.get_text().strip() or 'it'} and link" if new.get_active() else "Link")
+        new.connect("toggled", say)
+        name.connect("changed", say)
+        say()
         pick = Gtk.ComboBoxText()
         pick.append("", "loading…")
         pick.set_active(0)
