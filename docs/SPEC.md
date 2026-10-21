@@ -2162,6 +2162,11 @@ or the Team menu (`aicui/tableview.py`, `aicui/conference.py`, `.cinminai/table.
   seat works its queue in AICUI; the lead's assign and brief take `to`, a seat's name; a goal on the paper goes to its
   seat once its needs are in. One writer per file across all seats; the same permission modes for everyone; Stop
   everything stops every seat in AICUI and cancels the outside seats' tasks.
+- **A task holds every file its work needs** (Ian, 2026-10-21): the lead's assign takes `also`, the other files the
+  same task may change, new ones included. Test21's first hour showed why: a strong lead writes "make the scene, its
+  script, the README and run.sh", a task holding one file came back half done, and the lead sent it back three times.
+  None of a task's files may be held by any seat's open task. Outside the table, a senior and its junior keep one file
+  per task.
 - **Talking:** beside the tasks, the table has a conversation, one speaker at a time — Team Table's floor (`say`,
   `pass_floor`, `request_floor`, `take_floor`): the holder speaks, the floor passes by name, to whoever waits, or round
   the table; the person and the lead speak whenever they need to; a holder silent for 3 minutes loses the floor. What's

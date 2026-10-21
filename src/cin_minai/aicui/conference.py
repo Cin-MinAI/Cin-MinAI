@@ -360,6 +360,7 @@ class Table:
                 self.outside[s["name"]] = None  # made once the lead's member is known (below)
             elif s["name"] in seats:
                 p = Pair(lead, seats[s["name"]], say, engine, name=slug(s["name"]))
+                p.many = True  # a task here may hold several files (the lead's `also`)
                 p.goal_whos = (s["name"],) if first is not None else ("junior", s["name"])  # its goals; a
                 #   plan's "junior" goals go to the first seat in AICUI
                 if first is not None:
@@ -438,10 +439,28 @@ class Table:
         return next((s for s in self.seats().values() if s.second == who), self.first)
 
     # --- the lead's tools -------------------------------------------------------------------------------------------
-    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1, to: str = "") -> str:
+    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1, to: str = "",
+               also: list | None = None) -> str:
+        """`also`: more files the same task holds, new ones included; none may be held by another task."""
         seat = self.seat_for(to)
         if seat is None:
             return f"error: there's no seat \"{to}\" at the table — the seats: {self.seats_text()}"
+        root = os.path.realpath(self.lead.root)
+        main = os.path.relpath(os.path.realpath(os.path.join(root, path)), root).replace(os.sep, "/")
+        held = "" if kind == "test" else self.lead.may_write(main)  # held by any seat's task, not only this one's
+        if held:
+            return f"error: {held}"
+        more = []
+        for f in [] if kind == "test" else also or []:
+            full = os.path.realpath(os.path.join(root, str(f)))
+            if not full.startswith(root + os.sep) or os.path.isdir(full):
+                return f"error: {f} isn't a file in the project"
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            held = self.lead.may_write(rel)
+            if held:
+                return f"error: {held}"
+            if rel != main and rel not in more:
+                more.append(rel)
         if isinstance(seat, OutsideSeat):
             root = os.path.realpath(self.lead.root)
             full = os.path.realpath(os.path.join(root, path))
@@ -455,8 +474,8 @@ class Table:
                 return (f"error: {rel} doesn't exist yet — lay the skeleton first (the file with its imports, classes "
                         "and signatures, stubs marked TODO), then assign it")
             return seat.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200],
-                              hold=[] if kind == "test" else [rel], attempt=attempt)
-        return seat.assign(path, task, kind, attempt)
+                              hold=[] if kind == "test" else [rel, *more], attempt=attempt)
+        return seat.assign(path, task, kind, attempt, also=more or None)
 
     def brief(self, files: list, question: str, to: str = "") -> str:
         seat = self.seat_for(to) if to else self.first

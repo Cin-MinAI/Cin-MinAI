@@ -137,6 +137,37 @@ class Running(unittest.TestCase):
         self.assertIn("by Claude. It said: draw() now pops the top card", text)
         self.assertEqual(lead.do({"tool": "review_task", "n": n, "accept": True, "note": ""}), f"task {n} accepted")
 
+    def test_a_task_at_the_table_holds_every_file_its_work_needs(self):
+        """Ian, 2026-10-21 (test21): the lead wrote "make the scene, its script, the README and run.sh", the task held
+        one file, and it came back half done three times. `also` names the others, new ones included."""
+        lead, coder, t = self.table([step("Both.", tool="write", path="deck.py", content="DECK = []\n"),
+                                     step("", tool="edit", path="rules.py", old="    # TODO\n    pass\n",
+                                          new="    return deck.pop(0)\n"),
+                                     step("", tool="answer", text="deck.py made, draw() filled.")])
+        given = lead.do({"tool": "assign", "path": "rules.py", "task": "fill draw and make deck.py" + DETAIL,
+                         "kind": "write", "to": "Claude", "also": ["notes/plan.md", "rules.py"]})
+        self.assertIn("put on the table for Claude", given)
+        self.assertEqual(set(t.outside["Claude"].held), {"rules.py", "notes/plan.md"})
+        self.assertIn("held by Claude's task", lead.do(
+            {"tool": "assign", "path": "rules.py", "task": "x" * 30 + DETAIL, "kind": "write", "to": "coder"}))
+        self.assertIn("held by Claude's task", lead.do(  # a file it also holds is held too
+            {"tool": "assign", "path": "rules.py", "task": "x" * 30 + DETAIL, "kind": "write", "to": "coder",
+             "also": ["notes/plan.md"]}))
+        self.engine.db.cancel_task(int(given.split()[1]), t.lead_member)  # the lead stops it: its files are free
+        self.assertIn("isn't a file in the project", lead.do(
+            {"tool": "assign", "path": "rules.py", "task": "x" * 30 + DETAIL, "to": "coder", "also": ["../x.py"]}))
+        given = lead.do({"tool": "assign", "path": "rules.py", "task": "fill draw and make deck.py" + DETAIL,
+                         "kind": "write", "to": "coder", "also": ["deck.py"]})  # a local seat: both files are its
+        self.assertIn("given to your junior", given)
+        self.wait(t)
+        with open(os.path.join(self.root, "rules.py")) as f:
+            self.assertIn("return deck.pop(0)", f.read())
+        with open(os.path.join(self.root, "deck.py")) as f:
+            self.assertEqual(f.read(), "DECK = []\n")
+        coder_pair = next(iter(t.pairs.values()))
+        coder_pair.many = False  # a senior and its junior outside the table: one file per task, as before
+        self.assertIn("one file per task here", coder_pair.assign("rules.py", "x" * 30 + DETAIL, also=["deck.py"]))
+
     def test_goals_on_the_paper_go_to_their_seat(self):
         lead, coder, t = self.table()
         g = lead.goals.add("The deck shuffles", by="user", files=["rules.py"], who="Claude")

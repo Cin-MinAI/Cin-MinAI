@@ -76,6 +76,7 @@ class Pair:
         self.worker: threading.Thread | None = None
         self.taken_over: set[str] = set()            # files whose corrections are the senior's now
         self.current: set[str] = set()               # the files of the task the Junior works now
+        self.many = False                            # at the Team Table: a task may hold several files (`also`)
         self.stop_junior = threading.Event()
         self.delivering = 0                          # the task the Junior has claimed, until its result is delivered
         self.owed: dict[int, str] = {}               # tasks given and not answered yet: id -> what
@@ -233,10 +234,13 @@ class Pair:
         self.senior.event("errands", out=sorted(self.listing.values(), key=lambda x: x["n"]))
 
     # --- the Senior's tools ----------------------------------------------------------------------------------
-    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1, to: str = "") -> str:
+    def assign(self, path: str, task: str, kind: str = "write", attempt: int = 1, to: str = "",
+               also: list | None = None) -> str:
         """One file for the Junior: it must exist (the skeleton first) and not be held already. The protocol (Ian,
         2026-10-15): the senior gives the code specifics; the junior starts each task fresh, within its limits; a
-        rejected task goes back once with the corrections, and after that the senior makes the corrections itself."""
+        rejected task goes back once with the corrections, and after that the senior makes the corrections itself.
+        At the Team Table (`many`), `also` names more files the same task holds, new ones included (Ian, 2026-10-21:
+        a lead there writes "make these five files", and a task holding one came back half done)."""
         root = os.path.realpath(self.senior.root)
         full = os.path.realpath(os.path.join(root, path))
         if not full.startswith(root + os.sep):
@@ -247,11 +251,14 @@ class Pair:
                 return "error: say what the junior should run and look for"
             return self.queue(rel if os.path.exists(full) else "", task.strip(), "test",
                               f"test {rel}: {task.strip()}"[:200], hold=[])
+        if also and not self.many:
+            return "error: one file per task here — give the other files their own tasks"
         if not os.path.isfile(full):
             return (f"error: {rel} doesn't exist yet — lay the skeleton first (the file with its imports, classes and "
                     "signatures, stubs marked TODO), then assign it")
-        if rel in self.held:
-            return f"error: {rel} is already held by task {self.held[rel]}"
+        for f in [rel, *(also or [])]:
+            if f in self.held:
+                return f"error: {f} is already held by task {self.held[f]}"
         if len(task.strip()) < 8:
             return "error: say what the junior should do in this file"
         if kind == "fix" and rel in self.taken_over:
@@ -264,7 +271,8 @@ class Pair:
         if len(task) > cap:
             return (f"error: that task is {len(task):,} characters, over the {cap:,} your junior takes in one task (5 % "
                     "of its context): split it into tasks of one function or part each")
-        return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200], attempt=attempt)
+        return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200], attempt=attempt,
+                          hold=[rel, *(also or [])])
 
     def queue(self, rel: str, task: str, kind: str, what: str, hold: list | None = None,
               goal: dict | None = None, attempt: int = 1) -> str:
@@ -572,7 +580,8 @@ class Pair:
             return (f"task {n} was your junior's correction attempt and it's rejected: the corrections to "
                     f"{done['path']} are yours now — make them yourself (edit or replace_lines); the file is free")
         said = self.assign(done["path"], f"Correction of task {n} — your senior's corrections: {note}\n"
-                                         f"The task was: {done['task']}", done["kind"], attempt=2)
+                                         f"The task was: {done['task']}", done["kind"], attempt=2,
+                           also=[f for f in s.get("hold", []) if f != done["path"]] or None)
         return said if said.startswith("error") else said + " This is its one correction attempt; after it, they're yours."
 
     # --- the Junior ------------------------------------------------------------------------------------------
@@ -617,7 +626,7 @@ class Pair:
                     result = self.run_task(n, ", ".join(spec["files"]) or f"goal {spec['goal']}", spec["text"], kind,
                                            table, files=spec["files"])
                 else:
-                    result = self.run_task(n, rel, task, kind, table)
+                    result = self.run_task(n, rel, task, kind, table, files=s.get("hold") or None)
             except Exception as e:  # a failing task never stops the Senior
                 result = f"error: the junior couldn't do it ({type(e).__name__})"
             if self.engine.state(n) == "in_progress":  # closed on the table whatever happened: its files are free
@@ -650,7 +659,7 @@ class Pair:
         return result
 
     def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None, files: list | None = None) -> str:
-        self.current =set() if kind == "test" else set(files) if files is not None else {rel}
+        self.current = set() if kind == "test" else set(files) if files is not None else {rel}
         self.current_table = table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
         self.running = {"n": n, "what": f"{kind} {rel}", "since": getattr(self.senior, "progress_total", 0),
@@ -659,7 +668,7 @@ class Pair:
         if notes:
             task += "\nYour senior adds: " + " ".join(notes)
         may = ("Change no file: run what's needed and report what works and what fails, with the errors as they "
-               "were printed." if kind == "test" else f"You may change only {rel}.")
+               "were printed." if kind == "test" else f"You may change only {', '.join(sorted(self.current))}.")
         lim = self.limits()
         may += (f"\nThis task's limits: {lim['steps']} steps" + ("" if kind == "test" else
                 f", {lim['lines']} lines of code written or changed") + ("" if lim["measured"] else

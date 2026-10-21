@@ -105,7 +105,8 @@ ACTIONS = [
                 "type": "object", "additionalProperties": False, "required": ["what", "kind"],
                 "properties": {"what": STR, "kind": {"enum": list(NEED_KINDS)}}}},
             "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
-    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "fix", "check", "test"]}, "to": STR},
+    {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "fix", "check", "test"]}, "to": STR,
+     "also": {"type": "array", "items": STR, "maxItems": 8}},
     {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
     {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR,
      "to": STR},
@@ -117,7 +118,7 @@ ACTIONS = [
     {"tool": "pass_floor", "to": STR},
     {"tool": "request_floor"},
 ]
-OPTIONAL = {"start", "goal", "into", "format", "kind", "network", "to"}
+OPTIONAL = {"start", "goal", "into", "format", "kind", "network", "to", "also"}
 TABLE_TOOLS = {"say", "pass_floor", "request_floor"}  # the conference table's conversation (conference.py)
 SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit", "wait"}  # style B's Senior
 WAIT_MAX_S = 900  # wait: until the junior's next result, or this long (Ian, 2026-10-14: wait, don't ask the person)
@@ -324,7 +325,8 @@ SENIOR_TABLE = """
 You lead the Team Table: you wear the crown, and the person chose who sits with you. The seats: {seats}.
 A local seat costs nothing; a cloud seat is paid by the token; an outside agent works from its own place and claims
 its tasks there. Give each seat what suits it — assign (`path`, `task`, `kind`, `to` the seat's name: write a file (it
-exists first: lay its skeleton), fix it, check it, or test), brief (`files`, `question`, `to`): a seat in AICUI reads
+exists first: lay its skeleton), fix it, check it, or test; `also`: the other files the same task may change, new ones
+included — a seat changes only the files its task holds, so name every file the work needs), brief (`files`, `question`, `to`): a seat in AICUI reads
 files and answers you. The goals on the paper may be assigned to seats already: they go to their seat once their
 needs are in. Results come between your steps: review_task (`n`, `accept`, `note`); a long task gets a progress
 report: let it work, or direct it with follow_up (`n`, `note`). The table also talks, one speaker at a time: say
@@ -2301,7 +2303,8 @@ class Agent:
                 if not callable(fn):
                     return "no junior is working with you here"
                 return (fn(a.get("path", ""), a.get("task", ""), a.get("kind", "write"),
-                           **({"to": str(a["to"])} if a.get("to") else {})) if t == "assign" else
+                           **({"to": str(a["to"])} if a.get("to") else {}),
+                           **({"also": [str(f) for f in a["also"]]} if a.get("also") else {})) if t == "assign" else
                         fn(int(a.get("n") or 0), bool(a.get("accept")), a.get("note", "")))
             if t in TABLE_TOOLS:  # the conference table's conversation: one speaker at a time (conference.py)
                 fn = getattr(self, "table_fn", None)
