@@ -2746,6 +2746,13 @@ class Agent:
 
 
 # --- the model -------------------------------------------------------------------------------------------------
+def cloud_leads(cloud: dict, team: str) -> bool:
+    """The cloud model of the Cloud models menu runs this project (docs/accounts-and-cloud.md) — not at the Team
+    Table, whose seats name their own models (2026-10-21: raising the budget in that menu saved its role "lead", and
+    test21's table quietly started as a cloud lead with a local helper instead)."""
+    return cloud["role"] in ("finisher", "exclusive", "lead") and team != "table"
+
+
 def unload_guide() -> None:
     """The assistant's guide model off the card (one card, one model): the daemon reloads it when it's next asked."""
     try:
@@ -2884,8 +2891,8 @@ def main(argv=None) -> int:
     from . import pair as pair_mod
     from cin_minai.inference import cloud as cloud_mod
     cloud = cloud_mod.settings(root)
-    use_cloud = cloud["role"] in ("finisher", "exclusive", "lead")  # docs/accounts-and-cloud.md
     team, both, crew = pair_mod.team_of(root), None, []  # crew: the cloud lead's local contributors (backend, name)
+    use_cloud = cloud_leads(cloud, team)
     if team == "solo":  # one local model after a team (Ian, 2026-10-14): the coder alone, as --solo
         a.solo = True
     if use_cloud:

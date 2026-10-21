@@ -44,6 +44,15 @@ class Setup(unittest.TestCase):
         same = {"seats": [SETUP["seats"][0], dict(SETUP["seats"][1], name="haiku")]}
         self.assertIn("two seats have the same name", conference.problems(same))
 
+    def test_the_cloud_menus_lead_doesnt_take_the_tables_place(self):
+        """test21, 2026-10-21: raising the budget saved the Cloud models menu's role "lead", and the table started as
+        a cloud lead with a local helper — Haiku and Claude Code never sat down."""
+        from cin_minai.aicui.agent import cloud_leads
+        lead = {"role": "lead", "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "budget_usd": 5.0}
+        self.assertFalse(cloud_leads(lead, "table"))
+        self.assertTrue(cloud_leads(lead, "A"))
+        self.assertFalse(cloud_leads(dict(lead, role="off"), "A"))
+
     def test_saved_with_the_project(self):
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
