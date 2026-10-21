@@ -118,6 +118,7 @@ class Running(unittest.TestCase):
         self.assertIn("Coder (local: Qwen3.5-9B-Q4_K_M)", lead.system())
         self.assertIn("Claude (outside agent: Claude Code", lead.system())
         self.assertIn("You lead the Team Table", lead.system())
+        self.assertIn("tests to add are a write task", lead.system())  # test21: "test" read as "write the tests"
         given = lead.do({"tool": "assign", "path": "rules.py", "task": "fill draw so it takes the top card" + DETAIL,
                          "kind": "write", "to": "coder"})
         self.assertIn("given to your junior (write rules.py)", given)
