@@ -89,6 +89,9 @@ class SeatServer(unittest.TestCase):
         self.assertIn("isn't part of your task", refused["error"])
         self.assertTrue(self.call("read_file", path="../etc/passwd")[1])  # outside the project: refused
         self.assertTrue(self.call("read_file", path=".cinminai/table.json")[1])  # AICUI's own: refused
+        with mock.patch("cin_minai.engine.table_path", return_value=os.path.join(self.root, ".table.db")), \
+                mock.patch("cin_minai.aicui.pair.project_of", return_value="test0006"):
+            self.seat = seatmcp.Seat(self.root, "claude")  # the agent reconnected: its task is found on the table
         done, failed = self.call("edit_file", path="rules.py", old="    # TODO\n    pass\n", new="    return deck.pop(0)\n")
         self.assertFalse(failed, done)
         self.assertEqual(self.lead.log.entries()[-1]["model"], "claude (outside agent)")  # in the changelog, with undo

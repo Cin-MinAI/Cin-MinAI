@@ -69,6 +69,13 @@ class Seat:
         self.current: dict | None = None
 
     # --- the table ---
+    def working_on(self) -> dict | None:
+        """The task this seat has in progress, as the table holds it (a reconnected agent finds it again)."""
+        if self.current and self.engine.state(self.current["id"]) == "in_progress":
+            return self.current
+        self.current = next((t for t in self.engine.open_for(self.member) if t["status"] == "in_progress"), None)
+        return self.current
+
     def seated(self) -> bool:
         return self.engine.db.member_exists(self.member)
 
@@ -95,7 +102,7 @@ class Seat:
 
     def next_task(self, a: dict) -> dict:
         from .pair import spec_of
-        if self.current and self.engine.state(self.current["id"]) == "in_progress":
+        if self.working_on():
             return {"error": f"finish task {self.current['id']} first (finish_task)"}
         t = self.engine.claim(self.member)
         if t is None:
@@ -157,8 +164,8 @@ class Seat:
 
     def holds(self, rel: str) -> str:
         from .pair import spec_of
-        t = self.current
-        if not t or self.engine.state(t["id"]) != "in_progress":
+        t = self.working_on()
+        if not t:
             return "you have no task in progress: next_task first"
         if rel not in spec_of(t).get("hold", []):
             return f"{rel} isn't part of your task — you may change only {', '.join(spec_of(t).get('hold', [])) or 'nothing'}"

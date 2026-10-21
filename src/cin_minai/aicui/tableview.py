@@ -302,8 +302,9 @@ class TableWindow(Gtk.Window):
                         err.run()
                         err.destroy()
                         continue
-            if new["name"] != seat["name"]:
-                conference.remove_key(self.root, seat["name"])
+            if new["name"] != seat["name"] or new.get("where") != "away":  # renamed, or no longer an outside
+                conference.remove_key(self.root, seat["name"])  # agent from away: its old key goes (2026-10-21: a
+                #   seat changed from outside to cloud kept its key, and the agent sat down in the wrong seat)
             if new["lead"]:
                 for s in self.setup["seats"]:
                     s.pop("lead", None)
