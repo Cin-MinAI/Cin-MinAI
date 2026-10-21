@@ -130,11 +130,10 @@ class Workspace(Gtk.ApplicationWindow):
         if screen:  # the AI runs without a display: what the person's screen is, read here (2026-10-08: a 1280x720
             env.append(f"CINMINAI_SCREEN={screen}")  # window on a 4K screen at 3x scaling was a third of its width)
         # the agent starts in the terminal; leaving it (Ctrl+D) leaves a normal shell in the project folder
-        shell = os.environ.get("SHELL", "/bin/bash")
-        self.term.spawn_async(Vte.PtyFlags.DEFAULT, root, [shell, "-c", f"{self.agent_command()}; exec {shell}"],
-                              env, GLib.SpawnFlags.DEFAULT, None, None, -1, None, None, None)
-        self.term.connect("child-exited", lambda *a: self.bubble("app", "The terminal's shell ended. Open the folder "
-                                                                       "again to get a new one."))
+        self.term_env, self.agent_pid, self.stopping, self.stop_gen, self.runs = env, 0, False, 0, []
+        self.spawn_agent()
+        self.term.connect("child-exited", lambda *a: None if self.stopping else self.bubble(
+            "app", "The terminal's shell ended. Open the folder again to get a new one."))
         self.events_at = os.path.getsize(self.events_path()) if os.path.exists(self.events_path()) else 0
         GLib.timeout_add(400, self.follow_events)
         self.watcher = Watcher(self.log)  # changes made outside AICUI, into the changelog too (D61)
@@ -216,6 +215,54 @@ class Workspace(Gtk.ApplicationWindow):
         GLib.idle_add(self.offer_resume)
 
     # --- the agent in the terminal -----------------------------------------------------------------------
+    def spawn_agent(self) -> None:
+        shell = os.environ.get("SHELL", "/bin/bash")
+
+        def started(term, pid, error, data=None) -> None:
+            self.agent_pid = pid if pid and pid > 0 else 0
+        self.term.spawn_async(Vte.PtyFlags.DEFAULT, self.root, [shell, "-c", f"{self.agent_command()}; exec {shell}"],
+                              self.term_env, GLib.SpawnFlags.DEFAULT, None, None, -1, None, started, None)
+
+    def stop_everything(self) -> None:
+        """The master Stop (stopall.py; Ian, 2026-10-21): all of this session ends now — the AI and its models, its
+        commands and searches, the virtual screens, what Run started, git at work — and its tasks are cancelled on the
+        Team Table. Other projects' windows go on. A fresh AI waits in the terminal; models load at the next request."""
+        from . import stopall
+        from .pair import project_of
+        others = set()
+        for w in self.get_application().get_windows() if self.get_application() else []:
+            if w is not self and isinstance(w, Workspace):
+                others |= {w.agent_pid} | {int(r.get_identifier() or 0) for r in w.runs}
+        mine = [self.agent_pid] + [int(r.get_identifier() or 0) for r in self.runs]
+        helpers = [p for p in stopall.children().get(os.getpid(), []) if p not in others]  # git at work, a build…
+        self.stopping, self.stop_gen = True, self.stop_gen + 1
+        ended = stopall.stop_all([p for p in mine + helpers if p], keep={os.getpid()} | others)
+        self.runs.clear()
+        cancelled = 0
+        try:
+            from cin_minai import engine as engine_mod
+            e = engine_mod.open_engine(project_of(self.root), self.root)
+            if e is not None:
+                cancelled = e.close_stale()
+        except Exception:
+            pass
+        for name in ("keep-errands", "stop-errands"):
+            try:
+                os.remove(os.path.join(self.root, ".cinminai", name))
+            except OSError:
+                pass
+        self.busy = None
+        self.busy_box.hide()
+        self.term.feed(b"\r\n\x1b[1;31m-- Stopped everything --\x1b[0m\r\n")
+        self.spawn_agent()
+        GLib.timeout_add(1500, lambda: (setattr(self, "stopping", False), False)[1])
+        self.bubble("app", f"Stopped everything: {ended} process{'' if ended == 1 else 'es'} ended — the AI, its "
+                           "models, commands and searches, and anything Run started"
+                           + (f"; {cancelled} request{'' if cancelled == 1 else 's'} cancelled on the Team Table"
+                              if cancelled else "")
+                           + ". What was done stays in the changelog, with undo. A fresh AI is waiting in the "
+                             "terminal; the models load again at your next request.")
+
     def agent_command(self) -> str:
         mode = self.perms.get_active_id() if hasattr(self, "perms") else "ask"
         flags = {"auto": " --auto", "none": " --no-permissions"}.get(mode, "")
@@ -463,6 +510,7 @@ class Workspace(Gtk.ApplicationWindow):
         except GLib.Error as e:
             self.bubble("app", f"Couldn't start {entry}: {e.message}")
             return
+        self.runs = [r for r in self.runs if r.get_identifier()] + [proc]  # the master Stop ends these too
         self.bubble("app", f"Running {entry}…")
         proc.communicate_utf8_async(None, None, self.ran, entry)
 
@@ -537,6 +585,13 @@ class Workspace(Gtk.ApplicationWindow):
         box = Gtk.Box(spacing=6, margin_top=4, margin_start=4)
         for w in (file_button, self.team_button, context, bench, look):
             box.pack_start(w, False, False, 0)
+        # the master Stop, in the middle (Ian, 2026-10-21): no question first — it's for when everything must end now
+        halt = Gtk.Button(label="Stop everything")
+        halt.get_style_context().add_class("destructive-action")
+        halt.set_tooltip_text("End everything in this project now: the AI and its models, its commands and searches, "
+                              "and anything Run started. What was done stays, with undo.")
+        halt.connect("clicked", lambda b: self.stop_everything())
+        box.set_center_widget(halt)
         cloud = Gtk.Button(label="Cloud models")
         cloud.set_tooltip_text("A cloud model with your own API key: finish a project, or work with the cloud only")
         cloud.connect("clicked", self.cloud_menu)
@@ -1209,11 +1264,14 @@ class Workspace(Gtk.ApplicationWindow):
             from cin_minai.inference import reach
             try:
                 site = github.enable_pages(full, branch)
+                gen = self.stop_gen
                 for _ in range(36):  # GitHub builds the site: up to about three minutes
-                    if site.get("status") in ("built", "errored"):
+                    if site.get("status") in ("built", "errored") or self.stop_gen != gen:  # or Stop everything
                         break
                     time.sleep(5)
                     site = github.pages(full) or site
+                if self.stop_gen != gen:  # Stop everything: the wait ends here, nothing more is said or done
+                    return
                 live = ""
                 if site.get("url") and site.get("status") == "built":
                     with reach.out("web", "GitHub Pages"):
