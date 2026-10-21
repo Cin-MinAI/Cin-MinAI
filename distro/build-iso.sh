@@ -78,8 +78,13 @@ xorriso -osirrox on -indev "$iso_in" \
     -extract /casper/filesystem.squashfs "$b/filesystem.squashfs.orig" \
     -extract /casper/filesystem.manifest "$b/manifest.upstream" \
     -extract /casper/filesystem.size "$b/size.upstream" \
+    -extract /casper/filesystem.manifest-remove "$b/iso/filesystem.manifest-remove" \
     -extract /md5sum.txt "$b/iso/md5sum.txt" 2>&1 | tail -1
-chmod u+w "$b/iso/md5sum.txt" "$b/manifest.upstream"
+chmod u+w "$b/iso/md5sum.txt" "$b/manifest.upstream" "$b/iso/filesystem.manifest-remove"
+# The installer removes the packages in filesystem.manifest-remove from the installed system. Mint's list has
+# ubiquity but not casper, so installs kept the live system's casper-md5check, which fails on every boot
+# looking for /cdrom (seen on Ian's NVMe, 2026-10-20; plain Mint 22.3 does the same).
+grep -qx casper "$b/iso/filesystem.manifest-remove" || echo casper >> "$b/iso/filesystem.manifest-remove"
 unsquashfs -s "$b/filesystem.squashfs.orig" > "$b/squashfs-info.txt"
 comp=$(awk '/^Compression/ {print $2}' "$b/squashfs-info.txt")
 bsize=$(awk '/^Block size/ {print $3}' "$b/squashfs-info.txt")
@@ -219,6 +224,7 @@ rm -f "$b/initrd.upstream"
 log "md5sum.txt"
 maps=(-map "$b/iso/filesystem.squashfs" /casper/filesystem.squashfs
       -map "$b/iso/filesystem.manifest" /casper/filesystem.manifest
+      -map "$b/iso/filesystem.manifest-remove" /casper/filesystem.manifest-remove
       -map "$b/iso/filesystem.size" /casper/filesystem.size
       -map "$b/iso/initrd.lz" /casper/initrd.lz)
 # Boot menus in our name (boot check 1, 2026-09-28: the menu still said "Start Linux Mint 22.3 Cinnamon").
@@ -285,7 +291,8 @@ maps+=(-map "$cfg/boot/grub/grub.cfg" /boot/grub/grub.cfg -map "$cfg/isolinux/li
 maps+=(-map "$model" "/cinminai/models/$GUIDE_FILE")
 grep -q "cinminai/models/$GUIDE_FILE\$" "$b/iso/md5sum.txt" ||
     echo "$(md5sum "$model" | cut -d' ' -f1)  ./cinminai/models/$GUIDE_FILE" >> "$b/iso/md5sum.txt"
-for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.size casper/initrd.lz; do
+for f in casper/filesystem.squashfs casper/filesystem.manifest casper/filesystem.manifest-remove casper/filesystem.size \
+         casper/initrd.lz; do
     sum=$(md5sum "$b/iso/$(basename "$f")" | cut -d' ' -f1)
     sed -i "s#^[0-9a-f]\{32\}  \./$f\$#$sum  ./$f#" "$b/iso/md5sum.txt"
 done

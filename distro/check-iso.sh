@@ -76,8 +76,11 @@ if [[ $first_g == 1 && $first_i == 1 ]] && grep -q "open-source NVIDIA driver (n
 else bad "screen first: boot entries (grub first=$first_g, isolinux live=$first_i)"; fi
 splash=$(python3 "$here/initrd_splash.py" list "$mnt/casper/initrd.lz" 2>&1 | grep "default.plymouth ->")
 case $splash in *themes/cinminai/cinminai.plymouth*) ok "live boot splash is ours ($splash)" ;; *) bad "live boot splash: $splash" ;; esac
-if ( cd "$mnt" && grep -E ' \./(casper/(filesystem\.(squashfs|manifest|size)|initrd\.lz)|boot/grub/grub\.cfg|isolinux/live\.cfg|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then
+if ( cd "$mnt" && grep -E ' \./(casper/(filesystem\.(squashfs|manifest|manifest-remove|size)|initrd\.lz)|boot/grub/grub\.cfg|isolinux/live\.cfg|cinminai/models/[^/]+)$' md5sum.txt | md5sum -c --quiet - ); then
     ok "md5sum.txt matches the changed files (incl. the guide model)"; else bad "md5sum.txt"; fi
+if grep -qx casper "$mnt/casper/filesystem.manifest-remove"; then
+    ok "the installer removes casper (no live-USB check left on installed systems)"
+else bad "filesystem.manifest-remove: casper missing"; fi
 if ( cd "$mnt" && ls cinminai/models/*.gguf >/dev/null 2>&1 ); then ok "the guide model is on the ISO"; else bad "no guide model on the ISO"; fi
 inside=$(unsquashfs -l "$mnt/casper/filesystem.squashfs" 2>/dev/null | grep -c '\.gguf$' || true)
 if [[ $inside == 0 ]]; then ok "the guide model is beside the live system, not inside it too (D48)"
