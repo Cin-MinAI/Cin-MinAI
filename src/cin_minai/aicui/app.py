@@ -1136,8 +1136,12 @@ class Workspace(Gtk.ApplicationWindow):
             head += " A GitHub Pages site is public: anyone with its address can see every file in it."
         box.pack_start(Gtk.Label(label=head, xalign=0, wrap=True, max_width_chars=70), False, False, 0)
         notes = [f for f in got["flags"] if f[1]]
-        aicui = [f[0] for f in got["flags"] if f[2] == "AICUI's note of your request"]
-        other = [f for f in got["flags"] if not f[1] and f[2] != "AICUI's note of your request"]
+        # whole files the person may keep here, each with a box (Ian, 2026-10-21: test20's workflow had none)
+        boxed = {"AICUI's note of your request": "AICUI's note of your request",
+                 "a GitHub workflow": "a GitHub workflow: AICUI's GitHub app may not send one, so GitHub would refuse "
+                                      "the whole save"}
+        aicui = [(f[0], boxed[f[2]]) for f in got["flags"] if f[2] in boxed]
+        other = [f for f in got["flags"] if not f[1] and f[2] not in boxed]
         if notes or other:
             box.pack_start(Gtk.Label(label="Worth a look before it goes (what code could spot — look the page over "
                                            "too):", xalign=0, wrap=True), False, False, 0)
@@ -1153,8 +1157,8 @@ class Workspace(Gtk.ApplicationWindow):
             box.pack_start(Gtk.Label(label="Nothing personal or unfinished that code could spot.", xalign=0),
                            False, False, 0)
         checks = []
-        for rel in aicui:
-            c = Gtk.CheckButton(label=f"Leave out {rel} (AICUI's note of your request)", active=True)
+        for rel, why in aicui:
+            c = Gtk.CheckButton(label=f"Leave out {rel} ({why})", active=True)
             checks.append((rel, c))
             box.pack_start(c, False, False, 0)
         files = Gtk.Expander(label="The files")

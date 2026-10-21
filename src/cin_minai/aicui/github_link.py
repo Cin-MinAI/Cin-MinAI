@@ -149,6 +149,10 @@ def push(root: str, message: str = "") -> tuple[bool, str]:
         if code != 0:
             return False, out[-800:]
     code, out = git(root, "push", "-u", "origin", "HEAD")
+    if code != 0 and "without `workflows` permission" in out:
+        return False, ("GitHub refused the save: it has a workflow file (.github/workflows/), and AICUI's GitHub app may "
+                       "not send those. Nothing was sent. Leave the workflow out in the look before it goes, or delete "
+                       "it, then save again.")
     return code == 0, out[-800:]
 
 

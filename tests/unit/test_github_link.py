@@ -115,6 +115,30 @@ class Link(unittest.TestCase):
         with open(os.path.join(dest, ".git", "info", "exclude")) as f:
             self.assertIn(".cinminai/", f.read().split())  # AICUI's folder kept out from the start
 
+    def test_a_workflow_left_out_never_goes_and_a_refused_one_is_said_plainly(self):
+        # test20 (2026-10-21): the model wrote .github/workflows/deploy.yml; AICUI's app may not push workflows
+        os.makedirs(os.path.join(self.root, ".github", "workflows"))
+        with open(os.path.join(self.root, ".github", "workflows", "deploy.yml"), "w") as f:
+            f.write("name: Deploy\n")
+        self.assertIn((".github/workflows/deploy.yml", 0, "a GitHub workflow",
+                       "AICUI publishes pages itself; a workflow runs code on GitHub"), github_link.review(self.root)["flags"])
+        github_link.link(self.root, "https://github.com/brickmii/test20.git", "brickmii")
+        github_link.leave_out(self.root, ".github/workflows/deploy.yml")
+        refused = "! [remote rejected] HEAD -> main (refusing to allow a GitHub App to create or update workflow " \
+                  "`.github/workflows/deploy.yml` without `workflows` permission)"
+        real = github_link.git
+        with mock.patch.object(github_link, "git", side_effect=lambda root, *a, **k: (1, refused) if a[0] == "push"
+                               else real(root, *a, **k)):
+            ok, out = github_link.push(self.root)
+        self.assertFalse(ok)
+        self.assertIn("workflow file", out)
+        self.assertIn("Nothing was sent", out)
+        sent = subprocess.run(["git", "-C", self.root, "ls-tree", "-r", "--name-only", "HEAD"], capture_output=True,
+                              text=True).stdout.split()
+        self.assertIn("main.py", sent)
+        self.assertNotIn(".github/workflows/deploy.yml", sent)  # left out: never in what's saved
+        self.assertTrue(os.path.exists(os.path.join(self.root, ".github", "workflows", "deploy.yml")))  # still here
+
     def test_a_repository_a_model_made_with_aicuis_folder_staged_still_keeps_it_here(self):
         # test20 (2026-10-20): the model ran `git init && git add .` before AICUI linked anything, so .cinminai/ and
         # .venv/ were staged; ignore rules added later don't take them back
