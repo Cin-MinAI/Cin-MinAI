@@ -23,7 +23,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Vte", "2.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
 
-from . import chatlook  # noqa: E402
+from . import chatlook, identity  # noqa: E402
 from .changelog import Changelog, Watcher  # noqa: E402
 from .project import (Goals, build_env, can_be_project, declare_env, entry_point, env_header, env_state,  # noqa: E402
                       known_projects, make_project, orphan_envs, project_root, token_of, tree, venv_python)
@@ -918,10 +918,125 @@ class Workspace(Gtk.ApplicationWindow):
             item("Link this project to a repository…" if not url else "Link to another repository…",
                  self.github_link_dialog)
             project_items(url)
-            menu.append(Gtk.SeparatorMenuItem())
+        menu.append(Gtk.SeparatorMenuItem())
+        item("Name this computer (its GitHub identity)…", self.identity_dialog)  # works before signing in too
+        if st["ready"] and st["linked"]:
             item("Sign out of GitHub", self.github_sign_out)
         menu.show_all()
         menu.popup_at_widget(button, Gdk.Gravity.SOUTH_EAST, Gdk.Gravity.NORTH_EAST, None)
+
+    def identity_dialog(self) -> None:
+        """This computer's own name on GitHub and who maintains it (PLAN D62): Ian's advice first — a separate email for
+        development, secured with a passkey or an authenticator app — then the name, the two lines for GitHub's profile
+        page (opened, and copied on a click), and a check that reads the profile back. Never forced (Rule 9)."""
+        from cin_minai.daemon.accounts import AccountError, github
+        from . import github_link
+        ident = identity.load()
+        d = Gtk.Dialog(title="Name this computer", transient_for=self, modal=True)
+        d.add_button("Close", Gtk.ResponseType.CLOSE)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(16)
+
+        def text(s: str, bold: bool = False) -> Gtk.Label:
+            lab = Gtk.Label(xalign=0, wrap=True, max_width_chars=72)
+            lab.set_markup(f"<b>{GLib.markup_escape_text(s)}</b>" if bold else GLib.markup_escape_text(s))
+            return lab
+
+        def opener(label: str, uri: str) -> Gtk.Button:
+            b = Gtk.Button(label=label)
+            b.connect("clicked", lambda _: Gio.AppInfo.launch_default_for_uri(uri, None))
+            return b
+
+        def row(*ws) -> Gtk.Box:
+            r = Gtk.Box(spacing=8)
+            for w in ws:
+                r.pack_start(w, False, False, 0)
+            return r
+        box.pack_start(text("1. An account for this computer's work", True), False, False, 0)
+        box.pack_start(text("Publish under an account made with a separate email, used only for development "
+                            "registrations, so a broken-into developer account never reaches your personal email. "
+                            "Secure it with a passkey or an authenticator app from the start. Optional: your own "
+                            "account works too."), False, False, 0)
+        box.pack_start(row(opener("Make a GitHub account…", identity.SIGNUP_PAGE),
+                           opener("How to secure it…", identity.SECURE_PAGE)), False, False, 0)
+        box.pack_start(text("2. Its name", True), False, False, 0)
+        box.pack_start(text("Name this computer the way people name their cars. Its commits carry the name, and its "
+                            "profile says who keeps it."), False, False, 0)
+        name = Gtk.Entry(text=ident["name"], placeholder_text="its name, e.g. Simon")
+        keeper = Gtk.Entry(text=ident["maintainer"], placeholder_text="who maintains it: your name or handle")
+        box.pack_start(row(Gtk.Label(label="Name"), name, Gtk.Label(label="maintained by"), keeper), False, False, 0)
+        preview = text("")
+        box.pack_start(preview, False, False, 0)
+        box.pack_start(text("3. On GitHub", True), False, False, 0)
+        box.pack_start(text("On GitHub's profile page, signed in as this computer's account, put the name in Name and "
+                            "the line in Bio, then click Update profile there. Check reads it back."), False, False, 0)
+        clip = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        copy_name, copy_bio = Gtk.Button(label="Copy the name"), Gtk.Button(label="Copy the bio")
+        check = Gtk.Button(label="Check")
+        box.pack_start(row(opener("Open GitHub's profile page…", identity.PROFILE_PAGE), copy_name, copy_bio, check),
+                       False, False, 0)
+        result = text("")
+        box.pack_start(result, False, False, 0)
+        linked = github.status()["linked"]
+        check.set_sensitive(linked)
+        if not linked:
+            check.set_tooltip_text("Sign in to GitHub first (GitHub, then Sign in to GitHub…)")
+
+        def current() -> dict | None:
+            why = identity.problem(name.get_text(), keeper.get_text())
+            if why:
+                preview.set_text(why)
+                return None
+            now = {"name": name.get_text().strip(), "maintainer": keeper.get_text().strip()}
+            preview.set_markup(f"On GitHub — Name: <b>{GLib.markup_escape_text(now['name'])}</b> · Bio: "
+                               f"<b>{GLib.markup_escape_text(identity.bio(now))}</b>")
+            return now
+
+        def changed(*_) -> None:
+            ok = current() is not None
+            for b in (copy_name, copy_bio):
+                b.set_sensitive(ok)
+            if ok:
+                identity.save(name.get_text(), keeper.get_text())  # kept as typed; nothing goes anywhere from here
+        name.connect("changed", changed)
+        keeper.connect("changed", changed)
+        copy_name.connect("clicked", lambda _: clip.set_text(identity.load()["name"], -1))
+        copy_bio.connect("clicked", lambda _: clip.set_text(identity.bio(identity.load()), -1))
+        changed()
+
+        def checked(profile, error) -> bool:
+            check.set_sensitive(True)
+            if error:
+                result.set_text(f"Couldn't read the profile: {error}")
+                return False
+            ident_now = identity.load()
+            off = identity.differences(profile, ident_now)
+            if off:
+                result.set_text("Not yet: " + "; ".join(off) + ". GitHub can take a minute to show a change.")
+                return False
+            result.set_text(f"Done: {profile['login']} shows as {ident_now['name']}, maintained by "
+                            f"{ident_now['maintainer']}. Commits from now on carry that name.")
+            if github_link.remote(self.root):  # this project's commits too, from its next save
+                github_link.git(self.root, "config", "user.name", ident_now["name"])
+            return False
+
+        def on_check(_) -> None:
+            if current() is None:
+                return
+            check.set_sensitive(False)
+            result.set_text("Reading the profile on GitHub…")
+
+            def read() -> None:
+                try:
+                    GLib.idle_add(checked, github.profile(), "")
+                except AccountError as e:
+                    GLib.idle_add(checked, None, str(e))
+            threading.Thread(target=read, daemon=True).start()
+        check.connect("clicked", on_check)
+        d.show_all()
+        d.run()
+        d.destroy()
 
     def github_sign_in(self) -> None:
         """The device flow: a short code, approved by the person on github.com in their own browser; the link is kept
@@ -966,6 +1081,9 @@ class Workspace(Gtk.ApplicationWindow):
                 msg = f"Linked to GitHub as {login}." + (
                     "" if installed else " One more step: install Cin-MinAI on your GitHub account (all repositories, "
                     "or the ones you choose), so it can reach your repositories — the page is opening.")
+                if not identity.load()["name"]:  # offered once here, never forced (Rule 9, PLAN D62)
+                    msg += (" If you like, give this computer a name of its own on GitHub: GitHub, then Name this "
+                            "computer.")
                 GLib.idle_add(lambda: (d.response(Gtk.ResponseType.OK), self.bubble("app", msg),
                                        None if installed or not github.install_url() else
                                        Gio.AppInfo.launch_default_for_uri(github.install_url(), None)) and False)

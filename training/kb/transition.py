@@ -409,7 +409,7 @@ TOPICS = [
              "code it shows on GitHub's page in your browser (AICUI never sees your password). Then choose Link this "
              "project to a repository… (AICUI can make a new one for you), and Save to GitHub (push) or Publish as a "
              "web page (GitHub Pages)…. To start from someone's project: choose Clone a repository…, paste its "
-             "address, click Find, check what was found and click Clone this one.",
+             "address, click Find, check what was found and click Clone this one. To give this computer a name of its own on GitHub: choose Name this computer (its GitHub identity)….",
      "must": [], "steps": True, "langs": ["en"]},
     {"id": "aicui_team_table", "windows": "using several AI assistants together on one project",
      "card": "The Team Table in AICUI: a table where several AIs work on one project together, like a meeting with "

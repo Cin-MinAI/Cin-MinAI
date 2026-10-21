@@ -132,6 +132,6 @@ such a record without asking; Ian: it "comes off as spying". The update removes 
    aicui-github → Permissions & events), then accept the new permission on each account that installed it (GitHub
    asks on its installations page). Until then, publishing says the permission is missing. **The machine's
    identity:** its owner names it on its GitHub profile (Name: Simon) and says who keeps it (Bio: "Simon is maintained
-   by Brickmii") — the guided setup that offers this isn't built yet.
+   by Brickmii") — offered by **GitHub, then Name this computer (its GitHub identity)…** (built 2026-10-21, `aicui/identity.py`): the advice on a separate development email secured with a passkey or an authenticator app, the name and who maintains it (kept in `~/.config/cinminai/machine.json`), GitHub's profile page opened with the two lines to copy, and Check, which reads the profile back (the bio may be the owner's own words, as long as it names the maintainer). AICUI never changes the profile itself, so the app needs no profile permission.
 4. **The models' own GitHub work** (push and pull as tools, under the same approvals); Sign in with ChatGPT when the
    client ID comes.

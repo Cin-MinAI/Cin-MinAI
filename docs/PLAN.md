@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **62 filled (65 %)**, 21 partly,
+**Count:** 95 live decisions (D18 superseded) — **63 filled (66 %)**, 20 partly,
 6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled). 90 % is **86 filled**: 24 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 filled). 90 % is **86 filled**: 23 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -214,7 +214,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled). 90 % is **86 fill
 | D59 | filled | self-restart after updates |
 | D60 | filled | writing model offered by the matcher |
 | D61 | filled | AICUI slices 1-2, the checks from code, the one progress rule, the project token and environment header (2026-10-08); the plan and team B (10-10), cloud by API key, GitHub, Screenshots and the original request (10-11/13); model switch while idle (Team and the cloud model restart the AI when it isn't working, 10-14); the changelog watches the project too — changes made outside AICUI go in with undo, and the AI is told (10-16) |
-| D62 | partly | GitHub sign-in by device flow, the token in the keyring, link a repo, push and pull from AICUI (2026-10-11/12); GitHub lifted the bot account's flag (2026-10-20); the git flow (A42: git is AICUI's, its folders kept out at every save, the look before it goes, Pages turned on and checked live, the machine's name on commits) built 2026-10-20; the guided dev-identity setup (naming the machine, "maintained by") not built |
+| D62 | filled | GitHub sign-in by device flow, the token in the keyring, link a repo, push and pull from AICUI (2026-10-11/12); GitHub lifted the bot account's flag (2026-10-20); the git flow (A42: git is AICUI's, its folders kept out at every save, the look before it goes, Pages turned on and checked live, the machine's name on commits) built 2026-10-20; test20 published live through it (2026-10-21); the guided setup (2026-10-21: GitHub, then Name this computer — a separate development email secured with a passkey or an authenticator app, the computer's name and who maintains it, the two profile lines opened and copied, a check that reads the profile back; offered after signing in, never forced; `aicui/identity.py`) |
 | D63 | filled | the cloud Lead (2026-10-12): the cloud model is the Senior — plan, assign, reviews, follow-up, stuck points sent up — and one or two local models do the volume; in AICUI's process rather than over D-Bus |
 | D64 | filled | update 3; in AICUI, looks at a program, a page or the screen (2026-10-09) |
 | D65 | filled | standing rule |
