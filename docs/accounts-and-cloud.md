@@ -95,6 +95,11 @@ such a record without asking; Ian: it "comes off as spying". The update removes 
 1. ✔ **Accounts and GitHub** (built 2026-10-11/12, signed in and working on Ian's PC; using it waits for GitHub to lift
    the flag on the CinMin bot account, the account it's meant for): the keyring store for accounts; the device flow, renewal and sign-out; the git credential
    helper; AICUI's GitHub button — sign in, link the project to a repo (new or existing), push, pull.
+   **Clone** (2026-10-21, Ian: the other half of the git flow): File and GitHub menus, no sign-in needed for a public
+   repo. The address (https or SSH) is pasted or typed, Find searches it (`git ls-remote`), and the box shows the
+   address exactly as searched with what was found (name, description, last change, branch) or why not, so a typo is
+   easy to see; only "Clone this one" downloads, into a new folder in Documents, AICUI's folders kept out of git.
+   The menu's project actions (save, publish, bring in, open) are greyed until signed in and linked, never hidden.
 2. ◐ **Cloud** (Anthropic built 2026-10-12: the key pasted once into the keyring and checked with a free call; the
    cloud backend — every action its own flat tool (one nested tool gave Haiku 25 unusable replies in a row), pictures
    as image blocks, prompt caching, every call's cost logged in

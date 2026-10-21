@@ -154,6 +154,19 @@ class GitHubLink(unittest.TestCase):
         self.assertEqual(self.fake.asked[-1][2], "Bearer ghu_x")
         self.assertEqual(gh.install_url(), "https://github.com/apps/cin-minai/installations/new")
 
+    def test_what_a_clone_shows_first_needs_no_sign_in_for_a_public_repository(self):
+        url = f"{accounts.API}/repos/someone/tetris"
+        info = {"full_name": "someone/tetris", "description": "Blocks", "private": False,
+                "pushed_at": "2026-10-01T10:00:00Z"}
+        gh = self.gh({url: [info, (404, {"message": "Not Found"}), info]})
+        self.assertEqual(gh.about("someone/tetris"), {"full_name": "someone/tetris", "description": "Blocks",
+                                                      "private": False, "pushed": "2026-10-01"})
+        self.assertEqual(self.fake.asked[-1][2], "")  # not signed in: asked without a token
+        self.keys.items["github"] = {"access": "ghu_x", "expires": 99999, "refresh": "r", "refresh_expires": 99999,
+                                     "login": "cinminaidevbox"}
+        self.assertEqual(gh.about("someone/tetris")["description"], "Blocks")  # outside the sign-in: asked again plainly
+        self.assertEqual([a[2] for a in self.fake.asked[-2:]], ["Bearer ghu_x", ""])
+
     def test_the_machines_name_and_its_pages(self):
         pages = f"{accounts.API}/repos/cinminaidevbox/test20/pages"
         gh = self.gh({f"{accounts.API}/user": [{"login": "cinminaidevbox", "name": "Simon",

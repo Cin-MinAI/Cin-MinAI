@@ -22,6 +22,9 @@ model's story: `docs/guide-model-journal.md`.
   variables (`agent.secret_walls`); checked on the NVMe: bus blocked with and without network, project and virtual
   screen still work. Ian's idea for keys in people's own apps (`.env`, teaching, a virtual or prepaid card, auto-reload
   off) is in PLAN §5b. The ISO now removes casper on install (its md5 check failed on every boot of installed systems).
+- **Then (2026-10-21):** the GitHub menu's project actions greyed until signed in and linked, never hidden; **Clone a
+  repository…** (File and GitHub menus): address, Find, the search shown back with what was found, then the clone.
+  Driven on the NVMe on a hidden screen: a typo'd scheme, a misspelt repo and octocat/Hello-World all as designed.
 - **Ian, once:** add *Pages: Read and write* to the AICUI GitHub app, accept it on the installations.
 - **Next:** build and install on the NVMe; publish test20 through the menu (the look should flag its contact block,
   its © 2023, original-request.txt and the workflow); then the guided setup that names the machine. The store itself

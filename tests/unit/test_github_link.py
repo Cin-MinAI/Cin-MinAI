@@ -76,6 +76,45 @@ class Link(unittest.TestCase):
         with mock.patch.object(github_link, "remote", return_value=""):
             self.assertEqual(github_link.push(self.root), (False, "this project isn't linked to a GitHub repository yet"))
 
+    def test_a_clone_address_is_read_as_pasted_and_what_is_off_is_said(self):
+        a = github_link.address("  https://github.com/Cin-MinAI/Cin-MinAI.git \n")
+        self.assertEqual((a["kind"], a["host"], a["owner"], a["name"]), ("https", "github.com", "Cin-MinAI", "Cin-MinAI"))
+        self.assertEqual(github_link.address("https://gitlab.com/group/sub/proj")["owner"], "group/sub")
+        a = github_link.address("git@github.com:Cin-MinAI/Cin-MinAI.git")
+        self.assertEqual((a["kind"], a["owner"], a["name"]), ("ssh", "Cin-MinAI", "Cin-MinAI"))
+        self.assertEqual(github_link.address("ssh://git@codeberg.org:22/me/game")["name"], "game")
+        for typo, why in (("htps://github.com/a/b", "neither https:// nor git@"), ("http://github.com/a/b", "https://"),
+                          ("https://github.com/onlyowner", "owner/name"), ("https://github.com/a/ b", "space"),
+                          ("", "no address")):
+            with self.assertRaises(ValueError) as e:
+                github_link.address(typo)
+            self.assertIn(why, str(e.exception), typo)
+        self.assertIn("doesn't exist", github_link.explain("fatal: unable to access: Could not resolve host: githb.com",
+                                                           "https"))
+        self.assertIn("SSH key", github_link.explain("git@github.com: Permission denied (publickey).", "ssh"))
+        self.assertIn("private: sign in", github_link.explain("remote: Repository not found.", "https"))
+
+    def test_find_then_clone_against_a_stand_in(self):
+        bare = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, bare, True)
+        subprocess.run(["git", "init", "--bare", "-b", "main", bare], capture_output=True, check=True)
+        self.assertEqual(github_link.find(bare), {"ok": True, "branch": "", "empty": True})
+        for args in (("init", "-q", "-b", "main"), ("add", "main.py"),
+                     ("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "first"), ("push", "-q", bare, "main")):
+            subprocess.run(["git", "-C", self.root, *args], check=True, capture_output=True)
+        self.assertEqual(github_link.find(bare), {"ok": True, "branch": "main"})
+        self.assertFalse(github_link.find(bare + "-typo")["ok"])
+        parent = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, parent, True)
+        os.makedirs(os.path.join(parent, "game"))
+        dest = github_link.free_folder(parent, "game")
+        self.assertEqual(dest, os.path.join(parent, "game-2"))  # never into a folder that's there
+        ok, out = github_link.clone(bare, dest)
+        self.assertTrue(ok, out)
+        self.assertTrue(os.path.exists(os.path.join(dest, "main.py")))
+        with open(os.path.join(dest, ".git", "info", "exclude")) as f:
+            self.assertIn(".cinminai/", f.read().split())  # AICUI's folder kept out from the start
+
     def test_a_repository_a_model_made_with_aicuis_folder_staged_still_keeps_it_here(self):
         # test20 (2026-10-20): the model ran `git init && git add .` before AICUI linked anything, so .cinminai/ and
         # .venv/ were staged; ignore rules added later don't take them back

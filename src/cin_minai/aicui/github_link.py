@@ -29,8 +29,10 @@ TIMEOUT = 300
 
 
 def git(root: str, *args: str, helper: str = HELPER) -> tuple[int, str]:
-    """git in the project, signing in to github.com through the helper only; it never asks in a terminal."""
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/bin/false"}
+    """git in the project, signing in to github.com through the helper only; it never asks in a terminal. Over SSH,
+    the person's own key, never a prompt; a host seen the first time is remembered, as answering "yes" would."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/bin/false", "SSH_ASKPASS_REQUIRE": "never"}
+    env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new")
     cmd = ["git", "-C", root, "-c", "credential.helper=", "-c", f"credential.helper=!{helper}", *args]
     import contextlib
 
@@ -158,6 +160,81 @@ def pull(root: str) -> tuple[bool, str]:
     if code != 0 and "fatal: Not possible to fast-forward" in out:
         out += "\nBoth this copy and the repository have new work: save yours to a new branch, or ask the AI to merge."
     return code == 0, out[-800:]
+
+
+# --- bringing a project in: clone (Ian, 2026-10-21: "it shows what was searched so if you messed up something on the
+# https or ssh it can be found easier") — the address read, searched, shown back with what was found, cloned on a yes --
+HTTPS = re.compile(r"https://(?P<host>[A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+)?/(?P<path>[^\s?#]+?)(?:\.git)?/?")
+SSH = re.compile(r"(?:ssh://)?(?P<user>[A-Za-z0-9._-]+)@(?P<host>[A-Za-z0-9.-]+\.[A-Za-z]{2,})(?::\d+/|:|/)"
+                 r"(?P<path>[^\s?#]+?)(?:\.git)?/?")
+
+
+def address(text: str) -> dict:
+    """{"url", "kind" (https|ssh), "host", "owner", "name"} from what was pasted or typed; ValueError says what's off."""
+    url = text.strip()
+    if not url:
+        raise ValueError("there's no address yet")
+    if " " in url:
+        raise ValueError("there's a space in it: an address has none")
+    m = HTTPS.fullmatch(url) or SSH.fullmatch(url)
+    if not m:
+        if url.startswith("http://"):
+            raise ValueError("it starts with http://: repositories use https://")
+        if url.startswith(("https://", "git@", "ssh://")):
+            raise ValueError("the start is right, but the rest isn't host/owner/name")
+        raise ValueError("it starts with neither https:// nor git@ (copy it from the repository's Code button)")
+    path = m.group("path").split("/")
+    if len(path) < 2 or not all(path):
+        raise ValueError("it names no repository: after the host it needs owner/name")
+    return {"url": url, "kind": "https" if url.startswith("https://") else "ssh", "host": m.group("host").lower(),
+            "owner": "/".join(path[:-1]), "name": path[-1]}
+
+
+def explain(out: str, kind: str) -> str:
+    """git's answer, in a sentence."""
+    low = out.lower()
+    if "could not resolve host" in low or "name or service not known" in low:
+        return "that host name doesn't exist, or this computer is offline"
+    if "permission denied (publickey)" in low or "no such identity" in low:
+        return "SSH didn't let this computer in: it has no SSH key that host knows (the https address needs none)"
+    if "host key verification failed" in low:
+        return "the host's SSH key changed since this computer last saw it: check the address before going on"
+    if "repository not found" in low or "not found" in low or "does not appear to be a git repository" in low:
+        return ("no repository at this address" + (", or it's private: sign in to GitHub first" if kind == "https"
+                                                   else ", or this account can't see it"))
+    if "could not read username" in low or "authentication failed" in low or "terminal prompts disabled" in low:
+        return "it's private, and this computer isn't signed in to it"
+    if "timed out" in low or "took longer" in low:
+        return "the host didn't answer in time"
+    return out.strip().splitlines()[-1][:200] if out.strip() else "git didn't say why"
+
+
+def find(url: str, kind: str = "https") -> dict:
+    """Ask the host whether the repository is there, before anything downloads: {"ok", "branch"} or {"ok", "why"}."""
+    code, out = git("/", "ls-remote", "--symref", url, "HEAD")
+    if code != 0:
+        return {"ok": False, "why": explain(out, kind)}
+    m = re.search(r"^ref: refs/heads/(\S+)\s+HEAD", out, re.M)
+    if not m and not out.strip():
+        return {"ok": True, "branch": "", "empty": True}  # there, with nothing in it yet
+    return {"ok": True, "branch": m.group(1) if m else ""}
+
+
+def free_folder(parent: str, name: str) -> str:
+    """parent/name, or name-2, name-3… — never an existing folder."""
+    path, n = os.path.join(parent, name), 2
+    while os.path.exists(path):
+        path, n = os.path.join(parent, f"{name}-{n}"), n + 1
+    return path
+
+
+def clone(url: str, dest: str, kind: str = "https") -> tuple[bool, str]:
+    """The repository into a new folder, AICUI's folders kept out of it from the start."""
+    code, out = git(os.path.dirname(dest) or ".", "clone", "--", url, dest)
+    if code != 0:
+        return False, explain(out, kind)
+    keep_private(dest)
+    return True, dest
 
 
 # --- the look before it goes (PLAN D62) ------------------------------------------------------------------------------

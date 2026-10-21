@@ -241,6 +241,19 @@ class GitHub:
         return {"full_name": got["full_name"], "private": got["private"],
                 "default_branch": got.get("default_branch") or "main"}
 
+    def about(self, full_name: str) -> dict:
+        """What a person checks before cloning: {"full_name", "description", "private", "pushed"}. A public repository
+        answers without a sign-in; signed in, the account's own private ones do too."""
+        url = f"{API}/repos/{full_name}"
+        try:
+            got = self._call(url, token=self.token()) if self.status()["linked"] else self._call(url)
+        except AccountError as e:
+            if e.code not in (401, 403, 404) or not self.status()["linked"]:
+                raise
+            got = self._call(url)  # a public repository outside what the sign-in reaches
+        return {"full_name": got.get("full_name", full_name), "description": got.get("description") or "",
+                "private": bool(got.get("private")), "pushed": (got.get("pushed_at") or "")[:10]}
+
     def pages(self, full_name: str) -> dict | None:
         """The repository's GitHub Pages site ({"url", "status"}), or None when it has none."""
         try:

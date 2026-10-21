@@ -504,7 +504,8 @@ class Workspace(Gtk.ApplicationWindow):
         recording, maybe even continuity… if I could save and shutdown during storms… Cloud model and GitHub buttons
         reserved up top"."""
         menu = Gtk.Menu()
-        for entry in (("Open project folder…", self.open_project), ("Open file…", self.open_any_file), None,
+        for entry in (("Open project folder…", self.open_project), ("Clone a repository…", self.clone_dialog),
+                      ("Open file…", self.open_any_file), None,
                       ("Save progress", self.save_progress), ("Save and shut down…", self.save_and_shutdown), None,
                       ("Resume where it left off", self.resume), None, ("Close", lambda: self.close())):
             if entry is None:
@@ -842,15 +843,18 @@ class Workspace(Gtk.ApplicationWindow):
         if not st["ready"]:
             item("GitHub sign-in isn't set up in this build yet")
             menu.append(Gtk.SeparatorMenuItem())
+            item("Clone a repository…", self.clone_dialog)  # a public one needs no sign-in
             project_items(None)
         elif not st["linked"]:
             item("Sign in to GitHub…", self.github_sign_in)
             menu.append(Gtk.SeparatorMenuItem())
+            item("Clone a repository…", self.clone_dialog)
             project_items(None)
         else:
             url = github_link.remote(self.root)
             item(f"Signed in as {st['login']}")
             menu.append(Gtk.SeparatorMenuItem())
+            item("Clone a repository…", self.clone_dialog)
             item("Link this project to a repository…" if not url else "Link to another repository…",
                  self.github_link_dialog)
             project_items(url)
@@ -970,6 +974,116 @@ class Workspace(Gtk.ApplicationWindow):
             return
         self.bubble("app", f"This project is linked to {full} on GitHub. Save to GitHub (push) sends it there; AICUI's "
                           "own folder (.cinminai) and the Python environment stay on this computer.")
+
+    def clone_dialog(self) -> None:
+        """Clone (Ian, 2026-10-21): the address pasted or typed, Find, then what was searched shown back with what was
+        found — the right repository confirmed, or the typo easy to see — and only then the download."""
+        from cin_minai.daemon.accounts import github
+        from . import github_link
+        d = Gtk.Dialog(title="Clone a repository", transient_for=self, modal=True)
+        d.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        back, go = d.add_button("Back", 1), d.add_button("Clone this one", 3)
+        find = d.add_button("Find", 2)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(16)
+        ask = Gtk.Label(label="The repository's address, from its Code button: https://… or git@…", xalign=0)
+        entry = Gtk.Entry(width_chars=60, activates_default=True)
+        searched = Gtk.Label(xalign=0, selectable=True, wrap=True)
+        result = Gtk.Label(xalign=0, wrap=True, max_width_chars=70)
+        spin = Gtk.Spinner()
+        for w in (ask, entry, searched, result, spin):
+            box.pack_start(w, False, False, 0)
+        d.set_default(find)
+        found: dict = {}
+
+        def stage(which: str) -> None:
+            entry.set_sensitive(which == "ask")
+            find.set_visible(which == "ask")
+            back.set_visible(which in ("found", "missing"))
+            go.set_visible(which == "found")
+            searched.set_visible(which != "ask")
+            result.set_visible(which != "ask")
+            if which == "ask":
+                entry.grab_focus()
+
+        def shown(text: str, said: str, ok: bool) -> None:
+            # character for character, so a typo is easy to spot
+            searched.set_markup(f"Searched: <tt>{GLib.markup_escape_text(text)}</tt>")
+            result.set_markup(said)
+            spin.stop()
+            stage("found" if ok else "missing")
+            if ok:
+                d.set_default(go)
+
+        def search(text: str) -> None:
+            found.clear()
+            try:
+                a = github_link.address(text)
+            except ValueError as e:
+                shown(text, f"<b>Not an address yet:</b> {GLib.markup_escape_text(str(e))}", False)
+                return
+            find.set_sensitive(False)
+            spin.start()
+
+            def work() -> None:
+                got = github_link.find(a["url"], a["kind"])
+                lines = []
+                if got["ok"]:
+                    lines.append(f"<b>Found:</b> {GLib.markup_escape_text(a['owner'] + '/' + a['name'])} on "
+                                 f"{GLib.markup_escape_text(a['host'])}")
+                    if a["host"] == "github.com":
+                        info = self._safe(lambda: github.about(f"{a['owner']}/{a['name']}"), {})
+                        if info.get("description"):
+                            lines.append(GLib.markup_escape_text(info["description"]))
+                        if info.get("pushed"):
+                            lines.append(f"Last changed {info['pushed']}" + (", private" if info.get("private")
+                                                                              else ""))
+                    lines.append("It's empty: nothing in it yet." if got.get("empty") else
+                                 f"Main branch: {GLib.markup_escape_text(got['branch'])}" if got["branch"] else "")
+                    found.update(a)
+                else:
+                    lines.append(f"<b>Not found:</b> {GLib.markup_escape_text(got['why'])}.")
+                GLib.idle_add(lambda: (find.set_sensitive(True), shown(text, "\n".join(x for x in lines if x),
+                                                                       got["ok"]), False)[2])
+            threading.Thread(target=work, daemon=True).start()
+
+        def done(where: str) -> None:
+            d.destroy()
+            w = Workspace(self.get_application(), project_root(where))
+            w.show_all()
+            w.bubble("app", f"Cloned {found['owner']}/{found['name']} into {where}. This is someone else's code: "
+                            "read it before you run it. The AI's commands run in the sandbox as always; AICUI's own "
+                            "folder stays out of git.")
+
+        def response(dialog, r) -> None:
+            if r == 2:
+                search(entry.get_text())
+            elif r == 1:
+                stage("ask")
+                d.set_default(find)
+            elif r == 3 and found:
+                go.set_sensitive(False)
+                back.set_sensitive(False)
+                spin.start()
+                result.set_markup(result.get_label() + "\n<i>Cloning…</i>")
+                parent = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) or \
+                    os.path.expanduser("~/Documents")
+                dest = github_link.free_folder(parent, found["name"])
+
+                def work() -> None:
+                    ok, out = github_link.clone(found["url"], dest, found["kind"])
+                    GLib.idle_add(lambda: (done(out) if ok else (spin.stop(), back.set_sensitive(True),
+                                                                 result.set_markup(f"<b>Not cloned:</b> "
+                                                                                   f"{GLib.markup_escape_text(out)}.")),
+                                           False)[1])
+                threading.Thread(target=work, daemon=True).start()
+            else:
+                d.destroy()
+        d.connect("response", response)
+        d.show_all()
+        stage("ask")
+        spin.stop()
 
     def github_run(self, what: str, then=None) -> None:
         """Push or pull in the background; `then` (publishing) runs after a push that went through."""
