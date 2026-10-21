@@ -14,6 +14,7 @@ import socket
 import gi
 
 gi.require_version("Gtk", "3.0")
+gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
 from . import conference  # noqa: E402
