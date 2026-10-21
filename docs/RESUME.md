@@ -1,10 +1,31 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-20** (latest: journal "the git flow, and a machine named Simon"; before it "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-21** (latest: journal "the Team Table at work, and update 7"; before it "the git flow, and a machine named Simon"; before it "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-21) — update 7 out; next: the fill run (D97)
+
+- **Update 7 is live** (2026-10-21, signed by Ian, 18 packages, build …114111, apt-check 18/0; source fd74f3a;
+  release note `docs/release-notes/update-7.md`): the Team Table (conference table, outside agents over SSH),
+  Stop everything, publish to GitHub Pages, Clone, OpenAI by key, the Benchmark, the look, the sandbox's key walls;
+  help cards `aicui_github` and `aicui_team_table`. No website card (update 6 had none either): ask Ian.
+- **The table's first real run (test21, a Godot 4.7 game):** pushed by Ian to cinminaidevbox/test21. Fixes from it,
+  all in update 7: a seat's stale SSH key removed on a kind change, a reconnecting agent finds its task, `assign`
+  takes `also` at the table (multi-file tasks, Ian's choice; a senior and junior elsewhere keep one file), the Cloud
+  models menu's lead no longer replaces team "table" (`agent.cloud_leads`), the table prompt says what "test" means.
+  Open: Haiku's "done" verdicts with "stuck" text (twice); a read-only check by a local model can hit the 15-step
+  stop; outside seats' results are cut at 1,500 characters.
+- **test21's README is stale** (scene path, catalog, renderer, how to play). Ian will film the table fixing it with
+  OBS. Don't fix it unprompted; the request text is in the 10-21 session.
+- **Claude Code's seat:** key `~/.ssh/cinminai_seat` on the dev PC, its authorized_keys line locked to seat-3 at
+  test21. Godot 4.7.2 for checks: `C:/Users/Ian/cinminai-godot`.
+- **Next (Ian, 2026-10-21): the fill run**, 62 of 95 filled, 86 is the bar: D62 (guided setup: name the machine,
+  "maintained by"), D28 (offline button), D7, D68 (calculator, Wikipedia), D84 (4 coverage, 8 tasks), then D29 + D89 +
+  D88 (an update window with the hold). Then D94's reviews, D40, D93, D51+D91. Ian to decide how hardware-bound ones
+  (D24, D37) count, and whether D66 comes before the bar.
 
 ## Where we stopped (2026-10-20) — the git flow built; next: test20 published through it
 

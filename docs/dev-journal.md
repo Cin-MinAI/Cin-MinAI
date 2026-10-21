@@ -1951,3 +1951,46 @@ their cars"), and its profile says who keeps it: "Simon is maintained by Brickmi
 
 **Ian's part, once:** add *Pages: Read and write* to the AICUI GitHub app and accept it on the installations. Test20
 stays as it is on the NVMe — `.cinminai/` still staged — as the case to run the new flow against.
+
+## 2026-10-21 — the Team Table at work, and update 7
+
+The day started with the GitHub flow's last pieces (Clone a repository, the greyed menu, the link dialog's wording)
+and test20 going live on Pages. Then Ian: "We should already be using team table as the backbone of aicui and teams."
+It was the engine, but beside it each team kept its own queue, and the table's refusals were swallowed. Now teams
+claim their tasks from the table and nothing else. Two ideas followed. **Stop everything**, a button that ends a
+session at once. And **the conference table** Ian first imagined for Team Table: seats for local models, cloud
+models and outside agents, a crowned lead, the goals on a paper in the middle, and a conversation one speaker at a
+time.
+
+**The first real run, test21:** a game from Ian's own design document. Luna led, with Haiku 5.5 as Seat 2, Qwen
+3.6 35B (local) as Seat 4, and Claude Code at Seat 3, joining over SSH with a key locked to its seat. It built a
+playable slice in Godot 4.7: a title screen, a road with encounters, battles with a timing bar and a
+rock-paper-scissors duel, saving, a first travel unlock, a catalog of 5 continents, 14 towns and 9 factions, and a
+game bible. All of it cost $2.50 in cloud calls. Ian pushed it to GitHub the same day.
+
+**What the run showed, and fixed the same day:**
+- **A stale key could seat an agent in the wrong chair.** A seat changed away from "outside agent" kept its SSH line,
+  and the first match wins. Now the dialog removes it. An agent that reconnects also finds its task again.
+- **One file per task doesn't fit a strong lead.** Luna wrote "make the scene, its script, the README and run.sh";
+  the task held one file and came back half done, three times. Ian chose the fix: `assign` at the table takes
+  `also`, the other files the same task holds (still one writer per file). The new test caught an older gap too: a
+  local seat could be given a file an outside seat's task already held.
+- **The table didn't sit down after a budget change.** Raising the budget in the Cloud models menu also saved that
+  menu's "lead" role, and the lead role took priority over the table. Two restarts ran as a cloud lead with a local
+  helper, and nobody noticed until the spend showed a model that wasn't at the table. Found over SSH from the files'
+  times and the server log; the table now wins.
+- **The table's prompt had dropped what a "test" task is**, so Luna kept handing Seat 2 "test" tasks to *write*
+  tests (they hold no files). Four refusals in a row.
+
+**Seen, not changed:** Haiku stalls on open-ended multi-file tasks and moves once given exact specs. Twice it filed
+"done" with words that said "stuck". Qwen ran out of steps on a read-only check before answering. Luna's last
+report listed formations as built (they aren't). Watching the table worked well: a small watcher over SSH reported
+every task, word and process change, and that's how the wrong-team start was caught.
+
+**Update 7** went out the same day: the Team Table, Stop everything, publishing and cloning, OpenAI by key, the
+Benchmark, the look, and the sandbox walls around keys. Two new help cards. The tests caught a clash there: the
+GitHub card's word "repository" pulled a Portuguese question about software sources to the wrong card. Signed by
+Ian, 18 packages, checked live.
+
+**Next (Ian):** the fill run toward D97's 90 %: D62's guided setup, D28's offline button, D7, D68, D84, then
+D29 + D89 + D88 together. Ian wants to film the table refreshing test21's README with OBS.
