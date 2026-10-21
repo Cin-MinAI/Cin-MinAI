@@ -292,12 +292,14 @@ TOPICS = [
              "first shows the exact words and where they go. Nothing about you or this computer is sent.",
      "must": [], "steps": False},
     {"id": "offline_mode", "windows": "keeping the computer completely off the internet",
-     # update 5 (2026-10-07): offline mode is planned (PLAN D28, M5) and not built yet; the old card described its
-     # switch as if it were there
-     "card": "Offline mode: a switch that keeps this computer off the internet, with one button to go online for "
-             "updates, is planned but not in this version yet. Until then: click the network icon in the panel and "
-             "switch off Wi-Fi, or unplug the network cable. The assistant itself works without the internet; "
-             "only web searches and the news need it.",
+     # update 5 (2026-10-07) said offline mode was planned; built 2026-10-21 (PLAN D28)
+     "card": "Offline mode: right-click the assistant's icon in the panel and switch on Keep this computer offline. "
+             "Wi-Fi and the cable are switched off for the whole computer, the panel says OFFLINE, and the "
+             "assistant doesn't offer web searches or downloads. To install updates, choose Go online to install "
+             "updates in the same menu: Update Manager opens, and when it's finished click Back offline (the "
+             "computer waits for any install to finish first). Once a month at most, a reminder says when security "
+             "updates are due. To stay online again, switch Keep this computer offline off. The assistant itself "
+             "works without the internet.",
      "must": [], "steps": True},
 
     # --- update 5 (2026-10-07): the news scan (D92), standing tasks (D88) and keys for sources ------------------------

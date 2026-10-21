@@ -22,7 +22,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
-from . import facts, intent, websearch
+from . import facts, intent, offline, websearch
 from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
@@ -246,6 +246,11 @@ class Guide:
                     on_text(reply)
                 self.history += [user, {"role": "assistant", "content": raw}]
                 return {"reply": reply, "tool": tool, "args": args, "timings": timings}
+            if tool == "web_search" and offline.on():  # D28: offline mode offers no search, it says how to go online
+                reply = offline.words("assistant", self.tools.lang)
+                on_text(reply)
+                self.history += [user, {"role": "assistant", "content": reply}]
+                return {"reply": reply, "tool": "offline", "args": args, "timings": timings}
             if tool == "web_search":
                 # nothing is sent here: the sidebar shows the query; the user clicks Search (D55, §7.5)
                 import uuid

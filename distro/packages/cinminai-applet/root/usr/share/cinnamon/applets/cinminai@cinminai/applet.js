@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Cin-MinAI assistant panel icon (SPEC §5.2), from the M0 desktop-surface spike (GO 2026-09-24).
 // A click opens or closes the sidebar; the icon and tooltip show the assistant's state, and WEB or CLOUD
-// beside it shows Cin-MinAI reaching out (D35, D28); the right-click
+// beside it shows Cin-MinAI reaching out (D35, D28), or OFFLINE in offline mode (D28); the right-click
 // menu adds the model line, "Open assistant" and "New conversation". It never starts the daemon by
 // itself: the daemon starts at login (its autostart) or when the sidebar opens.
 
@@ -51,6 +51,26 @@ const LOG_WORDS = {
     de: ["Jede Internetsitzung auf diesem Computer protokollieren", "Internetprotokoll öffnen"],
     ja: ["このコンピューターのインターネット接続をすべて記録する", "インターネットの記録を開く"],
 };
+
+// D28: keep this computer offline — the switch and the one button for updates (cinminai-offline does the work)
+const OFFLINE_SWITCH = GLib.get_user_config_dir() + "/cinminai/offline-on";
+const OFFLINE = "/usr/bin/cinminai-offline";
+const OFFLINE_WORDS = {
+    en: ["Keep this computer offline", "Go online to install updates", "OFFLINE", "Offline: Wi-Fi and cable are off"],
+    es: ["Mantener este equipo sin conexión", "Conectarse para instalar actualizaciones", "SIN RED",
+         "Sin conexión: el wifi y el cable están apagados"],
+    pt: ["Manter este computador offline", "Conectar para instalar atualizações", "OFFLINE",
+         "Offline: o Wi-Fi e o cabo estão desligados"],
+    fr: ["Garder cet ordinateur hors ligne", "Se connecter pour installer les mises à jour", "HORS LIGNE",
+         "Hors ligne : le Wi-Fi et le câble sont coupés"],
+    de: ["Diesen Computer offline halten", "Für Updates online gehen", "OFFLINE", "Offline: WLAN und Kabel sind aus"],
+    ja: ["このコンピューターをオフラインに保つ", "オンラインにしてアップデートを入れる", "オフライン",
+         "オフライン：Wi-Fiも有線も切れています"],
+};
+
+function offline() {
+    return GLib.file_test(OFFLINE_SWITCH, GLib.FileTest.EXISTS);
+}
 
 function reaching() {
     // the marks in force (inference/reach.py): [{kind, to, until}], cloud first
@@ -139,7 +159,19 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         });
         this.logOpen.actor.visible = GLib.file_test(LOG_SWITCH, GLib.FileTest.EXISTS);
         ctx.addMenuItem(this.logOpen, 8);
-        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 9);
+        // offline mode: the whole computer, switched here; going online for updates is the one button beside it
+        const off = OFFLINE_WORDS[LANG] || OFFLINE_WORDS.en;
+        this.offlineSwitch = new PopupMenu.PopupSwitchMenuItem(off[0], offline());
+        this.offlineSwitch.connect("toggled", (item, on) => {
+            Util.spawn([OFFLINE, on ? "on" : "off"]);
+            this.updatesItem.actor.visible = on;
+        });
+        ctx.addMenuItem(this.offlineSwitch, 9);
+        this.updatesItem = new PopupMenu.PopupMenuItem(off[1]);
+        this.updatesItem.connect("activate", () => Util.spawn([OFFLINE, "updates"]));
+        this.updatesItem.actor.visible = offline();
+        ctx.addMenuItem(this.updatesItem, 10);
+        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 11);
 
         this.proxy = null;
         new AssistantProxy(Gio.DBus.session, BUS_NAME, OBJ_PATH, (proxy, error) => {
@@ -152,19 +184,31 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         this.refresh();
         this.reach = [];
         this.reachTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => { this.showReach(); return true; });
+        // security updates in offline mode: a reminder at most once a month (cinminai-offline decides when)
+        Util.spawn([OFFLINE, "remind"]);
+        this.remindTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 6 * 3600, () => {
+            Util.spawn([OFFLINE, "remind"]);
+            return true;
+        });
     }
 
     on_applet_removed_from_panel() {
         if (this.reachTimer) GLib.source_remove(this.reachTimer);
+        if (this.remindTimer) GLib.source_remove(this.remindTimer);
     }
 
     showReach() {
         const now = reaching();
-        const key = now.map(m => m.kind + m.to).join("|");
+        const off = offline();
+        const key = now.map(m => m.kind + m.to).join("|") + (off ? "|offline" : "");
         if (key === this.reachKey) return;
         this.reachKey = key;
         this.reach = now;
-        this.set_applet_label(now.length ? (now[0].kind === "cloud" ? "CLOUD" : "WEB") : "");
+        this.offline = off;
+        this.offlineSwitch.setToggleState(off);  // switched elsewhere (cinminai-offline) shows here too
+        this.updatesItem.actor.visible = off;
+        this.set_applet_label(now.length ? (now[0].kind === "cloud" ? "CLOUD" : "WEB")
+                              : off ? (OFFLINE_WORDS[LANG] || OFFLINE_WORDS.en)[2] : "");
         this.refresh();
     }
 
@@ -180,7 +224,7 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         const r = REACH[LANG] || REACH.en;
         const reach = (this.reach || []).length
             ? `${this.reach[0].kind === "cloud" ? r.cloud : r.web}: ${[...new Set(this.reach.map(m => m.to))].join(", ")}`
-            : r.local;
+            : this.offline ? (OFFLINE_WORDS[LANG] || OFFLINE_WORDS.en)[3] : r.local;
         this.set_applet_tooltip(`Assistant: ${words}\n${reach}\nClick to open or close (Super+A)`);
         this.stateItem.label.set_text(`Assistant: ${words}`);
         const model = state !== "offline" && this.proxy ? this.proxy.Model : "";

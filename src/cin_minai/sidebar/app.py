@@ -1215,21 +1215,24 @@ class Sidebar(Gtk.Application):
 
     def more_models(self, box: Gtk.Box, free: int) -> None:
         """The Models view's lower part: search Hugging Face (what's sent is said first, D86), look at a repository's
-        files, check one runs here before fetching it, fetch it and give it a job; or bring one in from a drive."""
+        files, check one runs here before fetching it, fetch it and give it a job; or bring one in from a drive.
+        In offline mode (D28) only the drives: the search is hidden, not greyed out."""
+        from cin_minai.daemon import offline
         head = Gtk.Label(label=words.t("h_more"), xalign=0)
         head.get_style_context().add_class("what")
         box.pack_start(head, False, False, 0)
         note = Gtk.Label(label=words.t("h_note"), xalign=0, wrap=True, max_width_chars=30)
         note.get_style_context().add_class("note")
-        box.pack_start(note, False, False, 0)
         row = Gtk.Box(spacing=6)
         entry = Gtk.Entry(placeholder_text=words.t("h_hint"))
         go = Gtk.Button(label=words.t("h_search"))
         row.pack_start(entry, True, True, 0)
         row.pack_end(go, False, False, 0)
-        box.pack_start(row, False, False, 0)
         found = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        box.pack_start(found, False, False, 0)
+        if not offline.on():
+            box.pack_start(note, False, False, 0)
+            box.pack_start(row, False, False, 0)
+            box.pack_start(found, False, False, 0)
         drives = Gtk.Button(label=words.t("h_drives"))
         drives.set_halign(Gtk.Align.START)
         box.pack_start(drives, False, False, 0)

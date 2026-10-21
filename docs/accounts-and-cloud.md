@@ -93,6 +93,8 @@ panel icon's menu ("Log every internet session on this computer"); on, each conn
 `~/.local/state/cinminai/internet-log.txt` — when, WEB or CLOUD, where; never what was in it. (The first build kept
 such a record without asking; Ian: it "comes off as spying". The update removes it.)
 
+**Offline mode** (D28, `daemon/offline.py`, `cinminai-offline`): "Keep this computer offline" in the same menu switches NetworkManager's networking off — the whole computer, Wi-Fi and cable alike, not a promise from our parts — and the panel says OFFLINE. The assistant then offers no web search, news, watch or model download (it says how to go online instead; models from a connected drive still come in). "Go online to install updates" connects, opens Update Manager, and Back offline (or closing its window) disconnects once any install has finished. A reminder about security updates comes at most once a month, only in offline mode.
+
 ## Build order
 
 1. ✔ **Accounts and GitHub** (built 2026-10-11/12, signed in and working on Ian's PC; using it waits for GitHub to lift

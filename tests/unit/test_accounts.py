@@ -193,7 +193,10 @@ class GitHubLink(unittest.TestCase):
 
 class CredentialHelper(unittest.TestCase):
     def run_helper(self, action, ask):
-        env = {**os.environ, "PYTHONPATH": os.path.join(ROOT, "src")}
+        # no session bus: the helper can't reach this computer's real login keyring (on a computer signed in to GitHub
+        # it printed the real token — the NVMe over SSH, 2026-10-21)
+        env = {**os.environ, "PYTHONPATH": os.path.join(ROOT, "src"),
+               "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent/cinminai-test-bus"}
         return subprocess.run([sys.executable, HELPER, action], input=ask, capture_output=True, text=True, env=env)
 
     def test_only_github_over_https_and_only_get(self):

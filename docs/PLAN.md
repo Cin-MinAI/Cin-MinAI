@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **63 filled (66 %)**, 20 partly,
+**Count:** 95 live decisions (D18 superseded) — **64 filled (67 %)**, 19 partly,
 6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 filled). 90 % is **86 filled**: 23 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 and D28 filled). 90 % is **86 filled**: 22 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -180,7 +180,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 fi
 | D25 | parked | UI and help in six languages; the Japanese input method and CJK fonts wait: they'd make an already long ISO download longer (Ian, 2026-10-16: parked for this alpha, "to resolve later with more resources") |
 | D26 | filled | public repos, decisions, evals |
 | D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
-| D28 | partly | the internet log, off until switched on from the panel icon's menu (2026-10-16), and the panel's WEB / CLOUD sign; the offline-mode button isn't built |
+| D28 | filled | the internet log, off until switched on from the panel icon's menu (2026-10-16), and the panel's WEB / CLOUD sign; offline mode (2026-10-21): "Keep this computer offline" in the same menu switches NetworkManager's networking off for the whole computer, the panel says OFFLINE, the assistant offers no web search, news or download; "Go online to install updates" connects, opens Update Manager and goes back offline after any install finishes; a security-update reminder at most once a month (`daemon/offline.py`, `cinminai-offline`). Offered from the menu, not at first boot: Cin-MinAI has no first-boot screen yet. Offline updates from a USB stick stay an open question (§6) |
 | D29 | open | no update window of our own yet (Mint's Update Manager) |
 | D30 | filled | standing rule (offer cards everywhere) |
 | D31 | partly | security updates continuous; model cycle 1 parked |

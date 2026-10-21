@@ -25,7 +25,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 from .guide import Guide
 from .office import LO, OfficeError
 from .journal import Interviewer, Journal, JournalError
-from . import config, manuscript, selfupdate, standing, websearch
+from . import config, manuscript, offline, selfupdate, standing, websearch
 from .say import quoted, say
 from .models import Cancelled as DownloadStopped, ModelStore, backend_cfg, benchmark
 from cin_minai.inference import matcher
@@ -444,7 +444,7 @@ class Service:
     def maybe_offer_cuda(self) -> None:
         """D93: once the NVIDIA driver is in and the CUDA engine isn't, offer it on one card, with its size."""
         from . import installs
-        if self.cuda_asked or self.backend.status().state != "ready":
+        if self.cuda_asked or self.backend.status().state != "ready" or offline.on():  # D28: asked once online
             return
         self.cuda_asked = True
         server_dir = getattr(self.backend, "server_dir", "")
@@ -993,6 +993,8 @@ class Service:
     # --- chains (D91) ---------------------------------------------------------------------------------------------
     def offer_video_chain(self, text: str, found: dict, on_text, on_action) -> dict:
         """Step 0: say what will happen and show the search; nothing is sent before the Search click (D86)."""
+        if said := offline.says(self.guide.tools.lang, on_text):
+            return said
         import uuid
         from . import chains
         sid, query = uuid.uuid4().hex[:12], chains.video_query(found["topic"])
@@ -1008,6 +1010,8 @@ class Service:
 
     def offer_news_chain(self, text: str, news: dict, on_text, on_action) -> dict:
         """Step 0 of the news chain: say what will happen and show the search; nothing sent before the click (D86)."""
+        if said := offline.says(self.guide.tools.lang, on_text):
+            return said
         import uuid
         from . import websearch
         from . import newsscan
@@ -1099,6 +1103,8 @@ class Service:
     # --- standing watches (D88) ----------------------------------------------------------------------------------
     def offer_watch(self, text: str, watch: dict, on_text, on_action) -> dict:
         """The setup card: what is sent, to whom, how often. Nothing is set up or sent before the click."""
+        if said := offline.says(self.guide.tools.lang, on_text):
+            return said
         import uuid
         wid = uuid.uuid4().hex[:12]
         self.watch_offers = {wid: {**watch, "question": text}}  # only the newest offer stands
@@ -1410,6 +1416,8 @@ class Service:
             if rec.get("where") == "parked" and rec.get("present"):
                 offer["parked_on"] = rec.get("drive") or "another drive"  # copied back, not downloaded
             offer["space_ok"] = offer["downloaded"] or plan["size"] + (2 << 30) <= self.store.free_bytes()
+            if offline.on() and not offer["downloaded"] and not offer.get("parked_on"):
+                offer = None  # D28: offline mode offers no downloads (hidden, not greyed out)
         return {"task": task, "offer": offer, "in_use": used and {k: used.get(k) for k in ("model", "file", "measured")}}
 
     def model_download(self, rid: int, task: str) -> None:

@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Keep this computer offline (PLAN D28): cinminai-offline [on | off | updates | remind]
+# The panel icon's menu runs it: the switch, "Go online to install updates", and the monthly reminder.
+import sys
+
+from cin_minai.daemon.offline import main
+
+sys.exit(main(sys.argv[1:]))
