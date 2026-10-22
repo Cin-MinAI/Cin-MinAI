@@ -261,8 +261,11 @@ class LlamaCppBackend(InferenceBackend):
              "--host", self.sock, "--port", "8080",   # the port is ignored for a socket, but must be set
              "--ctx-size", str(p.context), "--gpu-layers", p.gpu_layers, "--device", p.device,
              "--cache-type-k", self.cache_type(), "--cache-type-v", self.cache_type(), "--flash-attn", "on", "--fit", "off",
-             "--parallel", "1", "--reasoning", "off", "--no-webui",
+             "--parallel", "1", "--reasoning", str(self.cfg.get("reasoning") or "off"), "--no-webui",
              "--threads", threads, "--threads-batch", threads]
+        if self.cfg.get("reasoning_budget"):  # thinking that ends in time (D7): past the budget, told to answer
+            a += ["--reasoning-budget", str(int(self.cfg["reasoning_budget"])),
+                  "--reasoning-budget-message", str(self.cfg.get("reasoning_budget_message") or "")]
         if int(self.cfg.get("idle_unload_s", 0)) > 0:
             a += ["--sleep-idle-seconds", str(int(self.cfg["idle_unload_s"]))]
         return a + [str(x) for x in self.cfg.get("extra_args", [])]
@@ -414,11 +417,14 @@ class LlamaCppBackend(InferenceBackend):
             except OSError:
                 pass
 
-    def chat(self, messages, *, schema=None, max_tokens=600, on_text=None, cancel=None, sampling=None):
+    def chat(self, messages, *, schema=None, max_tokens=600, on_text=None, cancel=None, sampling=None, think=False,
+             on_thinking=None):
+        """think: the model reasons first (a server started with reasoning on); the thinking isn't in the text,
+        on_thinking gets its pieces as they come."""
         self.load()
         body = {"model": self.model_name(), "messages": messages, "stream": True, "max_tokens": max_tokens,
                 "temperature": float(self.cfg.get("temperature", 0)), "cache_prompt": True,
-                "chat_template_kwargs": {"enable_thinking": False}}
+                "chat_template_kwargs": {"enable_thinking": bool(think)}}
         if sampling:  # writing (writer.py): a little randomness; tool calls stay at the configured temperature
             body.update({k: v for k, v in sampling.items() if k in ("temperature", "top_p", "top_k", "min_p",
                                                                      "repeat_penalty", "presence_penalty",
@@ -444,6 +450,9 @@ class LlamaCppBackend(InferenceBackend):
                 chunk = json.loads(line[6:])
                 timings = chunk.get("timings", timings)
                 for choice in chunk.get("choices", []):
+                    thought = (choice.get("delta") or {}).get("reasoning_content")
+                    if thought and on_thinking:
+                        on_thinking(thought)
                     piece = (choice.get("delta") or {}).get("content")
                     if piece:
                         text.append(piece)

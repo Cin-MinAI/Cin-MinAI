@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **64 filled (67 %)**, 19 partly,
+**Count:** 95 live decisions (D18 superseded) — **65 filled (68 %)**, 18 partly,
 6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 and D28 filled). 90 % is **86 filled**: 22 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled). 90 % is **86 filled**: 21 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -159,7 +159,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62 an
 | D4 | filled | the model is configuration, chosen by bakeoff (D43) |
 | D5 | filled | our llama.cpp packages: CUDA incl. sm_61, Vulkan, CPU (amended by D35) |
 | D6 | filled | schema-constrained JSON for every tool call |
-| D7 | partly | off by default. Multi-step diagnosis (Ian, 2026-10-21) is D51's tree walked by code, not by the model thinking: the diagnosis card (fix n of N, what fixed looks like, Check again, the rule decides; a fix that needs a restart is checked after it), built 2026-10-21. Left: the opt-in "Think it through?" where the tree ends (no code, cause unknown, fixes used up), measured on D51 fixtures first |
+| D7 | filled | off by default. Multi-step diagnosis (Ian, 2026-10-21) is D51's tree walked by code, not by the model thinking: the diagnosis card (fix n of N, what fixed looks like, Check again, the rule decides; a fix that needs a restart is checked after it). Where the trees end (the fixes used up, a specific question the checks find nothing for, a fault without fixes) "Think it through?" is offered: the person's coding model, if they have one, thinks over the full report with a thinking budget (4096 tokens, fitted to its context), loaded and unloaded as for an unusual terminal error; without one, the guide answers plainly. Measured on 14 cases (`training/eval/guide/think_eval.py`, 4070): 27B thinking 14/14, 74 s on average, 117 s at most; 27B plain 14/14 in 6 s but surer than the evidence; the 4B can't finish a thought (0/18). Built 2026-10-21 |
 | D8 | filled | decided after the baseline (D43) |
 | D9 | filled | in effect; the private part ended with going public (D26, D70) |
 | D10 | filled | the ISO, public since 2026-10-04 |
@@ -715,6 +715,7 @@ the product's llama-server supervisor, SPEC §10.3):
 | `--poll 0` when layers run on the GPU | main thread busy-waited at 98 % of a core | `bench/run.py --poll`, teacher | option; A/B pending |
 | Parallel slots + parallel workers | GPU 36–41 % busy with one request at a time | `generate.py --workers`, teacher `--parallel 2`, evals | implemented; A/B pending |
 | Partial CPU offload vs. desktop reserve | 4 CPU layers keep 1.9 GB free but slow every token | teacher; product step-down ladder (SPEC §4.2) | measure cost per offloaded layer |
+| Speculative decoding: n-gram drafting (`--spec-type ngram-mod`) | an edit copies most of a file back; drafts guessed from the context are checked in one pass | the coding role (AICUI) only | measured 2026-10-21 (`bench/spec_speed.py`, 4070): edits 27B 38 → 124-276 tok/s, 9B 77 → 412 (one 150-line file in 4.3 s); new code and diagnoses unchanged (diagnoses a little slower on the 9B, so off for the guide). Adopt after one AICUI run shows the same quality. MTP untested: the 9B file has no MTP layers, the 27B's didn't fit beside it |
 
 ### Bakeoff matrix (M0)
 
@@ -1112,6 +1113,23 @@ record is detected; a lost USB is recovered with the printed code.
   states and **run the Adam update in place** (ZeRO-Offload's idea, with the update done where the memory is). And
   training across the internet on volunteers' machines (DiLoCo-style, syncing every few hundred steps; Prime
   Intellect's INTELLECT models) — each person bringing a GPU and a box of old DDR3.
+
+- **A mixture of models, and a small error specialist trained from scratch** (Ian, 2026-10-21, an idea, no decision:
+  "a specialist that barely knows words but knows coding and errors… Cin-Min aims to be a mixture of models platform…
+  a bunch of smaller agents sequencing to make a larger grand picture in the aggregate"). Cin-MinAI as many small
+  models in sequence rather than one big one: the guide talks and explains, others find information on new things,
+  and a **specialist reads errors** — logs, journal lines, tracebacks, compiler output, boot messages — and finds what
+  the others can't. It hardly needs words: **trained from scratch** (Ian: "with the free Linux coding textbooks and
+  free OS code available to learn on"), small (~100-300M parameters, a nanoGPT/nanochat-sized start, then a small
+  MoE: top-k routing, a load-balance loss, a shared expert), its output **structured** (a fault, the evidence lines,
+  how sure) for code to use, not prose. Labels come cheap: errors generated by breaking things on purpose in VMs and
+  containers, each with its known cause (D51's fixtures are the seed). D51's principle holds — **a rule sets a fault
+  code, never a model**: the specialist's findings are shown as "suggested", and a suggestion that keeps proving
+  right becomes a rule. Ian prefers a small MoE for it; a dense model with an n-gram (bigram) embedding backbone is
+  the other road (Qwen3.8-Flash-Next above uses n-gram embeddings). To check first: the licences of the books and
+  code it learns from (GPL code as training data is unsettled; permissive and public-domain first), and a test set
+  of real errors it never saw. Meanwhile the dense models get faster where they copy: n-gram drafting (PLAN §3
+  backlog, measured 2026-10-21) — it doesn't help new text or thinking, which is the specialist's job.
 
 ## 6. Open questions
 

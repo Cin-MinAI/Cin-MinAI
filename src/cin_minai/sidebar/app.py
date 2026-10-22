@@ -601,6 +601,12 @@ class Sidebar(Gtk.Application):
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
         elif signal == "Action" and args[1] == "queue" and args[3] == "waiting":  # turn tokens: its turn comes
             self.progress_line(words.t("queued", ahead=max(1, json.loads(args[4] or "{}").get("ahead", 1))))
+        elif signal == "Action" and args[1] == "think" and args[3] == "proposal":
+            self.think_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "think" and args[3] == "running":
+            self.progress_line(words.think_progress(json.loads(args[2] or "{}"), json.loads(args[4] or "{}")))
+        elif signal == "Action" and args[1] == "think" and args[3] == "done":
+            self.progress_line(words.think_done(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "diagnosis" and args[3] == "proposal":
             self.diag_step = json.loads(args[4] or "{}")  # shown under the answer, after its command
         elif signal == "Action" and args[1] == "watch" and args[3] == "proposal":
@@ -1654,6 +1660,8 @@ class Sidebar(Gtk.Application):
                     self.command_card({"command": nxt["command"], "explain": nxt.get("command_explained", ""),
                                        "undo": nxt.get("undo", "")})
                 self.diagnosis_card(nxt)
+            elif out.get("think"):  # the end of the tree: Think it through, offered (D7)
+                self.think_card(out["think"])
 
         def on_check(b) -> None:
             check.set_sensitive(False)
@@ -1667,6 +1675,37 @@ class Sidebar(Gtk.Application):
         later.connect("clicked", lambda b: buttons.destroy())
         buttons.pack_start(check, False, False, 0)
         buttons.pack_start(later, False, False, 0)
+        box.pack_start(buttons, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def think_card(self, offer: dict) -> None:
+        """Past the end of the diagnostic trees (D7): the person may have the model reason over what the checks
+        recorded — the coding model if they have one, thinking; else the guide. Nothing loads before the click."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        head = Gtk.Label(label=words.think("offer"), xalign=0, wrap=True, max_width_chars=30)
+        head.get_style_context().add_class("what")
+        box.pack_start(head, False, False, 0)
+        model = offer.get("model") or ""
+        note = Gtk.Label(label=words.think("note_model", model=model) if model else words.think("note_guide"),
+                         xalign=0, wrap=True, max_width_chars=30)
+        note.get_style_context().add_class("note")
+        box.pack_start(note, False, False, 0)
+        buttons = Gtk.Box(spacing=6)
+        go, no = Gtk.Button(label=words.think("go")), Gtk.Button(label=words.think("no"))
+        go.get_style_context().add_class("suggested-action")
+
+        def ask(button) -> None:
+            go.set_sensitive(False)
+            no.set_sensitive(False)
+            self.start_job("DiagThink", offer.get("id", ""),
+                           words.think("loading", model=model) if model else words.think("running", s=0))
+
+        go.connect("clicked", ask)
+        no.connect("clicked", lambda b: box.destroy())
+        buttons.pack_start(go, False, False, 0)
+        buttons.pack_start(no, False, False, 0)
         box.pack_start(buttons, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
         box.show_all()

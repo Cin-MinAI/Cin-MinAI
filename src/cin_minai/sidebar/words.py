@@ -1170,6 +1170,77 @@ def diag(key: str, lang: str | None = None, **kw) -> str:
     return DIAG.get(lang or ui_lang(), DIAG["en"])[key].format(**kw)
 
 
+# Think it through past the end of the trees (D7): offered, never automatic (Rule 9)
+THINK = {
+    "en": {"offer": "This is past what the built-in checks know. Think it through from what they recorded?",
+           "note_model": "{model}, already on this computer, reasons it through: a minute or two. The assistant is "
+                         "back to normal with your next question. Nothing leaves this computer.",
+           "note_guide": "The assistant reasons it through from the report. Nothing leaves this computer.",
+           "go": "Think it through", "no": "No thanks", "loading": "Loading {model}…",
+           "running": "Thinking it through… {s} s",
+           "done_model": "Thought through by {model}; the assistant comes back with your next question",
+           "done_guide": "Thought through from the report"},
+    "es": {"offer": "Esto va más allá de lo que saben las comprobaciones integradas. ¿Pensarlo a fondo a partir de "
+                    "lo que registraron?",
+           "note_model": "{model}, que ya está en este ordenador, lo razona: un minuto o dos. El asistente vuelve a la "
+                         "normalidad con tu próxima pregunta. Nada sale de este ordenador.",
+           "note_guide": "El asistente lo razona a partir del informe. Nada sale de este ordenador.",
+           "go": "Pensarlo a fondo", "no": "No, gracias", "loading": "Cargando {model}…",
+           "running": "Pensándolo a fondo… {s} s",
+           "done_model": "Razonado por {model}; el asistente vuelve con tu próxima pregunta",
+           "done_guide": "Razonado a partir del informe"},
+    "pt": {"offer": "Isso vai além do que as verificações integradas sabem. Pensar a fundo a partir do que "
+                    "registraram?",
+           "note_model": "{model}, que já está neste computador, raciocina sobre isso: um ou dois minutos. O "
+                         "assistente volta ao normal com a sua próxima pergunta. Nada sai deste computador.",
+           "note_guide": "O assistente raciocina a partir do relatório. Nada sai deste computador.",
+           "go": "Pensar a fundo", "no": "Não, obrigado", "loading": "Carregando {model}…",
+           "running": "Pensando a fundo… {s} s",
+           "done_model": "Raciocinado por {model}; o assistente volta com a sua próxima pergunta",
+           "done_guide": "Raciocinado a partir do relatório"},
+    "fr": {"offer": "Cela dépasse ce que savent les vérifications intégrées. Y réfléchir à partir de ce qu'elles "
+                    "ont relevé ?",
+           "note_model": "{model}, déjà sur cet ordinateur, y réfléchit : une minute ou deux. L'assistant redevient "
+                         "normal à votre prochaine question. Rien ne quitte cet ordinateur.",
+           "note_guide": "L'assistant y réfléchit à partir du rapport. Rien ne quitte cet ordinateur.",
+           "go": "Y réfléchir", "no": "Non merci", "loading": "Chargement de {model}…",
+           "running": "Réflexion en cours… {s} s",
+           "done_model": "Réfléchi par {model} ; l'assistant revient à votre prochaine question",
+           "done_guide": "Réfléchi à partir du rapport"},
+    "de": {"offer": "Das geht über das hinaus, was die eingebauten Prüfungen wissen. Anhand dessen, was sie "
+                    "aufgezeichnet haben, gründlich durchdenken?",
+           "note_model": "{model}, schon auf diesem Computer, denkt es durch: ein, zwei Minuten. Mit Ihrer nächsten "
+                         "Frage ist der Assistent wieder wie gewohnt. Nichts verlässt diesen Computer.",
+           "note_guide": "Der Assistent denkt es anhand des Berichts durch. Nichts verlässt diesen Computer.",
+           "go": "Durchdenken", "no": "Nein danke", "loading": "{model} wird geladen…",
+           "running": "Wird durchdacht… {s} s",
+           "done_model": "Durchdacht von {model}; der Assistent ist mit Ihrer nächsten Frage zurück",
+           "done_guide": "Anhand des Berichts durchdacht"},
+    "ja": {"offer": "組み込みのチェックが知っている範囲を超えています。記録された内容からじっくり考えてみますか？",
+           "note_model": "このパソコンにある {model} がじっくり考えます（1〜2分）。次の質問からアシスタントは"
+                         "いつもどおりに戻ります。データはこのパソコンから出ません。",
+           "note_guide": "アシスタントがレポートからじっくり考えます。データはこのパソコンから出ません。",
+           "go": "じっくり考える", "no": "結構です", "loading": "{model} を読み込み中…",
+           "running": "じっくり考えています… {s} 秒",
+           "done_model": "{model} が考えました。次の質問からアシスタントが戻ります",
+           "done_guide": "レポートから考えました"},
+}
+
+
+def think(key: str, lang: str | None = None, **kw) -> str:
+    return THINK.get(lang or ui_lang(), THINK["en"])[key].format(**kw)
+
+
+def think_progress(args: dict, p: dict) -> str:
+    if p.get("loading"):
+        return think("loading", model=args.get("model") or "")
+    return think("running", s=p.get("seconds", 0))
+
+
+def think_done(result: dict) -> str:
+    return think("done_model", model=result["model"]) if result.get("model") else think("done_guide")
+
+
 def diag_head(step: dict, lang: str | None = None) -> str:
     if step.get("fixes", 1) > 1:
         return diag("head", lang, i=step["fix_n"] + 1, n=step["fixes"], fix=step["fix"])

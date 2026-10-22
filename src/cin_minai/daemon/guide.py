@@ -207,7 +207,7 @@ class Guide:
         if explained:  # "Explain" on a command card: the system's facts in front, no terminal context
             user["content"] = cmdfacts.context(explained) + "\n\n" + text
         commands = [] if explained else terminal.latest()
-        self.terminal_question, self.last_card = None, ""
+        self.terminal_question, self.last_card, think = None, "", None
         if terminal.about_terminal(text, commands):
             user["content"] = terminal.context(commands) + "\n\n" + text
             self.terminal_question = user["content"]  # for the bigger model, if no card fits (Ian, 2026-10-04)
@@ -285,9 +285,12 @@ class Guide:
             break
         on_action(tool, args, "done", result)
         if tool == "inspect_system":  # a fault found: its tree is walked on a card (D51, D7), the guide explains
+            self.tools.asked = text  # the person's words, for Think it through at the tree's end (D7)
             step = self.tools.walk_start(result)
             if step:
                 on_action("diagnosis", {"code": step["code"]}, "proposal", json.dumps(step, ensure_ascii=False))
+            elif self.tools.past_the_trees(str(args.get("topic", "overview")), result):
+                think = (text, result)  # no tree for it: "Think it through?" may be offered (D7)
         followup = {"role": "user", "content": self.data["result_format"].format(
             tool=tool, result=result, style=self.data["style"])}
         direct = facts.direct_reply(tool, args, result, self.tools.lang)
@@ -308,6 +311,8 @@ class Guide:
         self.history += [user, {"role": "assistant", "content": raw}, followup, {"role": "assistant", "content": reply}]
         out = {"reply": reply, "tool": tool, "args": args, "result": result, "timings": timings,
                "loop_stopped": loop_stopped}
+        if think:
+            out["think"] = think
         if self.terminal_question and tool == "lookup_help" and self.last_card is None:
             out["unusual"] = self.terminal_question  # a terminal error no card covers: the bigger model may be offered
         return out

@@ -135,10 +135,23 @@ class Tools:
                 # still there after a fix that needed a restart: on from the next fix, not back to the first
                 n = kept["n"] + 1 if kept and kept["code"] == f["code"] and walk.step(f, kept["n"] + 1) else 0
                 step = walk.step(f, n)
+                if step is None:  # a fault without fixes: past the trees (D7's Think it through)
+                    return None
                 if step["restart"]:
                     walk.keep(f["code"], n, f["title"])
                 return step
         return None
+
+    def past_the_trees(self, topic: str, result: str) -> bool:
+        """Where D51's trees end before they start (D7): the person asked about something specific and no rule
+        found a fault, or a fault was found whose tree has no fixes. "Check my computer" finding nothing is just
+        good news."""
+        try:
+            read = json.loads(result)
+            found = read.get("problems_found") or []
+        except (ValueError, AttributeError):
+            return False
+        return "error" not in read and (bool(found) or topic != "overview")
 
     def problems(self, topic: str) -> list[dict]:
         if topic not in DIAG_TOPICS or live_session():

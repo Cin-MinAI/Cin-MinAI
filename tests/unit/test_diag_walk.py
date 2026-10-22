@@ -93,5 +93,63 @@ class Walk(unittest.TestCase):
             self.assertEqual(set(walk.WORDS[code]), set(walk.WORDS["en"]), code)
 
 
+class ThinkItThrough(unittest.TestCase):
+    """D7: past the end of the trees the model may be asked to reason it through — offered, plain text, bounded."""
+
+    def test_offered_only_past_the_trees(self):
+        tools = Tools({}, {}, "en")
+        self.assertTrue(tools.past_the_trees("sound", json.dumps({"topic": "sound"})))  # asked, nothing found
+        self.assertFalse(tools.past_the_trees("overview", json.dumps({"topic": "overview"})))  # good news only
+        self.assertTrue(tools.past_the_trees("overview", json.dumps({"problems_found": [{"code": "X999"}]})))
+        self.assertFalse(tools.past_the_trees("sound", json.dumps({"error": "a probe failed"})))
+        self.assertFalse(tools.past_the_trees("sound", "not json"))
+
+    def test_a_fault_without_fixes_gets_no_card(self):
+        tools = Tools({}, {}, "en")
+        with mock.patch.dict(os.environ, {"CINMINAI_DIAG_FIXTURE": DURING}):
+            tools.diagnose()
+            code = tools.report()["findings"][0]["code"]
+            for f in tools.report()["findings"]:
+                f["fixes"] = []
+            self.assertIsNone(tools.walk_start(json.dumps({"problems_found": [{"code": code}]})))
+
+    def test_the_request_and_its_evidence(self):
+        from cin_minai.diag import think
+        md = report.markdown(rep(DURING))
+        ev = think.evidence(md, '{"topic": "display"}')
+        self.assertTrue(ev.startswith("## What the assistant's check read"))
+        self.assertIn(md[:200], ev)
+        self.assertLessEqual(len(think.evidence("x" * 50000)), think.EVIDENCE_CHARS + 100)
+        msgs = think.messages("my screen flickers", ev)
+        self.assertIn("Never suggest reinstalling", msgs[0]["content"])
+        self.assertIn("my screen flickers", msgs[1]["content"])
+
+    def test_the_budget_fits_the_context(self):
+        from cin_minai.diag import think
+        msgs = think.messages("my computer freezes", think.evidence(report.markdown(rep(DURING))))
+        self.assertEqual(think.budget(16384, msgs), think.BUDGET)  # the coding role's 16K: the whole budget
+        self.assertTrue(think.MIN_BUDGET <= think.budget(8192, msgs) < think.BUDGET)  # 8K: a smaller one
+        self.assertEqual(think.budget(4096, msgs), 0)  # stepped down far: a plain answer
+
+    def test_the_thinking_server_has_a_budget(self):
+        from cin_minai.inference.llamacpp import LlamaCppBackend
+        b = LlamaCppBackend({"model": "/x/m.gguf", "reasoning": "on", "reasoning_budget": 4096,
+                             "reasoning_budget_message": " answer now."}, lambda m: None)
+        p = mock.Mock(context=8192, gpu_layers="99", device="none")
+        a = b.argv(p)
+        self.assertEqual(a[a.index("--reasoning") + 1], "on")
+        self.assertEqual(a[a.index("--reasoning-budget") + 1], "4096")
+        plain = LlamaCppBackend({"model": "/x/m.gguf"}, lambda m: None).argv(p)
+        self.assertEqual(plain[plain.index("--reasoning") + 1], "off")  # the guide: off, as always (D7)
+        self.assertNotIn("--reasoning-budget", plain)
+
+    def test_six_languages(self):
+        sys.path.insert(0, os.path.join(ROOT, "src"))
+        from cin_minai.sidebar import words
+        for code in ("en", "es", "pt", "fr", "de", "ja"):
+            self.assertEqual(set(words.THINK[code]), set(words.THINK["en"]), code)
+            self.assertIn("{model}", words.THINK[code]["note_model"])
+
+
 if __name__ == "__main__":
     unittest.main()

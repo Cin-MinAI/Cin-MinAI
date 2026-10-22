@@ -68,6 +68,10 @@ XML = f"""
          again and the rule decides. JSON out: outcome "gone" / "still" (with "next", the next fix) / "end", and
          "said" (the plain sentence) -->
     <method name="DiagCheck"><arg type="s" name="step" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <!-- "Think it through" past the end of the trees (D7; Action "think" state "proposal", or DiagCheck's "think"):
+         the id offered; a job — the coding model, if the person has one, reasons over what the checks recorded
+         (Action "think" running with the seconds, then done); without one, the guide answers plainly -->
+    <method name="DiagThink"><arg type="s" name="offer" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- terminal sharing (D77: offered, then on): "on" / "off" (new terminals), "never" (don't offer again), "later",
          or "state"; JSON out: available (cinminai-shell installed), on, open (shared terminals now) -->
     <method name="TerminalSharing"><arg type="s" name="choice" direction="in"/><arg type="s" name="json" direction="out"/></method>
@@ -254,6 +258,7 @@ class Service:
         self.store = ModelStore()
         self.writing_backend: tuple[str, LlamaCppBackend] | None = None
         self.vision_offers: dict[str, tuple[str, str]] = {}  # "set up reading pictures?": id -> (path, request)
+        self.think_offers: dict[str, tuple[str, str]] = {}  # D7: by id, the question and what the checks recorded
         self.bigger_offers: dict[str, str] = {}  # offered "ask the bigger model", by id: the question with its terminal
         self.chain_offers: dict[str, dict] = {}  # D91: a chain waiting for its Search click, by offer id
         self.hub_found: dict = {}  # repo -> its files as Hugging Face listed them (the checksums come from here)
@@ -709,6 +714,16 @@ class Service:
                 GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
                               and False)
             threading.Thread(target=check, daemon=True).start()
+        elif method == "DiagThink":
+            (oid,) = params.unpack()
+            offer = self.think_offers.pop(oid, None)
+            if self.busy or offer is None:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy" if self.busy else f"{IFACE}.Error.Offer",
+                                      "still answering; Cancel first" if self.busy else "that offer has expired")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.job(self.next_id, lambda on_text, on_action, o=offer: self.think_through(*o, on_text, on_action))
         elif method == "TerminalSend":
             (text,) = params.unpack()
             from . import terminal
@@ -921,6 +936,9 @@ class Service:
             if terminal.should_offer(text):  # D77: asked once, when it would help
                 terminal.offered()
                 on_action("terminal_offer", {}, "proposal", json.dumps(terminal.sharing()))
+            if out.get("think"):  # past the end of the trees: Think it through, offered (D7)
+                question, found = out["think"]
+                on_action("think", {}, "proposal", json.dumps(self.offer_think(question, found)))
             if out.get("unusual"):  # no help card fits this terminal error: offer the bigger model, if it's here
                 plan = self.coding_plan()
                 if plan:
@@ -1228,12 +1246,63 @@ class Service:
             log(f"diag check {code}: {type(e).__name__}: {e}")
             return {"outcome": "error", "said": f"The checks couldn't run: {e}"}
         out["said"] = walk.words(out["outcome"], lang, title=out["title"])
+        if out["outcome"] == "end":  # the fixes are used up: Think it through, offered (D7)
+            out["think"] = self.offer_think(getattr(self.guide.tools, "asked", "") or out["title"], "")
         nxt = out.get("next")
         if nxt and nxt["restart"]:
             walk.keep(code, nxt["fix_n"], nxt["title"])
         else:
             walk.forget()
         return out
+
+    def offer_think(self, question: str, found: str) -> dict:
+        """Register a Think it through offer (only the newest stands); what the card says: the model that would
+        think, or none (the guide answers plainly)."""
+        import uuid
+        oid = uuid.uuid4().hex[:12]
+        self.think_offers = {oid: (question, found)}
+        plan = self.coding_plan()
+        return {"id": oid, "model": plan["model"] if plan else ""}
+
+    def think_through(self, question: str, found: str, on_text, on_action) -> dict:
+        """D7: the coding model, if the person has one, thinks it through over the full report (loaded, answers,
+        unloaded, as for an unusual terminal error); without one, the guide answers plainly — the 4B can't finish a
+        thought (measured). Plain text, nothing run: commands in it come as command cards."""
+        from cin_minai.diag import report, think
+        evidence = think.evidence(report.markdown(self.guide.tools.report(fresh=True)), found)
+        msgs = think.messages(question, evidence)
+        plan = self.coding_plan()
+        if not plan:
+            on_action("think", {"model": ""}, "running", json.dumps({"seconds": 0}))
+            reply, timing = self.backend.chat(msgs, max_tokens=600, on_text=on_text, cancel=self.cancel)
+            on_action("think", {"model": ""}, "done", json.dumps({"model": ""}))
+            return {"tool": "think", "model": "guide", "reply_chars": len(reply), "timings": [timing]}
+        cfg = backend_cfg(config.load()["inference"], plan, self.store.path(plan["file"]))
+        planned = think.budget(int(cfg.get("context", 8192)), msgs)
+        cfg.update(reasoning="on" if planned else "off", reasoning_budget=planned,
+                   reasoning_budget_message=think.BUDGET_MESSAGE)
+        big = LlamaCppBackend(cfg, log)
+        args = {"model": plan["model"]}
+        on_action("think", args, "running", json.dumps({"seconds": 0, "loading": True}))
+        self.backend.unload()  # the card holds one model: the guide comes back with the next question
+        started, last = time.monotonic(), [0.0]
+
+        def thinking(piece: str) -> None:  # a line that counts up, so a minute or two isn't silence
+            now = time.monotonic()
+            if now - last[0] >= 2:
+                last[0] = now
+                on_action("think", args, "running", json.dumps({"seconds": int(now - started)}))
+        try:
+            big.load()
+            got = think.budget(big.profile.context if big.profile else 0, msgs)
+            deep = bool(planned) and got >= planned  # stepped down below the plan: a plain answer, not one cut off
+            reply, timing = big.chat(msgs, max_tokens=planned + think.ANSWER_TOKENS if deep else 600,
+                                     on_text=on_text, cancel=self.cancel, sampling=think.SAMPLING if deep else None,
+                                     think=deep, on_thinking=thinking)
+        finally:
+            big.unload()
+        on_action("think", args, "done", json.dumps({"model": plan["model"]}))
+        return {"tool": "think", "model": plan["model"], "reply_chars": len(reply), "timings": [timing]}
 
     def diag_after_restart(self) -> bool:
         """Once, after the assistant starts: a fix that needed a restart is checked now, and the person is told."""
