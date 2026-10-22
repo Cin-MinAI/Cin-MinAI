@@ -9,7 +9,7 @@ first when it's on CISA's list: D89's emergency path), through the same steps as
 download, every file's fingerprint, install, the check afterwards). Not on battery. What it did goes to the admin
 record (hash-chained) and to a status file the person's session reads: cinminai-updates --notices says what needs
 them (an install that stopped, a restart, a source that couldn't be proven genuine, a held security fix on CISA's
-list), once each.
+list, an update held for an alarming post on oss-security), once each.
 
     /usr/libexec/cinminai/cinminai-updates-auto      (root, from the timer)
 """
@@ -48,7 +48,7 @@ def run_once(run, changelog, now: float | None = None, settings_path: str = upda
     settings = updates.load_settings(settings_path)
     if not settings["auto"] and not settings["hold_days"]:
         return None
-    status = {"ts": now, "auto": settings["auto"], "installed": [], "held": [], "kev": [], "early": [], "steps": [],
+    status = {"ts": now, "auto": settings["auto"], "installed": [], "held": [], "kev": [], "early": [], "flagged": [], "steps": [],
               "error": "", "signature": [], "restart": False}
     try:
         with lock():
@@ -67,6 +67,8 @@ def run_once(run, changelog, now: float | None = None, settings_path: str = upda
                                   for u in result["updates"] if u["held"]]
                 status["kev"] = [{"name": u["name"], "version": u["version"], "cves": u["kev"]}
                                  for u in result["updates"] if u.get("kev")]
+                status["flagged"] = [{"name": u["name"], "version": u["version"], "title": u["flags"][-1]["title"],
+                                      "url": u["flags"][-1]["url"]} for u in result["updates"] if u["held"] == "flagged"]
                 go = [u for u in result["updates"] if not u["held"]]
                 status["early"] = [{"name": u["name"], "version": u["version"], "why": u["early"],
                                     "cves": u.get("confirmed", [])} for u in go if u.get("early")]
@@ -99,7 +101,8 @@ def run_once(run, changelog, now: float | None = None, settings_path: str = upda
         audit({"ts": datetime.datetime.fromtimestamp(now).astimezone().isoformat(timespec="seconds"),
                "event": "auto-update", "installed": status["installed"],
                "held": [f"{h['name']}={h['version']} ({h['held']})" for h in status["held"]],
-               "kev": status["kev"], "early": status["early"], "error": status["error"],
+               "kev": status["kev"], "early": status["early"],
+               "flagged": [f"{f['name']}={f['version']} ({f['url']})" for f in status["flagged"]], "error": status["error"],
                "signature": status["signature"]})
     return status
 

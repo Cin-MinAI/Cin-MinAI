@@ -176,7 +176,7 @@ def prepare_update_settings(args):
         raise Reject("not update settings") from None
     own = ", ".join(h["name"] + (f" {h['version']}" if h["version"] else "") for h in settings["own"][:6])
     return ({"days": str(settings["hold_days"]), "auto": "on" if settings["auto"] else "off",
-             "own": own or "none"}, settings)
+             "own": own or "none", "looked": ", ".join(settings["looked"][-6:]) or "none"}, settings)
 
 
 def execute_update_settings(settings) -> str:

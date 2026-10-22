@@ -389,9 +389,60 @@ WORDS_EARLY = {
            "early_kev": "最初に入れます：CISAが現在悪用されていると挙げている{cves}を修正し、Debianのセキュリティチームが確認しています",
            "n_early": "CISAが現在悪用されていると挙げている{cves}の修正を先にインストールしました：Debianのセキュリティチームが確認しています。"},
 }
+# a reason to hold: alarming posts on oss-security (D89)
+WORDS_ALARM = {
+    "en": {"wait_note_oss": "The titles of posts on the oss-security list (where the xz backdoor was first reported) "
+           "are read too: an update a post calls a backdoor, malicious or compromised stays held until you've looked. "
+           "Nothing about this computer is sent.",
+           "held_flagged": "Held until you've looked: a post on oss-security ({day}) names it: \u201c{title}\u201d",
+           "flag_seen": "A post on oss-security ({day}) names it: \u201c{title}\u201d", "read_post": "Read the post",
+           "looked": "I've looked: let it go", "oss_unknown": "Couldn't read the oss-security list just now.",
+           "n_flagged": "An update to {name} is held: a post on oss-security names it: \u201c{title}\u201d. Open "
+           "Updates to look."},
+    "es": {"wait_note_oss": "También se leen los títulos de la lista oss-security (donde se informó por primera vez de "
+           "la puerta trasera de xz): una actualización que un mensaje llama puerta trasera, maliciosa o comprometida "
+           "queda retenida hasta que la revises. No se envía nada sobre este ordenador.",
+           "held_flagged": "Retenida hasta que la revises: un mensaje de oss-security ({day}) la nombra: \u201c{title}\u201d",
+           "flag_seen": "Un mensaje de oss-security ({day}) la nombra: \u201c{title}\u201d", "read_post": "Leer el mensaje",
+           "looked": "Ya lo revisé: dejarla seguir", "oss_unknown": "No se pudo leer la lista oss-security ahora.",
+           "n_flagged": "Una actualización de {name} está retenida: un mensaje de oss-security la nombra: "
+           "\u201c{title}\u201d. Abre Actualizaciones para revisarla."},
+    "pt": {"wait_note_oss": "Os títulos da lista oss-security (onde o backdoor do xz foi relatado primeiro) também são "
+           "lidos: uma atualização que um post chama de backdoor, maliciosa ou comprometida fica retida até você olhar. "
+           "Nada sobre este computador é enviado.",
+           "held_flagged": "Retida até você olhar: um post na oss-security ({day}) a cita: \u201c{title}\u201d",
+           "flag_seen": "Um post na oss-security ({day}) a cita: \u201c{title}\u201d", "read_post": "Ler o post",
+           "looked": "Já olhei: pode seguir", "oss_unknown": "Não foi possível ler a lista oss-security agora.",
+           "n_flagged": "Uma atualização de {name} está retida: um post na oss-security a cita: \u201c{title}\u201d. "
+           "Abra Atualizações para olhar."},
+    "fr": {"wait_note_oss": "Les titres de la liste oss-security (où la porte dérobée de xz a d'abord été signalée) "
+           "sont lus aussi : une mise à jour qu'un message qualifie de porte dérobée, malveillante ou compromise reste "
+           "retenue jusqu'à ce que vous ayez regardé. Rien sur cet ordinateur n'est envoyé.",
+           "held_flagged": "Retenue jusqu'à ce que vous ayez regardé : un message sur oss-security ({day}) la cite : "
+           "\u201c{title}\u201d", "flag_seen": "Un message sur oss-security ({day}) la cite : \u201c{title}\u201d",
+           "read_post": "Lire le message", "looked": "J'ai regardé : la laisser passer",
+           "oss_unknown": "Impossible de lire la liste oss-security pour le moment.",
+           "n_flagged": "Une mise à jour de {name} est retenue : un message sur oss-security la cite : "
+           "\u201c{title}\u201d. Ouvrez Mises à jour pour regarder."},
+    "de": {"wait_note_oss": "Auch die Titel der Liste oss-security (wo die xz-Hintertür zuerst gemeldet wurde) werden "
+           "gelesen: Ein Update, das ein Beitrag Hintertür, bösartig oder kompromittiert nennt, bleibt zurückgehalten, "
+           "bis Sie es sich angesehen haben. Nichts über diesen Computer wird gesendet.",
+           "held_flagged": "Zurückgehalten, bis Sie es angesehen haben: Ein Beitrag auf oss-security ({day}) nennt es: "
+           "\u201e{title}\u201c", "flag_seen": "Ein Beitrag auf oss-security ({day}) nennt es: \u201e{title}\u201c",
+           "read_post": "Beitrag lesen", "looked": "Angesehen: freigeben",
+           "oss_unknown": "Die Liste oss-security ließ sich gerade nicht lesen.",
+           "n_flagged": "Ein Update für {name} wird zurückgehalten: Ein Beitrag auf oss-security nennt es: "
+           "\u201e{title}\u201c. Öffnen Sie Updates, um es anzusehen."},
+    "ja": {"wait_note_oss": "oss-securityメーリングリスト（xzのバックドアが最初に報告された場所）の投稿タイトルも読みます。投稿がバックドア・悪意のある・侵害されたと呼ぶ更新は、あなたが確認するまで保留します。このコンピューターについての情報は何も送りません。",
+           "held_flagged": "確認するまで保留：oss-securityの投稿（{day}）がこれを挙げています：「{title}」",
+           "flag_seen": "oss-securityの投稿（{day}）がこれを挙げています：「{title}」", "read_post": "投稿を読む",
+           "looked": "確認しました：通す", "oss_unknown": "今はoss-securityのリストを読めませんでした。",
+           "n_flagged": "{name}の更新を保留しています：oss-securityの投稿がこれを挙げています：「{title}」。更新を開いて確認してください。"},
+}
 for _code, _extra in WORDS_HOLDS.items():
     WORDS[_code].update(_extra)
     WORDS[_code].update(WORDS_EARLY[_code])
+    WORDS[_code].update(WORDS_ALARM[_code])
 
 
 
@@ -410,7 +461,8 @@ def read_json(path: str, default):
 
 def held(item: dict, settings: dict, now: float) -> str:
     """Why an update is held as the settings now stand (the same rule as the admin mechanism's apply_holds, so a change
-    shows before it's saved): "update" or "program" (the person's own), "waiting", or ""."""
+    shows before it's saved): "update" or "program" (the person's own), "flagged" (an alarming post on oss-security,
+    until they've looked), "waiting", or ""."""
     name = item["name"].split(":", 1)[0]
     own = {(h["name"], h["version"]) for h in settings.get("own", [])}
     if (name, item["version"]) in own:
@@ -418,6 +470,9 @@ def held(item: dict, settings: dict, now: float) -> str:
     if (name, "") in own:
         return "program"
     days = settings.get("hold_days", 0)
+    if days and item.get("flags") and not item.get("early") and f"{name}={item['version']}" not in settings.get(
+            "looked", []):
+        return "flagged"
     if days and not item.get("early") and now < item.get("seen", now) + days * DAY:
         return "waiting"
     return ""
@@ -432,6 +487,12 @@ def hold(settings: dict, item: dict, kind: str) -> dict:
     return dict(settings, own=own)
 
 
+def look(settings: dict, item: dict) -> dict:
+    """The settings with this update's alarming post looked at: it goes back to waiting like the rest."""
+    key = f"{item['name'].split(':', 1)[0]}={item['version']}"
+    return dict(settings, looked=([k for k in settings.get("looked", []) if k != key] + [key])[-500:])
+
+
 def when(ts: float) -> str:
     return time.strftime("%a %d %b %H:%M", time.localtime(ts))
 
@@ -442,12 +503,22 @@ def reason(item: dict, why: str, settings: dict, code: str | None = None) -> str
         line = words("held_waiting", code, when=when(item.get("seen", 0) + settings.get("hold_days", 0) * DAY))
         if item.get("unconfirmed"):
             line += ". " + words("unconfirmed" if item.get("cves") else "no_cve", code)
+        if item.get("flags"):
+            post = item["flags"][-1]
+            line += ". " + words("flag_seen", code, day=post["day"], title=post["title"])
         return line
     if why in ("update", "program"):
         return words(f"held_{why}", code)
+    if why == "flagged":
+        post = item["flags"][-1]
+        return words("held_flagged", code, day=post["day"], title=post["title"])
+    line = ""
     if item.get("early") and settings.get("hold_days"):
-        return words(f"early_{item['early']}", code, cves=", ".join(item.get("confirmed", [])[:3]))
-    return ""
+        line = words(f"early_{item['early']}", code, cves=", ".join(item.get("confirmed", [])[:3]))
+    if item.get("flags") and settings.get("hold_days"):
+        post = item["flags"][-1]
+        line = (line + ". " if line else "") + words("flag_seen", code, day=post["day"], title=post["title"])
+    return line
 
 
 def last_auto(status: dict, code: str | None = None) -> str:
@@ -463,7 +534,8 @@ def last_auto(status: dict, code: str | None = None) -> str:
 def notices(status: dict, noticed: dict, code: str | None = None) -> tuple[list[str], dict]:
     """What the daily run needs the person to know and hasn't told them yet: (texts, what's now been told). A CISA
     warning comes once per update; the rest once per run."""
-    texts, told = [], {"run": noticed.get("run", 0), "kev": list(noticed.get("kev", []))}
+    texts, told = [], {"run": noticed.get("run", 0), "kev": list(noticed.get("kev", [])),
+                       "flagged": list(noticed.get("flagged", []))}
     if status.get("ts") and status["ts"] > told["run"]:
         told["run"] = status["ts"]
         if status.get("signature"):
@@ -480,7 +552,12 @@ def notices(status: dict, noticed: dict, code: str | None = None) -> tuple[list[
         if key not in told["kev"]:
             told["kev"].append(key)
             texts.append(words("n_kev", code, cves=", ".join(k["cves"][:3])))
-    told["kev"] = told["kev"][-200:]
+    for f in status.get("flagged", []):
+        key = f"{f['name']}={f['version']}"
+        if key not in told["flagged"]:
+            told["flagged"].append(key)
+            texts.append(words("n_flagged", code, name=f["name"], title=f["title"]))
+    told["kev"], told["flagged"] = told["kev"][-200:], told["flagged"][-200:]
     return texts, told
 
 
@@ -604,7 +681,8 @@ def window() -> int:
     code = offline.lang()
     bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
     saved = read_json(SETTINGS, {})
-    saved = {"hold_days": saved.get("hold_days", 0), "auto": saved.get("auto", False), "own": saved.get("own", [])}
+    saved = {"hold_days": saved.get("hold_days", 0), "auto": saved.get("auto", False), "own": saved.get("own", []),
+             "looked": saved.get("looked", [])}
     state = {"plan": None, "online": False, "job": "", "sources": [], "rows": [], "busy": False,
              "saved": saved, "settings": json.loads(json.dumps(saved))}
 
@@ -641,7 +719,8 @@ def window() -> int:
     wait_row.pack_start(wait_check, False, False, 0)
     wait_row.pack_start(days, False, False, 0)
     wait_row.pack_start(Gtk.Label(label=words("wait_days", code), xalign=0, wrap=True), False, False, 0)
-    wait_note = Gtk.Label(label=words("wait_note", code), xalign=0, wrap=True, max_width_chars=80)
+    wait_note = Gtk.Label(label=words("wait_note", code) + " " + words("wait_note_oss", code), xalign=0, wrap=True,
+                          max_width_chars=80)
     wait_note.get_style_context().add_class("dim-label")
     auto_check = Gtk.CheckButton(label=words("auto", code))
     save_row = Gtk.Box(spacing=8)
@@ -707,6 +786,8 @@ def window() -> int:
             notes.append(words("removes", code, names=", ".join(p["remove"][:5])))
         if p.get("kev_checked") is False:
             notes.append(words("kev_unknown", code))
+        if p.get("oss_checked") is False:
+            notes.append(words("oss_unknown", code))
         note.set_text("\n".join(notes))
         for item in sorted(p["updates"], key=lambda i: (i.get("early") != "kev", not i["security"], i["name"])):
             row = Gtk.Box(spacing=10)
@@ -735,6 +816,10 @@ def window() -> int:
             for kind in ("update", "program", ""):
                 entry = Gtk.MenuItem(label=words(f"hold_{kind}" if kind else "release", code))
                 entry.connect("activate", lambda _m, it=item, k=kind: change(hold(state["settings"], it, k)))
+                menu.append(entry)
+            if item.get("flags"):
+                entry = Gtk.MenuItem(label=words("looked", code))
+                entry.connect("activate", lambda _m, it=item: change(look(state["settings"], it)))
                 menu.append(entry)
             menu.show_all()
             hold_button = Gtk.MenuButton(label=words("hold_menu", code), popup=menu)
@@ -766,7 +851,11 @@ def window() -> int:
                 tick.set_active(not why)
             item["shown_hold"] = why
             line = reason(item, why, state["settings"], code)
-            label.set_markup(f"<small>{GLib.markup_escape_text(line)}</small>" if line else "")
+            markup = GLib.markup_escape_text(line)
+            if line and item.get("flags") and state["settings"].get("hold_days"):
+                url = GLib.markup_escape_text(item["flags"][-1]["url"])
+                markup += f'  <a href="{url}">{GLib.markup_escape_text(words("read_post", code))}</a>'
+            label.set_markup(f"<small>{markup}</small>" if line else "")
             label.set_visible(bool(line))
         n = sum(1 for _, item, _ in state["rows"] if item["shown_hold"])
         held_count.set_text(words("held_note", code, n=n) if n else "")

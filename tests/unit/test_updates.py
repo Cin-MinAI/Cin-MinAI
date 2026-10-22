@@ -214,7 +214,7 @@ def compare(a, b):
 
 class Settings(unittest.TestCase):
     def test_the_defaults_hold_nothing(self):
-        self.assertEqual(root.check_settings({}), {"hold_days": 0, "auto": False, "own": []})
+        self.assertEqual(root.check_settings({}), {"hold_days": 0, "auto": False, "own": [], "looked": []})
 
     def test_what_the_person_sets(self):
         got = root.check_settings({"hold_days": 2, "auto": True, "own": [
@@ -227,7 +227,8 @@ class Settings(unittest.TestCase):
         for bad in ({"hold_days": -1}, {"hold_days": 61}, {"hold_days": True}, {"hold_days": "2"},
                     {"auto": "yes"}, {"own": [{"name": "-o=x", "version": ""}]},
                     {"own": [{"name": "bash", "version": "1;rm"}]}, {"own": [{"name": "bash", "extra": 1}]},
-                    {"own": "bash"}, {"other": 1}, [], "x",
+                    {"own": "bash"}, {"other": 1}, [], "x", {"looked": ["bash"]}, {"looked": ["-o=x=1"]},
+                    {"looked": [3]}, {"looked": "bash=1"},
                     {"own": [{"name": "p%d" % i, "version": ""} for i in range(root.MAX_OWN + 1)]}):
             with self.subTest(bad=str(bad)[:60]), self.assertRaises(Reject):
                 root.check_settings(bad)
@@ -437,7 +438,8 @@ class TheCheck(unittest.TestCase):
                           upgradable=lambda: {"libssl3t64": "3.0.13-0ubuntu3.6", "tzdata": "2025b-0ubuntu0.24.04"},
                           kev=lambda: {"CVE-2026-1111"}, settings_path=self.settings, seen_path=self.seen,
                           sources=lambda name: {"libssl3t64": "openssl"}.get(name, name),
-                          confirm=kw.pop("confirm", lambda cve: []), **kw)
+                          confirm=kw.pop("confirm", lambda cve: []),
+                          posts=kw.pop("posts", lambda days: {d: [] for d in days}), **kw)
 
     def test_the_wait_counts_from_the_first_check(self):
         root.write_json(self.settings, {"hold_days": 2, "auto": False, "own": []})
@@ -544,6 +546,126 @@ class TheDailyRun(unittest.TestCase):
                 with open(os.path.join(d, "AC", name), "w") as f:
                     f.write(value + "\n")
             self.assertTrue(auto.on_battery(d))
+
+
+class Alarms(unittest.TestCase):
+    # oss-security, 2024-03-29: the xz backdoor's first report and its replies (titles as the archive lists them)
+    XZ = [[3, "CVE-2024-28219: Pillow buffer overflow"],
+          [4, "backdoor in upstream xz/liblzma leading to ssh server compromise"],
+          [5, "Re: backdoor in upstream xz/liblzma leading to ssh server compromise"],
+          [6, "Re: eMudhra Intermediates Compromise"]]
+    TODAY = time.strftime("%Y/%m/%d", time.gmtime(NOW))
+    BEFORE = time.strftime("%Y/%m/%d", time.gmtime(NOW - 5 * DAY))
+
+    def item(self, **kw):
+        return dict({"name": "liblzma5", "version": "5.6.1-1", "old": "5.4.5-0.3", "security": False,
+                     "held": "waiting", "ready": NOW + DAY, "seen": NOW - DAY}, **kw)
+
+    def mark(self, items, settings=None, posts=None):
+        settings = settings or {"hold_days": 2, "auto": False, "own": [], "looked": []}
+        found = posts or {self.TODAY: self.XZ}
+        self.days = []
+
+        def fetch(days):
+            self.days.append(days)
+            return {d: found.get(d, []) for d in days}
+        self.result = root.mark_alarms(items, settings, lambda name: "xz-utils" if "lzma" in name or "xz" in name
+                                       else name, fetch, NOW)
+        return items
+
+    def test_the_title_must_name_the_program_and_raise_an_alarm(self):
+        xz = root.alarm_names("liblzma5", "xz-utils")
+        self.assertEqual({"xz", "liblzma"} <= xz, True)
+        self.assertEqual([n for n, _ in root.alarms(xz, self.XZ)], [4, 5])
+        self.assertEqual(root.alarms(root.alarm_names("openssh-server", "openssh"), self.XZ), [])  # "ssh" isn't it
+        self.assertEqual(root.alarms(root.alarm_names("python3-pil", "pillow"), self.XZ), [])  # no alarm word
+        self.assertIn("libssl", root.alarm_names("libssl3t64", "openssl"))
+        tiff = root.alarm_names("libtiff6", "tiff")
+        for title, alarm in (("libtiff: a malicious TIFF file can crash tiffinfo", False),  # an attacker's input
+                             ("tiff: session hijack via crafted tag", False),
+                             ("Malicious code in libtiff 4.7.1 release tarball", True),
+                             ("libtiff upstream repository compromised", True),
+                             ("Compromise of the tiff maintainer's account", True)):
+            self.assertEqual(bool(root.alarms(tiff, [[1, title]])), alarm, title)
+
+    def test_held_until_the_person_has_looked(self):
+        lzma, plain = self.mark([self.item(), self.item(name="tzdata", version="2025b")])
+        self.assertTrue(self.days[0][-1] == self.TODAY)
+        self.assertEqual((lzma["held"], lzma["ready"]), ("flagged", 0))
+        self.assertEqual(lzma["flags"][-1]["url"], root.OSS_URL.format(self.TODAY) + "5")
+        self.assertEqual(plain["held"], "waiting")
+        settings = {"hold_days": 2, "auto": False, "own": [], "looked": []}
+        self.assertEqual(window.held(lzma, settings, NOW), "flagged")  # the window agrees
+        self.assertIn("backdoor in upstream xz", window.reason(lzma, "flagged", settings, "en"))
+        looked = window.look(settings, lzma)
+        self.assertEqual(root.check_settings(looked)["looked"], ["liblzma5=5.6.1-1"])
+        self.assertEqual(window.held(lzma, looked, NOW), "waiting")  # looked: it waits like the rest
+        again, = self.mark([self.item()], looked)
+        self.assertEqual(again["held"], "waiting")
+        self.assertIn("oss-security", window.reason(again, "waiting", looked, "en"))  # still said
+
+    def test_only_posts_since_it_was_first_seen(self):
+        old, = self.mark([self.item()], posts={self.BEFORE: self.XZ})
+        self.assertEqual(old["held"], "waiting")
+        self.assertNotIn("flags", old)
+
+    def test_the_persons_holds_and_the_emergency_path_stand(self):
+        mine, early = self.mark([self.item(held="program"), self.item(held="", early="confirmed")])
+        self.assertEqual((mine["held"], early["held"]), ("program", ""))
+        self.assertNotIn("flags", mine)
+        self.assertTrue(early["flags"])  # it goes, and the post is shown
+        self.assertIn("oss-security", window.reason(early, "", {"hold_days": 2}, "en"))
+
+    def test_off_with_the_wait(self):
+        item = self.item(held="")
+        self.mark([item], {"hold_days": 0, "own": []})
+        self.assertIsNone(self.result)
+        self.assertEqual(self.days, [])  # nothing read
+
+    def test_the_archive_page(self):
+        page = ('<ul>\n<li><a href="4">backdoor in upstream xz/liblzma leading to ssh\nserver compromise</a> (A &lt;a&#64;b&gt;)'
+                '\n<li><a href="7">Re: CVE-2026-1: a &amp; b</a> (C)\n</ul>')
+        import html
+        got = [[int(n), " ".join(html.unescape(t).split())] for n, t in root.POST_RE.findall(page)]
+        self.assertEqual(got, [[4, "backdoor in upstream xz/liblzma leading to ssh server compromise"],
+                               [7, "Re: CVE-2026-1: a & b"]])
+
+    def test_days_read_once_they_are_over(self):
+        with tempfile.TemporaryDirectory() as d:
+            cache, asked = os.path.join(d, "oss.json"), []
+
+            def fetch(day):
+                asked.append(day)
+                return [[1, day]]
+            days = [self.BEFORE, self.TODAY]
+            self.assertEqual(root.oss_posts(days, fetch, cache, NOW)[self.BEFORE], [[1, self.BEFORE]])
+            root.oss_posts(days, fetch, cache, NOW + 3600)
+            self.assertEqual(len(asked), 2)  # within six hours: nothing read again
+            root.oss_posts(days, fetch, cache, NOW + 7 * 3600)
+            self.assertEqual(asked[2:], [self.TODAY])  # a finished day isn't read again; today is
+
+            def broken(day):
+                raise OSError("offline")
+            got = root.oss_posts(days + ["2000/01/01"], broken, cache, NOW + 20 * 3600)
+            self.assertEqual((got[self.TODAY], got["2000/01/01"]), ([[1, self.TODAY]], None))
+
+    def test_the_daily_run_says_it_once(self):
+        def check(run, changelog, now):
+            ups = [dict(self.item(), held="flagged", flags=[{"day": self.TODAY, "number": 4, "title": self.XZ[1][1],
+                                                              "url": "https://x/4"}])]
+            return {"sources": [], "updates": ups, "new": [], "remove": [], "phased": 0}
+        run = TheDailyRun()
+        run.setUp()
+        try:
+            st = run.daily({"hold_days": 2, "auto": True, "own": []}, check)
+        finally:
+            run.doCleanups()
+        self.assertEqual(run.installed, [])
+        self.assertEqual(st["flagged"][0]["url"], "https://x/4")
+        self.assertIn("https://x/4", run.audits[0]["flagged"][0])
+        texts, told = window.notices(st, {}, "en")
+        self.assertTrue(any("backdoor in upstream xz" in t for t in texts))
+        self.assertFalse(any("backdoor" in t for t in window.notices(dict(st, ts=NOW + DAY), told, "en")[0]))
 
 
 class Notices(unittest.TestCase):

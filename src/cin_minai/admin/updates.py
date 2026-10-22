@@ -23,7 +23,14 @@ Confirmations and the emergency path (slice 3, D89): while the wait is on, a sec
 confirmed for that same program by Debian's security team (its records on OSV.dev, Google: independent of Canonical,
 which ships the update) doesn't wait, and one fixing a CVE on CISA's list goes first. One that cites no CVE, or whose
 CVEs can't be confirmed, waits like the rest and says so (Ian, 2026-10-22). Only CVE numbers are sent. The person's
-own holds are never overridden."""
+own holds are never overridden.
+
+A reason to hold (D89, Ian, 2026-10-22): the oss-security list (openwall), where the xz backdoor was first disclosed.
+While the wait is on, the titles of its posts from the days an update has been waiting are read; one that names the
+update's program and says backdoor, malicious, compromised or the like holds it until the person has looked (the post
+is quoted and linked: who said it, not what happened). Nothing about the computer is sent. A security fix Debian's
+security team confirms still goes early: the emergency path is for exactly such a case. OpenSSF's malicious-packages
+list has no Debian or Ubuntu packages (only language registries and editor extensions), so it isn't asked."""
 
 from __future__ import annotations
 
@@ -49,7 +56,9 @@ KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulner
 LOCK = "/run/lock/cinminai-updates.lock"
 CONFIRM_CACHE = "/var/lib/cinminai/confirmations.json"
 OSV_URL = "https://api.osv.dev/v1/vulns/{}"
-DEFAULTS = {"hold_days": 0, "auto": False, "own": []}
+OSS_URL = "https://www.openwall.com/lists/oss-security/{}/"  # a day's index: 2026/10/22
+OSS_CACHE = "/var/lib/cinminai/oss-security.json"
+DEFAULTS = {"hold_days": 0, "auto": False, "own": [], "looked": []}
 MAX_HOLD_DAYS = 60
 MAX_OWN = 500
 DAY = 86400
@@ -64,6 +73,12 @@ INST_RE = re.compile(r"^Inst (?P<name>\S+) (?:\[(?P<old>[^\]]+)\] )?\((?P<new>\S
 REMV_RE = re.compile(r"^Remv (?P<name>\S+)")
 CVE_RE = re.compile(r"\bCVE-\d{4}-\d{4,7}\b")
 # a changelog entry's first line: "name (version) suite; urgency=..."
+POST_RE = re.compile(r'<li><a href="(\d{1,5})">(.*?)</a>', re.S)
+# words about the package itself, not an attacker's input ("a malicious document", "session hijack" are ordinary bugs)
+ALARM_RE = re.compile(r"\b(?:backdoor\w*|malware|trojan\w*|supply[- ]chain|compromised|compromise of|hijacked|"
+                      r"malicious (?:code|commits?|releases?|versions?|packages?|updates?|uploads?|maintainers?|tarballs?)|"
+                      r"injected (?:code|payload))\b", re.I)
+SUFFIX_RE = re.compile(r"-(?:utils|tools|progs|bin|common|core)$")
 ENTRY_RE = re.compile(r"^[a-z0-9][a-z0-9.+\-]* \((?P<version>[^)\s]+)\) ")
 
 Run = Callable[[list[str]], str]
@@ -195,12 +210,19 @@ def check_settings(data) -> dict:
     if not isinstance(data, dict) or set(data) - set(DEFAULTS):
         raise Reject("not update settings")
     days, auto, own = data.get("hold_days", 0), data.get("auto", False), data.get("own", [])
+    looked = data.get("looked", [])
     if not isinstance(days, int) or isinstance(days, bool) or not 0 <= days <= MAX_HOLD_DAYS:
         raise Reject(f"the wait is 0 to {MAX_HOLD_DAYS} days")
     if not isinstance(auto, bool):
         raise Reject("automatic is on or off")
     if not isinstance(own, list) or len(own) > MAX_OWN:
         raise Reject("too many holds")
+    if not isinstance(looked, list) or len(looked) > MAX_OWN:
+        raise Reject("too many looked at")
+    for key in looked:
+        name, _, version = key.partition("=") if isinstance(key, str) else ("", "", "")
+        if not PKG_RE.fullmatch(name) or not VERSION_RE.fullmatch(version):
+            raise Reject(f"not an update: {key!r}")
     holds, seen = [], set()
     for h in own:
         if not isinstance(h, dict) or set(h) - {"name", "version"}:
@@ -213,7 +235,7 @@ def check_settings(data) -> dict:
         if (name, version) not in seen:
             seen.add((name, version))
             holds.append({"name": name, "version": version})
-    return {"hold_days": days, "auto": auto, "own": holds}
+    return {"hold_days": days, "auto": auto, "own": holds, "looked": list(dict.fromkeys(looked))}
 
 
 def load_settings(path: str = SETTINGS) -> dict:
@@ -245,7 +267,7 @@ def base_name(name: str) -> str:
 
 def apply_holds(items: list[dict], settings: dict, seen: dict[str, float], now: float) -> None:
     """Mark each update: held "update" or "program" (the person's own), "waiting" (newer than the wait, with when it's
-    ready), or "" (goes). The person's own holds come first."""
+    ready), or "" (goes). The person's own holds come first; mark_alarms may hold one "flagged" after."""
     own = {(h["name"], h["version"]) for h in settings.get("own", [])}
     wait = settings.get("hold_days", 0) * DAY
     for item in items:
@@ -398,6 +420,87 @@ def confirm_early(items: list[dict], source: Callable[[str], str], confirm=confi
             item["osv_unreached"] = any(a is None for a in answers.values())
 
 
+def oss_fetch(day: str) -> list[list]:
+    """One day's posts on oss-security, [[number, title], ...]; raises OSError when the archive can't be read."""
+    import html
+    with urllib.request.urlopen(OSS_URL.format(day), timeout=20) as r:
+        page = r.read(2 << 20).decode("utf-8", "replace")
+    return [[int(n), " ".join(html.unescape(re.sub(r"<[^>]*>", "", t)).split())[:200]] for n, t in POST_RE.findall(page)]
+
+
+def oss_posts(days: list[str], fetch: Callable[[str], list] = oss_fetch, cache: str = OSS_CACHE,
+              now: float | None = None) -> dict[str, list | None]:
+    """The posts of each day asked (None for a day that couldn't be read). A day is read again until it's over (UTC,
+    with two hours for late posts), at most every six hours; days are kept 70 days."""
+    import calendar
+    now = now or time.time()
+    known = read_json(cache, {})
+    known = known if isinstance(known, dict) else {}
+    out, changed = {}, False
+    for day in days:
+        hit = known.get(day)
+        end = calendar.timegm(time.strptime(day, "%Y/%m/%d")) + DAY + 2 * 3600
+        if isinstance(hit, dict) and (hit.get("ts", 0) > end or now - hit.get("ts", 0) < 6 * 3600):
+            out[day] = hit.get("posts", [])
+            continue
+        try:
+            out[day] = fetch(day)
+        except (OSError, ValueError):
+            out[day] = hit.get("posts") if isinstance(hit, dict) else None
+            continue
+        known[day], changed = {"ts": now, "posts": out[day]}, True
+    if changed:
+        try:
+            write_json(cache, {d: v for d, v in known.items() if isinstance(v, dict) and now - v.get("ts", 0) < 70 * DAY})
+        except OSError:
+            pass
+    return out
+
+
+def alarm_names(name: str, source: str) -> set[str]:
+    """The names a post would call an update's program by: the package and its program without their versions, and the
+    program without a -utils/-tools ending (xz-utils is xz; its liblzma5 is liblzma; libssl3t64 is libssl)."""
+    names = {family(re.sub(r"t64$", "", base_name(name))), family(source), family(SUFFIX_RE.sub("", source))}
+    return {n for n in names if len(re.sub(r"[^a-z]", "", n)) >= 2}
+
+
+def alarms(names: set[str], posts: list) -> list[list]:
+    """The posts whose title names the program and raises an alarm (backdoor, malicious, compromised...)."""
+    hits = []
+    for number, title in posts:
+        said = {family(w) for w in re.findall(r"[a-z0-9][a-z0-9.+\-]*", title.lower())}
+        if names & said and ALARM_RE.search(title):
+            hits.append([number, title])
+    return hits
+
+
+def mark_alarms(items: list[dict], settings: dict, source: Callable[[str], str], posts=oss_posts,
+                now: float | None = None) -> bool | None:
+    """While the wait is on: an update named in an alarming oss-security post since it was first seen (the day before
+    too) is held "flagged" until the person has looked (settings' "looked"). The person's own holds stand; a fix
+    confirmed early still goes, the post shown. Returns whether every day could be read (None when nothing was asked)."""
+    now = now or time.time()
+    asked = [i for i in items if settings.get("hold_days") and i.get("held") not in ("update", "program")]
+    if not asked:
+        return None
+    first = max(min(i.get("seen", now) for i in asked) - DAY, now - MAX_HOLD_DAYS * DAY)
+    days = {time.strftime("%Y/%m/%d", time.gmtime(t)) for t in range(int(first), int(now), DAY)}
+    days = sorted(days | {time.strftime("%Y/%m/%d", time.gmtime(now))})
+    found = posts(days)
+    looked = set(settings.get("looked", []))
+    for item in asked:
+        since = time.strftime("%Y/%m/%d", time.gmtime(item.get("seen", now) - DAY))
+        names = alarm_names(item["name"], source(item["name"]))
+        flags = [{"day": d, "number": n, "title": t, "url": OSS_URL.format(d) + str(n)}
+                 for d in days if d >= since for n, t in alarms(names, found.get(d) or [])]
+        if not flags:
+            continue
+        item["flags"] = flags[-3:]
+        if f"{base_name(item['name'])}={item['version']}" not in looked and not item.get("early"):
+            item["held"], item["ready"] = "flagged", 0
+    return all(v is not None for v in found.values())
+
+
 def changelog_in_deb(tar, name: str) -> tuple[str, str]:
     """The changelog a package carries (usr/share/doc/NAME/changelog.Debian.gz) from its file tree, a tarfile:
     (text, ""), or ("", other) when it's a link to another package's (ghostscript's is libgs10's, from the same
@@ -434,10 +537,10 @@ def apt_compare() -> Callable[[str, str], int]:
 
 def check(run: Run, changelog: Callable[[dict], str], now: float | None = None, upgradable=apt_upgradable,
           compare=None, kev=kev_ids, settings_path: str = SETTINGS, seen_path: str = SEEN, sources=None,
-          confirm=confirm_cve) -> dict:
+          confirm=confirm_cve, posts=oss_posts) -> dict:
     """A check for updates (the window's and the daily timer's): the lists refreshed and their signatures checked, apt's
-    plan, when each waiting version was first seen (recorded), the holds applied, and the security fixes confirmed
-    early where they can be."""
+    plan, when each waiting version was first seen (recorded), the holds applied, the security fixes confirmed early
+    where they can be, and the alarms on oss-security."""
     now = now or time.time()
     result = refresh(run)
     result.update(plan(run(["/usr/bin/apt-get", "-s", "-o", "APT::Get::Show-User-Simulation-Note=false",
@@ -447,8 +550,11 @@ def check(run: Run, changelog: Callable[[dict], str], now: float | None = None, 
     settings = load_settings(settings_path)
     apply_holds(result["updates"], settings, seen, now)
     result["kev_checked"] = mark_kev(result["updates"], changelog, compare or apt_compare(), kev)
-    if any(u["held"] == "waiting" and u["security"] for u in result["updates"]):
-        confirm_early(result["updates"], sources or apt_sources(), confirm)
+    if settings["hold_days"] and result["updates"]:
+        source = sources or apt_sources()
+        if any(u["held"] == "waiting" and u["security"] for u in result["updates"]):
+            confirm_early(result["updates"], source, confirm)
+        result["oss_checked"] = mark_alarms(result["updates"], settings, source, posts, now)
     result["settings"] = settings
     return result
 

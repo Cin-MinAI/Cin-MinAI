@@ -354,7 +354,19 @@ daily run installs it on its own before the rest, recorded as early and why, wit
 the rest and says why ("couldn't be confirmed at an independent source", "names no CVE"). Only CVE numbers are sent;
 the window says so when the wait is turned on. The person's own holds are never lifted. Checked live on 2026-10-22:
 poppler's and ghostscript's security updates of that day confirmed, and php2shell (CVE-2026-109618) confirmed for
-Ubuntu's php8.3. Not yet: the malicious-package lists as a reason to hold.
+Ubuntu's php8.3.
+
+*As built (slice 4, 2026-10-22): a reason to hold.* While the wait is on, the check reads the titles of posts on the
+oss-security list (openwall's archive, one index page per day, from the day before an update was first seen; a finished
+day is kept, today's read again after six hours). A title that names the update's program (without its version, and
+without a -utils/-tools ending: xz-utils is xz, its liblzma5 is liblzma) and speaks of the package itself (backdoor,
+malware, compromised, malicious code or release, supply chain; not "a malicious file", which is an ordinary bug) holds
+it until the person has looked: the row quotes the title and the day and links the post, the Hold menu has "I've
+looked: let it go" (saved with the settings), and the daily run says it once. A fix Debian's security team confirms
+still goes early, the post shown on its row. Nothing about the computer is sent. Ian chose this on 2026-10-22, when it
+turned out OpenSSF's malicious-packages list has no Debian or Ubuntu packages at all (npm, PyPI, crates, Go, Maven,
+NuGet, Packagist, RubyGems, editor extensions): it isn't asked, and becomes useful when Cin-MinAI installs from those.
+Replayed against the archive: the xz backdoor's report (2024-03-29/30) holds liblzma5 and xz-utils and nothing else.
 
 ### 3.8 Legal
 
