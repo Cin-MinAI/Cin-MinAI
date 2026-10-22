@@ -2811,7 +2811,7 @@ def sized(plan: dict, machine, model_path: str, say=print) -> dict:
 def local_backend(say=print):
     """The matcher's coding model from the user's model store; the daemon's guide is unloaded first (one card)."""
     from cin_minai.daemon import config
-    from cin_minai.daemon.models import ModelStore, backend_cfg
+    from cin_minai.daemon.models import CODING_DRAFT, ModelStore, backend_cfg
     from cin_minai.inference import matcher
     from cin_minai.inference.llamacpp import LlamaCppBackend
     store = ModelStore()
@@ -2836,7 +2836,7 @@ def local_backend(say=print):
     default_ctx = int(plan.get("context") or 0)
     plan = sized(plan, machine, store.path(plan["file"]), say)
     cfg = backend_cfg(config.load()["inference"], plan, store.path(plan["file"]))
-    cfg["socket_name"] = "llama-code.sock"
+    cfg["socket_name"], cfg["draft"] = "llama-code.sock", CODING_DRAFT
     cfg["fallback_context"] = default_ctx  # a crash at a bigger size steps down to Cin-MinAI's own, not 4K
     say(f"\033[2mModel: {plan['model']} ({plan.get('context', 0) // 1024}K context, {plan['mode']}), loading…\033[0m")
     log_path = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",

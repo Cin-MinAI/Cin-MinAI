@@ -828,7 +828,7 @@ def pair_backends(say=print):
     import time
 
     from cin_minai.daemon import config
-    from cin_minai.daemon.models import ModelStore, backend_cfg
+    from cin_minai.daemon.models import CODING_DRAFT, ModelStore, backend_cfg
     from cin_minai.inference import matcher
     from cin_minai.inference.llamacpp import LlamaCppBackend
 
@@ -866,9 +866,9 @@ def pair_backends(say=print):
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
     base = config.load()["inference"]
     jcfg = backend_cfg(base, plan["junior"], store.path(JUNIOR_FILE))
-    jcfg["socket_name"] = "llama-code.sock"
+    jcfg["socket_name"], jcfg["draft"] = "llama-code.sock", CODING_DRAFT
     scfg = backend_cfg(base, plan["senior"], store.path(SENIOR_FILE))
-    scfg["socket_name"] = "llama-senior.sock"
+    scfg["socket_name"], scfg["draft"] = "llama-senior.sock", CODING_DRAFT
     projector = matcher.PROJECTORS.get(SENIOR_FILE)
     sees = bool(projector and store.has(projector.file))
     if sees:  # looks: the Senior answers the picture question (kept off the card: room is the Junior's)

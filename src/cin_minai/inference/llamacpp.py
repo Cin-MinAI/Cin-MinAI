@@ -263,6 +263,10 @@ class LlamaCppBackend(InferenceBackend):
              "--cache-type-k", self.cache_type(), "--cache-type-v", self.cache_type(), "--flash-attn", "on", "--fit", "off",
              "--parallel", "1", "--reasoning", str(self.cfg.get("reasoning") or "off"), "--no-webui",
              "--threads", threads, "--threads-batch", threads]
+        extra = [str(x) for x in self.cfg.get("extra_args", [])]
+        if self.cfg.get("draft") and "--mmproj" not in extra and "--spec-type" not in extra:
+            # drafts guessed from the context (D33, the coding role); not yet beside a picture reader: untested
+            a += ["--spec-type", str(self.cfg["draft"])]
         if self.cfg.get("reasoning_budget"):  # thinking that ends in time (D7): past the budget, told to answer
             a += ["--reasoning-budget", str(int(self.cfg["reasoning_budget"])),
                   "--reasoning-budget-message", str(self.cfg.get("reasoning_budget_message") or "")]

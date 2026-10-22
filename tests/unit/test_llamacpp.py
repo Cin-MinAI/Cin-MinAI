@@ -64,5 +64,24 @@ class LadderTest(unittest.TestCase):
         self.assertLess(need, 3032 + 300)
 
 
+class DraftTest(unittest.TestCase):
+    """The coding role drafts tokens from the context (D33, 2026-10-21); the guide doesn't; nor, until tested, a
+    server with a picture reader."""
+
+    def argv(self, **cfg):
+        from unittest import mock
+        b = llamacpp.LlamaCppBackend({"model": "/x/m.gguf", **cfg}, lambda m: None)
+        return b.argv(mock.Mock(context=8192, gpu_layers="all", device="CUDA0"))
+
+    def test_the_coding_role_drafts(self):
+        from cin_minai.daemon.models import CODING_DRAFT
+        a = self.argv(draft=CODING_DRAFT)
+        self.assertEqual(a[a.index("--spec-type") + 1], "ngram-mod")
+        self.assertNotIn("--spec-type", self.argv())  # the guide
+        self.assertNotIn("--spec-type", self.argv(draft=CODING_DRAFT, extra_args=["--mmproj", "/x/p.gguf"]))
+        own = self.argv(draft=CODING_DRAFT, extra_args=["--spec-type", "ngram-simple"])
+        self.assertEqual(own.count("--spec-type"), 1)  # a person's own choice stands
+
+
 if __name__ == "__main__":
     unittest.main()

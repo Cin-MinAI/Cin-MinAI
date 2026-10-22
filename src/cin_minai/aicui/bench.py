@@ -112,10 +112,10 @@ def the_setup(root: str):
 
 def backend_for(store, plan: dict, file: str, sock: str, log):
     from cin_minai.daemon import config
-    from cin_minai.daemon.models import backend_cfg
+    from cin_minai.daemon.models import CODING_DRAFT, backend_cfg
     from cin_minai.inference.llamacpp import LlamaCppBackend
     cfg = backend_cfg(config.load()["inference"], plan, store.path(file))
-    cfg["socket_name"] = sock
+    cfg["socket_name"], cfg["draft"] = sock, CODING_DRAFT  # measured as it runs
 
     class OneSize(LlamaCppBackend):
         def ladder(self):  # the size being measured only: no smaller fallback

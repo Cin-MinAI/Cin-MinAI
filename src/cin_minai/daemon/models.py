@@ -269,6 +269,12 @@ def main() -> int:
     return 0
 
 
+# The coding role's servers draft tokens from the context (PLAN D33; Ian, 2026-10-21: on). Measured on the 4070
+# (bench/spec_speed.py, spec_aicui.py): a file given back with a change 3-7x faster, new code and diagnoses no faster,
+# AICUI's coding run held and failed at the same stages with it as without. Not for the guide (answers no faster).
+CODING_DRAFT = "ngram-mod"
+
+
 def backend_cfg(base: dict, plan: dict, model_path: str) -> dict:
     """LlamaCppBackend settings for a matcher plan: its args, minus what the backend sets itself (context, flash
     attention, cache type, full offload), plus its context, cache type and desktop margin."""

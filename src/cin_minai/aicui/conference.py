@@ -137,7 +137,7 @@ def backends(root: str, setup: dict, say=print) -> dict:
     import time
 
     from cin_minai.daemon import config
-    from cin_minai.daemon.models import ModelStore, backend_cfg
+    from cin_minai.daemon.models import CODING_DRAFT, ModelStore, backend_cfg
     from cin_minai.inference import cloud as cloud_mod
     from cin_minai.inference.llamacpp import LlamaCppBackend
 
@@ -164,7 +164,7 @@ def backends(root: str, setup: dict, say=print) -> dict:
                 raise RuntimeError(f"{s['name']}'s model ({s.get('model')}) " + (
                     "isn't in the model store" if model is None else "doesn't fit beside the seats before it"))
             cfg = backend_cfg(base, plan, store.path(s["model"]))
-            cfg["socket_name"] = f"llama-seat-{slug(s['name'])}.sock"
+            cfg["socket_name"], cfg["draft"] = f"llama-seat-{slug(s['name'])}.sock", CODING_DRAFT
             log(f"table seat {s['name']}: {plan['model']} | {plan['mode']} | {' '.join(plan.get('args', []))}")
             say(f"\033[2m{s['name']}: {plan['model']} ({how}), loading…\033[0m")
             b = LlamaCppBackend(cfg, log)
