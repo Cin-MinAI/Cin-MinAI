@@ -187,10 +187,13 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         this.refresh();
         this.reach = [];
         this.reachTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => { this.showReach(); return true; });
-        // security updates in offline mode: a reminder at most once a month (cinminai-offline decides when)
+        // security updates in offline mode: a reminder at most once a month (cinminai-offline decides when);
+        // what the daily update run needs the person to know, once each (D89: cinminai-updates decides)
         Util.spawn([OFFLINE, "remind"]);
+        Util.spawn([UPDATES, "--notices"]);
         this.remindTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 6 * 3600, () => {
             Util.spawn([OFFLINE, "remind"]);
+            Util.spawn([UPDATES, "--notices"]);
             return true;
         });
     }

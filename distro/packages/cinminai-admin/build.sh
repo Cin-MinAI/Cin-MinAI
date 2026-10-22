@@ -11,6 +11,11 @@ cat > "$stage/usr/libexec/cinminai/cinminai-admin" <<'PY'
 from cin_minai.admin.mechanism import main
 raise SystemExit(main())
 PY
+cat > "$stage/usr/libexec/cinminai/cinminai-updates-auto" <<'PY'
+#!/usr/bin/python3 -P
+from cin_minai.admin.auto import main
+raise SystemExit(main())
+PY
 cat > "$stage/usr/share/doc/cinminai-admin/copyright" <<'COPY'
 Cin-MinAI admin mechanism: GPL-3.0-or-later (/usr/share/common-licenses/GPL-3).
 Source: https://github.com/Cin-MinAI/Cin-MinAI

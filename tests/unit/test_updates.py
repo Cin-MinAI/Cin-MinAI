@@ -6,6 +6,7 @@ the six languages.
     python3 -m unittest tests.unit.test_updates -v        (from the repo root)
 """
 
+import contextlib
 import hashlib
 import json
 import os
@@ -13,11 +14,13 @@ import shutil
 import string
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
+from cin_minai.admin import auto  # noqa: E402
 from cin_minai.admin import updates as root  # noqa: E402
 from cin_minai.admin.policy import Reject  # noqa: E402
 from cin_minai.daemon import updates as window  # noqa: E402
@@ -40,7 +43,7 @@ Conf libssl3t64 (3.0.13-0ubuntu3.6 Ubuntu:24.04/noble-updates [amd64])
 
 class ThePlan(unittest.TestCase):
     def test_what_apt_would_do(self):
-        p = window.plan(SIMULATION)
+        p = root.plan(SIMULATION)
         self.assertEqual([(i["name"], i["old"], i["version"], i["security"]) for i in p["updates"]],
                          [("libssl3t64", "3.0.13-0ubuntu3.5", "3.0.13-0ubuntu3.6", True),
                           ("tzdata", "2024a-3ubuntu1.1", "2025b-0ubuntu0.24.04", False)])
@@ -49,18 +52,17 @@ class ThePlan(unittest.TestCase):
         self.assertEqual(p["phased"], 3)  # Ubuntu releases these gradually: they wait, as in Update Manager
 
     def test_the_request_is_the_exact_versions(self):
-        p = window.plan(SIMULATION)
+        p = root.plan(SIMULATION)
         self.assertEqual(window.request(p["updates"]),
                          ["libssl3t64=3.0.13-0ubuntu3.6", "tzdata=2025b-0ubuntu0.24.04"])
 
-    def test_root_reads_the_same_lines(self):
-        # the mechanism's plan (for the fingerprints) and the window's list come from one format
+    def test_the_install_reads_the_same_lines(self):
+        # the install's plan (for the fingerprints) and the window's list come from one format
         self.assertEqual([p["name"] for p in root.planned(SIMULATION)],
                          ["libssl3t64", "linux-image-6.8.0-90-generic", "tzdata"])
-        self.assertEqual(root.INST_RE.pattern, window.INST_RE.pattern)
 
     def test_headline(self):
-        p = window.plan(SIMULATION)
+        p = root.plan(SIMULATION)
         self.assertEqual(window.headline(p, "en"), "2 updates waiting (1 security)")
         self.assertEqual(window.headline({"updates": []}, "en"), "This computer is up to date.")
 
@@ -186,6 +188,269 @@ class TheSteps(unittest.TestCase):
         self.assertTrue(self.install()["restart"])
         self.assertTrue(self.details["after"]["restart"])
         self.assertIn("Restart", window.step_text("after", "ok", self.details["after"], "en")[1])
+
+
+NOW = 1_800_000_000.0
+DAY = 86400
+UPDATE_OUT = "Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease\nReading package lists...\n"
+CHANGELOG = """openssl (3.0.13-0ubuntu3.6) noble-security; urgency=medium
+
+  * SECURITY UPDATE: something
+    - CVE-2026-1111
+  * SECURITY UPDATE: another, CVE-2026-2222 and CVE-2026-1111 again
+
+ -- Someone <x@example.org>  Mon, 19 Oct 2026 10:00:00 +0000
+
+openssl (3.0.13-0ubuntu3.5) noble-security; urgency=medium
+
+  * SECURITY UPDATE: already installed
+    - CVE-2025-9999
+"""
+
+
+def compare(a, b):
+    return (a > b) - (a < b)  # good enough for these versions
+
+
+class Settings(unittest.TestCase):
+    def test_the_defaults_hold_nothing(self):
+        self.assertEqual(root.check_settings({}), {"hold_days": 0, "auto": False, "own": []})
+
+    def test_what_the_person_sets(self):
+        got = root.check_settings({"hold_days": 2, "auto": True, "own": [
+            {"name": "firefox", "version": ""}, {"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6"},
+            {"name": "firefox", "version": ""}]})
+        self.assertEqual(got["own"], [{"name": "firefox", "version": ""},
+                                      {"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6"}])  # once each
+
+    def test_anything_else_is_refused(self):
+        for bad in ({"hold_days": -1}, {"hold_days": 61}, {"hold_days": True}, {"hold_days": "2"},
+                    {"auto": "yes"}, {"own": [{"name": "-o=x", "version": ""}]},
+                    {"own": [{"name": "bash", "version": "1;rm"}]}, {"own": [{"name": "bash", "extra": 1}]},
+                    {"own": "bash"}, {"other": 1}, [], "x",
+                    {"own": [{"name": "p%d" % i, "version": ""} for i in range(root.MAX_OWN + 1)]}):
+            with self.subTest(bad=str(bad)[:60]), self.assertRaises(Reject):
+                root.check_settings(bad)
+
+    def test_a_damaged_file_means_the_defaults(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "updates.json")
+            with open(path, "w") as f:
+                f.write('{"hold_days": 9999')
+            self.assertEqual(root.load_settings(path), root.DEFAULTS)
+            root.write_json(path, {"hold_days": 2, "auto": False, "own": []})
+            self.assertEqual(root.load_settings(path)["hold_days"], 2)
+
+
+class Holds(unittest.TestCase):
+    def items(self):
+        return [{"name": "firefox", "version": "140.0", "old": "139.0", "security": False},
+                {"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6", "old": "3.0.13-0ubuntu3.5", "security": True},
+                {"name": "tzdata", "version": "2025b", "old": "2025a", "security": False},
+                {"name": "libc6:i386", "version": "2.39-0ubuntu8.7", "old": "2.39-0ubuntu8.6", "security": False}]
+
+    def test_first_seen_is_kept(self):
+        seen = root.record_seen({"tzdata": "2025b"}, {}, NOW)
+        self.assertEqual(seen, {"tzdata=2025b": NOW})
+        later = root.record_seen({"tzdata": "2025b", "firefox": "140.0"}, seen, NOW + DAY)
+        self.assertEqual(later, {"tzdata=2025b": NOW, "firefox=140.0": NOW + DAY})
+        # gone from the list: kept 90 days, then dropped
+        self.assertIn("tzdata=2025b", root.record_seen({}, later, NOW + 89 * DAY))
+        self.assertNotIn("tzdata=2025b", root.record_seen({}, later, NOW + 91 * DAY))
+
+    def test_off_by_default_nothing_is_held(self):
+        items = self.items()
+        root.apply_holds(items, root.DEFAULTS, {}, NOW)
+        self.assertEqual([i["held"] for i in items], ["", "", "", ""])
+
+    def test_the_wait_and_the_persons_own(self):
+        items = self.items()
+        seen = {"firefox=140.0": NOW - 3 * DAY, "libssl3t64=3.0.13-0ubuntu3.6": NOW - DAY, "tzdata=2025b": NOW - DAY,
+                "libc6:i386=2.39-0ubuntu8.7": NOW - 3 * DAY}
+        settings = {"hold_days": 2, "auto": True, "own": [{"name": "tzdata", "version": "2025b"},
+                                                          {"name": "libc6", "version": ""}]}
+        root.apply_holds(items, settings, seen, NOW)
+        self.assertEqual([i["held"] for i in items], ["", "waiting", "update", "program"])
+        self.assertEqual(items[1]["ready"], NOW + DAY)  # security fixes wait too (D89); slice 3 confirms them early
+        # the window shows the same holds, also before a change is saved
+        for item in items:
+            self.assertEqual(window.held(item, settings, NOW), item["held"], item["name"])
+
+    def test_a_new_version_of_a_held_update_is_not_held(self):
+        items = self.items()
+        root.apply_holds(items, {"hold_days": 0, "own": [{"name": "firefox", "version": "139.5"}]}, {}, NOW)
+        self.assertEqual(items[0]["held"], "")
+
+    def test_the_window_adds_and_releases_holds(self):
+        item = self.items()[0]
+        s = window.hold(root.DEFAULTS, item, "program")
+        self.assertEqual(s["own"], [{"name": "firefox", "version": ""}])
+        s = window.hold(s, item, "update")
+        self.assertEqual(s["own"], [{"name": "firefox", "version": "140.0"}])
+        self.assertEqual(window.hold(s, item, "")["own"], [])
+        self.assertEqual(root.check_settings(window.hold(s, self.items()[3], "program"))["own"][-1],
+                         {"name": "libc6", "version": ""})
+
+
+class Cisa(unittest.TestCase):
+    def test_the_cves_an_update_fixes(self):
+        self.assertEqual(root.changelog_cves(CHANGELOG, "3.0.13-0ubuntu3.5", compare),
+                         ["CVE-2026-1111", "CVE-2026-2222"])  # not the ones already installed
+
+    def test_kev_fetched_once_a_day_and_a_week_old_copy_serves(self):
+        with tempfile.TemporaryDirectory() as d:
+            cache = os.path.join(d, "kev.json")
+            fetched = []
+
+            def fetch():
+                fetched.append(1)
+                return json.dumps({"vulnerabilities": [{"cveID": "CVE-2026-2222"}]}).encode()
+            self.assertEqual(root.kev_ids(fetch, cache, time.time()), {"CVE-2026-2222"})
+            self.assertEqual(root.kev_ids(fetch, cache, time.time() + 3600), {"CVE-2026-2222"})
+            self.assertEqual(len(fetched), 1)
+
+            def broken():
+                raise OSError("offline")
+            self.assertEqual(root.kev_ids(broken, cache, time.time() + 3 * DAY), {"CVE-2026-2222"})
+            self.assertIsNone(root.kev_ids(broken, cache, time.time() + 8 * DAY))
+
+    def test_only_held_security_updates_are_looked_up(self):
+        items = Holds().items()
+        items[1]["held"], items[0]["held"] = "waiting", "update"
+        asked = []
+
+        def changelog(name):
+            asked.append(name)
+            return CHANGELOG
+        self.assertTrue(root.mark_kev(items, changelog, compare, lambda: {"CVE-2026-2222"}))
+        self.assertEqual(asked, ["libssl3t64"])
+        self.assertEqual(items[1]["kev"], ["CVE-2026-2222"])
+        self.assertIsNone(root.mark_kev([dict(items[1], held="")], changelog, compare, lambda: set()))
+        self.assertFalse(root.mark_kev(items, changelog, compare, lambda: None))  # couldn't read it: said
+
+
+class TheCheck(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.settings = os.path.join(self.dir, "updates.json")
+        self.seen = os.path.join(self.dir, "seen.json")
+
+    def run_apt(self, argv):
+        return SIMULATION if "-s" in argv else UPDATE_OUT
+
+    def check(self, now, **kw):
+        return root.check(self.run_apt, lambda name: CHANGELOG, now, compare=compare,
+                          upgradable=lambda: {"libssl3t64": "3.0.13-0ubuntu3.6", "tzdata": "2025b-0ubuntu0.24.04"},
+                          kev=lambda: {"CVE-2026-1111"}, settings_path=self.settings, seen_path=self.seen, **kw)
+
+    def test_the_wait_counts_from_the_first_check(self):
+        root.write_json(self.settings, {"hold_days": 2, "auto": False, "own": []})
+        first = self.check(NOW)
+        self.assertEqual([u["held"] for u in first["updates"]], ["waiting", "waiting"])
+        self.assertEqual(first["updates"][0]["kev"], ["CVE-2026-1111"])  # held security fix on CISA's list: said
+        self.assertTrue(first["kev_checked"])
+        self.assertEqual(first["settings"]["hold_days"], 2)
+        later = self.check(NOW + 2 * DAY + 1)
+        self.assertEqual([u["held"] for u in later["updates"]], ["", ""])
+        self.assertIsNone(later["kev_checked"])  # nothing held, nothing looked up
+
+    def test_a_signature_problem_still_stops_the_check(self):
+        def bad(argv):
+            return "W: GPG error: http://example.org stable InRelease: NO_PUBKEY 0123456789ABCDEF\n"
+        with self.assertRaises(RuntimeError):
+            root.check(bad, lambda n: "", NOW, compare=compare, upgradable=dict, kev=set,
+                       settings_path=self.settings, seen_path=self.seen)
+        self.assertFalse(os.path.exists(self.seen))
+
+
+class TheDailyRun(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.settings = os.path.join(self.dir, "updates.json")
+        self.status = os.path.join(self.dir, "status.json")
+        self.installed, self.audits = [], []
+
+    def plan(self, held):
+        ups = [{"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6", "old": "x", "security": True,
+                "held": held, "ready": 0, "kev": ["CVE-2026-1111"] if held else []},
+               {"name": "tzdata", "version": "2025b", "old": "y", "security": False, "held": "", "ready": 0}]
+        return lambda run, changelog, now: {"sources": [], "updates": ups, "new": [], "remove": [], "phased": 0}
+
+    def install(self, versions, snapshot, run, emit, job):
+        self.installed.append(versions)
+        emit(job, "install", "ok", "{}")
+        return {"installed": len(versions), "restart": True, "broken": False, "failed": []}
+
+    def daily(self, settings, check, battery=lambda: False):
+        if settings is not None:
+            root.write_json(self.settings, settings)
+        return auto.run_once(None, None, NOW, self.settings, self.status, check, self.install, battery,
+                             self.audits.append, lock=contextlib.nullcontext)
+
+    def test_off_does_nothing(self):
+        self.assertIsNone(self.daily(None, self.plan("")))
+        self.assertFalse(os.path.exists(self.status))
+
+    def test_installs_what_nothing_holds(self):
+        st = self.daily({"hold_days": 2, "auto": True, "own": []}, self.plan("waiting"))
+        self.assertEqual(self.installed, [["tzdata=2025b"]])
+        self.assertTrue(st["restart"])
+        self.assertEqual(st["held"][0]["name"], "libssl3t64")
+        self.assertEqual(st["kev"], [{"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6", "cves": ["CVE-2026-1111"]}])
+        self.assertEqual(self.audits[0]["event"], "auto-update")
+        self.assertEqual(root.read_json(self.status, {})["installed"], ["tzdata=2025b"])
+
+    def test_the_wait_alone_only_checks(self):
+        st = self.daily({"hold_days": 2, "auto": False, "own": []}, self.plan(""))
+        self.assertEqual(self.installed, [])
+        self.assertEqual(st["error"], "")
+
+    def test_not_on_battery(self):
+        st = self.daily({"hold_days": 0, "auto": True, "own": []}, self.plan(""), battery=lambda: True)
+        self.assertEqual((self.installed, st["error"]), ([], "battery"))
+
+    def test_a_signature_problem_is_recorded(self):
+        def bad(run, changelog, now):
+            raise RuntimeError(json.dumps({"signature": ["W: GPG error: x NO_PUBKEY 1"], "error": ""}))
+        st = self.daily({"hold_days": 0, "auto": True, "own": []}, bad)
+        self.assertEqual((self.installed, st["error"]), ([], "check"))
+        self.assertTrue(st["signature"])
+
+    def test_battery_reading(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(auto.on_battery(d))  # a desktop: no power supply listed
+            os.makedirs(os.path.join(d, "AC"))
+            for name, value in (("type", "Mains"), ("online", "0")):
+                with open(os.path.join(d, "AC", name), "w") as f:
+                    f.write(value + "\n")
+            self.assertTrue(auto.on_battery(d))
+
+
+class Notices(unittest.TestCase):
+    STATUS = {"ts": NOW, "installed": ["tzdata=2025b"], "held": [{}], "restart": True, "error": "", "signature": [],
+              "kev": [{"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6", "cves": ["CVE-2026-1111"]}]}
+
+    def test_each_said_once(self):
+        texts, told = window.notices(self.STATUS, {}, "en")
+        self.assertEqual(len(texts), 2)  # the restart, the CISA warning
+        self.assertIn("CVE-2026-1111", texts[1])
+        again, told = window.notices(self.STATUS, told, "en")
+        self.assertEqual(again, [])
+        # the next day's run: the restart again, the same held fix not again
+        texts, _ = window.notices(dict(self.STATUS, ts=NOW + DAY), told, "en")
+        self.assertEqual(len(texts), 1)
+
+    def test_a_failed_check_is_said(self):
+        texts, _ = window.notices({"ts": NOW, "signature": ["x"], "error": "check"}, {}, "en")
+        self.assertEqual(texts, [window.words("n_genuine", "en")])
+        self.assertEqual(window.notices({"ts": NOW, "error": "check"}, {}, "en")[0], [])  # offline: quiet
+
+    def test_the_last_run_in_a_line(self):
+        self.assertEqual(window.last_auto({}, "en"), "")
+        self.assertIn("1 installed, 1 held", window.last_auto(self.STATUS, "en"))
+        self.assertIn("power cable", window.last_auto({"ts": NOW, "error": "battery"}, "en"))
 
 
 class Words(unittest.TestCase):

@@ -39,6 +39,7 @@ XML = f"""<node><interface name="{IFACE}">
   <method name="RunArgv"><arg type="as" name="argv" direction="in"/><arg type="s" name="log" direction="out"/></method>
   <method name="RefreshUpdates"><arg type="s" name="result" direction="out"/></method>
   <method name="InstallUpdates"><arg type="as" name="versions" direction="in"/><arg type="b" name="snapshot" direction="in"/><arg type="s" name="job" direction="in"/><arg type="s" name="result" direction="out"/></method>
+  <method name="SetUpdateSettings"><arg type="s" name="settings" direction="in"/><arg type="s" name="result" direction="out"/></method>
   <signal name="UpdateStep"><arg type="s" name="job"/><arg type="s" name="step"/><arg type="s" name="state"/><arg type="s" name="detail"/></signal>
   <property name="Version" type="s" access="read"/>
 </interface></node>"""
@@ -119,7 +120,6 @@ def run_apt_whole(argv: list[str]) -> str:
     return run(argv, timeout=None, keep=None)
 
 
-UPDATING = threading.Lock()  # one update at a time
 JOB_RE = re.compile(r"^[a-z0-9]{1,32}$")
 EMIT = [lambda *a: None]  # set when the bus name is owned: the UpdateStep signal
 
@@ -136,14 +136,36 @@ def prepare_install_updates(args):
 
 def execute_install_updates(args):
     versions, snapshot, job = args
-    if not UPDATING.acquire(blocking=False):
-        raise RuntimeError("an update is already running")
-    try:
+    with updates.exclusive():  # one update at a time, the daily timer's included
         # the password dialog may have sat on screen while the lists changed: check again
         versions = updates.check_versions(versions, updates.apt_candidates())
         return json.dumps(updates.install(versions, snapshot, run_apt_whole, lambda *a: EMIT[0](*a), job))
-    finally:
-        UPDATING.release()
+
+
+def changelog(name: str) -> str:
+    # a held security update's changelog, for the CVEs it fixes (D89: CISA's list); from the package's own source
+    return run(["/usr/bin/apt-get", "changelog", name], timeout=60, keep=None)
+
+
+def execute_refresh_updates(_args) -> str:
+    with updates.exclusive():
+        return json.dumps(updates.check(run_apt_whole, changelog))
+
+
+def prepare_update_settings(args):
+    try:
+        settings = updates.check_settings(json.loads(args[0]))
+    except ValueError:
+        raise Reject("not update settings") from None
+    own = ", ".join(h["name"] + (f" {h['version']}" if h["version"] else "") for h in settings["own"][:6])
+    return ({"days": str(settings["hold_days"]), "auto": "on" if settings["auto"] else "off",
+             "own": own or "none"}, settings)
+
+
+def execute_update_settings(settings) -> str:
+    # root-owned and readable by all: the window and the daily timer read the same settings
+    updates.write_json(updates.SETTINGS, updates.check_settings(settings))
+    return json.dumps(settings)
 
 
 VERBS = {
@@ -156,8 +178,10 @@ VERBS = {
     "UnloadModule": ("org.cinminai.admin.unload-module", lambda a: prepare_module(a, True), lambda a: _none(run(a)), None),
     "RunArgv": ("org.cinminai.admin.run-argv", prepare_run_argv, execute_run_argv, "(s)"),
     # the update window (D29): checking for updates needs no password (Update Manager's doesn't either); installing does
-    "RefreshUpdates": ("org.cinminai.admin.refresh-updates", lambda a: ({}, None), lambda a: json.dumps(updates.refresh(run_apt_whole)), "(s)"),
+    "RefreshUpdates": ("org.cinminai.admin.refresh-updates", lambda a: ({}, None), execute_refresh_updates, "(s)"),
     "InstallUpdates": ("org.cinminai.admin.install-updates", prepare_install_updates, execute_install_updates, "(s)"),
+    # the holds and automatic updates (D89): optional, the person's own; one password to change them
+    "SetUpdateSettings": ("org.cinminai.admin.update-settings", prepare_update_settings, execute_update_settings, "(s)"),
 }
 
 

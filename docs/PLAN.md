@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **65 filled (68 %)**, 19 partly,
-5 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 open -> partly). 90 % is **86 filled**: 21 to go.
+**Count:** 95 live decisions (D18 superseded) — **65 filled (68 %)**, 20 partly,
+4 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly). 90 % is **86 filled**: 21 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -181,7 +181,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D26 | filled | public repos, decisions, evals |
 | D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
 | D28 | filled | the internet log, off until switched on from the panel icon's menu (2026-10-16), and the panel's WEB / CLOUD sign; offline mode (2026-10-21): "Keep this computer offline" in the same menu switches NetworkManager's networking off for the whole computer, the panel says OFFLINE, the assistant offers no web search, news or download; "Go online to install updates" connects, opens Update Manager and goes back offline after any install finishes; a security-update reminder at most once a month (`daemon/offline.py`, `cinminai-offline`). Offered from the menu, not at first boot: Cin-MinAI has no first-boot screen yet. Offline updates from a USB stick stay an open question (§6) |
-| D29 | partly | the Updates window (2026-10-22, slice 1): apt's own plan in plain words, every step a real check (snapshot when Timeshift is set up, signatures, each file's fingerprint, install, the check afterwards), offline mode handled; holds and automatic updates next (slice 2), sounds as in SPEC §5.7 |
+| D29 | partly | the Updates window (2026-10-22, slice 1): apt's own plan in plain words, every step a real check (snapshot when Timeshift is set up, signatures, each file's fingerprint, install, the check afterwards), offline mode handled, sounds as in SPEC §5.7; slice 2 the same day: the holds and automatic updates (D89) |
 | D30 | filled | standing rule (offer cards everywhere) |
 | D31 | partly | security updates continuous; model cycle 1 parked |
 | D32 | filled | the transition corpus, published |
@@ -239,8 +239,8 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D84 | partly | coverage audit 80/84, tasks 69/77 |
 | D85 | filled | Ask / Auto / undo on the one action path |
 | D86 | filled | what's sent shown first, search offered |
-| D88 | partly | installs, standing watches; 'keep my computer updated' waits for D89 |
-| D89 | open | automatic updates with the hold. Ian, 2026-10-22: the hold is **optional, unchecked by default, and customizable** (the days, and holds of the person's own on an update or a program); a security update the person holds still warns once when it's on CISA's Known Exploited list (it stays held, the person decides) |
+| D88 | partly | installs, standing watches; 'keep my computer updated' is the Updates window's automatic switch (D89, 2026-10-22); the assistant turning it on by request not yet |
+| D89 | open | automatic updates with the hold. Ian, 2026-10-22: the hold is **optional, unchecked by default, and customizable** (the days, and holds of the person's own on an update or a program); a security update the person holds still warns once when it's on CISA's Known Exploited list (it stays held, the person decides). **Partly (slice 2, 2026-10-22):** all of that, in the Updates window and a daily timer of our own — Ian chose it over Mint's automatic updates the same day, because Mint's updater re-checks the servers after any step in front of it (a version published in between would skip the wait) and skips by source-package name. First-seen times recorded at every check (root-owned); held updates unticked, ticking one installs it anyway; the daily run never on battery, recorded in the admin log, and says once what needs the person (a stop, a restart, a source not proven genuine, a held fix on CISA's list). **Not yet (slice 3):** the confirmation sources and the emergency path |
 | D90 | open | waits for D66 |
 | D91 | partly | chains for video and news; other successive actions not built; the live report, gathered by the guide and passed on by the person, planned after the alpha (2026-10-16) |
 | D92 | filled | press / social / official, standing watches |

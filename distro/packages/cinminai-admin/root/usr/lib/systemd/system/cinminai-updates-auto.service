@@ -1,0 +1,17 @@
+[Unit]
+Description=Cin-MinAI daily update check (the wait and automatic updates, when the person turns them on)
+Documentation=https://github.com/Cin-MinAI/Cin-MinAI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/cinminai/cinminai-updates-auto
+User=root
+Group=root
+# as Mint's automatic updates: gentle on the person's work
+CPUWeight=20
+IOWeight=20
+PrivateTmp=yes
+ProtectHome=yes
+UMask=0022

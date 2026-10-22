@@ -325,7 +325,23 @@ mechanism's `RefreshUpdates`, `apt-get update`, a signature problem is a failed 
 snapshot (only when Timeshift is set up, otherwise said and offered), download, each file's SHA-256 against the
 signed index (`admin/updates.py`), install (`--only-upgrade --no-remove`), the check afterwards (dpkg's audit,
 services that failed since, a restart needed). Offline mode: online for the check and the install, back offline after.
-Next: holds (optional, unchecked, the person's own) and automatic updates (D88/D89), then D89's confirmations.
+
+**As built (slice 2, 2026-10-22): holds and automatic updates** (PLAN D89 as Ian set it: optional, unchecked,
+customizable). Under the list: *Let new updates wait [2] days first* (off by default; 1 to 60 days), *Install updates
+by themselves once a day*, and on each update a **Hold** menu: this update (that version only), every update to this
+program (until released), or stop holding. Changes show at once and are saved with one password (`SetUpdateSettings`,
+written to `/etc/cinminai/updates.json`, readable by all). The mechanism's check (`RefreshUpdates`, `admin/updates.py`
+`check`) now gives the window apt's plan with each update's first-seen time (recorded at every check in
+`/var/lib/cinminai/updates-seen.json`) and its hold; held updates come unticked, and ticking one installs it anyway.
+For a held security fix, the CVEs in its changelog are matched against CISA's Known Exploited Vulnerabilities list
+(fetched at most daily; nothing about the computer is sent): a match is said on the row ("CISA lists … as being
+exploited now. It stays held: your call."). Automatic updates are **our own daily timer** (`cinminai-updates-auto.timer`,
+`admin/auto.py`), not Mint's: with the wait or automatic updates on it runs the same check, and with automatic updates
+on it installs what nothing holds through the same steps as the window; not on battery; one update at a time (a lock
+shared with the window); each run is in the admin record and in a status file. `cinminai-updates --notices` (the panel
+icon, at login and every 6 hours) says once what needs the person: a source not proven genuine, a stop, a restart,
+a held fix on CISA's list. The window shows the last daily run in a line. Next: D89's confirmation sources and the
+emergency path (slice 3).
 
 ### 3.8 Legal
 

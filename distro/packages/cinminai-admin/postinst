@@ -14,6 +14,11 @@ if [ "$1" = configure ]; then
     install -d -o root -g root -m 0700 /var/lib/cinminai/admin-backups
     python3 -m compileall -q /usr/lib/python3/dist-packages/cin_minai/admin >/dev/null 2>&1 || true
     systemctl daemon-reload >/dev/null 2>&1 || true
+    # the daily update check (D89): it does nothing until the person turns the wait or automatic updates on
+    deb-systemd-helper enable cinminai-updates-auto.timer >/dev/null 2>&1 || true
+    if [ -d /run/systemd/system ]; then
+        systemctl start cinminai-updates-auto.timer >/dev/null 2>&1 || true
+    fi
     dbus-send --system --type=method_call --dest=org.freedesktop.DBus \
         /org/freedesktop/DBus org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
 fi

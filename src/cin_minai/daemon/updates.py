@@ -9,7 +9,14 @@ download, every file's fingerprint against the signed list, the install, the che
 needs no password (`apt-get update`, apt checking every source's signature). In offline mode (D28) the window goes
 online for the check and the install and back offline after. Update Manager stays one click away for experts.
 
-    cinminai-updates
+Holds (D89, slice 2; Ian: optional, unchecked, customizable): new updates can wait a number of days (off by default),
+updates can install by themselves once a day (the daily timer, admin/auto.py), and the person can hold one update or
+every update to a program until they release it. The admin mechanism's check marks what's held (the same rule the
+timer uses); held updates come unticked, and ticking one installs it anyway: the person's call. A held security fix
+that CISA lists as exploited now is said. Changing the settings asks for the password once.
+
+    cinminai-updates               the window
+    cinminai-updates --notices     what the daily run needs the person to know, once each (the panel icon runs it)
 
 Written by Claude (not a native speaker of es/pt/fr/de/ja): wants a native speaker's review (D36).
 """
@@ -18,18 +25,18 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 
 from . import offline
 
 ADMIN = ("org.cinminai.Admin1", "/org/cinminai/Admin1", "org.cinminai.Admin1")
-# `apt-get -s` lines (the admin mechanism reads the same lines: cin_minai/admin/updates.py INST_RE)
-INST_RE = re.compile(r"^Inst (?P<name>\S+) (?:\[(?P<old>[^\]]+)\] )?\((?P<new>\S+) (?P<origins>.*?) ?\[(?P<arch>[^\]]+)\]\)")
-REMV_RE = re.compile(r"^Remv (?P<name>\S+)")
+SETTINGS = "/etc/cinminai/updates.json"  # written by the admin mechanism (SetUpdateSettings), readable by all
+STATUS = "/var/lib/cinminai/updates-status.json"  # the daily run's last result (admin/auto.py)
+DAY = 86400
 STEPS = ("connect", "genuine", "snapshot", "download", "fingerprints", "install", "after", "back")
 SOUNDS = {"start": "message", "tick": "audio-volume-change", "done": "complete", "warn": "dialog-warning"}
 
@@ -207,40 +214,224 @@ WORDS = {
 }
 
 
+# the holds and automatic updates (D89, slice 2)
+WORDS_HOLDS = {
+    "en": {"wait_check": "Let new updates wait", "wait_days": "days first, so others have time to find a problem in "
+           "them", "auto": "Install updates by themselves once a day (the ones nothing holds)",
+           "save": "Save these settings", "saved": "Saved.", "unsaved": "Not saved yet: it asks for the password once.",
+           "held_waiting": "Waiting until {when}", "held_update": "Held by you (this update)",
+           "held_program": "Held by you (every update to this program)", "hold_menu": "Hold",
+           "hold_update": "Hold this update", "hold_program": "Hold every update to this program",
+           "release": "Stop holding it", "held_note": "{n} held: they're unticked. Tick one to install it anyway.",
+           "kev": "CISA lists {cves} as being exploited now. It stays held: your call.",
+           "kev_unknown": "Couldn't read CISA's list of exploited weaknesses just now.",
+           "last_auto": "Last daily check: {when}. {n} installed, {held} held.",
+           "last_auto_err": "Last daily check: {when}. It stopped: {why}.", "why_check": "it couldn't check",
+           "why_battery": "it waits for the power cable", "why_install": "an install stopped",
+           "why_after": "something didn't finish",
+           "n_genuine": "An update source couldn't be proven genuine, so nothing was installed. Open Updates to see "
+           "which.", "n_stopped": "The daily update stopped. Open Updates to see why.",
+           "n_restart": "Updates were installed. Restart the computer when you're ready to finish.",
+           "n_kev": "A security update you're holding fixes {cves}, which CISA lists as being exploited now. Open "
+           "Updates to decide."},
+    "es": {"wait_check": "Dejar esperar las actualizaciones nuevas", "wait_days": "días antes, para que otros tengan "
+           "tiempo de encontrar un problema en ellas", "auto": "Instalar las actualizaciones solas una vez al día "
+           "(las que nada retiene)", "save": "Guardar estos ajustes", "saved": "Guardado.",
+           "unsaved": "Aún sin guardar: pide la contraseña una vez.", "held_waiting": "Esperando hasta {when}",
+           "held_update": "Retenida por ti (esta actualización)",
+           "held_program": "Retenida por ti (todas las actualizaciones de este programa)", "hold_menu": "Retener",
+           "hold_update": "Retener esta actualización", "hold_program": "Retener todas las actualizaciones de este "
+           "programa", "release": "Dejar de retenerla", "held_note": "{n} retenidas: están sin marcar. Marca una para "
+           "instalarla de todos modos.", "kev": "La CISA indica que {cves} se está explotando ahora. Sigue retenida: "
+           "tú decides.", "kev_unknown": "No se pudo leer ahora la lista de la CISA de vulnerabilidades explotadas.",
+           "last_auto": "Última comprobación diaria: {when}. {n} instaladas, {held} retenidas.",
+           "last_auto_err": "Última comprobación diaria: {when}. Se detuvo: {why}.",
+           "why_check": "no pudo comprobar", "why_battery": "espera al cable de corriente",
+           "why_install": "una instalación se detuvo", "why_after": "algo no terminó",
+           "n_genuine": "No se pudo demostrar que una fuente de actualizaciones es auténtica, así que no se instaló "
+           "nada. Abre Actualizaciones para ver cuál.", "n_stopped": "La actualización diaria se detuvo. Abre "
+           "Actualizaciones para ver por qué.", "n_restart": "Se instalaron actualizaciones. Reinicia el equipo "
+           "cuando quieras para terminar.", "n_kev": "Una actualización de seguridad que retienes corrige {cves}, que "
+           "la CISA indica que se está explotando ahora. Abre Actualizaciones para decidir."},
+    "pt": {"wait_check": "Deixar as atualizações novas esperarem", "wait_days": "dias antes, para outros terem tempo "
+           "de achar um problema nelas", "auto": "Instalar as atualizações sozinhas uma vez por dia (as que nada "
+           "segura)", "save": "Salvar estas configurações", "saved": "Salvo.",
+           "unsaved": "Ainda não salvo: pede a senha uma vez.", "held_waiting": "Esperando até {when}",
+           "held_update": "Segurada por você (esta atualização)",
+           "held_program": "Segurada por você (todas as atualizações deste programa)", "hold_menu": "Segurar",
+           "hold_update": "Segurar esta atualização", "hold_program": "Segurar todas as atualizações deste programa",
+           "release": "Parar de segurar", "held_note": "{n} seguradas: estão desmarcadas. Marque uma para instalá-la "
+           "mesmo assim.", "kev": "A CISA aponta {cves} como explorada agora. Continua segurada: você decide.",
+           "kev_unknown": "Não foi possível ler agora a lista da CISA de vulnerabilidades exploradas.",
+           "last_auto": "Última verificação diária: {when}. {n} instaladas, {held} seguradas.",
+           "last_auto_err": "Última verificação diária: {when}. Parou: {why}.",
+           "why_check": "não conseguiu verificar", "why_battery": "espera o cabo de energia",
+           "why_install": "uma instalação parou", "why_after": "algo não terminou",
+           "n_genuine": "Não foi possível provar que uma fonte de atualizações é autêntica, então nada foi instalado. "
+           "Abra Atualizações para ver qual.", "n_stopped": "A atualização diária parou. Abra Atualizações para ver "
+           "por quê.", "n_restart": "Atualizações foram instaladas. Reinicie o computador quando quiser para "
+           "terminar.", "n_kev": "Uma atualização de segurança que você está segurando corrige {cves}, que a CISA "
+           "aponta como explorada agora. Abra Atualizações para decidir."},
+    "fr": {"wait_check": "Faire attendre les nouvelles mises à jour", "wait_days": "jours d'abord, pour laisser aux "
+           "autres le temps d'y trouver un problème", "auto": "Installer les mises à jour toutes seules une fois par "
+           "jour (celles que rien ne retient)", "save": "Enregistrer ces réglages", "saved": "Enregistré.",
+           "unsaved": "Pas encore enregistré : le mot de passe est demandé une fois.",
+           "held_waiting": "En attente jusqu'au {when}", "held_update": "Retenue par vous (cette mise à jour)",
+           "held_program": "Retenue par vous (toutes les mises à jour de ce programme)", "hold_menu": "Retenir",
+           "hold_update": "Retenir cette mise à jour", "hold_program": "Retenir toutes les mises à jour de ce "
+           "programme", "release": "Ne plus la retenir", "held_note": "{n} retenues : elles sont décochées. Cochez-en "
+           "une pour l'installer quand même.", "kev": "La CISA signale {cves} comme exploitée en ce moment. Elle reste "
+           "retenue : à vous de décider.", "kev_unknown": "Impossible de lire pour l'instant la liste de la CISA des "
+           "failles exploitées.", "last_auto": "Dernière vérification quotidienne : {when}. {n} installées, {held} "
+           "retenues.", "last_auto_err": "Dernière vérification quotidienne : {when}. Elle s'est arrêtée : {why}.",
+           "why_check": "impossible de vérifier", "why_battery": "elle attend le câble d'alimentation",
+           "why_install": "une installation s'est arrêtée", "why_after": "quelque chose n'a pas abouti",
+           "n_genuine": "L'authenticité d'une source de mises à jour n'a pas pu être prouvée : rien n'a été installé. "
+           "Ouvrez Mises à jour pour voir laquelle.", "n_stopped": "La mise à jour quotidienne s'est arrêtée. Ouvrez "
+           "Mises à jour pour voir pourquoi.", "n_restart": "Des mises à jour ont été installées. Redémarrez "
+           "l'ordinateur quand vous voulez pour terminer.", "n_kev": "Une mise à jour de sécurité que vous retenez "
+           "corrige {cves}, que la CISA signale comme exploitée en ce moment. Ouvrez Mises à jour pour décider."},
+    "de": {"wait_check": "Neue Updates warten lassen", "wait_days": "Tage, damit andere Zeit haben, ein Problem darin "
+           "zu finden", "auto": "Updates einmal am Tag selbst installieren (die, die nichts zurückhält)",
+           "save": "Diese Einstellungen speichern", "saved": "Gespeichert.",
+           "unsaved": "Noch nicht gespeichert: Das Passwort wird einmal abgefragt.",
+           "held_waiting": "Wartet bis {when}", "held_update": "Von Ihnen zurückgehalten (dieses Update)",
+           "held_program": "Von Ihnen zurückgehalten (alle Updates dieses Programms)", "hold_menu": "Zurückhalten",
+           "hold_update": "Dieses Update zurückhalten", "hold_program": "Alle Updates dieses Programms zurückhalten",
+           "release": "Nicht mehr zurückhalten", "held_note": "{n} zurückgehalten: Sie sind nicht angehakt. Haken Sie "
+           "eines an, um es trotzdem zu installieren.", "kev": "Die CISA führt {cves} als derzeit ausgenutzt. Es "
+           "bleibt zurückgehalten: Sie entscheiden.", "kev_unknown": "Die Liste der CISA mit ausgenutzten "
+           "Schwachstellen ließ sich gerade nicht lesen.", "last_auto": "Letzte tägliche Prüfung: {when}. {n} "
+           "installiert, {held} zurückgehalten.", "last_auto_err": "Letzte tägliche Prüfung: {when}. Sie hat "
+           "angehalten: {why}.", "why_check": "sie konnte nicht prüfen", "why_battery": "sie wartet auf das Stromkabel",
+           "why_install": "eine Installation hat angehalten", "why_after": "etwas wurde nicht fertig",
+           "n_genuine": "Bei einer Update-Quelle ließ sich nicht nachweisen, dass sie echt ist, daher wurde nichts "
+           "installiert. Öffnen Sie Updates, um zu sehen, welche.", "n_stopped": "Das tägliche Update hat "
+           "angehalten. Öffnen Sie Updates, um zu sehen, warum.", "n_restart": "Updates wurden installiert. Starten "
+           "Sie den Computer neu, wenn es Ihnen passt, um abzuschließen.", "n_kev": "Ein Sicherheitsupdate, das Sie "
+           "zurückhalten, behebt {cves}, das die CISA als derzeit ausgenutzt führt. Öffnen Sie Updates, um zu "
+           "entscheiden."},
+    "ja": {"wait_check": "新しいアップデートを待たせる", "wait_days": "日間。その間にほかの人が問題を見つけられます",
+           "auto": "1日に1回アップデートを自動でインストールする（保留されていないもの）", "save": "この設定を保存",
+           "saved": "保存しました。", "unsaved": "まだ保存していません：パスワードを1回たずねます。",
+           "held_waiting": "{when}まで待機中", "held_update": "あなたが保留中（このアップデート）",
+           "held_program": "あなたが保留中（このプログラムのすべてのアップデート）", "hold_menu": "保留",
+           "hold_update": "このアップデートを保留", "hold_program": "このプログラムのすべてのアップデートを保留",
+           "release": "保留をやめる", "held_note": "{n}件を保留中：チェックが外れています。チェックを入れればそれでもインストールできます。",
+           "kev": "CISAは{cves}を現在悪用されている脆弱性に挙げています。保留のままです。判断はあなたに任せます。",
+           "kev_unknown": "CISAの悪用されている脆弱性の一覧を今は読めませんでした。",
+           "last_auto": "前回の毎日の確認：{when}。{n}件インストール、{held}件保留。",
+           "last_auto_err": "前回の毎日の確認：{when}。停止しました：{why}。", "why_check": "確認できませんでした",
+           "why_battery": "電源ケーブルを待っています", "why_install": "インストールが止まりました",
+           "why_after": "完了していないものがあります",
+           "n_genuine": "アップデートの入手元が本物だと確認できなかったため、何もインストールしていません。どれかは「アップデート」を開いて確認してください。",
+           "n_stopped": "毎日のアップデートが止まりました。理由は「アップデート」を開いて確認してください。",
+           "n_restart": "アップデートをインストールしました。都合のよいときに再起動して仕上げてください。",
+           "n_kev": "保留中のセキュリティアップデートは{cves}を修正します。CISAはこれを現在悪用されている脆弱性に挙げています。「アップデート」を開いて判断してください。"},
+}
+for _code, _extra in WORDS_HOLDS.items():
+    WORDS[_code].update(_extra)
+
+
+
 def words(key: str, code: str | None = None, **fill) -> str:
     text = WORDS.get(code or offline.lang(), WORDS["en"])[key]
     return text.format(**fill) if fill else text
 
 
-def simulate() -> str:
-    """apt's own plan for an upgrade now, without root (a simulation reads the lists only)."""
-    env = dict(os.environ, LANG="C", LC_ALL="C", LANGUAGE="")
-    return subprocess.run(["apt-get", "-s", "-o", "APT::Get::Show-User-Simulation-Note=false", "dist-upgrade"],
-                          capture_output=True, text=True, timeout=120, env=env).stdout
+def read_json(path: str, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
 
 
-def plan(output: str) -> dict:
-    """What an upgrade would do: the updates (installed packages getting a new version), packages it would add
-    (a new kernel), remove, and the updates Ubuntu holds back for now (phased)."""
-    ups, new, gone, phased, in_phased = [], [], [], 0, False
-    for line in output.splitlines():
-        m = INST_RE.match(line)
-        if m:
-            item = {"name": m.group("name"), "old": m.group("old") or "", "version": m.group("new"),
-                    "arch": m.group("arch"), "security": "-security" in m.group("origins")}
-            (ups if item["old"] else new).append(item)
-            in_phased = False
-            continue
-        r = REMV_RE.match(line)
-        if r:
-            gone.append(r.group("name"))
-        if line.startswith("The following upgrades have been deferred due to phasing"):
-            in_phased = True
-        elif in_phased and line.startswith("  "):
-            phased += len(line.split())
-        else:
-            in_phased = False
-    return {"updates": ups, "new": new, "remove": gone, "phased": phased}
+def held(item: dict, settings: dict, now: float) -> str:
+    """Why an update is held as the settings now stand (the same rule as the admin mechanism's apply_holds, so a change
+    shows before it's saved): "update" or "program" (the person's own), "waiting", or ""."""
+    name = item["name"].split(":", 1)[0]
+    own = {(h["name"], h["version"]) for h in settings.get("own", [])}
+    if (name, item["version"]) in own:
+        return "update"
+    if (name, "") in own:
+        return "program"
+    days = settings.get("hold_days", 0)
+    if days and now < item.get("seen", now) + days * DAY:
+        return "waiting"
+    return ""
+
+
+def hold(settings: dict, item: dict, kind: str) -> dict:
+    """The settings with a hold of the person's own added ("update", "program"), or theirs on this item released ("")."""
+    name = item["name"].split(":", 1)[0]
+    own = [h for h in settings.get("own", []) if h["name"] != name or h["version"] not in ("", item["version"])]
+    if kind:
+        own.append({"name": name, "version": item["version"] if kind == "update" else ""})
+    return dict(settings, own=own)
+
+
+def when(ts: float) -> str:
+    return time.strftime("%a %d %b %H:%M", time.localtime(ts))
+
+
+def reason(item: dict, why: str, settings: dict, code: str | None = None) -> str:
+    """The line under a held update."""
+    if why == "waiting":
+        return words("held_waiting", code, when=when(item.get("seen", 0) + settings.get("hold_days", 0) * DAY))
+    if why in ("update", "program"):
+        return words(f"held_{why}", code)
+    return ""
+
+
+def last_auto(status: dict, code: str | None = None) -> str:
+    """The daily run's last result, in a line ("" before its first run)."""
+    if not status.get("ts"):
+        return ""
+    if status.get("error") and status["error"] != "busy":
+        return words("last_auto_err", code, when=when(status["ts"]), why=words(f"why_{status['error']}", code))
+    return words("last_auto", code, when=when(status["ts"]), n=len(status.get("installed", [])),
+                 held=len(status.get("held", [])))
+
+
+def notices(status: dict, noticed: dict, code: str | None = None) -> tuple[list[str], dict]:
+    """What the daily run needs the person to know and hasn't told them yet: (texts, what's now been told). A CISA
+    warning comes once per update; the rest once per run."""
+    texts, told = [], {"run": noticed.get("run", 0), "kev": list(noticed.get("kev", []))}
+    if status.get("ts") and status["ts"] > told["run"]:
+        told["run"] = status["ts"]
+        if status.get("signature"):
+            texts.append(words("n_genuine", code))
+        elif status.get("error") in ("install", "after"):
+            texts.append(words("n_stopped", code))
+        if status.get("restart"):
+            texts.append(words("n_restart", code))
+    for k in status.get("kev", []):
+        key = f"{k['name']}={k['version']}"
+        if key not in told["kev"]:
+            told["kev"].append(key)
+            texts.append(words("n_kev", code, cves=", ".join(k["cves"][:3])))
+    told["kev"] = told["kev"][-200:]
+    return texts, told
+
+
+def noticed_path() -> str:
+    return os.path.join(offline.state_dir(), "updates-noticed.json")
+
+
+def notify_once() -> int:
+    """cinminai-updates --notices: the panel icon runs it at login and every few hours."""
+    path = noticed_path()
+    texts, told = notices(read_json(STATUS, {}), read_json(path, {}))
+    for text in texts:
+        try:
+            subprocess.run(["notify-send", "-i", "system-software-update", words("title"), text], timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(told, f)
+    return 0
 
 
 def plain_names(items: list[dict]) -> None:
@@ -343,7 +534,10 @@ def window() -> int:
 
     code = offline.lang()
     bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
-    state = {"plan": None, "online": False, "job": "", "sources": [], "rows": [], "busy": False}
+    saved = read_json(SETTINGS, {})
+    saved = {"hold_days": saved.get("hold_days", 0), "auto": saved.get("auto", False), "own": saved.get("own", [])}
+    state = {"plan": None, "online": False, "job": "", "sources": [], "rows": [], "busy": False,
+             "saved": saved, "settings": json.loads(json.dumps(saved))}
 
     win = Gtk.Window(title=words("title", code))
     win.set_default_size(620, 640)
@@ -353,8 +547,10 @@ def window() -> int:
     head = Gtk.Label(xalign=0, wrap=True)
     head.get_style_context().add_class("title")
     note = Gtk.Label(xalign=0, wrap=True, max_width_chars=70)
+    held_count = Gtk.Label(xalign=0, wrap=True, max_width_chars=70)
     outer.pack_start(head, False, False, 0)
     outer.pack_start(note, False, False, 0)
+    outer.pack_start(held_count, False, False, 0)
     scroll = Gtk.ScrolledWindow(vexpand=True)
     listing = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
     scroll.add(listing)
@@ -368,6 +564,25 @@ def window() -> int:
     snap_none.pack_start(set_up, False, False, 0)
     outer.pack_start(snap, False, False, 0)
     outer.pack_start(snap_none, False, False, 0)
+    # the holds and automatic updates (D89): optional, off until the person turns them on
+    wait_row = Gtk.Box(spacing=6)
+    wait_check = Gtk.CheckButton(label=words("wait_check", code))
+    days = Gtk.SpinButton.new_with_range(1, 60, 1)
+    days.set_value(state["saved"]["hold_days"] or 2)
+    wait_row.pack_start(wait_check, False, False, 0)
+    wait_row.pack_start(days, False, False, 0)
+    wait_row.pack_start(Gtk.Label(label=words("wait_days", code), xalign=0, wrap=True), False, False, 0)
+    auto_check = Gtk.CheckButton(label=words("auto", code))
+    save_row = Gtk.Box(spacing=8)
+    save = Gtk.Button(label=words("save", code))
+    save_note = Gtk.Label(xalign=0, wrap=True)
+    save_note.get_style_context().add_class("dim-label")
+    save_row.pack_start(save, False, False, 0)
+    save_row.pack_start(save_note, False, False, 0)
+    auto_line = Gtk.Label(xalign=0, wrap=True)
+    auto_line.get_style_context().add_class("dim-label")
+    for w in (wait_row, auto_check, save_row, auto_line):
+        outer.pack_start(w, False, False, 0)
     details = Gtk.Expander(label=words("details", code))
     log = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR)
     log_scroll = Gtk.ScrolledWindow(min_content_height=120)
@@ -393,15 +608,24 @@ def window() -> int:
         for child in listing.get_children():
             listing.remove(child)
         state["rows"] = []
+        held_count.set_text("")
+        held_count.hide()
 
     def busy(on: bool) -> None:
         state["busy"] = on
         again.set_sensitive(not on)
         install.set_sensitive(not on and bool(state["plan"] and state["plan"]["updates"]))
         snap.set_sensitive(not on)
+        for w in (wait_row, auto_check):
+            w.set_sensitive(not on)
+        save.set_sensitive(not on and state["settings"] != state["saved"])
 
     def show_plan(p: dict) -> None:
         state["plan"] = p
+        if p.get("settings") and state["settings"] == state["saved"]:
+            state["saved"] = p["settings"]  # what root has, unless the person is in the middle of a change
+            state["settings"] = json.loads(json.dumps(p["settings"]))
+            show_settings()
         clear()
         again.set_label(words("again", code))
         head.set_markup(f"<big><b>{GLib.markup_escape_text(headline(p, code))}</b></big>")
@@ -410,6 +634,8 @@ def window() -> int:
             notes.append(words("phased", code, n=p["phased"]))
         if p["remove"]:
             notes.append(words("removes", code, names=", ".join(p["remove"][:5])))
+        if p.get("kev_checked") is False:
+            notes.append(words("kev_unknown", code))
         note.set_text("\n".join(notes))
         for item in sorted(p["updates"], key=lambda i: (not i["security"], i["name"])):
             row = Gtk.Box(spacing=10)
@@ -425,12 +651,29 @@ def window() -> int:
             small.set_markup(f"<small>{GLib.markup_escape_text(item['name'])}  {GLib.markup_escape_text(item['old'])}"
                              f" → {GLib.markup_escape_text(item['version'])}</small>")
             small.get_style_context().add_class("dim-label")
+            why = Gtk.Label(xalign=0, wrap=True)
             text.pack_start(top, False, False, 0)
             text.pack_start(small, False, False, 0)
+            text.pack_start(why, False, False, 0)
+            if item.get("kev"):
+                kev = Gtk.Label(xalign=0, wrap=True)
+                kev.set_markup("<b>⚠ " + GLib.markup_escape_text(
+                    words("kev", code, cves=", ".join(item["kev"][:3]))) + "</b>")
+                text.pack_start(kev, False, False, 0)
+            menu = Gtk.Menu()
+            for kind in ("update", "program", ""):
+                entry = Gtk.MenuItem(label=words(f"hold_{kind}" if kind else "release", code))
+                entry.connect("activate", lambda _m, it=item, k=kind: change(hold(state["settings"], it, k)))
+                menu.append(entry)
+            menu.show_all()
+            hold_button = Gtk.MenuButton(label=words("hold_menu", code), popup=menu)
+            hold_button.set_relief(Gtk.ReliefStyle.NONE)
             row.pack_start(tick, False, False, 0)
             row.pack_start(text, True, True, 0)
+            row.pack_start(hold_button, False, False, 0)
             listing.add(row)
-            state["rows"].append((tick, item))
+            state["rows"].append((tick, item, why))
+        mark_held(fresh=True)
         ready = timeshift_ready()
         snap.set_visible(ready)
         snap.set_active(ready)
@@ -440,7 +683,66 @@ def window() -> int:
         busy(False)
 
     def chosen() -> list[dict]:
-        return [item for tick, item in state["rows"] if tick.get_active()]
+        return [item for tick, item, _ in state["rows"] if tick.get_active()]
+
+    def mark_held(fresh: bool = False) -> None:
+        """Each row's hold as the settings now stand; a row whose hold changed is ticked or unticked to match (the
+        person can still tick a held one: their call)."""
+        now = time.time()
+        for tick, item, label in state["rows"]:
+            why = held(item, state["settings"], now)
+            if fresh or why != item.get("shown_hold"):
+                tick.set_active(not why)
+            item["shown_hold"] = why
+            label.set_markup(f"<small>{GLib.markup_escape_text(reason(item, why, state['settings'], code))}</small>"
+                             if why else "")
+            label.set_visible(bool(why))
+        n = sum(1 for _, item, _ in state["rows"] if item["shown_hold"])
+        held_count.set_text(words("held_note", code, n=n) if n else "")
+        held_count.set_visible(bool(n))
+        count()
+
+    def show_settings() -> None:
+        st = state["settings"]
+        state["quiet"] = True
+        wait_check.set_active(bool(st["hold_days"]))
+        if st["hold_days"]:
+            days.set_value(st["hold_days"])
+        days.set_sensitive(bool(st["hold_days"]))
+        auto_check.set_active(st["auto"])
+        state["quiet"] = False
+        dirty = st != state["saved"]
+        save.set_visible(dirty or bool(save_note.get_text()))
+        save.set_sensitive(dirty and not state["busy"])
+        auto_line.set_text(last_auto(read_json(STATUS, {}), code))
+        auto_line.set_visible(bool(auto_line.get_text()))
+
+    def change(settings: dict) -> None:
+        state["settings"] = settings
+        save_note.set_text(words("unsaved", code) if settings != state["saved"] else "")
+        show_settings()
+        mark_held()
+
+    def settings_edited(*_) -> None:
+        if state.get("quiet"):
+            return
+        days.set_sensitive(wait_check.get_active())
+        change(dict(state["settings"], hold_days=int(days.get_value()) if wait_check.get_active() else 0,
+                    auto=auto_check.get_active()))
+
+    def save_settings(*_) -> None:
+        wanted = json.loads(json.dumps(state["settings"]))
+        save.set_sensitive(False)
+
+        def done(out, error) -> None:
+            if error:
+                save_note.set_text(failure(error, code))
+                save.set_sensitive(True)
+                return
+            state["saved"] = wanted
+            save_note.set_text(words("saved", code))
+            show_settings()
+        admin("SetUpdateSettings", (json.dumps(wanted),), "(s)", done, interactive=True)
 
     def count() -> None:
         n = len(chosen())
@@ -547,7 +849,7 @@ def window() -> int:
                 return
             state["sources"] = (out or {}).get("sources", [])
             say_log("apt-get update: " + ", ".join(state["sources"]))
-            p = plan(simulate())
+            p = out or {"updates": [], "new": [], "remove": [], "phased": 0}
             plain_names(p["updates"])
             show_plan(p)
             if offline.on() and not p["updates"]:
@@ -617,12 +919,17 @@ def window() -> int:
 
     expert.connect("clicked", open_expert)
     again.connect("clicked", check)
+    wait_check.connect("toggled", settings_edited)
+    days.connect("value-changed", settings_edited)
+    auto_check.connect("toggled", settings_edited)
+    save.connect("clicked", save_settings)
     install.connect("clicked", run_install)
     win.connect("delete-event", leave)
     win.show_all()
     snap.hide()
     snap_none.hide()
     install.hide()
+    show_settings()
     if offline.on():
         head.set_markup(f"<big><b>{GLib.markup_escape_text(words('title', code))}</b></big>")
         note.set_text(words("offline", code))
@@ -634,6 +941,8 @@ def window() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv and argv[0] == "--notices":
+        return notify_once()
     return window()
 
 

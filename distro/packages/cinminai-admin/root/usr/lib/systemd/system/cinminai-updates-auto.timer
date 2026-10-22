@@ -1,0 +1,11 @@
+[Unit]
+Description=Cin-MinAI daily update check
+
+[Timer]
+OnCalendar=daily
+OnStartupSec=30m
+RandomizedDelaySec=60m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

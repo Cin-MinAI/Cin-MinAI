@@ -7,4 +7,6 @@ dbus-send --system --type=method_call --dest=org.freedesktop.DBus \
 if [ "$1" = purge ]; then
     rm -rf /var/lib/cinminai/admin-backups
     rm -f /var/log/cinminai/admin.log
+    rm -f /etc/cinminai/updates.json /var/lib/cinminai/updates-seen.json /var/lib/cinminai/updates-status.json           /var/lib/cinminai/kev.json
+    deb-systemd-helper purge cinminai-updates-auto.timer >/dev/null 2>&1 || true
 fi
