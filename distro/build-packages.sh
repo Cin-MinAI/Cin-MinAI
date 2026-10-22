@@ -70,3 +70,7 @@ for dir in "$here"/packages/*/ "$here"/test-packages/*/; do
     rm -rf "$stage"
     printf '%s  %s\n' "$(sha256sum "$deb" | cut -d' ' -f1)" "$(basename "$deb")"
 done
+# The keyring package carries the signing key: a development-key build installed on a machine that updates from our
+# repo makes apt refuse the repo (NO_PUBKEY) until a release keyring comes back. For VM tests only.
+[[ $SIGNING_KEY == cinminai-dev ]] && echo "NOTE: built with the DEVELOPMENT key — for VM tests only, never for a machine that updates from the repo (see docs/release-checklist.md)" >&2
+true
