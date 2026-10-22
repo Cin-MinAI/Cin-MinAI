@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -16,6 +17,7 @@ import uuid
 
 from gi.repository import Gio, GLib
 
+from . import updates
 from .policy import Reject, check_module, check_package, check_run_argv, check_unit, check_write
 
 NAME = IFACE = "org.cinminai.Admin1"
@@ -35,14 +37,18 @@ XML = f"""<node><interface name="{IFACE}">
   <method name="LoadModule"><arg type="s" name="module" direction="in"/></method>
   <method name="UnloadModule"><arg type="s" name="module" direction="in"/></method>
   <method name="RunArgv"><arg type="as" name="argv" direction="in"/><arg type="s" name="log" direction="out"/></method>
+  <method name="RefreshUpdates"><arg type="s" name="result" direction="out"/></method>
+  <method name="InstallUpdates"><arg type="as" name="versions" direction="in"/><arg type="b" name="snapshot" direction="in"/><arg type="s" name="job" direction="in"/><arg type="s" name="result" direction="out"/></method>
+  <signal name="UpdateStep"><arg type="s" name="job"/><arg type="s" name="step"/><arg type="s" name="state"/><arg type="s" name="detail"/></signal>
   <property name="Version" type="s" access="read"/>
 </interface></node>"""
 
 
-def run(argv: list[str], timeout: int | None = 900) -> str:
+def run(argv: list[str], timeout: int | None = 900, keep: int | None = 8000) -> str:
     env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8", "DEBIAN_FRONTEND": "noninteractive"}
     result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env, shell=False)
-    output = (result.stdout + result.stderr)[-8000:]
+    output = result.stdout + result.stderr
+    output = output[-keep:] if keep else output
     if result.returncode:
         raise RuntimeError(f"{argv[0]} exited {result.returncode}: {output.strip()[-500:]}")
     return output
@@ -108,6 +114,38 @@ def run_apt(argv: list[str]) -> str:
     return run(argv, timeout=None)
 
 
+def run_apt_whole(argv: list[str]) -> str:
+    # The update window reads every line of apt's plan, so nothing is cut.
+    return run(argv, timeout=None, keep=None)
+
+
+UPDATING = threading.Lock()  # one update at a time
+JOB_RE = re.compile(r"^[a-z0-9]{1,32}$")
+EMIT = [lambda *a: None]  # set when the bus name is owned: the UpdateStep signal
+
+
+def prepare_install_updates(args):
+    versions, snapshot, job = list(args[0]), bool(args[1]), str(args[2])
+    if not JOB_RE.fullmatch(job):
+        raise Reject("not a job id")
+    checked = updates.check_versions(versions, updates.apt_candidates())
+    names = [v.split("=", 1)[0] for v in checked]
+    shown = ", ".join(names[:6]) + (f" and {len(names) - 6} more" if len(names) > 6 else "")
+    return {"count": str(len(checked)), "updates": shown, "snapshot": "yes" if snapshot else "no"}, (checked, snapshot, job)
+
+
+def execute_install_updates(args):
+    versions, snapshot, job = args
+    if not UPDATING.acquire(blocking=False):
+        raise RuntimeError("an update is already running")
+    try:
+        # the password dialog may have sat on screen while the lists changed: check again
+        versions = updates.check_versions(versions, updates.apt_candidates())
+        return json.dumps(updates.install(versions, snapshot, run_apt_whole, lambda *a: EMIT[0](*a), job))
+    finally:
+        UPDATING.release()
+
+
 VERBS = {
     "RestartService": ("org.cinminai.admin.restart-service", lambda a: ({"unit": check_unit(a[0])}, ["/usr/bin/systemctl", "restart", "--", a[0]]), lambda a: _none(run(a)), None),
     "SetServiceEnabled": ("org.cinminai.admin.set-service-enabled", lambda a: ({"unit": check_unit(a[0]), "enabled": "yes" if a[1] else "no"}, ["/usr/bin/systemctl", "enable" if a[1] else "disable", "--", a[0]]), lambda a: _none(run(a)), None),
@@ -117,6 +155,9 @@ VERBS = {
     "LoadModule": ("org.cinminai.admin.load-module", lambda a: prepare_module(a), lambda a: _none(run(a)), None),
     "UnloadModule": ("org.cinminai.admin.unload-module", lambda a: prepare_module(a, True), lambda a: _none(run(a)), None),
     "RunArgv": ("org.cinminai.admin.run-argv", prepare_run_argv, execute_run_argv, "(s)"),
+    # the update window (D29): checking for updates needs no password (Update Manager's doesn't either); installing does
+    "RefreshUpdates": ("org.cinminai.admin.refresh-updates", lambda a: ({}, None), lambda a: json.dumps(updates.refresh(run_apt_whole)), "(s)"),
+    "InstallUpdates": ("org.cinminai.admin.install-updates", prepare_install_updates, execute_install_updates, "(s)"),
 }
 
 
@@ -178,6 +219,14 @@ class Mechanism:
         self.conn = connection
         info = Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0]
         connection.register_object(PATH, info, self.call, lambda *_: GLib.Variant("s", VERSION), None)
+
+        def step(*args) -> None:  # from the worker thread: the signal goes out on the main loop
+            def send() -> bool:
+                connection.emit_signal(None, PATH, IFACE, "UpdateStep", GLib.Variant("(ssss)", args))
+                self.last = time.monotonic()
+                return False
+            GLib.idle_add(send)
+        EMIT[0] = step
 
     def call(self, _connection, sender, _path, _iface, method, params, invocation) -> None:
         self.last = time.monotonic()

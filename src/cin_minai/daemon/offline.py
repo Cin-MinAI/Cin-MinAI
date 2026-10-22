@@ -6,9 +6,8 @@ cable alike (an active desktop user may do that without a password; NetworkManag
 switch is the panel icon's menu, "Keep this computer offline"; the panel then says OFFLINE, and the assistant doesn't
 offer web searches (it says how to go online instead).
 
-Going online is one deliberate button, "Go online to install updates": connect, open Update Manager, and when the
-person clicks Back offline (or closes the window) go back offline — after any install still running has finished — and
-say so. A reminder about security updates comes at most once a month, and only in offline mode.
+Going online is one deliberate button, "Go online to install updates": the Updates window (updates.py, D29) connects
+for the check and the install and goes back offline after them. A reminder about security updates comes at most once a month, and only in offline mode.
 
     cinminai-offline on | off | updates | remind
 
@@ -18,7 +17,6 @@ Written by Claude (not a native speaker of es/pt/fr/de/ja): wants a native speak
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -31,11 +29,6 @@ WORDS = {
     "en": {"title": "Offline", "now_offline": "This computer is offline now: Wi-Fi and cable are off. To install "
            "updates, right-click the assistant's icon in the panel and choose Go online to install updates.",
            "now_online": "This computer can go online again.",
-           "updates_title": "Online for updates",
-           "updates_body": "This computer is online so Update Manager can install updates. When it's finished, "
-                           "click Back offline.",
-           "back": "Back offline",
-           "waiting": "Updates are still installing. This computer goes back offline as soon as they finish.",
            "done": "Back offline. Updates were last installed today.",
            "no_connection": "Couldn't get online within a minute and a half. Check the cable or the Wi-Fi, then try "
                             "again. This computer stays offline.",
@@ -48,11 +41,6 @@ WORDS = {
            "apagados. Para instalar actualizaciones, haz clic derecho en el icono del asistente en el panel y elige "
            "Conectarse para instalar actualizaciones.",
            "now_online": "Este equipo puede volver a conectarse.",
-           "updates_title": "Conectado para actualizar",
-           "updates_body": "Este equipo está conectado para que el Gestor de actualizaciones las instale. Cuando "
-                           "termine, haz clic en Volver a desconectar.",
-           "back": "Volver a desconectar",
-           "waiting": "Las actualizaciones aún se están instalando. El equipo se desconecta en cuanto terminen.",
            "done": "Sin conexión de nuevo. Las actualizaciones se instalaron hoy.",
            "no_connection": "No se pudo conectar en un minuto y medio. Revisa el cable o el wifi y vuelve a "
                             "intentarlo. El equipo sigue sin conexión.",
@@ -66,12 +54,6 @@ WORDS = {
            "instalar atualizações, clique com o botão direito no ícone do assistente no painel e escolha Conectar para "
            "instalar atualizações.",
            "now_online": "Este computador pode voltar a se conectar.",
-           "updates_title": "Conectado para atualizar",
-           "updates_body": "Este computador está conectado para o Gerenciador de atualizações instalá-las. Quando "
-                           "terminar, clique em Voltar ao modo offline.",
-           "back": "Voltar ao modo offline",
-           "waiting": "As atualizações ainda estão sendo instaladas. O computador volta ao modo offline assim que "
-                      "terminarem.",
            "done": "Offline de novo. As atualizações foram instaladas hoje.",
            "no_connection": "Não foi possível conectar em um minuto e meio. Verifique o cabo ou o Wi-Fi e tente de "
                             "novo. O computador continua offline.",
@@ -84,12 +66,6 @@ WORDS = {
            "Pour installer les mises à jour, faites un clic droit sur l'icône de l'assistant dans le panneau et "
            "choisissez Se connecter pour installer les mises à jour.",
            "now_online": "Cet ordinateur peut de nouveau se connecter.",
-           "updates_title": "En ligne pour les mises à jour",
-           "updates_body": "Cet ordinateur est en ligne pour que le Gestionnaire de mises à jour les installe. Quand "
-                           "c'est fini, cliquez sur Repasser hors ligne.",
-           "back": "Repasser hors ligne",
-           "waiting": "Les mises à jour s'installent encore. L'ordinateur repasse hors ligne dès qu'elles sont "
-                      "terminées.",
            "done": "De nouveau hors ligne. Les mises à jour ont été installées aujourd'hui.",
            "no_connection": "Impossible de se connecter en une minute et demie. Vérifiez le câble ou le Wi-Fi, puis "
                             "réessayez. L'ordinateur reste hors ligne.",
@@ -103,11 +79,6 @@ WORDS = {
            "zu installieren, klicken Sie mit der rechten Maustaste auf das Symbol des Assistenten in der Leiste und "
            "wählen Sie Für Updates online gehen.",
            "now_online": "Dieser Computer kann wieder online gehen.",
-           "updates_title": "Online für Updates",
-           "updates_body": "Dieser Computer ist online, damit die Aktualisierungsverwaltung Updates installieren "
-                           "kann. Wenn sie fertig ist, klicken Sie auf Wieder offline.",
-           "back": "Wieder offline",
-           "waiting": "Updates werden noch installiert. Der Computer geht offline, sobald sie fertig sind.",
            "done": "Wieder offline. Die Updates wurden heute installiert.",
            "no_connection": "Innerhalb von anderthalb Minuten kam keine Verbindung zustande. Prüfen Sie Kabel oder "
                             "WLAN und versuchen Sie es erneut. Der Computer bleibt offline.",
@@ -121,11 +92,6 @@ WORDS = {
            "います。アップデートを入れるには、パネルのアシスタントのアイコンを右クリックして「オンラインにして"
            "アップデートを入れる」を選んでください。",
            "now_online": "このコンピューターはまたオンラインにできます。",
-           "updates_title": "アップデートのためにオンライン",
-           "updates_body": "アップデートマネージャーがアップデートを入れられるよう、オンラインにしています。"
-                           "終わったら「オフラインに戻す」を押してください。",
-           "back": "オフラインに戻す",
-           "waiting": "アップデートをまだ入れています。終わりしだいオフラインに戻ります。",
            "done": "オフラインに戻りました。アップデートは今日入れました。",
            "no_connection": "1分半たってもオンラインになれませんでした。ケーブルかWi-Fiを確かめて、もう一度"
                             "お試しください。オフラインのままです。",
@@ -269,57 +235,11 @@ def back_offline(wait=time.sleep) -> None:
         notify(words("done"))
 
 
-def update_manager() -> list[str]:
-    for cmd in (["mintupdate"], ["update-manager"]):
-        if shutil.which(cmd[0]):
-            return cmd
-    return []
-
-
 def updates() -> int:
-    """Go online to install updates: the small window that brings the computer back offline."""
-    import gi
-    gi.require_version("Gtk", "3.0")
-    from gi.repository import GLib, Gtk
-    if not go_online():
-        if on():
-            networking(False)
-        notify(words("no_connection"))
-        return 1
-    if update_manager():
-        subprocess.Popen(update_manager(), start_new_session=True)
-    win = Gtk.Window(title=words("updates_title"))
-    win.set_border_width(18)
-    win.set_keep_above(True)
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    label = Gtk.Label(label=words("updates_body"), wrap=True, max_width_chars=44, xalign=0)
-    button = Gtk.Button(label=words("back"))
-    box.pack_start(label, False, False, 0)
-    box.pack_end(button, False, False, 0)
-    win.add(box)
-    leaving = []
-
-    def leave(*_):
-        if leaving:
-            return True
-        leaving.append(1)
-        button.set_sensitive(False)
-        if installing():
-            label.set_text(words("waiting"))
-
-        def check():
-            if installing():
-                return True
-            back_offline()
-            Gtk.main_quit()
-            return False
-        GLib.timeout_add_seconds(1, check)
-        return True  # the window stays until it's offline again
-    button.connect("clicked", leave)
-    win.connect("delete-event", leave)
-    win.show_all()
-    Gtk.main()
-    return 0
+    """Go online to install updates: the Updates window (D29), which goes online for the check and the install and
+    back offline after them, once any install has finished."""
+    from . import updates as window
+    return window.main()
 
 
 def remind(now: float | None = None) -> bool:

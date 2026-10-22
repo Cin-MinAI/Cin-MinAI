@@ -315,6 +315,18 @@ through the admin mechanism (§8.4) and shows each real step as it happens:
   completion chime, a distinct warning tone; optional spoken narration ("Checking the updates are
   genuine… they are.") once voice ships (§10.6).
 
+**As built (slice 1, 2026-10-22):** `cinminai-updates` (`daemon/updates.py`), opened from the panel icon's menu
+(always there: "Updates…", or "Go online to install updates" in offline mode), the sidebar's start screen and the
+system menu. The list is apt's own plan (`apt-get -s dist-upgrade`), so updates Ubuntu releases gradually (phased) wait
+as they do in Update Manager, and the window says how many; security fixes first, each with its description as the
+plain name; an update that would remove a package is left to Update Manager. Checking needs no password (the admin
+mechanism's `RefreshUpdates`, `apt-get update`, a signature problem is a failed check); Install asks once
+(`InstallUpdates`: only installed packages' waiting versions) and the steps come back as `UpdateStep` signals:
+snapshot (only when Timeshift is set up, otherwise said and offered), download, each file's SHA-256 against the
+signed index (`admin/updates.py`), install (`--only-upgrade --no-remove`), the check afterwards (dpkg's audit,
+services that failed since, a restart needed). Offline mode: online for the check and the install, back offline after.
+Next: holds (optional, unchecked, the person's own) and automatic updates (D88/D89), then D89's confirmations.
+
 ### 3.8 Legal
 
 * Ubuntu, Mint, and our code: follow their licenses (mostly GPL). Publish source for everything we

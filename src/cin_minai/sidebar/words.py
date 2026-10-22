@@ -464,7 +464,7 @@ T = {
                          "delete it any time under Standing tasks.",
            "watch_offline": "This computer is offline. Connect to the internet first; nothing is set up until you "
                             "click Set up.",
-           "standing": "Standing tasks", "pause": "Pause", "resume": "Resume", "delete": "Delete",
+           "updates_window": "Updates", "standing": "Standing tasks", "pause": "Pause", "resume": "Resume", "delete": "Delete",
            "last_report": "Last report", "close": "Close",
            "standing_none": "Nothing yet. Ask for one in your own words, for example: “keep me up to date on Linux "
                             "Mint” or “the news about the weather every morning”.",
@@ -497,7 +497,7 @@ T = {
                          "Puedes pausarlo o eliminarlo cuando quieras en Tareas permanentes.",
            "watch_offline": "Este equipo no tiene conexión. Conéctate a internet primero; no se configura nada hasta "
                             "que hagas clic en Configurar.",
-           "standing": "Tareas permanentes", "pause": "Pausar", "resume": "Reanudar", "delete": "Eliminar",
+           "updates_window": "Actualizaciones", "standing": "Tareas permanentes", "pause": "Pausar", "resume": "Reanudar", "delete": "Eliminar",
            "last_report": "Último informe", "close": "Cerrar",
            "standing_none": "Todavía no hay ninguna. Pídela con tus palabras, por ejemplo: «mantenme al día sobre "
                             "Linux Mint» o «las noticias sobre el tiempo cada mañana».",
@@ -532,7 +532,7 @@ T = {
                          "enviado. Pause ou exclua quando quiser em Tarefas permanentes.",
            "watch_offline": "Este computador está sem internet. Conecte-se primeiro; nada é configurado até você "
                             "clicar em Configurar.",
-           "standing": "Tarefas permanentes", "pause": "Pausar", "resume": "Retomar", "delete": "Excluir",
+           "updates_window": "Atualizações", "standing": "Tarefas permanentes", "pause": "Pausar", "resume": "Retomar", "delete": "Excluir",
            "last_report": "Último relatório", "close": "Fechar",
            "standing_none": "Nenhuma ainda. Peça com suas palavras, por exemplo: “me mantenha atualizado sobre o "
                             "Linux Mint” ou “as notícias sobre o tempo todas as manhãs”.",
@@ -565,7 +565,7 @@ T = {
                          "envoyé. Suspendez-la ou supprimez-la quand vous voulez dans Tâches permanentes.",
            "watch_offline": "Cet ordinateur est hors ligne. Connectez-vous d'abord à internet ; rien n'est configuré "
                             "avant que vous cliquiez sur Configurer.",
-           "standing": "Tâches permanentes", "pause": "Suspendre", "resume": "Reprendre", "delete": "Supprimer",
+           "updates_window": "Mises à jour", "standing": "Tâches permanentes", "pause": "Suspendre", "resume": "Reprendre", "delete": "Supprimer",
            "last_report": "Dernier rapport", "close": "Fermer",
            "standing_none": "Aucune pour l'instant. Demandez-la avec vos mots, par exemple : « tiens-moi au courant "
                             "de Linux Mint » ou « les nouvelles sur la météo chaque matin ».",
@@ -600,7 +600,7 @@ T = {
                          "gesendet. Pausieren oder löschen können Sie es jederzeit unter Daueraufgaben.",
            "watch_offline": "Dieser Computer ist offline. Verbinden Sie sich zuerst mit dem Internet; nichts wird "
                             "eingerichtet, bevor Sie auf Einrichten klicken.",
-           "standing": "Daueraufgaben", "pause": "Pausieren", "resume": "Fortsetzen", "delete": "Löschen",
+           "updates_window": "Updates", "standing": "Daueraufgaben", "pause": "Pausieren", "resume": "Fortsetzen", "delete": "Löschen",
            "last_report": "Letzter Bericht", "close": "Schließen",
            "standing_none": "Noch keine. Bitten Sie mit Ihren Worten darum, zum Beispiel: „Halte mich auf dem "
                             "Laufenden über Linux Mint“ oder „die Nachrichten zum Wetter jeden Morgen“.",
@@ -634,7 +634,7 @@ T = {
                          "一時停止・削除できます。",
            "watch_offline": "このコンピューターはオフラインです。先にインターネットに接続してください。「設定する」を押すまで"
                             "何も設定されません。",
-           "standing": "定期タスク", "pause": "一時停止", "resume": "再開", "delete": "削除",
+           "updates_window": "アップデート", "standing": "定期タスク", "pause": "一時停止", "resume": "再開", "delete": "削除",
            "last_report": "前回のレポート", "close": "閉じる",
            "standing_none": "まだありません。自分の言葉で頼んでください。例：「Linux Mintの最新情報を知らせて」"
                             "「毎朝、天気のニュースを教えて」。",

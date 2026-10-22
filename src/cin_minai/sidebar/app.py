@@ -235,6 +235,7 @@ class Sidebar(Gtk.Application):
                           ("Open the journal", lambda b: self.open_journal()),
                           ("Open AICUI (coding)", lambda b: self.open_aicui()),
                           (words.t("standing"), lambda b: self.standing_list()),  # D88: found where people look
+                          (words.t("updates_window"), lambda b: self.open_updates()),  # D29: updates you can watch
                           (words.t("requests"), lambda b: self.requests_view()),  # turn tokens (SPEC §22.4)
                           (words.t("models"), lambda b: self.models_view())):  # which model does which job (§22.3)
             b = Gtk.Button(label=label)
@@ -636,6 +637,16 @@ class Sidebar(Gtk.Application):
         except GLib.Error as e:
             self.bubble("error", f"Couldn't open AICUI: {e.message}")
 
+    def open_updates(self) -> None:
+        """The Updates window (D29): what's waiting, in plain words, and every step of installing it."""
+        try:
+            info = Gio.DesktopAppInfo.new("cinminai-updates.desktop")
+            if info is None:
+                raise GLib.Error("the Updates window isn't installed")
+            info.launch([], None)
+        except GLib.Error as e:
+            self.bubble("error", f"Couldn't open Updates: {e.message}")
+
     # --- writing projects (D54) ---------------------------------------------------------------------------
     def on_new_menu(self, button) -> None:
         menu = Gtk.Menu()
@@ -653,6 +664,9 @@ class Sidebar(Gtk.Application):
         menu.append(item)
         item = Gtk.MenuItem(label=words.t("standing"))
         item.connect("activate", lambda i: self.standing_list())
+        menu.append(item)
+        item = Gtk.MenuItem(label=words.t("updates_window"))
+        item.connect("activate", lambda i: self.open_updates())
         menu.append(item)
         item = Gtk.MenuItem(label=words.t("requests"))
         item.connect("activate", lambda i: self.requests_view())

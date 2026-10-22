@@ -186,9 +186,14 @@ class PackagePolicyTests(unittest.TestCase):
         path = os.path.join(root, "distro", "packages", "cinminai-admin", "root", "usr", "share", "polkit-1", "actions", "org.cinminai.admin.policy")
         with open(path, encoding="utf-8") as stream:
             text = stream.read()
-        self.assertEqual(text.count('<action id="org.cinminai.admin.'), 8)
-        self.assertEqual(text.count("<allow_active>auth_admin</allow_active>"), 8)
+        self.assertEqual(text.count('<action id="org.cinminai.admin.'), 10)
+        self.assertEqual(text.count("<allow_active>auth_admin</allow_active>"), 9)
         self.assertNotIn("auth_admin_keep", text)
+        # the one without a password: checking for updates (apt-get update, as Update Manager's own check)
+        self.assertEqual(text.count("<allow_active>yes</allow_active>"), 1)
+        self.assertIn('<action id="org.cinminai.admin.refresh-updates"><description>Check for software updates'
+                      '</description><message>Check for software updates</message><defaults><allow_any>no'
+                      '</allow_any><allow_inactive>no</allow_inactive><allow_active>yes</allow_active>', text)
 
     def test_production_sandbox_never_falls_back_to_host_network(self):
         with mock.patch.object(sandbox.shutil, "which", return_value=None):

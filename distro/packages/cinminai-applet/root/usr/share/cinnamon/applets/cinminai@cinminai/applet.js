@@ -55,17 +55,20 @@ const LOG_WORDS = {
 // D28: keep this computer offline — the switch and the one button for updates (cinminai-offline does the work)
 const OFFLINE_SWITCH = GLib.get_user_config_dir() + "/cinminai/offline-on";
 const OFFLINE = "/usr/bin/cinminai-offline";
+const UPDATES = "/usr/bin/cinminai-updates";  // D29: the Updates window, online or offline (it goes online itself)
 const OFFLINE_WORDS = {
-    en: ["Keep this computer offline", "Go online to install updates", "OFFLINE", "Offline: Wi-Fi and cable are off"],
+    en: ["Keep this computer offline", "Go online to install updates", "OFFLINE", "Offline: Wi-Fi and cable are off",
+         "Updates…"],
     es: ["Mantener este equipo sin conexión", "Conectarse para instalar actualizaciones", "SIN RED",
-         "Sin conexión: el wifi y el cable están apagados"],
+         "Sin conexión: el wifi y el cable están apagados", "Actualizaciones…"],
     pt: ["Manter este computador offline", "Conectar para instalar atualizações", "OFFLINE",
-         "Offline: o Wi-Fi e o cabo estão desligados"],
+         "Offline: o Wi-Fi e o cabo estão desligados", "Atualizações…"],
     fr: ["Garder cet ordinateur hors ligne", "Se connecter pour installer les mises à jour", "HORS LIGNE",
-         "Hors ligne : le Wi-Fi et le câble sont coupés"],
-    de: ["Diesen Computer offline halten", "Für Updates online gehen", "OFFLINE", "Offline: WLAN und Kabel sind aus"],
+         "Hors ligne : le Wi-Fi et le câble sont coupés", "Mises à jour…"],
+    de: ["Diesen Computer offline halten", "Für Updates online gehen", "OFFLINE", "Offline: WLAN und Kabel sind aus",
+         "Updates…"],
     ja: ["このコンピューターをオフラインに保つ", "オンラインにしてアップデートを入れる", "オフライン",
-         "オフライン：Wi-Fiも有線も切れています"],
+         "オフライン：Wi-Fiも有線も切れています", "アップデート…"],
 };
 
 function offline() {
@@ -164,12 +167,12 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         this.offlineSwitch = new PopupMenu.PopupSwitchMenuItem(off[0], offline());
         this.offlineSwitch.connect("toggled", (item, on) => {
             Util.spawn([OFFLINE, on ? "on" : "off"]);
-            this.updatesItem.actor.visible = on;
+            this.updatesItem.label.set_text(on ? off[1] : off[4]);
         });
         ctx.addMenuItem(this.offlineSwitch, 9);
-        this.updatesItem = new PopupMenu.PopupMenuItem(off[1]);
-        this.updatesItem.connect("activate", () => Util.spawn([OFFLINE, "updates"]));
-        this.updatesItem.actor.visible = offline();
+        // always there (findable): "Updates…", or "Go online to install updates" while offline; the same window
+        this.updatesItem = new PopupMenu.PopupMenuItem(offline() ? off[1] : off[4]);
+        this.updatesItem.connect("activate", () => Util.spawn([UPDATES]));
         ctx.addMenuItem(this.updatesItem, 10);
         ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 11);
 
@@ -206,7 +209,8 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         this.reach = now;
         this.offline = off;
         this.offlineSwitch.setToggleState(off);  // switched elsewhere (cinminai-offline) shows here too
-        this.updatesItem.actor.visible = off;
+        const said = OFFLINE_WORDS[LANG] || OFFLINE_WORDS.en;
+        this.updatesItem.label.set_text(off ? said[1] : said[4]);
         this.set_applet_label(now.length ? (now[0].kind === "cloud" ? "CLOUD" : "WEB")
                               : off ? (OFFLINE_WORDS[LANG] || OFFLINE_WORDS.en)[2] : "");
         this.refresh();
