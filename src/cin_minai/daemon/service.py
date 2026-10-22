@@ -481,19 +481,31 @@ class Service:
             on_text(say(lang, "upd_missing"))
             return {"tool": "updates", "available": False}
         now = root.load_settings()
-        settings = dict(now, auto=wanted["auto"])
-        if wanted["auto"] and wanted.get("days"):
+        settings = dict(now)
+        if wanted["auto"] is not None:
+            settings["auto"] = wanted["auto"]
+        if wanted.get("days") is not None:
             settings["hold_days"] = wanted["days"]
+        hold_only = wanted["auto"] is None
         if settings == now:
-            on_text(say(lang, "upd_already_on" if now["auto"] else "upd_already_off"))
-            return {"tool": "updates", "changed": False, "auto": now["auto"]}
-        self.actions.propose("admin.update_settings", {"settings": settings},
-                             reason=say(lang, "upd_reason_on" if wanted["auto"] else "upd_reason_off"))
-        if wanted["auto"]:
-            text = say(lang, "upd_on", allow=t("allow", lang)) + (
+            if hold_only:
+                key, days = ("upd_already_wait", now["hold_days"]) if now["hold_days"] else ("upd_already_nowait", 0)
+                on_text(say(lang, key, days=days))
+            else:
+                on_text(say(lang, "upd_already_on" if now["auto"] else "upd_already_off"))
+            return {"tool": "updates", "changed": False, "auto": now["auto"], "hold_days": now["hold_days"]}
+        reason = ("upd_reason_wait" if settings["hold_days"] else "upd_reason_nowait") if hold_only else \
+            ("upd_reason_on" if settings["auto"] else "upd_reason_off")
+        self.actions.propose("admin.update_settings", {"settings": settings}, reason=say(lang, reason))
+        allow = t("allow", lang)
+        if hold_only:
+            text = say(lang, "upd_wait_on", days=settings["hold_days"], allow=allow) if settings["hold_days"] else \
+                say(lang, "upd_wait_off", allow=allow)
+        elif settings["auto"]:
+            text = say(lang, "upd_on", allow=allow) + (
                 say(lang, "upd_wait", days=settings["hold_days"]) if settings["hold_days"] else say(lang, "upd_nowait"))
         else:
-            text = say(lang, "upd_off", allow=t("allow", lang))
+            text = say(lang, "upd_off", allow=allow)
         on_text(text)
         return {"tool": "updates", "proposed": True, "auto": settings["auto"], "hold_days": settings["hold_days"]}
 

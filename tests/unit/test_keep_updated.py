@@ -27,7 +27,16 @@ OFF = ["turn off automatic updates", "stop automatic updates", "desactiva las ac
        "automatische Updates ausschalten", "自動更新をオフにして"]
 NEITHER = ["how do I keep my computer updated?", "keep me up to date on Linux Mint",  # a news watch (Standing tasks)
            "check for updates", "my updates failed", "what are automatic updates?", "me mantenha atualizado sobre o Linux",
-           "Halte mich auf dem Laufenden über Linux Mint", "Linux Mintの最新情報を知らせて", "update my nvidia driver"]
+           "Halte mich auf dem Laufenden über Linux Mint", "Linux Mintの最新情報を知らせて", "update my nvidia driver",
+           "why do updates wait?", "what does the hold on updates do?", "my updates are waiting", "hold on a second"]
+# the wait is the hold (D89); Ian, 2026-10-22, on the NVMe: "Can you put a hold on those updates?" went to the guide
+HOLD = ["Can you put a hold on those updates?", "put a hold on updates", "hold new updates", "delay the updates",
+        "let updates wait", "make updates wait a few days", "retén las actualizaciones",
+        "pon en espera las actualizaciones", "segure as atualizações", "mets les mises à jour en attente",
+        "Updates zurückhalten", "更新を保留して"]
+HOLD_OFF = ["remove the hold on updates", "stop holding updates", "don't make updates wait", "quita la espera",
+            "tire a espera das atualizações", "enlève l'attente des mises à jour", "Updates nicht mehr zurückhalten",
+            "更新の保留をやめて"]
 
 
 class TheRequest(unittest.TestCase):
@@ -44,6 +53,13 @@ class TheRequest(unittest.TestCase):
             self.assertIsNone(intent.updates_request(text), text)
         self.assertIsNotNone(intent.watch_request("keep me up to date on Linux Mint"))  # still a watch
 
+    def test_the_hold(self):
+        for text in HOLD:
+            self.assertEqual(intent.updates_request(text), {"auto": None, "days": intent.DEFAULT_WAIT}, text)
+        self.assertEqual(intent.updates_request("hold updates for 5 days"), {"auto": None, "days": 5})
+        for text in HOLD_OFF:
+            self.assertEqual(intent.updates_request(text), {"auto": None, "days": 0}, text)
+
     def test_the_wait_when_named(self):
         self.assertEqual(intent.updates_request("keep my computer updated, but wait 3 days first")["days"], 3)
         self.assertIsNone(intent.updates_request("keep my computer updated and wait 90 days")["days"])  # 1-60 only
@@ -54,7 +70,9 @@ class TheCard(unittest.TestCase):
         summary = admin.VERBS["admin.update_settings"][4]
         self.assertEqual(summary({"settings": {"auto": True, "hold_days": 2}}),
                          "install updates by themselves once a day, each new one waiting 2 days first")
-        self.assertEqual(summary({"settings": {"auto": False, "hold_days": 2}}), "stop installing updates by themselves")
+        self.assertEqual(summary({"settings": {"auto": False, "hold_days": 2}}),
+                         "let new updates wait 2 days before they can be installed (you install them, in Updates)")
+        self.assertIn("no daily updates and no wait", summary({"settings": {"auto": False, "hold_days": 0}}))
 
     def test_every_language(self):
         def fields(text):
@@ -98,6 +116,18 @@ class TheOffer(unittest.TestCase):
         s, out, text = self.offer({"auto": True, "days": 2})
         self.assertEqual(s.actions.propose.call_args.args[1]["settings"]["hold_days"], 2)
         self.assertIn("wait 2 days first", text)
+
+    def test_the_hold_alone(self):
+        s, out, text = self.offer({"auto": None, "days": 2}, dict(self.NOW, auto=True))
+        self.assertEqual(s.actions.propose.call_args.args[1]["settings"], dict(self.NOW, auto=True, hold_days=2))
+        self.assertIn("wait 2 days before", text)
+        self.assertIn("Hold menu", text)  # one update or program: in Updates
+        s, out, text = self.offer({"auto": None, "days": 2}, dict(self.NOW, hold_days=2))
+        s.actions.propose.assert_not_called()
+        self.assertIn("already wait 2 days", text)
+        s, out, text = self.offer({"auto": None, "days": 0}, dict(self.NOW, hold_days=2))
+        self.assertEqual(s.actions.propose.call_args.args[1]["settings"]["hold_days"], 0)
+        self.assertIn("ends the wait", text)
 
     def test_already_and_off(self):
         s, out, text = self.offer({"auto": True, "days": None}, dict(self.NOW, auto=True))

@@ -59,11 +59,14 @@ def _error(remote: str, message: str) -> ActionError:
 
 
 def _updates(a: dict) -> str:
-    s = a["settings"]
-    if not s.get("auto"):
-        return "stop installing updates by themselves"
-    wait = f", each new one waiting {s['hold_days']} days first" if s.get("hold_days") else ""
-    return f"install updates by themselves once a day{wait}"
+    # the whole result, not the change: what the computer will do once it's allowed
+    s, days = a["settings"], a["settings"].get("hold_days", 0)
+    if s.get("auto"):
+        wait = f", each new one waiting {days} days first" if days else ""
+        return f"install updates by themselves once a day{wait}"
+    if days:
+        return f"let new updates wait {days} days before they can be installed (you install them, in Updates)"
+    return "no daily updates and no wait: you install updates yourself, in Updates"
 
 
 # name: (D-Bus method, signature, args -> values, reply, plain-words summary, destructive)

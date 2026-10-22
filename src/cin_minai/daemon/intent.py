@@ -234,18 +234,53 @@ UPDATES_OFF = re.compile(
 WAIT_DAYS = re.compile(r"(\d{1,2})\s*(?:days?|d[ií]as?|jours?|tage?n?|日)", re.I)
 
 
+# the wait is the hold (D89: "a 2 day review before allowing the update"): "put a hold on updates", "let them wait"
+UPDATE_WORD = r"(?:updates?|actualizaciones|atualiza[cç][oõ]es|mises?\s+[aà]\s+jour|aktualisierungen)"
+HOLD_ON = re.compile(
+    r"\b(?:put|place|add|set|turn\s+on|switch\s+on)\b.{0,15}\b(?:a\s+)?(?:hold|wait|delay)\b.{0,25}\b" + UPDATE_WORD +
+    r"\b|\bhold\b.{0,20}\b" + UPDATE_WORD + r"\b|\b" + UPDATE_WORD + r"\b.{0,25}\b(?:wait|on\s+hold)\b|"
+    r"\bdelay\b.{0,20}\b" + UPDATE_WORD + r"\b|"
+    r"\b(?:ret[eé]n\w*|retener|pon\w*\s+en\s+espera)\b.{0,20}\b" + UPDATE_WORD + r"\b|\b" + UPDATE_WORD +
+    r"\b.{0,20}\b(?:esperen|esperem|attendent|en\s+espera|em\s+espera|en\s+attente)\b|"
+    r"\b(?:segur\w*|ret[eê]m|reter|retenha)\b.{0,20}\b" + UPDATE_WORD + r"\b|"
+    r"\b(?:retien\w*|retenir|mets?\w*\s+en\s+attente)\b.{0,20}\b" + UPDATE_WORD + r"\b|"
+    r"\b(?:updates|aktualisierungen)\b.{0,20}\b(?:zur[uü]ckhalten|warten\s+lassen)\b|"
+    r"(?:更新|アップデート).{0,10}(?:保留|待た|待って)", re.I)
+HOLD_OFF = re.compile(
+    r"\b(?:remove|lift|take\s+off|cancel|turn\s+off|switch\s+off|stop|end|no\s+more|drop)\b.{0,15}\b(?:the\s+)?"
+    r"(?:hold|wait|delay)\b|\bstop\s+holding\b|\b(?:don'?t|do\s+not)\s+(?:make|let)\b.{0,20}\bwait\b|"
+    r"\b(?:quita\w*|elimina\w*|cancela\w*)\b.{0,10}\b(?:la\s+)?espera\b|\bdeja\s+de\s+retener\b|"
+    r"\b(?:tir[ae]\w*|remov\w*|cancel\w*)\b.{0,10}\b(?:a\s+)?espera\b|\bpar[ae]\s+de\s+segurar\b|"
+    r"\b(?:enl[eè]v\w*|supprim\w*|annul\w*)\b.{0,10}\b(?:l'|la\s+)?attente\b|\barr[eê]t\w*\s+de\s+retenir\b|"
+    r"\b(?:nicht\s+mehr\s+zur[uü]ckhalten|wartezeit\s+(?:aus|entfernen|abschalten))\b|"
+    r"保留を(?:やめ|解除|外)|待たせ(?:ないで|るのをやめ)", re.I)
+DEFAULT_WAIT = 2
+
+
 def updates_request(text: str) -> dict | None:
-    """{"auto": True/False, "days": N or None} when the person asks for automatic updates on or off ("keep my computer
-    updated", "and wait 2 days first"); None for anything else, "how do I…" included (explained, not done)."""
+    """What the person asks of their updates, from their words: {"auto": True/False/None, "days": N/0/None} — daily
+    updates on or off ("keep my computer updated"), the wait on ("put a hold on updates", "let them wait 3 days": 2
+    days when no number is said) or off ("remove the hold"); None means unchanged. None for anything else, "how do I…"
+    included (explained, not done)."""
     if HOWTO.search(text):
         return None
+    m = WAIT_DAYS.search(text)
+    named = int(m.group(1)) if m and 1 <= int(m.group(1)) <= 60 else None
     if UPDATES_OFF.search(text):
         return {"auto": False, "days": None}
-    if not UPDATES_ON.search(text):
-        return None
-    m = WAIT_DAYS.search(text)
-    days = int(m.group(1)) if m and 1 <= int(m.group(1)) <= 60 else None
-    return {"auto": True, "days": days}
+    if HOLD_OFF.search(text) and re.search(UPDATE_WORD + r"|\bhold\b|\bwait\b|\bespera\b|\battente\b|wartezeit|"
+                                           r"zur[uü]ckhalten|保留|待", text, re.I):
+        return {"auto": None, "days": 0}
+    if UPDATES_ON.search(text):
+        return {"auto": True, "days": named}
+    if HOLD_ON.search(text) and not ASKS_WHY.search(text):
+        return {"auto": None, "days": named or DEFAULT_WAIT}
+    return None
+
+
+# "why do updates wait?" is a question about the hold, not a request for one
+ASKS_WHY = re.compile(r"^\W*(?:why|what|are|is|does|do|when|por\s*qu[eé]|qu[eé]|o\s+que|pourquoi|qu'est|warum|was)\b|"
+                      r"なぜ|どうして|とは", re.I)
 
 
 # --- the graphics driver (update 6): "install the NVIDIA driver", "set up my graphics card driver" -----------------
