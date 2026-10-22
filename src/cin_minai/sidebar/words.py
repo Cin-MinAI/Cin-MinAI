@@ -651,6 +651,35 @@ T = {
 }
 
 # the search providers, as the daemon names them (websearch.PROVIDER, newsscan.PROVIDERS*), in each language
+# D88: the daily updates in Standing tasks (they're changed in the Updates window, D89)
+T_DAILY = {
+    "en": {"daily": "Updates install by themselves, every day", "daily_wait": " (new ones wait {n} days first)",
+           "daily_not_run": "not run yet", "daily_last": "last run {at}: {n} installed",
+           "daily_trouble": "last run {at}: it stopped. Open Updates to see why"},
+    "es": {"daily": "Las actualizaciones se instalan solas, cada día",
+           "daily_wait": " (las nuevas esperan {n} días antes)", "daily_not_run": "aún no se ha ejecutado",
+           "daily_last": "última vez {at}: {n} instaladas",
+           "daily_trouble": "última vez {at}: se detuvo. Abre Actualizaciones para ver por qué"},
+    "pt": {"daily": "As atualizações se instalam sozinhas, todo dia",
+           "daily_wait": " (as novas esperam {n} dias antes)", "daily_not_run": "ainda não rodou",
+           "daily_last": "última vez {at}: {n} instaladas",
+           "daily_trouble": "última vez {at}: parou. Abra Atualizações para ver por quê"},
+    "fr": {"daily": "Les mises à jour s'installent seules, chaque jour",
+           "daily_wait": " (les nouvelles attendent {n} jours)", "daily_not_run": "pas encore lancé",
+           "daily_last": "dernière fois {at} : {n} installées",
+           "daily_trouble": "dernière fois {at} : arrêtée. Ouvrez Mises à jour pour voir pourquoi"},
+    "de": {"daily": "Updates installieren sich von selbst, jeden Tag",
+           "daily_wait": " (neue warten zuerst {n} Tage)", "daily_not_run": "noch nicht gelaufen",
+           "daily_last": "zuletzt {at}: {n} installiert",
+           "daily_trouble": "zuletzt {at}: angehalten. Öffnen Sie Updates, um zu sehen, warum"},
+    "ja": {"daily": "更新は毎日自動でインストールされます", "daily_wait": "（新しい更新はまず{n}日待ちます）",
+           "daily_not_run": "まだ実行されていません", "daily_last": "前回 {at}：{n}件インストール",
+           "daily_trouble": "前回 {at}：止まりました。理由は更新ウィンドウで見られます"},
+}
+for _code, _extra in T_DAILY.items():
+    T[_code].update(_extra)
+
+
 PROVIDERS = {
     "es": {"DuckDuckGo and Bing": "DuckDuckGo y Bing",
            "Google News and Bing News": "Google News y Bing News",
@@ -701,6 +730,18 @@ def watch_head(offer: dict, lang: str | None = None) -> str:
 def standing_head(r: dict, lang: str | None = None) -> str:
     what = (f"“{r['topic']}”" if r.get("topic") else t("top", lang))
     return t("standing_head", lang, what=what, n=r.get("new", 0))
+
+
+def daily_line(task: dict, lang: str | None = None) -> str:
+    """The daily updates' line in Standing tasks (D88)."""
+    import time
+    what = t("daily", lang) + (t("daily_wait", lang, n=task["hold_days"]) if task.get("hold_days") else "")
+    if not task.get("last"):
+        return f"{what}.\n{t('daily_not_run', lang)}"
+    at = time.strftime("%Y-%m-%d %H:%M", time.localtime(task["last"]))
+    error = task.get("error") not in ("", None, "busy")
+    said = t("daily_trouble", lang, at=at) if error else t("daily_last", lang, at=at, n=task.get("installed", 0))
+    return f"{what}.\n{said}"
 
 
 def standing_line(task: dict, lang: str | None = None) -> str:

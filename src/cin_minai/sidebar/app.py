@@ -1465,6 +1465,15 @@ class Sidebar(Gtk.Application):
                            False, False, 0)
         for t in tasks:
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            if t.get("kind") == "updates":  # D88: changed where they're set, in the Updates window (D89)
+                row.pack_start(Gtk.Label(label=words.daily_line(t), xalign=0, wrap=True, max_width_chars=30),
+                               False, False, 0)
+                open_it = Gtk.Button(label=words.t("updates_window"))
+                open_it.set_halign(Gtk.Align.START)
+                open_it.connect("clicked", lambda b: self.open_updates())
+                row.pack_start(open_it, False, False, 0)
+                box.pack_start(row, False, False, 0)
+                continue
             row.pack_start(Gtk.Label(label=words.standing_line(t), xalign=0, wrap=True, max_width_chars=30),
                            False, False, 0)
             buttons = Gtk.Box(spacing=6)

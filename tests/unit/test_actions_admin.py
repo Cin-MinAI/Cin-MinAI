@@ -33,7 +33,8 @@ class AdminThroughThePath(unittest.TestCase):
 
     def test_every_verb_asks_even_in_auto_mode(self):
         args = {"package": "sl", "unit": "cron.service", "enabled": True, "path": "/etc/sysctl.d/cinminai-a.conf",
-                "content": "", "module": "dummy", "argv": ["/usr/sbin/wipefs", "--all", "/dev/loop9"]}
+                "content": "", "module": "dummy", "argv": ["/usr/sbin/wipefs", "--all", "/dev/loop9"],
+                "settings": {"hold_days": 0, "auto": True, "own": [], "looked": []}}
         for name in admin.VERBS:
             with self.subTest(name=name):
                 p = self.actions.propose(name, args)

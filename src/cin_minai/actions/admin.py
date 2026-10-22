@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Admin actions on the one path (M4 slice 3; PLAN D85, SPEC §8.4).
 
-The eight verbs of the root mechanism (org.cinminai.Admin1, package cinminai-admin) as action kinds. They are
+The verbs of the root mechanism (org.cinminai.Admin1, package cinminai-admin) as action kinds. They are
 irreversible here, so the walls make every one ask: the person allows the card, then the mechanism asks polkit for the
 administrator password — the assistant is not the admin. Cancelling the password is a denial (Declined), not a
 failure. The mechanism checks everything again on its side; nothing here is trusted by it.
@@ -13,6 +13,7 @@ failure. The mechanism checks everything again on its side; nothing here is trus
 
 from __future__ import annotations
 
+import json
 from typing import Any, Callable
 
 from .core import ActionError, Actions, Declined, Kind
@@ -57,6 +58,14 @@ def _error(remote: str, message: str) -> ActionError:
     return ActionError(message)
 
 
+def _updates(a: dict) -> str:
+    s = a["settings"]
+    if not s.get("auto"):
+        return "stop installing updates by themselves"
+    wait = f", each new one waiting {s['hold_days']} days first" if s.get("hold_days") else ""
+    return f"install updates by themselves once a day{wait}"
+
+
 # name: (D-Bus method, signature, args -> values, reply, plain-words summary, destructive)
 VERBS: dict[str, tuple[str, str, Callable[[dict], tuple], str | None, Callable[[dict], str], bool]] = {
     "admin.install_package": ("InstallPackage", "(s)", lambda a: (a["package"],), "(s)",
@@ -75,6 +84,9 @@ VERBS: dict[str, tuple[str, str, Callable[[dict], tuple], str | None, Callable[[
                           lambda a: f"load the driver {a['module']}", False),
     "admin.unload_module": ("UnloadModule", "(s)", lambda a: (a["module"],), None,
                             lambda a: f"unload the driver {a['module']}", False),
+    # D88: "keep my computer updated" — the Updates window's own settings (D89), the whole of them
+    "admin.update_settings": ("SetUpdateSettings", "(s)", lambda a: (json.dumps(a["settings"]),), "(s)", _updates,
+                              False),
     "admin.run": ("RunArgv", "(as)", lambda a: (list(a["argv"]),), "(s)",
                   lambda a: f"run {a['argv'][0].rsplit('/', 1)[-1]} on {a['argv'][-1]}", True),
 }

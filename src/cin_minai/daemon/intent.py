@@ -203,6 +203,51 @@ def watch_request(text: str) -> dict | None:
     return {"topic": topic, "at": at, **({"only": only} if only else {})}
 
 
+# --- automatic updates (D88): "keep my computer updated", "turn off automatic updates" ------------------------------
+COMPUTER = r"(?:computer|pc|laptop|system|machine|ordenador|computadora|equipo|sistema|computador|ordinateur|syst[eè]me|" \
+           r"rechner|computer|system)"
+UPDATES_ON = re.compile(
+    r"\bkeep\b.{0,25}\b" + COMPUTER + r"\b.{0,15}\b(?:up[- ]to[- ]date|updated)\b|"
+    r"\b(?:turn|switch)\s+on\b.{0,20}\bautomatic\s+updates?\b|\b(?:enable|activate|set\s*up|start)\b.{0,15}"
+    r"\bautomatic\s+updates?\b|\b(?:update|install\s+updates)\b.{0,25}\bautomatically\b|"
+    r"\bmant[eé]n\w*\b.{0,25}\b" + COMPUTER + r"\b.{0,15}\bactualizad[oa]s?\b|"
+    r"\b(?:activa|activar|enciende|pon)\b.{0,20}\bactualizaciones\s+autom[aá]ticas\b|\bactualiza\w*\b.{0,25}"
+    r"\bautom[aá]ticamente\b|"
+    r"\bmant(?:enha|er|ém)\b.{0,25}\b" + COMPUTER + r"\b.{0,15}\batualizad[oa]s?\b|"
+    r"\b(?:ativ[ae]|ativar|ligue|ligar)\b.{0,20}\batualiza[cç][oõ]es\s+autom[aá]ticas\b|\batualiz\w*\b.{0,25}"
+    r"\bautomaticamente\b|"
+    r"\bgard\w*\b.{0,25}\b" + COMPUTER + r"\b.{0,15}\b[aà]\s+jour\b|\b(?:activ\w*|allum\w*|mets|mettre)\b.{0,20}"
+    r"\bmises?\s+[aà]\s+jour\s+automatiques\b|\bmet\w*\s+[aà]\s+jour\b.{0,25}\bautomatiquement\b|"
+    r"\bhalt\w*\b.{0,25}\b" + COMPUTER + r"\b.{0,25}\b(?:aktuell|auf\s+dem\s+neuesten\s+stand)\b|"
+    r"\bautomatische\s+updates\b.{0,20}\b(?:an|ein|aktivieren|einschalten)\b|\b(?:aktivier\w*|schalt\w*)\b.{0,30}"
+    r"\bautomatische\s+updates\b|\bautomatisch\s+aktualisieren\b|"
+    r"自動(?:更新|アップデート).{0,10}(?:オン|有効|して|にして)|(?:常に)?最新(?:の状態)?に(?:保|して)", re.I)
+UPDATES_OFF = re.compile(
+    r"\b(?:turn|switch)\s+off\b.{0,20}\bautomatic\s+updates?\b|\b(?:stop|disable|no\s+more)\b.{0,25}"
+    r"\b(?:automatic\s+updates?|updat\w*\s+automatically)\b|"
+    r"\b(?:desactiva\w*|apaga\w*|det[eé]n\w*|quita\w*)\b.{0,20}\bactualizaciones\s+autom[aá]ticas\b|"
+    r"\b(?:desativ\w*|deslig\w*|par[ae]\w*)\b.{0,20}\batualiza[cç][oõ]es\s+autom[aá]ticas\b|"
+    r"\b(?:d[eé]sactiv\w*|arr[eê]t\w*|coupe\w*)\b.{0,20}\bmises?\s+[aà]\s+jour\s+automatiques\b|"
+    r"\bautomatische\s+updates\b.{0,20}\b(?:aus|deaktivieren|abschalten|ausschalten)\b|"
+    r"\b(?:deaktivier\w*|abschalt\w*)\b.{0,30}\bautomatische\s+updates\b|"
+    r"自動(?:更新|アップデート).{0,10}(?:オフ|止め|無効|やめ)", re.I)
+WAIT_DAYS = re.compile(r"(\d{1,2})\s*(?:days?|d[ií]as?|jours?|tage?n?|日)", re.I)
+
+
+def updates_request(text: str) -> dict | None:
+    """{"auto": True/False, "days": N or None} when the person asks for automatic updates on or off ("keep my computer
+    updated", "and wait 2 days first"); None for anything else, "how do I…" included (explained, not done)."""
+    if HOWTO.search(text):
+        return None
+    if UPDATES_OFF.search(text):
+        return {"auto": False, "days": None}
+    if not UPDATES_ON.search(text):
+        return None
+    m = WAIT_DAYS.search(text)
+    days = int(m.group(1)) if m and 1 <= int(m.group(1)) <= 60 else None
+    return {"auto": True, "days": days}
+
+
 # --- the graphics driver (update 6): "install the NVIDIA driver", "set up my graphics card driver" -----------------
 DRIVER = re.compile(r"\b(install|set\s*up|get|add|download)\b.{0,40}\b(nvidia|graphics?|video|gpu|display|amd|radeon)"
                     r"\b.{0,25}\bdrivers?\b|\b(nvidia|graphics?|video|gpu)\s+(card\s+)?drivers?\b.{0,30}\b(install|set\s*up)\b|"

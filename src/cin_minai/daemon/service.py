@@ -471,6 +471,43 @@ class Service:
                                  reason=say(lang, "cuda_reason", size=size))
         threading.Thread(target=work, daemon=True).start()
 
+    def offer_updates(self, wanted: dict, on_text) -> dict:
+        """D88: daily updates on or off (and the wait, when the person names it), proposed as the Updates window's own
+        settings (D89) on the Allow card; nothing else in them changes."""
+        from cin_minai.admin import updates as root
+        from cin_minai.sidebar.words import t
+        lang = self.guide.tools.lang
+        if "admin.update_settings" not in self.actions.kinds or not os.path.exists("/usr/bin/cinminai-updates"):
+            on_text(say(lang, "upd_missing"))
+            return {"tool": "updates", "available": False}
+        now = root.load_settings()
+        settings = dict(now, auto=wanted["auto"])
+        if wanted["auto"] and wanted.get("days"):
+            settings["hold_days"] = wanted["days"]
+        if settings == now:
+            on_text(say(lang, "upd_already_on" if now["auto"] else "upd_already_off"))
+            return {"tool": "updates", "changed": False, "auto": now["auto"]}
+        self.actions.propose("admin.update_settings", {"settings": settings},
+                             reason=say(lang, "upd_reason_on" if wanted["auto"] else "upd_reason_off"))
+        if wanted["auto"]:
+            text = say(lang, "upd_on", allow=t("allow", lang)) + (
+                say(lang, "upd_wait", days=settings["hold_days"]) if settings["hold_days"] else say(lang, "upd_nowait"))
+        else:
+            text = say(lang, "upd_off", allow=t("allow", lang))
+        on_text(text)
+        return {"tool": "updates", "proposed": True, "auto": settings["auto"], "hold_days": settings["hold_days"]}
+
+    def standing_listing(self) -> list[dict]:
+        """The standing tasks, and the daily updates when they're on (D88: one place; they're changed in Updates)."""
+        tasks = self.standing.listing()
+        from cin_minai.admin import updates as root
+        if root.load_settings()["auto"]:
+            last = root.read_json(root.STATUS, {})
+            tasks = tasks + [{"id": "updates", "kind": "updates", "hold_days": root.load_settings()["hold_days"],
+                              "last": last.get("ts", 0), "installed": len(last.get("installed", [])),
+                              "error": last.get("error", "")}]
+        return tasks
+
     def offer_driver(self, on_text, on_action) -> dict:
         """The driver the system's own tool recommends (Driver Manager's list), proposed on the Allow card."""
         from . import installs
@@ -578,7 +615,7 @@ class Service:
             args = params.unpack() if params is not None else ()
             threading.Thread(target=self.models_call, args=(method, args, inv), daemon=True).start()
         elif method == "StandingList":
-            inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
+            inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing_listing(), ensure_ascii=False),)))
         elif method == "StandingChange":
             tid, what = params.unpack()
             try:
@@ -589,7 +626,7 @@ class Service:
             if task is None:
                 inv.return_dbus_error(f"{IFACE}.Error.NoTask", "there's no such standing task")
                 return
-            inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing.listing(), ensure_ascii=False),)))
+            inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing_listing(), ensure_ascii=False),)))
         elif method in ("KeySet", "KeyForget"):
             args = params.unpack()  # never logged, never put in a reply or the record
 
@@ -914,6 +951,10 @@ class Service:
         found = intent.video_review(text)
         if found:  # D91: "pull up a video about X (and summarize it)" — a chain, not a web answer
             self.job(rid, lambda on_text, on_action: self.offer_video_chain(text, found, on_text, on_action))
+            return
+        wanted = intent.updates_request(text)
+        if wanted is not None:  # D88: "keep my computer updated" — the Updates window's daily run, on the Allow card
+            self.job(rid, lambda on_text, on_action: self.offer_updates(wanted, on_text))
             return
         if intent.driver_request(text):  # update 6: the system's recommended graphics driver, on the Allow card
             self.job(rid, lambda on_text, on_action: self.offer_driver(on_text, on_action))
