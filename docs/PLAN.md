@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **65 filled (68 %)**, 18 partly,
-6 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled). 90 % is **86 filled**: 21 to go.
+**Count:** 95 live decisions (D18 superseded) — **65 filled (68 %)**, 19 partly,
+5 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 open -> partly). 90 % is **86 filled**: 21 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -159,7 +159,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D4 | filled | the model is configuration, chosen by bakeoff (D43) |
 | D5 | filled | our llama.cpp packages: CUDA incl. sm_61, Vulkan, CPU (amended by D35) |
 | D6 | filled | schema-constrained JSON for every tool call |
-| D7 | filled | off by default. Multi-step diagnosis (Ian, 2026-10-21) is D51's tree walked by code, not by the model thinking: the diagnosis card (fix n of N, what fixed looks like, Check again, the rule decides; a fix that needs a restart is checked after it). Where the trees end (the fixes used up, a specific question the checks find nothing for, a fault without fixes) "Think it through?" is offered: the person's coding model, if they have one, thinks over the full report with a thinking budget (4096 tokens, fitted to its context), loaded and unloaded as for an unusual terminal error; without one, the guide answers plainly. Measured on 14 cases (`training/eval/guide/think_eval.py`, 4070): 27B thinking 14/14, 74 s on average, 117 s at most; 27B plain 14/14 in 6 s but surer than the evidence; the 4B can't finish a thought (0/18). Built 2026-10-21 |
+| D7 | filled | off by default. Multi-step diagnosis (Ian, 2026-10-21) is D51's tree walked by code, not by the model thinking: the diagnosis card (fix n of N, what fixed looks like, Check again, the rule decides; a fix that needs a restart is checked after it). Where the trees end (the fixes used up, a specific question the checks find nothing for, a fault without fixes) "Think it through?" is offered: the person's coding model, if they have one, thinks over the full report with a thinking budget (4096 tokens, fitted to its context), loaded and unloaded as for an unusual terminal error; without one, the guide answers plainly. Measured on 14 cases (`training/eval/guide/think_eval.py`, 4070): 27B thinking 14/14, 74 s on average, 117 s at most; 27B plain 14/14 in 6 s but surer than the evidence; the 4B can't finish a thought (0/18). Built 2026-10-21. **Which model, on the 1080 Ti (2026-10-22, the daemon's setup: thinking on, Qwen's sampling, 8K, budget 3900):** 9B 14/14, 89 s on average, 100 s at most (it uses the whole budget almost every time; 5.3 GB); 35B-A3B with experts in RAM 14/14, 74 s, 115 s; 27B-A2.8B (the MTP file, no drafting) 14/14, 43 s, 64 s — the fastest; 27B dense 14/14 (one scored a fail for "Don't reinstall the system yet": the scorer reads a negation as advice) but 152 s on average, 273 s at most — too slow on this card. **With installation, not on the USB** (Ian, 2026-10-22: "With installation this sort of thing should come… no one is waiting 10 minutes for an answer every time"): the live USB keeps the minimal guide (big models from a stick are a speed problem); after installing, the guided setup offers the thinking model matched to the card (Rule 9, D23's optional download kept), so Think it through doesn't depend on someone having fetched a coding model. Not built |
 | D8 | filled | decided after the baseline (D43) |
 | D9 | filled | in effect; the private part ended with going public (D26, D70) |
 | D10 | filled | the ISO, public since 2026-10-04 |
@@ -181,7 +181,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D26 | filled | public repos, decisions, evals |
 | D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
 | D28 | filled | the internet log, off until switched on from the panel icon's menu (2026-10-16), and the panel's WEB / CLOUD sign; offline mode (2026-10-21): "Keep this computer offline" in the same menu switches NetworkManager's networking off for the whole computer, the panel says OFFLINE, the assistant offers no web search, news or download; "Go online to install updates" connects, opens Update Manager and goes back offline after any install finishes; a security-update reminder at most once a month (`daemon/offline.py`, `cinminai-offline`). Offered from the menu, not at first boot: Cin-MinAI has no first-boot screen yet. Offline updates from a USB stick stay an open question (§6) |
-| D29 | open | no update window of our own yet (Mint's Update Manager) |
+| D29 | partly | the Updates window (2026-10-22, slice 1): apt's own plan in plain words, every step a real check (snapshot when Timeshift is set up, signatures, each file's fingerprint, install, the check afterwards), offline mode handled; holds and automatic updates next (slice 2), sounds as in SPEC §5.7 |
 | D30 | filled | standing rule (offer cards everywhere) |
 | D31 | partly | security updates continuous; model cycle 1 parked |
 | D32 | filled | the transition corpus, published |
@@ -240,7 +240,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D85 | filled | Ask / Auto / undo on the one action path |
 | D86 | filled | what's sent shown first, search offered |
 | D88 | partly | installs, standing watches; 'keep my computer updated' waits for D89 |
-| D89 | open | automatic updates with the hold |
+| D89 | open | automatic updates with the hold. Ian, 2026-10-22: the hold is **optional, unchecked by default, and customizable** (the days, and holds of the person's own on an update or a program); a security update the person holds still warns once when it's on CISA's Known Exploited list (it stays held, the person decides) |
 | D90 | open | waits for D66 |
 | D91 | partly | chains for video and news; other successive actions not built; the live report, gathered by the guide and passed on by the person, planned after the alpha (2026-10-16) |
 | D92 | filled | press / social / official, standing watches |
@@ -715,7 +715,7 @@ the product's llama-server supervisor, SPEC §10.3):
 | `--poll 0` when layers run on the GPU | main thread busy-waited at 98 % of a core | `bench/run.py --poll`, teacher | option; A/B pending |
 | Parallel slots + parallel workers | GPU 36–41 % busy with one request at a time | `generate.py --workers`, teacher `--parallel 2`, evals | implemented; A/B pending |
 | Partial CPU offload vs. desktop reserve | 4 CPU layers keep 1.9 GB free but slow every token | teacher; product step-down ladder (SPEC §4.2) | measure cost per offloaded layer |
-| Speculative decoding: n-gram drafting (`--spec-type ngram-mod`) | an edit copies most of a file back; drafts guessed from the context are checked in one pass | the coding role (AICUI) only | measured 2026-10-21 (`bench/spec_speed.py`, 4070): edits 27B 38 → 124-276 tok/s, 9B 77 → 412 (one 150-line file in 4.3 s); new code and diagnoses unchanged (diagnoses a little slower on the 9B, so off for the guide). AICUI's coding run (`bench/spec_aicui.py`, 9B junior at 32K, twice): the same stages held and failed with it as without; 60 → 116 tok/s in one run, no change in the other (the junior mostly writes new code). **Adopted 2026-10-21 (Ian) for the coding role**: one-model, team B's two, the table's seats, the Benchmark (`models.CODING_DRAFT`); not beside a picture reader until tested together; MoE with experts in RAM and the processor-only mode untested. MTP untested: the 9B file has no MTP layers, the 27B's didn't fit beside it |
+| Speculative decoding: n-gram drafting (`--spec-type ngram-mod`) | an edit copies most of a file back; drafts guessed from the context are checked in one pass | the coding role (AICUI) only | measured 2026-10-21 (`bench/spec_speed.py`, 4070): edits 27B 38 → 124-276 tok/s, 9B 77 → 412 (one 150-line file in 4.3 s); new code and diagnoses unchanged (diagnoses a little slower on the 9B, so off for the guide). AICUI's coding run (`bench/spec_aicui.py`, 9B junior at 32K, twice): the same stages held and failed with it as without; 60 → 116 tok/s in one run, no change in the other (the junior mostly writes new code). **Adopted 2026-10-21 (Ian) for the coding role**: one-model, team B's two, the table's seats, the Benchmark (`models.CODING_DRAFT`); not beside a picture reader until tested together. **On the 1080 Ti (2026-10-22, the packaged llama-server):** edits 9B 40 → 166 tok/s; the 35B MoE with experts in RAM 28 → 40 (smaller: checking drafts runs the experts on the processor); **beside the picture reader** (35B + its mmproj, one picture question) no crash, the same answers, edits 27 → 38 — so the mmproj exclusion can go (Ian's call); new code and diagnoses unchanged; diagnoses' text differs in 3-4 of 14 with drafting (greedy, batched checking: the reason it stays off for the guide). **MTP** (qwen36-27b-a2.8b, `draft-mtp`): edits 45 → 61, new code 45 → 52 but its text changed, diagnoses 40 → 35 and 0/14 the same; ngram-mod on the same model edits 45 → 106 — MTP not adopted. Processor-only mode untested |
 
 ### Bakeoff matrix (M0)
 
@@ -1012,6 +1012,15 @@ record is detected; a lost USB is recovered with the printed code.
   on the computer can and can't reach, and AICUI's sandbox; passwords and hardware keys), offered when relevant
   (D84); the **installer recommending disk encryption**, plainly (D47); **hardware advice** when choosing a PC
   (TPM 2.0 / Pluton; what a Pi lacks) with D24/D37.
+  **The warnings are training wheels** (Ian, 2026-10-22, after the PHP advisory: "These are just training wheels. At
+  a point the user should pick up on these sort of things and make calls for themselves whether to go immediately or
+  wait… there's a process to becoming an expert in anything… At a point you don't need that anymore, it just slows
+  you down. With this you need to pay attention to certain places and people and update accordingly"). An advisory
+  warning shows its reasoning, not only the verdict: who said what (the project's own team, the distro's notice,
+  CISA, a national CERT, a researcher, a leaked post), whether a fix exists, and why the assistant would act now or
+  wait (our own hold: two days, to rule out a campaign and wait for a fix). The person learns where to look and whom
+  to trust, and can make the call themselves; the assistant's hold becomes a suggestion they may skip, then a
+  source list they keep, as they need it less (Rule 9). No decision; it shapes D92's scan and the help cards.
 - **Keys in the person's own apps: no accident with them — an idea, no decision** (Ian, 2026-10-20: "We really need
   to try and help them not push their api keys if they use api. That was one of the reasons I liked Oauth, no API key
   for the ai to have an accident with"; and "I would recommend sandboxing your financial setup with a prepaid card").

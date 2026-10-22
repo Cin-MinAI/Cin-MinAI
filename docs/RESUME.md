@@ -6,6 +6,14 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
+## Open hold (2026-10-22) — the PHP advisory
+
+- PHP core "php2shell" (CVE-2026-109618/109619; PHP rates 9.2, a leaked post said 10.0; an NSA advisory reported)
+  and GitLab CVE-2026-97229 (10.0, public exploit): **none of our machines run either** (NVMe, dev PC, ISO, Ian's
+  sites checked). Ian's call: the warning to users waits **two days** — make sure no one is pushing a campaign and a
+  fix is out (Ubuntu noble had no php8.3 fix on 10-22). **Re-check 2026-10-24**, then bring Ian an attributed
+  warning shown only where PHP is installed.
+
 ## Where we stopped (2026-10-21) — update 7 out; next: the fill run (D97)
 
 - **Update 7 is live** (2026-10-21, signed by Ian, 18 packages, build …114111, apt-check 18/0; source fd74f3a;

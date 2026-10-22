@@ -1,0 +1,21 @@
+[Desktop Entry]
+Type=Application
+Name=Updates
+Name[es]=Actualizaciones
+Name[pt]=Atualizações
+Name[fr]=Mises à jour
+Name[de]=Updates
+Name[ja]=アップデート
+GenericName=Software updates
+Comment=See what's waiting in plain words, and watch every check as it installs
+Comment[es]=Mira lo pendiente en palabras sencillas y cada comprobación mientras se instala
+Comment[pt]=Veja o que está pendente em palavras simples e cada verificação durante a instalação
+Comment[fr]=Voir ce qui attend, en mots simples, et chaque vérification pendant l'installation
+Comment[de]=Sehen, was wartet, in einfachen Worten, und jede Prüfung beim Installieren
+Comment[ja]=待っているアップデートをわかりやすく表示し、インストール中の確認をすべて見られます
+Keywords=update;updates;upgrade;security;patch;
+Exec=cinminai-updates
+Icon=system-software-update
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

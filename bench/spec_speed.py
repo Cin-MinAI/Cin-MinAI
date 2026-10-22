@@ -9,7 +9,7 @@ Three kinds of prompt, because drafting pays where answers copy from the context
 - write: new code, nothing to copy.
 
     python3 bench/spec_speed.py --server PATH/llama-server --model M.gguf --name 27b [--configs none,ngram-simple,mtp]
-        [--ngl 99] [--ctx 8192]
+        [--ngl 99] [--ctx 8192] [--extra "--n-cpu-moe 30"] [--image PICTURE --extra "--mmproj MMPROJ"]
 
 Results: bench-results/spec/NAME-DATE.jsonl (git-ignored) and a summary table. Stdlib only.
 """
@@ -17,9 +17,11 @@ Results: bench-results/spec/NAME-DATE.jsonl (git-ignored) and a summary table. S
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime as dt
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -43,8 +45,8 @@ CONFIGS = {
 }
 
 
-def prompts() -> list[tuple[str, str, list[dict], int]]:
-    """(kind, id, messages, max_tokens)"""
+def prompts(image: str = "") -> list[tuple[str, str, list[dict], int]]:
+    """(kind, id, messages, max_tokens); with a picture, one question about it (drafting beside a picture reader)"""
     out = [("diag", c["id"], think.messages(c["question"], c["evidence"]), 600) for c in CASES]
     src = (ROOT / "src" / "cin_minai" / "diag" / "walk.py").read_text(encoding="utf-8")
     out.append(("edit", "E1", [{"role": "user", "content": "Here is a Python file. Give back the whole file, "
@@ -60,6 +62,12 @@ def prompts() -> list[tuple[str, str, list[dict], int]]:
     out.append(("write", "W2", [{"role": "user", "content": "Write a bash script that lists the five largest "
                                  "folders in the home directory with their sizes, sorted, with comments. Only the "
                                  "script."}], 1024))
+    if image:
+        url = "data:image/jpeg;base64," + base64.b64encode(Path(image).read_bytes()).decode()
+        out.append(("image", "P1", [{"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": url}},
+            {"type": "text", "text": "What is on this screen? List every menu entry you can read, and say which one "
+                                     "starts the computer by default."}]}], 600))
     return out
 
 
@@ -105,17 +113,19 @@ def main() -> int:
     ap.add_argument("--configs", default="none,ngram-simple,ngram-mod,mtp")
     ap.add_argument("--ngl", default="99")
     ap.add_argument("--ctx", type=int, default=8192)
+    ap.add_argument("--extra", default="", help="more server arguments, for every config")
+    ap.add_argument("--image", default="", help="a picture to ask about (needs --mmproj in --extra)")
     a = ap.parse_args()
     out_dir = ROOT / "bench-results" / "spec"
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{a.name}-{dt.datetime.now():%Y%m%d-%H%M}.jsonl"
-    ps = prompts()
+    ps = prompts(a.image)
     base: dict[str, str] = {}
     table = {}
     with path.open("w", encoding="utf-8") as f:
         for cfg in a.configs.split(","):
             try:
-                srv = start(a.server, a.model, a.ngl, a.ctx, CONFIGS[cfg])
+                srv = start(a.server, a.model, a.ngl, a.ctx, shlex.split(a.extra) + CONFIGS[cfg])
             except RuntimeError as e:
                 print(f"{cfg}: {e}")
                 continue

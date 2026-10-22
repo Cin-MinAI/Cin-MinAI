@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Updates window (PLAN D29): what's waiting in plain words, and every real step of installing it.
+# Opened from the panel icon's menu, the sidebar's start screen and the system menu.
+import sys
+
+from cin_minai.daemon.updates import main
+
+sys.exit(main(sys.argv[1:]))
