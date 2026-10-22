@@ -329,6 +329,70 @@ class Cisa(unittest.TestCase):
         self.assertFalse(root.mark_kev(items, changelog, compare, lambda: None))  # couldn't read it: said
 
 
+class Confirmations(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.cache = os.path.join(self.dir, "confirmations.json")
+        self.asked = []
+
+    def osv(self, record):
+        def fetch(vuln):
+            self.asked.append(vuln)
+            if isinstance(record, Exception):
+                raise record
+            return record
+        return fetch
+
+    def test_debians_record_names_the_program(self):
+        record = {"id": "DEBIAN-CVE-2026-1111", "affected": [{"package": {"name": "openssl", "ecosystem": "Debian:13"}},
+                                                             {"package": {"name": "openssl", "ecosystem": "Debian:14"}}]}
+        self.assertEqual(root.confirm_cve("CVE-2026-1111", self.osv(record), self.cache, NOW), ["openssl"])
+        self.assertEqual(self.asked, ["DEBIAN-CVE-2026-1111"])  # only the CVE number goes out
+        root.confirm_cve("CVE-2026-1111", self.osv(record), self.cache, NOW + 20 * DAY)
+        self.assertEqual(len(self.asked), 1)  # a confirmation is kept 30 days
+
+    def test_none_and_unreachable_are_different(self):
+        self.assertEqual(root.confirm_cve("CVE-2026-3", self.osv(None), self.cache, NOW), [])
+        root.confirm_cve("CVE-2026-3", self.osv(None), self.cache, NOW + 2 * DAY)
+        self.assertEqual(len(self.asked), 2)  # "none" is asked again the next day
+        self.assertIsNone(root.confirm_cve("CVE-2026-4", self.osv(OSError("offline")), self.cache, NOW))
+
+    def item(self, **kw):
+        return dict({"name": "libssl3t64", "version": "2", "old": "1", "security": True, "held": "waiting",
+                     "cves": ["CVE-1", "CVE-2"], "kev": []}, **kw)
+
+    def early(self, items, answers):
+        root.confirm_early(items, lambda name: "openssl", lambda cve: answers.get(cve, []))
+        return items
+
+    def test_every_cve_must_be_confirmed_for_the_same_program(self):
+        ok, = self.early([self.item()], {"CVE-1": ["openssl"], "CVE-2": ["openssl", "openssl1.1"]})
+        self.assertEqual((ok["held"], ok["early"]), ("", "confirmed"))
+        half, = self.early([self.item()], {"CVE-1": ["openssl"]})
+        self.assertEqual((half["held"], half.get("unconfirmed")), ("waiting", True))
+        other, = self.early([self.item()], {"CVE-1": ["gnutls28"], "CVE-2": ["gnutls28"]})
+        self.assertEqual(other["held"], "waiting")  # a real CVE, but not this program's
+        none, = self.early([self.item(cves=[])], {})
+        self.assertEqual((none["held"], none.get("unconfirmed")), ("waiting", True))
+        self.assertIn("names no CVE", window.reason(none, "waiting", {"hold_days": 2}, "en"))
+        unreached, = self.early([self.item()], {"CVE-1": None, "CVE-2": ["openssl"]})
+        self.assertTrue(unreached["osv_unreached"])
+
+    def test_ubuntus_kernel_names(self):
+        for name in ("linux", "linux-signed", "linux-meta", "linux-hwe-6.11", "linux-signed-hwe-6.11",
+                     "linux-meta-hwe-6.11", "linux-oem-6.8"):
+            self.assertEqual(root.program(name), "linux", name)
+        for name in ("linux-firmware", "linux-atm", "openssl", "glib2.0"):
+            self.assertEqual(root.program(name), name, name)
+
+    def test_the_persons_own_holds_stand(self):
+        mine, plain = self.early([self.item(held="update"), self.item(security=False)],
+                                 {"CVE-1": ["openssl"], "CVE-2": ["openssl"]})
+        self.assertEqual((mine["held"], plain["held"]), ("update", "waiting"))
+        self.assertNotIn("early", mine)
+
+
 class TheCheck(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -342,7 +406,9 @@ class TheCheck(unittest.TestCase):
     def check(self, now, **kw):
         return root.check(self.run_apt, lambda name: CHANGELOG, now, compare=compare,
                           upgradable=lambda: {"libssl3t64": "3.0.13-0ubuntu3.6", "tzdata": "2025b-0ubuntu0.24.04"},
-                          kev=lambda: {"CVE-2026-1111"}, settings_path=self.settings, seen_path=self.seen, **kw)
+                          kev=lambda: {"CVE-2026-1111"}, settings_path=self.settings, seen_path=self.seen,
+                          sources=lambda name: {"libssl3t64": "openssl"}.get(name, name),
+                          confirm=kw.pop("confirm", lambda cve: []), **kw)
 
     def test_the_wait_counts_from_the_first_check(self):
         root.write_json(self.settings, {"hold_days": 2, "auto": False, "own": []})
@@ -354,6 +420,15 @@ class TheCheck(unittest.TestCase):
         later = self.check(NOW + 2 * DAY + 1)
         self.assertEqual([u["held"] for u in later["updates"]], ["", ""])
         self.assertIsNone(later["kev_checked"])  # nothing held, nothing looked up
+
+    def test_a_confirmed_fix_does_not_wait_and_one_on_cisas_list_goes_first(self):
+        root.write_json(self.settings, {"hold_days": 2, "auto": False, "own": []})
+        got = self.check(NOW, confirm=lambda cve: ["openssl"])
+        ssl, tz = got["updates"]
+        self.assertEqual((ssl["held"], ssl["early"], ssl["confirmed"]), ("", "kev", ["CVE-2026-1111", "CVE-2026-2222"]))
+        self.assertEqual(tz["held"], "waiting")  # not a security fix: it waits
+        self.assertEqual(window.held(ssl, got["settings"], NOW), "")  # the window agrees
+        self.assertIn("CVE-2026-1111", window.reason(ssl, "", got["settings"], "en"))
 
     def test_a_signature_problem_still_stops_the_check(self):
         def bad(argv):
@@ -406,6 +481,20 @@ class TheDailyRun(unittest.TestCase):
         st = self.daily({"hold_days": 2, "auto": False, "own": []}, self.plan(""))
         self.assertEqual(self.installed, [])
         self.assertEqual(st["error"], "")
+
+    def test_a_fix_for_something_exploited_now_goes_first(self):
+        def check(run, changelog, now):
+            ups = [{"name": "tzdata", "version": "2025b", "old": "y", "security": False, "held": "", "ready": 0},
+                   {"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6", "old": "x", "security": True, "held": "",
+                    "ready": 0, "early": "kev", "confirmed": ["CVE-2026-1111"], "kev": ["CVE-2026-1111"]}]
+            return {"sources": [], "updates": ups, "new": [], "remove": [], "phased": 0}
+        st = self.daily({"hold_days": 2, "auto": True, "own": []}, check)
+        self.assertEqual(self.installed, [["libssl3t64=3.0.13-0ubuntu3.6"], ["tzdata=2025b"]])
+        self.assertEqual(st["early"], [{"name": "libssl3t64", "version": "3.0.13-0ubuntu3.6", "why": "kev",
+                                        "cves": ["CVE-2026-1111"]}])
+        self.assertEqual(self.audits[0]["early"], st["early"])  # the record says it came early and why
+        texts, _ = window.notices(st, {}, "en")
+        self.assertTrue(any("installed early" in t for t in texts))
 
     def test_not_on_battery(self):
         st = self.daily({"hold_days": 0, "auto": True, "own": []}, self.plan(""), battery=lambda: True)

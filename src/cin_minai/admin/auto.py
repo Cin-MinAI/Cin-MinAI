@@ -4,7 +4,8 @@ re-checks the servers after any step in front of it, so a version published in b
 
 cinminai-updates-auto.timer starts it once a day. With the wait or automatic updates on, it checks (the same check as
 the Updates window: signatures, apt's plan, when each version was first seen, the holds); with automatic updates on,
-it installs the updates nothing holds, through the same steps as the window (snapshot when Timeshift is set up,
+it installs the updates nothing holds (a security fix confirmed early by Debian's security team among them, and
+first when it's on CISA's list: D89's emergency path), through the same steps as the window (snapshot when Timeshift is set up,
 download, every file's fingerprint, install, the check afterwards). Not on battery. What it did goes to the admin
 record (hash-chained) and to a status file the person's session reads: cinminai-updates --notices says what needs
 them (an install that stopped, a restart, a source that couldn't be proven genuine, a held security fix on CISA's
@@ -47,7 +48,7 @@ def run_once(run, changelog, now: float | None = None, settings_path: str = upda
     settings = updates.load_settings(settings_path)
     if not settings["auto"] and not settings["hold_days"]:
         return None
-    status = {"ts": now, "auto": settings["auto"], "installed": [], "held": [], "kev": [], "steps": [],
+    status = {"ts": now, "auto": settings["auto"], "installed": [], "held": [], "kev": [], "early": [], "steps": [],
               "error": "", "signature": [], "restart": False}
     try:
         with lock():
@@ -67,18 +68,26 @@ def run_once(run, changelog, now: float | None = None, settings_path: str = upda
                 status["kev"] = [{"name": u["name"], "version": u["version"], "cves": u["kev"]}
                                  for u in result["updates"] if u.get("kev")]
                 go = [u for u in result["updates"] if not u["held"]]
+                status["early"] = [{"name": u["name"], "version": u["version"], "why": u["early"],
+                                    "cves": u.get("confirmed", [])} for u in go if u.get("early")]
                 if settings["auto"] and go and battery():
                     status["error"] = "battery"
                 elif settings["auto"] and go:
                     def emit(_job, step, state, detail):
                         status["steps"].append([step, state, detail])
                         print(f"{step}: {state} {detail}", flush=True)
+                    # a fix for something exploited now goes first, on its own (D89's emergency path)
+                    first = [u for u in go if u.get("early") == "kev"]
+                    batches = [b for b in (first, [u for u in go if u not in first]) if b]
                     try:
-                        out = install([f"{u['name']}={u['version']}" for u in go], True, run, emit, "auto")
-                        status["installed"] = [f"{u['name']}={u['version']}" for u in go]
-                        status["restart"] = out.get("restart", False)
-                        if out.get("broken") or out.get("failed"):
-                            status["error"] = "after"
+                        for batch in batches:
+                            versions = [f"{u['name']}={u['version']}" for u in batch]
+                            out = install(versions, True, run, emit, "auto")
+                            status["installed"] += versions
+                            status["restart"] = status["restart"] or out.get("restart", False)
+                            if out.get("broken") or out.get("failed"):
+                                status["error"] = "after"
+                                break
                     except RuntimeError as e:
                         status["error"] = "install"
                         status["detail"] = str(e)[-300:]
@@ -90,7 +99,8 @@ def run_once(run, changelog, now: float | None = None, settings_path: str = upda
         audit({"ts": datetime.datetime.fromtimestamp(now).astimezone().isoformat(timespec="seconds"),
                "event": "auto-update", "installed": status["installed"],
                "held": [f"{h['name']}={h['version']} ({h['held']})" for h in status["held"]],
-               "kev": status["kev"], "error": status["error"], "signature": status["signature"]})
+               "kev": status["kev"], "early": status["early"], "error": status["error"],
+               "signature": status["signature"]})
     return status
 
 

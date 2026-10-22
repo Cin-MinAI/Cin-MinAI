@@ -17,7 +17,13 @@ all) say how many days a new version waits (0 = no wait), whether updates instal
 timer, auto.py: Mint's updater re-checks the servers after any step in front of it, so a version published in between
 would skip the wait), and the person's own holds: one update (that version only) or a program (all its updates, until
 they release it). When a version was first seen is recorded at every check. A held security update whose fixes are on
-CISA's Known Exploited Vulnerabilities list is said, once: it stays held, the person decides."""
+CISA's Known Exploited Vulnerabilities list is said, once: it stays held, the person decides.
+
+Confirmations and the emergency path (slice 3, D89): while the wait is on, a security update whose CVEs are each
+confirmed for that same program by Debian's security team (its records on OSV.dev, Google: independent of Canonical,
+which ships the update) doesn't wait, and one fixing a CVE on CISA's list goes first. One that cites no CVE, or whose
+CVEs can't be confirmed, waits like the rest and says so (Ian, 2026-10-22). Only CVE numbers are sent. The person's
+own holds are never overridden."""
 
 from __future__ import annotations
 
@@ -41,6 +47,8 @@ STATUS = "/var/lib/cinminai/updates-status.json"
 KEV_CACHE = "/var/lib/cinminai/kev.json"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 LOCK = "/run/lock/cinminai-updates.lock"
+CONFIRM_CACHE = "/var/lib/cinminai/confirmations.json"
+OSV_URL = "https://api.osv.dev/v1/vulns/{}"
 DEFAULTS = {"hold_days": 0, "auto": False, "own": []}
 MAX_HOLD_DAYS = 60
 MAX_OWN = 500
@@ -307,6 +315,82 @@ def mark_kev(items: list[dict], changelog: Callable[[str], str], compare: Callab
     return known is not None
 
 
+def osv_fetch(vuln: str) -> dict | None:
+    """One OSV.dev record (None when OSV has none); raises OSError when OSV can't be reached."""
+    import urllib.error
+    try:
+        with urllib.request.urlopen(OSV_URL.format(vuln), timeout=20) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise OSError(f"OSV answered {e.code}") from None
+    except ValueError:
+        raise OSError("OSV's answer wasn't readable") from None
+
+
+def confirm_cve(cve: str, fetch: Callable[[str], dict | None] = osv_fetch, cache: str = CONFIRM_CACHE,
+                now: float | None = None) -> list[str] | None:
+    """The programs (Debian source packages) Debian's security team records CVE as affecting, through OSV.dev; [] when
+    it has no record; None when OSV couldn't be reached. Answers are kept: a confirmation 30 days, a "none" one day."""
+    now = now or time.time()
+    known = read_json(cache, {})
+    hit = known.get(cve)
+    if isinstance(hit, dict) and now - hit.get("ts", 0) < (30 if hit.get("programs") else 1) * DAY:
+        return hit.get("programs", [])
+    try:
+        record = fetch(f"DEBIAN-{cve}")
+    except OSError:
+        return None
+    programs = sorted({a.get("package", {}).get("name", "") for a in (record or {}).get("affected", [])} - {""})
+    known[cve] = {"programs": programs, "ts": now}
+    try:
+        write_json(cache, {k: v for k, v in known.items() if isinstance(v, dict) and now - v.get("ts", 0) < 30 * DAY})
+    except OSError:
+        pass
+    return programs
+
+
+# Ubuntu builds the kernel under wrapper names (signed images, the metapackages, the newer-hardware kernels); Debian's
+# records name the kernel itself
+KERNEL_RE = re.compile(r"^linux(?:-signed|-meta)?(?:-hwe-[0-9.]+|-oem-[0-9.]+|-lowlatency(?:-hwe-[0-9.]+)?)?$")
+
+
+def program(source_name: str) -> str:
+    return "linux" if KERNEL_RE.fullmatch(source_name) else source_name
+
+
+def apt_sources() -> Callable[[str], str]:
+    """Each update's program as Debian's records name it (its source package), python3-apt, one cache read."""
+    import apt
+    cache = apt.Cache()
+
+    def source(name: str) -> str:
+        try:
+            return program(cache[name].candidate.source_name)
+        except (KeyError, AttributeError):
+            return base_name(name)
+    return source
+
+
+def confirm_early(items: list[dict], source: Callable[[str], str], confirm=confirm_cve) -> None:
+    """The emergency path: a waiting security update whose CVEs are each confirmed for the same program doesn't wait
+    ("confirmed"), and goes first when one is on CISA's list ("kev"); otherwise it waits, marked unconfirmed. Only the
+    wait is lifted: the person's own holds stand."""
+    for item in items:
+        if item.get("held") != "waiting" or not item.get("security"):
+            continue
+        cves, program = item.get("cves", []), source(item["name"])
+        answers = {c: confirm(c) for c in cves}
+        item["confirmed"] = [c for c in cves if answers[c] and program in answers[c]]
+        if cves and len(item["confirmed"]) == len(cves):
+            item["held"], item["ready"] = "", 0
+            item["early"] = "kev" if item.get("kev") else "confirmed"
+        else:
+            item["unconfirmed"] = True
+            item["osv_unreached"] = any(a is None for a in answers.values())
+
+
 def apt_compare() -> Callable[[str, str], int]:
     import apt_pkg
     apt_pkg.init_system()
@@ -314,9 +398,11 @@ def apt_compare() -> Callable[[str, str], int]:
 
 
 def check(run: Run, changelog: Callable[[str], str], now: float | None = None, upgradable=apt_upgradable,
-          compare=None, kev=kev_ids, settings_path: str = SETTINGS, seen_path: str = SEEN) -> dict:
+          compare=None, kev=kev_ids, settings_path: str = SETTINGS, seen_path: str = SEEN, sources=None,
+          confirm=confirm_cve) -> dict:
     """A check for updates (the window's and the daily timer's): the lists refreshed and their signatures checked, apt's
-    plan, when each waiting version was first seen (recorded), and the holds applied."""
+    plan, when each waiting version was first seen (recorded), the holds applied, and the security fixes confirmed
+    early where they can be."""
     now = now or time.time()
     result = refresh(run)
     result.update(plan(run(["/usr/bin/apt-get", "-s", "-o", "APT::Get::Show-User-Simulation-Note=false",
@@ -326,6 +412,8 @@ def check(run: Run, changelog: Callable[[str], str], now: float | None = None, u
     settings = load_settings(settings_path)
     apply_holds(result["updates"], settings, seen, now)
     result["kev_checked"] = mark_kev(result["updates"], changelog, compare or apt_compare(), kev)
+    if any(u["held"] == "waiting" and u["security"] for u in result["updates"]):
+        confirm_early(result["updates"], sources or apt_sources(), confirm)
     result["settings"] = settings
     return result
 

@@ -13,7 +13,9 @@ Holds (D89, slice 2; Ian: optional, unchecked, customizable): new updates can wa
 updates can install by themselves once a day (the daily timer, admin/auto.py), and the person can hold one update or
 every update to a program until they release it. The admin mechanism's check marks what's held (the same rule the
 timer uses); held updates come unticked, and ticking one installs it anyway: the person's call. A held security fix
-that CISA lists as exploited now is said. Changing the settings asks for the password once.
+that CISA lists as exploited now is said. Changing the settings asks for the password once. While the wait is on, a
+security fix confirmed for its program by Debian's security team (OSV.dev) doesn't wait, and goes first when it fixes
+something on CISA's list (slice 3, the emergency path); one that can't be confirmed waits like the rest and says so.
 
     cinminai-updates               the window
     cinminai-updates --notices     what the daily run needs the person to know, once each (the panel icon runs it)
@@ -329,8 +331,67 @@ WORDS_HOLDS = {
            "n_restart": "アップデートをインストールしました。都合のよいときに再起動して仕上げてください。",
            "n_kev": "保留中のセキュリティアップデートは{cves}を修正します。CISAはこれを現在悪用されている脆弱性に挙げています。「アップデート」を開いて判断してください。"},
 }
+# the confirmations and the emergency path (D89, slice 3)
+WORDS_EARLY = {
+    "en": {"wait_note": "While they wait, security fixes are checked with Debian's security team (through OSV.dev) and "
+           "CISA's list of weaknesses being exploited now; only the CVE numbers are sent. A fix they confirm doesn't "
+           "wait.", "unconfirmed": "Couldn't be confirmed at an independent source, so it waits like the rest",
+           "no_cve": "It names no CVE to confirm, so it waits like the rest",
+           "early_confirmed": "Doesn't wait: Debian's security team confirms the fix ({cves})",
+           "early_kev": "Goes first: it fixes {cves}, which CISA lists as exploited now, and Debian's security team "
+           "confirms it",
+           "n_early": "A fix for {cves}, which CISA lists as being exploited now, was installed early: Debian's security "
+           "team confirmed it."},
+    "es": {"wait_note": "Mientras esperan, las correcciones de seguridad se comprueban con el equipo de seguridad de "
+           "Debian (a través de OSV.dev) y con la lista de la CISA de vulnerabilidades que se están explotando; solo se "
+           "envían los números CVE. Una corrección que confirman no espera.",
+           "unconfirmed": "No se pudo confirmar en una fuente independiente, así que espera como las demás",
+           "no_cve": "No indica ningún CVE que confirmar, así que espera como las demás",
+           "early_confirmed": "No espera: el equipo de seguridad de Debian confirma la corrección ({cves})",
+           "early_kev": "Va primero: corrige {cves}, que la CISA indica que se está explotando, y el equipo de seguridad "
+           "de Debian lo confirma",
+           "n_early": "Una corrección de {cves}, que la CISA indica que se está explotando, se instaló antes: el equipo "
+           "de seguridad de Debian la confirmó."},
+    "pt": {"wait_note": "Enquanto esperam, as correções de segurança são verificadas com a equipe de segurança do "
+           "Debian (pelo OSV.dev) e com a lista da CISA de vulnerabilidades sendo exploradas agora; só os números CVE "
+           "são enviados. Uma correção que eles confirmam não espera.",
+           "unconfirmed": "Não foi possível confirmar em uma fonte independente, então espera como as outras",
+           "no_cve": "Não cita nenhum CVE para confirmar, então espera como as outras",
+           "early_confirmed": "Não espera: a equipe de segurança do Debian confirma a correção ({cves})",
+           "early_kev": "Vai primeiro: corrige {cves}, que a CISA aponta como explorada agora, e a equipe de segurança "
+           "do Debian confirma",
+           "n_early": "Uma correção para {cves}, que a CISA aponta como explorada agora, foi instalada antes: a equipe "
+           "de segurança do Debian a confirmou."},
+    "fr": {"wait_note": "Pendant l'attente, les correctifs de sécurité sont vérifiés auprès de l'équipe de sécurité de "
+           "Debian (via OSV.dev) et de la liste de la CISA des failles exploitées en ce moment ; seuls les numéros CVE "
+           "sont envoyés. Un correctif qu'ils confirment n'attend pas.",
+           "unconfirmed": "Impossible de le confirmer auprès d'une source indépendante : il attend comme les autres",
+           "no_cve": "Il ne cite aucun CVE à confirmer : il attend comme les autres",
+           "early_confirmed": "N'attend pas : l'équipe de sécurité de Debian confirme le correctif ({cves})",
+           "early_kev": "Passe en premier : il corrige {cves}, que la CISA signale comme exploitée en ce moment, et "
+           "l'équipe de sécurité de Debian le confirme",
+           "n_early": "Un correctif pour {cves}, que la CISA signale comme exploitée en ce moment, a été installé plus "
+           "tôt : l'équipe de sécurité de Debian l'a confirmé."},
+    "de": {"wait_note": "Während sie warten, werden Sicherheitskorrekturen beim Sicherheitsteam von Debian (über "
+           "OSV.dev) und mit der CISA-Liste derzeit ausgenutzter Schwachstellen geprüft; nur die CVE-Nummern werden "
+           "gesendet. Eine Korrektur, die sie bestätigen, wartet nicht.",
+           "unconfirmed": "Ließ sich bei keiner unabhängigen Quelle bestätigen, daher wartet sie wie die anderen",
+           "no_cve": "Sie nennt keine CVE zum Bestätigen, daher wartet sie wie die anderen",
+           "early_confirmed": "Wartet nicht: Das Sicherheitsteam von Debian bestätigt die Korrektur ({cves})",
+           "early_kev": "Kommt zuerst: Sie behebt {cves}, das die CISA als derzeit ausgenutzt führt, und das "
+           "Sicherheitsteam von Debian bestätigt sie",
+           "n_early": "Eine Korrektur für {cves}, das die CISA als derzeit ausgenutzt führt, wurde vorgezogen "
+           "installiert: Das Sicherheitsteam von Debian hat sie bestätigt."},
+    "ja": {"wait_note": "待っている間、セキュリティ修正はDebianのセキュリティチーム（OSV.dev経由）と、CISAの現在悪用されている脆弱性の一覧で確認します。送るのはCVE番号だけです。確認された修正は待ちません。",
+           "unconfirmed": "独立した情報源で確認できなかったため、ほかと同じように待ちます",
+           "no_cve": "確認するCVEが示されていないため、ほかと同じように待ちます",
+           "early_confirmed": "待ちません：Debianのセキュリティチームが修正を確認しています（{cves}）",
+           "early_kev": "最初に入れます：CISAが現在悪用されていると挙げている{cves}を修正し、Debianのセキュリティチームが確認しています",
+           "n_early": "CISAが現在悪用されていると挙げている{cves}の修正を先にインストールしました：Debianのセキュリティチームが確認しています。"},
+}
 for _code, _extra in WORDS_HOLDS.items():
     WORDS[_code].update(_extra)
+    WORDS[_code].update(WORDS_EARLY[_code])
 
 
 
@@ -357,7 +418,7 @@ def held(item: dict, settings: dict, now: float) -> str:
     if (name, "") in own:
         return "program"
     days = settings.get("hold_days", 0)
-    if days and now < item.get("seen", now) + days * DAY:
+    if days and not item.get("early") and now < item.get("seen", now) + days * DAY:
         return "waiting"
     return ""
 
@@ -376,11 +437,16 @@ def when(ts: float) -> str:
 
 
 def reason(item: dict, why: str, settings: dict, code: str | None = None) -> str:
-    """The line under a held update."""
+    """The line under an update: why it's held, or why a security fix doesn't wait (D89's emergency path)."""
     if why == "waiting":
-        return words("held_waiting", code, when=when(item.get("seen", 0) + settings.get("hold_days", 0) * DAY))
+        line = words("held_waiting", code, when=when(item.get("seen", 0) + settings.get("hold_days", 0) * DAY))
+        if item.get("unconfirmed"):
+            line += ". " + words("unconfirmed" if item.get("cves") else "no_cve", code)
+        return line
     if why in ("update", "program"):
         return words(f"held_{why}", code)
+    if item.get("early") and settings.get("hold_days"):
+        return words(f"early_{item['early']}", code, cves=", ".join(item.get("confirmed", [])[:3]))
     return ""
 
 
@@ -404,6 +470,9 @@ def notices(status: dict, noticed: dict, code: str | None = None) -> tuple[list[
             texts.append(words("n_genuine", code))
         elif status.get("error") in ("install", "after"):
             texts.append(words("n_stopped", code))
+        for e in status.get("early", []):
+            if e.get("why") == "kev" and f"{e['name']}={e['version']}" in status.get("installed", []):
+                texts.append(words("n_early", code, cves=", ".join(e.get("cves", [])[:3])))
         if status.get("restart"):
             texts.append(words("n_restart", code))
     for k in status.get("kev", []):
@@ -572,6 +641,8 @@ def window() -> int:
     wait_row.pack_start(wait_check, False, False, 0)
     wait_row.pack_start(days, False, False, 0)
     wait_row.pack_start(Gtk.Label(label=words("wait_days", code), xalign=0, wrap=True), False, False, 0)
+    wait_note = Gtk.Label(label=words("wait_note", code), xalign=0, wrap=True, max_width_chars=80)
+    wait_note.get_style_context().add_class("dim-label")
     auto_check = Gtk.CheckButton(label=words("auto", code))
     save_row = Gtk.Box(spacing=8)
     save = Gtk.Button(label=words("save", code))
@@ -581,7 +652,7 @@ def window() -> int:
     save_row.pack_start(save_note, False, False, 0)
     auto_line = Gtk.Label(xalign=0, wrap=True)
     auto_line.get_style_context().add_class("dim-label")
-    for w in (wait_row, auto_check, save_row, auto_line):
+    for w in (wait_row, wait_note, auto_check, save_row, auto_line):
         outer.pack_start(w, False, False, 0)
     details = Gtk.Expander(label=words("details", code))
     log = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR)
@@ -637,7 +708,7 @@ def window() -> int:
         if p.get("kev_checked") is False:
             notes.append(words("kev_unknown", code))
         note.set_text("\n".join(notes))
-        for item in sorted(p["updates"], key=lambda i: (not i["security"], i["name"])):
+        for item in sorted(p["updates"], key=lambda i: (i.get("early") != "kev", not i["security"], i["name"])):
             row = Gtk.Box(spacing=10)
             tick = Gtk.CheckButton(active=True)
             tick.connect("toggled", lambda b: count())
@@ -694,9 +765,9 @@ def window() -> int:
             if fresh or why != item.get("shown_hold"):
                 tick.set_active(not why)
             item["shown_hold"] = why
-            label.set_markup(f"<small>{GLib.markup_escape_text(reason(item, why, state['settings'], code))}</small>"
-                             if why else "")
-            label.set_visible(bool(why))
+            line = reason(item, why, state["settings"], code)
+            label.set_markup(f"<small>{GLib.markup_escape_text(line)}</small>" if line else "")
+            label.set_visible(bool(line))
         n = sum(1 for _, item, _ in state["rows"] if item["shown_hold"])
         held_count.set_text(words("held_note", code, n=n) if n else "")
         held_count.set_visible(bool(n))
@@ -709,6 +780,7 @@ def window() -> int:
         if st["hold_days"]:
             days.set_value(st["hold_days"])
         days.set_sensitive(bool(st["hold_days"]))
+        wait_note.set_visible(bool(st["hold_days"]))
         auto_check.set_active(st["auto"])
         state["quiet"] = False
         dirty = st != state["saved"]
