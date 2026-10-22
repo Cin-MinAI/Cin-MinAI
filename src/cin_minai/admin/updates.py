@@ -298,7 +298,7 @@ def kev_ids(fetch: Callable[[], bytes] | None = None, cache: str = KEV_CACHE, no
         return None
 
 
-def mark_kev(items: list[dict], changelog: Callable[[str], str], compare: Callable[[str, str], int],
+def mark_kev(items: list[dict], changelog: Callable[[dict], str], compare: Callable[[str, str], int],
              kev: Callable[[], set[str] | None] = kev_ids) -> bool | None:
     """For held security updates: the CVEs they fix (their changelog) and which of those CISA lists as exploited now.
     Returns whether CISA's list could be read (None when nothing was held)."""
@@ -308,7 +308,7 @@ def mark_kev(items: list[dict], changelog: Callable[[str], str], compare: Callab
     known = kev()
     for item in held:
         try:
-            item["cves"] = changelog_cves(changelog(item["name"]), item["old"], compare)
+            item["cves"] = changelog_cves(changelog(item), item["old"], compare)
         except RuntimeError:
             item["cves"] = []
         item["kev"] = [c for c in item["cves"] if known and c in known]
@@ -360,6 +360,13 @@ def program(source_name: str) -> str:
     return "linux" if KERNEL_RE.fullmatch(source_name) else source_name
 
 
+def family(name: str) -> str:
+    """A program without the version in its name: Ubuntu's php8.3 and Debian's php8.2 and php8.4 are all PHP (each
+    distribution packages the branch it ships). The name must keep at least two letters."""
+    stripped = re.sub(r"[0-9][0-9.]*$", "", name).rstrip("-.")
+    return stripped if len(re.sub(r"[^a-z]", "", stripped)) >= 2 else name
+
+
 def apt_sources() -> Callable[[str], str]:
     """Each update's program as Debian's records name it (its source package), python3-apt, one cache read."""
     import apt
@@ -382,7 +389,7 @@ def confirm_early(items: list[dict], source: Callable[[str], str], confirm=confi
             continue
         cves, program = item.get("cves", []), source(item["name"])
         answers = {c: confirm(c) for c in cves}
-        item["confirmed"] = [c for c in cves if answers[c] and program in answers[c]]
+        item["confirmed"] = [c for c in cves if answers[c] and family(program) in {family(a) for a in answers[c]}]
         if cves and len(item["confirmed"]) == len(cves):
             item["held"], item["ready"] = "", 0
             item["early"] = "kev" if item.get("kev") else "confirmed"
@@ -391,13 +398,41 @@ def confirm_early(items: list[dict], source: Callable[[str], str], confirm=confi
             item["osv_unreached"] = any(a is None for a in answers.values())
 
 
+def changelog_in_deb(tar, name: str) -> tuple[str, str]:
+    """The changelog a package carries (usr/share/doc/NAME/changelog.Debian.gz) from its file tree, a tarfile:
+    (text, ""), or ("", other) when it's a link to another package's (ghostscript's is libgs10's, from the same
+    update), or ("", "") when there's none."""
+    import gzip
+    for member in (f"./usr/share/doc/{name}/changelog.Debian.gz", f"usr/share/doc/{name}/changelog.Debian.gz"):
+        try:
+            info = tar.getmember(member)
+        except KeyError:
+            continue
+        if info.isfile() and info.size < 20 << 20:
+            return gzip.decompress(tar.extractfile(info).read()).decode("utf-8", "replace"), ""
+        m = re.fullmatch(r"\.\./([a-z0-9][a-z0-9.+\-]*)/changelog\.Debian\.gz", info.linkname) if info.issym() else None
+        if m and m.group(1) != name:
+            return "", m.group(1)
+    return "", ""
+
+
+def deb_changelog(path: str, name: str) -> tuple[str, str]:
+    import subprocess
+    import tarfile
+    tree = subprocess.run(["/usr/bin/dpkg-deb", "--fsys-tarfile", path], capture_output=True, timeout=120)
+    if tree.returncode:
+        return "", ""
+    with tarfile.open(fileobj=__import__("io").BytesIO(tree.stdout)) as tar:
+        return changelog_in_deb(tar, name)
+
+
 def apt_compare() -> Callable[[str, str], int]:
     import apt_pkg
     apt_pkg.init_system()
     return apt_pkg.version_compare
 
 
-def check(run: Run, changelog: Callable[[str], str], now: float | None = None, upgradable=apt_upgradable,
+def check(run: Run, changelog: Callable[[dict], str], now: float | None = None, upgradable=apt_upgradable,
           compare=None, kev=kev_ids, settings_path: str = SETTINGS, seen_path: str = SEEN, sources=None,
           confirm=confirm_cve) -> dict:
     """A check for updates (the window's and the daily timer's): the lists refreshed and their signatures checked, apt's

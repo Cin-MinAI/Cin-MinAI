@@ -142,9 +142,26 @@ def execute_install_updates(args):
         return json.dumps(updates.install(versions, snapshot, run_apt_whole, lambda *a: EMIT[0](*a), job))
 
 
-def changelog(name: str) -> str:
-    # a held security update's changelog, for the CVEs it fixes (D89: CISA's list); from the package's own source
-    return run(["/usr/bin/apt-get", "changelog", name], timeout=60, keep=None)
+def changelog(item: dict) -> str:
+    """A held security update's changelog, for the CVEs it fixes (D89): from the package itself, downloaded by apt into
+    its cache (checked against the signed index by apt; it's installed from there later). Ubuntu's changelog server
+    often doesn't have a new update's changelog yet; it's asked only when the package carries none of its own."""
+    name, version, arch = item["name"], item["version"], item.get("arch", "")
+    base = updates.base_name(name)
+    text = ""
+    try:
+        for _ in range(2):  # the package itself, then the one its changelog links to (same source, same version)
+            run(["/usr/bin/apt-get", "install", "-y", "--download-only", *updates.APT_OPTS, "--", f"{base}={version}"],
+                timeout=600)
+            deb = next((os.path.join(updates.ARCHIVES, updates.deb_name(base, version, a)) for a in (arch, "all")
+                        if os.path.exists(os.path.join(updates.ARCHIVES, updates.deb_name(base, version, a)))), "")
+            text, other = updates.deb_changelog(deb, base) if deb else ("", "")
+            if text or not other:
+                break
+            base = other
+    except (RuntimeError, OSError, subprocess.SubprocessError):
+        text = ""
+    return text or run(["/usr/bin/apt-get", "changelog", f"{updates.base_name(name)}={version}"], timeout=60, keep=None)
 
 
 def execute_refresh_updates(_args) -> str:

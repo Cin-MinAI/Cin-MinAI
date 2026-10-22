@@ -319,8 +319,8 @@ class Cisa(unittest.TestCase):
         items[1]["held"], items[0]["held"] = "waiting", "update"
         asked = []
 
-        def changelog(name):
-            asked.append(name)
+        def changelog(item):
+            asked.append(item["name"])
             return CHANGELOG
         self.assertTrue(root.mark_kev(items, changelog, compare, lambda: {"CVE-2026-2222"}))
         self.assertEqual(asked, ["libssl3t64"])
@@ -379,6 +379,35 @@ class Confirmations(unittest.TestCase):
         unreached, = self.early([self.item()], {"CVE-1": None, "CVE-2": ["openssl"]})
         self.assertTrue(unreached["osv_unreached"])
 
+    def test_the_program_without_its_version(self):
+        # php2shell, 2026-10-22: Ubuntu 24.04 ships php8.3, Debian php8.2 and php8.4
+        php = self.item(name="php8.3-cli")
+        answers = {"CVE-1": ["php8.2", "php8.4"], "CVE-2": ["php8.4"]}
+        root.confirm_early([php], lambda name: "php8.3", answers.get)
+        self.assertEqual(php["held"], "")
+        for a, b in (("php8.3", "php"), ("glib2.0", "glib"), ("python3.12", "python"), ("gnutls28", "gnutls"),
+                     ("openssl", "openssl"), ("nss", "nss"), ("x264", "x264"), ("libxml2", "libxml")):
+            self.assertEqual(root.family(a), b, a)
+
+    def test_the_changelog_inside_the_package(self):
+        import gzip
+        import io as _io
+        import tarfile
+        buf = _io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            data = gzip.compress(CHANGELOG.encode())
+            info = tarfile.TarInfo("./usr/share/doc/libssl3t64/changelog.Debian.gz")
+            info.size = len(data)
+            tar.addfile(info, _io.BytesIO(data))
+            link = tarfile.TarInfo("./usr/share/doc/ghostscript/changelog.Debian.gz")
+            link.type, link.linkname = tarfile.SYMTYPE, "../libgs10/changelog.Debian.gz"
+            tar.addfile(link)
+        buf.seek(0)
+        with tarfile.open(fileobj=buf) as tar:
+            self.assertIn("CVE-2026-2222", root.changelog_in_deb(tar, "libssl3t64")[0])
+            self.assertEqual(root.changelog_in_deb(tar, "ghostscript"), ("", "libgs10"))  # follow it to libgs10
+            self.assertEqual(root.changelog_in_deb(tar, "nothing"), ("", ""))  # none: ask the server
+
     def test_ubuntus_kernel_names(self):
         for name in ("linux", "linux-signed", "linux-meta", "linux-hwe-6.11", "linux-signed-hwe-6.11",
                      "linux-meta-hwe-6.11", "linux-oem-6.8"):
@@ -404,7 +433,7 @@ class TheCheck(unittest.TestCase):
         return SIMULATION if "-s" in argv else UPDATE_OUT
 
     def check(self, now, **kw):
-        return root.check(self.run_apt, lambda name: CHANGELOG, now, compare=compare,
+        return root.check(self.run_apt, lambda item: CHANGELOG, now, compare=compare,
                           upgradable=lambda: {"libssl3t64": "3.0.13-0ubuntu3.6", "tzdata": "2025b-0ubuntu0.24.04"},
                           kev=lambda: {"CVE-2026-1111"}, settings_path=self.settings, seen_path=self.seen,
                           sources=lambda name: {"libssl3t64": "openssl"}.get(name, name),

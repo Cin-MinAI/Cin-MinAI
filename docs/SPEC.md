@@ -340,8 +340,21 @@ exploited now. It stays held: your call."). Automatic updates are **our own dail
 on it installs what nothing holds through the same steps as the window; not on battery; one update at a time (a lock
 shared with the window); each run is in the admin record and in a status file. `cinminai-updates --notices` (the panel
 icon, at login and every 6 hours) says once what needs the person: a source not proven genuine, a stop, a restart,
-a held fix on CISA's list. The window shows the last daily run in a line. Next: D89's confirmation sources and the
-emergency path (slice 3).
+a held fix on CISA's list. The window shows the last daily run in a line.
+
+**As built (slice 3, 2026-10-22): confirmations and the emergency path.** While the wait is on, each waiting security
+update's CVEs are read from the changelog inside the package itself (downloaded by apt into its cache, where it is
+installed from later; a changelog linked to a sibling package, as ghostscript's to libgs10's, is followed; Ubuntu's
+changelog server only as a last resort, since it often lacks a new update's changelog). Each CVE is confirmed when
+Debian's security team records it against the same program (OSV.dev `DEBIAN-CVE-…`; independent of Canonical, which
+ships the update), the program compared without its version (Ubuntu 24.04's php8.3 and Debian's php8.2/php8.4 are
+all PHP; Ubuntu's kernel wrapper names are "linux"). All confirmed: the update doesn't wait ("Debian's security team
+confirms the fix"); one of them on CISA's list: it goes first ("it fixes … which CISA lists as exploited now"), and the
+daily run installs it on its own before the rest, recorded as early and why, with a notice. Otherwise it waits like
+the rest and says why ("couldn't be confirmed at an independent source", "names no CVE"). Only CVE numbers are sent;
+the window says so when the wait is turned on. The person's own holds are never lifted. Checked live on 2026-10-22:
+poppler's and ghostscript's security updates of that day confirmed, and php2shell (CVE-2026-109618) confirmed for
+Ubuntu's php8.3. Not yet: the malicious-package lists as a reason to hold.
 
 ### 3.8 Legal
 
