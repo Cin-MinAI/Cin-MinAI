@@ -393,6 +393,41 @@ class NotOnThisComputerTest(unittest.TestCase):
         for m in g.history:
             self.assertFalse(m["content"].startswith(("{", "Result of ")), m)
 
+    def test_a_follow_up_is_searched_with_its_subject(self):
+        # NVMe 2026-10-23: "Did he ever say why he did it?" was searched as typed, and answered from the wrong pages
+        standalone = "Did Mark David Chapman ever say why he shot John Lennon?"
+        g, b = guide(['{"tool": "answer", "args": {"text": "Mark David Chapman shot John Lennon."}}',
+                      '{"tool": "web_search", "args": {"query": "Did he ever say why he did it?"}}', standalone,
+                      "He said he wanted to be famous [1]."])
+        turn(g, "Who shot John Lennon?")
+        self.assertEqual(len(b.sent), 1)  # a first question: no rewrite
+        res, _, _ = turn(g, "Did he ever say why he did it?")
+        self.assertIn("User: Who shot John Lennon?\nAssistant: Mark David Chapman shot John Lennon.",
+                      b.sent[2]["messages"][0]["content"])
+        self.assertIsNone(b.sent[2]["schema"])
+        self.assertEqual(g.searches[res["proposal"]]["query"], standalone)  # the card shows what is sent
+        from cin_minai.daemon import websearch
+        saved = websearch.gather
+        websearch.gather = lambda q, lang: {"query": q, "sources": [{"n": 1, "title": "Murder of John Lennon",
+                                                                      "url": "https://example.org/", "text": "Fame."}]}
+        try:
+            g.search(res["proposal"], "", lambda t: None, lambda *a: None, threading.Event())
+        finally:
+            websearch.gather = saved
+        self.assertIn("The user's question: " + standalone, b.sent[3]["messages"][0]["content"])
+        # the history keeps the person's own words
+        self.assertEqual(g.history[2], {"role": "user", "content": "Did he ever say why he did it?"})
+
+    def test_a_follow_up_query_naming_the_subject_is_kept(self):
+        from cin_minai.daemon.intent import follow_up_query
+        self.assertEqual(follow_up_query("Where was John Lennon shot?", "Where did he get shot?",
+                                         "Where did Mark David Chapman shoot John Lennon?"), "Where was John Lennon shot?")
+        self.assertEqual(follow_up_query("Did he ever say why he did it?", "Did he ever say why he did it?",
+                                         "Did Chapman ever say why he shot Lennon?"),
+                         "Did Chapman ever say why he shot Lennon?")
+        self.assertEqual(follow_up_query("weather Madrid", "What's the weather in Madrid today?",
+                                         "What's the weather in Madrid today?"), "weather Madrid")
+
     def test_a_late_marker_clears_what_was_shown(self):
         # the 4B on the NVMe (2026-10-23): "The pages do not answer the question. NOT_IN_PAGES"
         self.shelf = {"Infant": {**self.ARTICLE, "sources": [{**self.ARTICLE["sources"][0], "title": "Infant"}]}}

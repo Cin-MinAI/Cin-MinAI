@@ -46,6 +46,19 @@ def search_query(proposed: str, message: str) -> str:
     return proposed
 
 
+def follow_up_query(proposed: str, message: str, standalone: str) -> str:
+    """The query for a follow-up, with `standalone` the message rewritten to stand alone (guide.standalone). NVMe
+    2026-10-23: after "Who shot John Lennon?", "Did he ever say why he did it?" was searched as typed (pages on
+    dissociative identity disorder and another murder). When the rewrite names what the message only pointed at and
+    the model's query names none of it, the rewrite is the query."""
+    from .helpcards import tokens
+    query = search_query(proposed, message)
+    added = set(tokens(standalone)) - set(tokens(message))
+    if added and not added & set(tokens(query)):
+        return standalone.strip()[:200]
+    return query
+
+
 # --- chains (D91): "pull up a video about X (and summarize it)" -------------------------------------------------------
 VIDEO = re.compile(r"\b(videos?|vídeos?|vidéos?|youtube|clips?)\b|動画|ビデオ", re.I)
 THIS_VIDEO = re.compile(r"\b(this|that|este|esta|ese|esa|esse|essa|ce|cette|dieses|diesem|dieser)\s+(youtube\s+)?"

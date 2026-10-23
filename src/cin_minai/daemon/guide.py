@@ -91,6 +91,12 @@ PROPOSED = ("I've prepared this change: {summary}. It's shown below — nothing 
 NOT_HERE = {"wikipedia": "This computer's Wikipedia has no article on that.",
             "lookup_help": "Nothing in the built-in help or this computer's Wikipedia matches this."}
 NOT_IN_PAGES = "NOT_IN_PAGES"  # websearch.ANSWER: what the model writes when the pages don't answer the question
+STANDALONE = ("Rewrite the user's last message as a question that someone who hasn't seen the conversation would "
+              "understand: name the people, places and things it refers to, and keep what it asks about. Keep its "
+              "language and its meaning. If it already stands alone, copy it unchanged. Write only the question.\n"
+              "Example. The conversation: User: Who wrote Hamlet? Assistant: William Shakespeare. The last message: "
+              "When did he die? Rewritten: When did William Shakespeare die?\n\n"
+              "The conversation so far:\n{talk}\n\nThe user's last message: {message}")
 FROM_MEMORY = ("Now write your reply to the user as plain text (not JSON), in the language of their message: what you "
                "know about it, in a few plain sentences, without saying where it comes from (that is said for you). "
                "Numbered steps only for something the person does, one action each, with enough detail to follow.")
@@ -184,24 +190,25 @@ class Guide:
             del self.history[-2:]  # the offer's own turn, nothing since: the answer takes its place
             turn = [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": offer["call"]}]
         return self.answer_from(found, offer["question"], tool, query, on_text, on_action, cancel,
-                                then="web_search" if tool == "wikipedia" else None, turn=turn)
+                                then="web_search" if tool == "wikipedia" else None, turn=turn,
+                                asked=offer.get("asked"))
 
     def answer_from(self, found: dict, question: str, tool: str, query: str, on_text, on_action,
                     cancel: threading.Event, then: str | None = None, turn: list | None = None,
-                    recorded: tuple[str, str] | None = None) -> dict:
+                    recorded: tuple[str, str] | None = None, asked: str | None = None) -> dict:
         """The reply from fetched material only (web pages, Wikipedia articles), each point with its number. When they
         don't answer the question (Ian, 2026-10-23): what the guide knows, said as that, and `then` offered (Wikipedia
         itself after this computer's, the web after Wikipedia; nothing after the web).
 
         turn: the person's message and the call, for the from-memory reply (default: a call made from the query);
-        recorded: (tool, words before the result) when the call was another tool's. The history keeps the talk alone
-        (remember)."""
+        recorded: (tool, words before the result) when the call was another tool's; asked: the question as it stands
+        alone (standalone), what the pages are checked against. The history keeps the talk alone (remember)."""
         on_action(tool, {"query": query}, "done",
                   json.dumps({"query": query, "shelf": found.get("shelf", ""),
                               "sources": [{k: s[k] for k in ("n", "title", "url", "pictures") if k in s}
                                           for s in found["sources"]]},
                              ensure_ascii=False))
-        prompt = websearch.answer_prompt(question, found)
+        prompt = websearch.answer_prompt(asked or question, found)
         gate = Gate(on_text)
         guard = self.reply_guard(gate)
         try:
@@ -272,6 +279,25 @@ class Guide:
         reply = f"{intro}\n\n{reply}" + (f"\n\n{more}" if more else "")
         self.remember(turn[0], reply)
         return {**out, "reply": reply}
+
+    def standalone(self, text: str, cancel: threading.Event, timings: list) -> str:
+        """The message rewritten so it stands alone, from the last two turns ("Did he ever say why he did it?" ->
+        "Did Mark David Chapman ever say why he shot John Lennon?"); the message itself with no earlier turns. Probe on
+        the 4070 with the shipped guide (2026-10-23, 10 follow-ups and fresh questions in four languages): 8 right,
+        2 left as they were, no fresh question given an old topic (a wording without the example changed a Japanese
+        question's meaning)."""
+        talk = self.history[-4:]
+        if not talk:
+            return text
+        lines = "\n".join(f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content'][:400]}" for m in talk)
+        try:
+            out, t = self.backend.chat([{"role": "user", "content": STANDALONE.format(talk=lines, message=text)}],
+                                       max_tokens=80, cancel=cancel)
+        except LoopDetected:
+            return text
+        timings.append(t)
+        out = out.strip().splitlines()[0].strip().strip('"') if out.strip() else ""
+        return out if 0 < len(out) <= 3 * len(text) + 80 else text
 
     def remember(self, user: dict, reply: str) -> None:
         """A turn kept as the talk alone: the person's message and the reply the person saw, no calls or results.
@@ -423,8 +449,10 @@ class Guide:
                 return {"reply": reply, "tool": "offline", "args": args, "timings": timings}
             if tool == "web_search":
                 # nothing is sent here: the sidebar shows the query; the user clicks Search (D55, §7.5)
-                query = intent.search_query(str(args.get("query", "")), text)
+                asked = self.standalone(text, cancel, timings)
+                query = intent.follow_up_query(str(args.get("query", "")), text, asked)
                 sid = self.offer(tool, query, text, on_action, call=raw)
+                self.searches[sid]["asked"] = asked
                 from .say import say
                 reply = say(self.tools.lang, "search_offer" if self.tools.online() else "search_offline")
                 on_text(reply)
