@@ -1139,6 +1139,19 @@ record is detected; a lost USB is recovered with the printed code.
   code it learns from (GPL code as training data is unsettled; permissive and public-domain first), and a test set
   of real errors it never saw. Meanwhile the dense models get faster where they copy: n-gram drafting (PLAN §3
   backlog, measured 2026-10-21) — it doesn't help new text or thinking, which is the specialist's job.
+- **Bilingual learning on the language shelves, with a tutor that asks rather than tells** (Ian, 2026-10-23, an
+  idea, no decision: "this is way to do bilingual education… I think thats a good way to move when we get there").
+  D68's Wikipedia shelves come per language (the Library view opens on the language chosen in Mint; a second can be
+  added), so a person who reads two languages can have the same article in both, side by side — Wikipedia links an
+  article to its versions in other languages (to check: whether Kiwix's files keep those links, or Wikidata is needed).
+  The teaching is in the method and the sources, not in a special model: the article in both languages, the
+  calculator to check work (nothing made up), and a guide that asks guiding questions instead of giving the answer.
+  Open tutor models found 2026-10-23, all research, mostly maths, mostly English: **TutorRL-7B** (ETH Zürich,
+  Qwen2.5-7B trained with reinforcement learning to teach, Apache-2.0, a "think" variant; arXiv 2505.15607) — a
+  candidate to measure as an optional Models-view download; SocraticLM (NeurIPS 2024, weaker at general reasoning
+  after its training, licence unconfirmed); LearnLM and Khanmigo are closed cloud services. To measure with:
+  MathTutorBench (teaching, not answer-getting) and EduFair-Bench (fair to every student). No open tutor model for
+  languages or bilingual teaching was found.
 
 ## 6. Open questions
 
