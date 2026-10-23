@@ -183,6 +183,17 @@ class TheSteps(unittest.TestCase):
             self.install()
         self.assertIn(("fingerprints", "failed"), self.steps)
 
+    def test_a_second_architectures_file_is_found_by_apts_name(self):
+        # NVMe 2026-10-23: "zlib1g:i386" looked for zlib1g:i386_…; apt saves zlib1g_1%3a…_i386.deb
+        self.assertEqual(root.deb_name("zlib1g:i386", "1:1.3.dfsg-3.1ubuntu2.3", "i386"),
+                         "zlib1g_1%3a1.3.dfsg-3.1ubuntu2.3_i386.deb")
+        data = b"zlib1g i386"
+        with open(os.path.join(self.archives, "zlib1g_1%3a1.3.dfsg-3.1ubuntu2.3_i386.deb"), "wb") as f:
+            f.write(data)
+        plan = [{"name": "zlib1g:i386", "version": "1:1.3.dfsg-3.1ubuntu2.3", "arch": "i386"}]
+        good, bad = root.fingerprints(plan, lambda *k: hashlib.sha256(data).hexdigest(), self.archives)
+        self.assertEqual((good, bad), (1, []))
+
     def test_a_restart_needed_is_said(self):
         open(self.reboot, "w").close()
         self.assertTrue(self.install()["restart"])

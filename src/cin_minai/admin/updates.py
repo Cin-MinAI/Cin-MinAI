@@ -576,8 +576,10 @@ def exclusive(path: str = LOCK):
 
 
 def deb_name(name: str, version: str, arch: str) -> str:
-    """apt's name for the downloaded file (an epoch's ':' written %3a)."""
-    return f"{name}_{version.replace(':', '%3a')}_{arch}.deb"
+    """apt's name for the downloaded file (an epoch's ':' written %3a; a second architecture's package, which apt
+    calls "zlib1g:i386", is saved as zlib1g_…_i386.deb). NVMe 2026-10-23: the ":i386" left in the name sent the check
+    to a file that doesn't exist, and a genuine update stopped as not matching the signed list."""
+    return f"{base_name(name)}_{version.replace(':', '%3a')}_{arch}.deb"
 
 
 def apt_hashes() -> Callable[[str, str, str], str]:
