@@ -29,6 +29,8 @@ const STANDING = { en: "Standing tasks", es: "Tareas permanentes", pt: "Tarefas 
 const REQUESTS = { en: "Requests", es: "Peticiones", pt: "Pedidos", fr: "Demandes", de: "Anfragen",
                    ja: "リクエスト" };
 const MODELS = { en: "Models", es: "Modelos", pt: "Modelos", fr: "Modèles", de: "Modelle", ja: "モデル" };
+const LIBRARY = { en: "Library", es: "Biblioteca", pt: "Biblioteca", fr: "Bibliothèque", de: "Bibliothek",
+                  ja: "ライブラリ" };
 const LANG = (GLib.get_language_names()[0] || "en").slice(0, 2);
 // D35 / D28: where Cin-MinAI is reaching now — beside the icon while something is out, nothing when all is local
 const REACH = {
@@ -139,6 +141,10 @@ class CinMinAIApplet extends Applet.TextIconApplet {
         const models = new PopupMenu.PopupMenuItem(MODELS[LANG] || MODELS.en);
         models.connect("activate", () => Util.spawn([SIDEBAR, "--models"]));
         ctx.addMenuItem(models, 6);
+        // D68: Wikipedia on this computer, and more from Kiwix
+        const library = new PopupMenu.PopupMenuItem(LIBRARY[LANG] || LIBRARY.en);
+        library.connect("activate", () => Util.spawn([SIDEBAR, "--library"]));
+        ctx.addMenuItem(library, 7);
         // the internet log: off until the person switches it on; "Open" shows the plain text file
         const words = LOG_WORDS[LANG] || LOG_WORDS.en;
         this.logSwitch = new PopupMenu.PopupSwitchMenuItem(words[0], GLib.file_test(LOG_SWITCH, GLib.FileTest.EXISTS));
@@ -153,7 +159,7 @@ class CinMinAIApplet extends Applet.TextIconApplet {
             } catch (e) { global.logError(`cinminai applet: ${e}`); }
             this.logOpen.actor.visible = on;
         });
-        ctx.addMenuItem(this.logSwitch, 7);
+        ctx.addMenuItem(this.logSwitch, 8);
         this.logOpen = new PopupMenu.PopupMenuItem(words[1]);
         this.logOpen.connect("activate", () => {
             GLib.mkdir_with_parents(GLib.path_get_dirname(LOG_FILE), 0o700);
@@ -161,7 +167,7 @@ class CinMinAIApplet extends Applet.TextIconApplet {
             Util.spawn(["xdg-open", LOG_FILE]);
         });
         this.logOpen.actor.visible = GLib.file_test(LOG_SWITCH, GLib.FileTest.EXISTS);
-        ctx.addMenuItem(this.logOpen, 8);
+        ctx.addMenuItem(this.logOpen, 9);
         // offline mode: the whole computer, switched here; going online for updates is the one button beside it
         const off = OFFLINE_WORDS[LANG] || OFFLINE_WORDS.en;
         this.offlineSwitch = new PopupMenu.PopupSwitchMenuItem(off[0], offline());
@@ -169,12 +175,12 @@ class CinMinAIApplet extends Applet.TextIconApplet {
             Util.spawn([OFFLINE, on ? "on" : "off"]);
             this.updatesItem.label.set_text(on ? off[1] : off[4]);
         });
-        ctx.addMenuItem(this.offlineSwitch, 9);
+        ctx.addMenuItem(this.offlineSwitch, 10);
         // always there (findable): "Updates…", or "Go online to install updates" while offline; the same window
         this.updatesItem = new PopupMenu.PopupMenuItem(offline() ? off[1] : off[4]);
         this.updatesItem.connect("activate", () => Util.spawn([UPDATES]));
-        ctx.addMenuItem(this.updatesItem, 10);
-        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 11);
+        ctx.addMenuItem(this.updatesItem, 11);
+        ctx.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), 12);
 
         this.proxy = null;
         new AssistantProxy(Gio.DBus.session, BUS_NAME, OBJ_PATH, (proxy, error) => {

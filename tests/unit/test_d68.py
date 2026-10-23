@@ -211,6 +211,144 @@ class Shelves(unittest.TestCase):
             with self.assertRaises(library.LibraryError):
                 library.read_shelves([], "Kimchi")
 
+    def test_simple_english_is_english(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, "wikipedia_en-simple_all_maxi_2026-09.zim"), "w").close()
+            s = library.shelves_for("en", (d,))
+            self.assertEqual([(x["lang"], x["edition"], x["kind"]) for x in s], [("en", "simple", "maxi")])
+            # asked after the real Wikipedia, whatever their sizes (the NVMe, 2026-10-23: both summaries)
+            for name in ("wikipedia_en_all_mini_2026-09.zim", "wikipedia_en-simple_all_mini_2026-09.zim",
+                         "wikipedia_en_top_maxi_2026-09.zim"):
+                open(os.path.join(d, name), "w").close()
+            self.assertEqual([(x["edition"], x["kind"]) for x in library.shelves_for("en", (d,))],
+                             [("top", "maxi"), ("all", "mini"), ("simple", "maxi"), ("simple", "mini")])
+
+
+# the shape of Kiwix's catalog and metalinks (read 2026-10-23 from opds.library.kiwix.org and download.kiwix.org)
+FEED = """<feed><totalResults>4</totalResults>
+<entry><name>wikipedia_en_all</name><flavour>mini</flavour><articleCount>18095848</articleCount>
+<link rel="http://opds-spec.org/acquisition/open-access" type="application/x-zim"
+ href="https://lb.download.kiwix.org/zim/wikipedia/wikipedia_en_all_mini_2026-09.zim.meta4" length="14390000000" />
+</entry>
+<entry><name>wikipedia_en_top</name><flavour>maxi</flavour><articleCount>877754</articleCount>
+<link rel="http://opds-spec.org/acquisition/open-access" type="application/x-zim"
+ href="https://lb.download.kiwix.org/zim/wikipedia/wikipedia_en_top_maxi_2026-09.zim.meta4" length="6990000000" />
+</entry>
+<entry><name>wikipedia_en_top</name><flavour>mini</flavour><articleCount>703608</articleCount>
+<link rel="http://opds-spec.org/acquisition/open-access" type="application/x-zim"
+ href="https://lb.download.kiwix.org/zim/wikipedia/wikipedia_en_top_mini_2026-09.zim.meta4" length="300000000" />
+</entry>
+<entry><name>wikipedia_en_medicine</name><flavour>maxi</flavour><articleCount>70000</articleCount>
+<link rel="http://opds-spec.org/acquisition/open-access" type="application/x-zim"
+ href="https://lb.download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_maxi_2026-09.zim.meta4" length="2000000000" />
+</entry></feed>"""
+
+
+class Reply:
+    def __init__(self, data: bytes, status: int = 200):
+        self.data, self.status = data, status
+
+    def read(self, n=-1):
+        out, self.data = (self.data, b"") if n < 0 else (self.data[:n], self.data[n:])
+        return out
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+class GettingShelves(unittest.TestCase):
+    """The Library view's side of library.py: Kiwix's list, the metalink, the checked, resumed download."""
+    DATA = b"a whole wikipedia" * 1000
+
+    def meta4(self, data, mirrors=("https://one.example/f.zim", "https://two.example/f.zim")):
+        import hashlib
+        urls = "".join(f'<url location="x" priority="{i + 1}">{u}</url>' for i, u in enumerate(mirrors))
+        return (f'<metalink><file name="f.zim"><size>{len(data)}</size><hash type="md5">00</hash>'
+                f'<hash type="sha-256">{hashlib.sha256(data).hexdigest()}</hash>{urls}</file></metalink>').encode()
+
+    def test_the_list_offers_the_editions_and_suggests_the_pair(self):
+        sent = []
+
+        def opener(req, timeout=0):
+            sent.append(req.full_url)
+            return Reply(FEED.encode())
+        files = library.catalog("en", opener)
+        self.assertEqual(sent, [library.CATALOG.format(lang="eng")])  # only the language goes
+        self.assertEqual([(f["edition"], f["kind"], f["suggested"]) for f in files],
+                         [("top", "mini", False), ("top", "maxi", True), ("all", "mini", True)])  # no topic files
+        self.assertEqual(files[1]["file"], "wikipedia_en_top_maxi_2026-09")
+        self.assertEqual(files[1]["articles"], 877754)
+
+    def download(self, root, replies, cancel=None):
+        import threading
+        calls = []
+
+        def opener(req, timeout=0):
+            calls.append((req.full_url, req.headers.get("Range")))
+            r = replies.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        entry = {"file": "wikipedia_en_top_mini_2026-09", "meta4": "https://kiwix.example/f.meta4"}
+        path = library.download(entry, lambda have, total: None, cancel or threading.Event(), root, opener)
+        return path, calls
+
+    def test_checked_and_put_on_the_shelf(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, calls = self.download(d, [Reply(self.meta4(self.DATA)), Reply(self.DATA)])
+            self.assertEqual(path, os.path.join(d, "wikipedia_en_top_mini_2026-09.zim"))
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), self.DATA)
+            self.assertFalse(os.path.exists(path + ".part"))
+            self.assertEqual([u for u, _ in calls], ["https://kiwix.example/f.meta4", "https://one.example/f.zim"])
+
+    def test_a_stopped_download_carries_on_from_the_next_mirror(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "wikipedia_en_top_mini_2026-09.zim.part"), "wb") as f:
+                f.write(self.DATA[:5000])
+            self.assertEqual(library.partial(d), {"wikipedia_en_top_mini_2026-09": 5000})
+            path, calls = self.download(d, [Reply(self.meta4(self.DATA)), OSError("mirror down"),
+                                            Reply(self.DATA[5000:], status=206)])
+            self.assertEqual(calls[1:], [("https://one.example/f.zim", "bytes=5000-"),
+                                         ("https://two.example/f.zim", "bytes=5000-")])
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), self.DATA)
+
+    def test_a_file_that_doesnt_match_is_removed(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(library.LibraryError):
+                self.download(d, [Reply(self.meta4(self.DATA)), Reply(b"x" * len(self.DATA))])
+            self.assertEqual(os.listdir(d), [])
+
+    def test_no_checksum_no_download(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(library.LibraryError):
+                self.download(d, [Reply(b"<metalink><file><size>3</size></file></metalink>")])
+
+    def test_stop_keeps_what_came(self):
+        import threading
+        stop = threading.Event()
+        stop.set()
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(library.Stopped):
+                self.download(d, [Reply(self.meta4(self.DATA)), Reply(self.DATA)], stop)
+            self.assertIn("wikipedia_en_top_mini_2026-09", library.partial(d))
+
+    def test_only_downloaded_shelves_are_removed(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as other:
+            mine = os.path.join(d, "wikipedia_en_top_mini_2026-09.zim")
+            shipped = os.path.join(other, "wikipedia_en_top_mini_2026-09.zim")
+            for p in (mine, shipped):
+                open(p, "w").close()
+            with self.assertRaises(library.LibraryError):
+                library.remove(shipped, d)
+            library.remove(mine, d)
+            self.assertFalse(os.path.exists(mine))
+            self.assertTrue(os.path.exists(shipped))
+
 
 if __name__ == "__main__":
     unittest.main()

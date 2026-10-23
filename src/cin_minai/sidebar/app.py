@@ -237,7 +237,8 @@ class Sidebar(Gtk.Application):
                           (words.t("standing"), lambda b: self.standing_list()),  # D88: found where people look
                           (words.t("updates_window"), lambda b: self.open_updates()),  # D29: updates you can watch
                           (words.t("requests"), lambda b: self.requests_view()),  # turn tokens (SPEC §22.4)
-                          (words.t("models"), lambda b: self.models_view())):  # which model does which job (§22.3)
+                          (words.t("models"), lambda b: self.models_view()),  # which model does which job (§22.3)
+                          (words.t("library"), lambda b: self.library_view())):  # Wikipedia on this computer (D68)
             b = Gtk.Button(label=label)
             b.connect("clicked", cb)
             row.add(b)
@@ -679,6 +680,9 @@ class Sidebar(Gtk.Application):
         menu.append(item)
         item = Gtk.MenuItem(label=words.t("models"))
         item.connect("activate", lambda i: self.models_view())
+        menu.append(item)
+        item = Gtk.MenuItem(label=words.t("library"))
+        item.connect("activate", lambda i: self.library_view())
         menu.append(item)
         sharing = self.daemon_json("TerminalSharing", "state") or {}
         if sharing.get("available"):  # D77: the switch, for after the one-time offer
@@ -1216,6 +1220,176 @@ class Sidebar(Gtk.Application):
             GLib.idle_add(fill, v)
 
         self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
+
+    def library_view(self) -> None:
+        """The Library (D68): the Wikipedia shelves on this computer, each removable if the person downloaded it, and
+        Kiwix's list for a language, with Ian's pair suggested, never chosen. Downloads run in the daemon on their own
+        (hours for the big files); this card shows how far each is while it's open."""
+        if not self.proxy:
+            return
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        title = Gtk.Label(label=words.t("library"), xalign=0)
+        title.get_style_context().add_class("what")
+        box.pack_start(title, False, False, 0)
+        box.pack_start(self.note_label(words.t("lib_note")), False, False, 0)
+        here = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.pack_start(here, False, False, 0)
+        more = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.pack_start(more, False, False, 0)
+        listing = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        close = Gtk.Button(label=words.t("close"))
+        close.set_halign(Gtk.Align.START)
+        close.connect("clicked", lambda b: box.destroy())
+        state = {"view": None, "files": None, "open": True, "polling": False}
+        box.connect("destroy", lambda w: state.update(open=False))
+        gb = lambda b: f"{b / 2**30:.1f}"  # noqa: E731
+
+        def clear(area: Gtk.Box) -> None:
+            for c in area.get_children():
+                c.destroy()
+
+        def show_here(v: dict) -> None:
+            clear(here)
+            head = Gtk.Label(label=words.t("lib_here"), xalign=0)
+            head.get_style_context().add_class("what")
+            here.pack_start(head, False, False, 0)
+            if not v["shelves"]:
+                here.pack_start(self.note_label(words.t("lib_none")), False, False, 0)
+            for s in v["shelves"]:
+                name = f"{words.t('ed_' + s['edition']) if s.get('edition') else s['title']} " \
+                       f"({words.LANG_NAMES.get(s['lang'], s['lang'])}), {words.t('kind_' + s['kind'])}"
+                line = f"{name} · {gb(s['size'])} GB · {s['date']}" + \
+                    ("" if s["removable"] else f" · {words.t('lib_shipped')}")
+                row = Gtk.Box(spacing=6)
+                row.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=26), True, True, 0)
+                if s["removable"]:
+                    rm = Gtk.Button(label=words.t("h_remove"))
+
+                    def remove(b, path=s["path"]) -> None:
+                        if b.get_label() == words.t("h_remove"):
+                            b.set_label(words.t("lib_sure"))  # the second click removes it
+                            return
+                        b.set_sensitive(False)
+                        self.daemon_async("LibraryRemove", (path,), "(s)", lambda r: refresh())
+                    rm.connect("clicked", remove)
+                    row.pack_end(rm, False, False, 0)
+                here.pack_start(row, False, False, 0)
+            for file, j in v["getting"].items():
+                key = {"running": "lib_checking" if j["total"] and j["have"] >= j["total"] else "lib_getting",
+                       "stopped": "lib_stopped", "done": "lib_done", "failed": "lib_failed"}[j["state"]]
+                text = f"{file}: " + words.t(key, have=gb(j["have"]), total=gb(j["total"]), error=j.get("error", ""))
+                row = Gtk.Box(spacing=6)
+                row.pack_start(self.note_label(text), True, True, 0)
+                if j["state"] == "running":
+                    stop = Gtk.Button(label=words.t("stop"))
+                    stop.connect("clicked", lambda b, f=file: (b.set_sensitive(False), self.daemon_async(
+                        "LibraryStop", (f,), "(s)", lambda r: None)))
+                    row.pack_end(stop, False, False, 0)
+                here.pack_start(row, False, False, 0)
+            here.pack_start(self.note_label(words.t("lib_free", gb=f"{v['free_bytes'] / 2**30:.0f}")), False, False, 0)
+            here.show_all()
+
+        def show_files(c: dict) -> None:
+            clear(listing)
+            v = state["view"] or {}
+            getting = {f for f, j in v.get("getting", {}).items() if j["state"] == "running"}
+            listing.pack_start(self.note_label(words.t("lib_suggest")), False, False, 0)
+            edition = None
+            for f in c["files"]:
+                if f["edition"] != edition:
+                    edition = f["edition"]
+                    head = Gtk.Label(label=words.t("ed_" + edition), xalign=0)
+                    head.get_style_context().add_class("what")
+                    listing.pack_start(head, False, False, 0)
+                line = words.t("lib_line", kind=words.t("kind_" + f["kind"]), gb=gb(f["size"]),
+                               articles=f"{f['articles']:,}", date=f["date"]) + \
+                    (f" · {words.t('lib_suggested')}" if f["suggested"] else "")
+                row = Gtk.Box(spacing=6)
+                row.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=24), True, True, 0)
+                if f["here"]:
+                    row.pack_end(self.note_label(words.t("lib_have")), False, False, 0)
+                elif f["file"] in getting:
+                    pass  # its progress shows above
+                elif f["size"] - v.get("partial", {}).get(f["file"], 0) + (2 << 30) > v.get("free_bytes", 0):
+                    row.pack_end(self.note_label(words.t("lib_room")), False, False, 0)
+                else:
+                    get = Gtk.Button(label=words.t("lib_carry" if f["file"] in v.get("partial", {}) else "lib_get"))
+
+                    def fetch(b, file=f["file"]) -> None:
+                        b.set_sensitive(False)
+                        self.daemon_async("LibraryGet", (file,), "(s)", lambda r: refresh())
+                    get.connect("clicked", fetch)
+                    row.pack_end(get, False, False, 0)
+                listing.pack_start(row, False, False, 0)
+            listing.show_all()
+
+        def show_more(v: dict) -> None:
+            clear(more)
+            if v["offline"]:  # D28: the list is hidden, not greyed out
+                more.pack_start(self.note_label(words.t("lib_offline")), False, False, 0)
+                more.show_all()
+                return
+            head = Gtk.Label(label=words.t("lib_more"), xalign=0)
+            head.get_style_context().add_class("what")
+            more.pack_start(head, False, False, 0)
+            more.pack_start(self.note_label(words.t("lib_look_note")), False, False, 0)
+            row = Gtk.Box(spacing=6)
+            lang = Gtk.ComboBoxText()
+            for code, name in words.LANG_NAMES.items():
+                lang.append(code, name)
+            lang.set_active_id(v["lang"] if v["lang"] in words.LANG_NAMES else "en")
+            look = Gtk.Button(label=words.t("lib_look"))
+
+            def looked(c: dict) -> None:
+                look.set_sensitive(True)
+                state["files"] = c
+                show_files(c)
+
+            def ask(b) -> None:
+                look.set_sensitive(False)
+                clear(listing)
+                listing.pack_start(self.note_label(words.t("lib_reading")), False, False, 0)
+                listing.show_all()
+                self.daemon_async("LibraryCatalog", (lang.get_active_id() or "",), "(s)", looked)
+            look.connect("clicked", ask)
+            row.pack_start(lang, False, False, 0)
+            row.pack_start(look, False, False, 0)
+            more.pack_start(row, False, False, 0)
+            more.pack_start(listing, False, False, 0)
+            more.show_all()
+
+        def viewed(v: dict) -> None:
+            first = state["view"] is None
+            state["view"] = v
+            show_here(v)
+            if first:
+                show_more(v)
+                box.pack_start(close, False, False, 0)
+                close.show()
+            elif state["files"]:
+                show_files(state["files"])  # what's here and what's downloading changed
+            if any(j["state"] == "running" for j in v["getting"].values()) and not state["polling"]:
+                state["polling"] = True  # one timer at a time, while a download runs and the card is open
+
+                def poll() -> bool:
+                    state["polling"] = False
+                    refresh()
+                    return False
+                GLib.timeout_add_seconds(2, poll)
+
+        def refresh() -> None:
+            if state["open"]:
+                self.daemon_async("LibraryView", (), "", viewed)
+
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+        refresh()
+
+    def note_label(self, text: str) -> Gtk.Label:
+        label = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+        label.get_style_context().add_class("note")
+        return label
 
     def daemon_async(self, method: str, args: tuple, fmt: str, done) -> None:
         """A daemon call that may take a while (the network, reading model files): done(value) on the main loop;
@@ -2071,7 +2245,8 @@ class Sidebar(Gtk.Application):
         action = {"--toggle": self.toggle, "--flip": self.flip, "--show": self.show, "--hide": self.hide,
                   "--quit": self.quit, "--standing": lambda: (self.show(), self.standing_list()),
                   "--requests": lambda: (self.show(), self.requests_view()),
-                  "--models": lambda: (self.show(), self.models_view())}.get(args[0])
+                  "--models": lambda: (self.show(), self.models_view()),
+                  "--library": lambda: (self.show(), self.library_view())}.get(args[0])
         if action is None:
             cmdline.printerr(f"unknown option {args[0]}\n")
             return 2

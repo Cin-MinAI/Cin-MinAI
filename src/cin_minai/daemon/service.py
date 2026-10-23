@@ -168,6 +168,19 @@ XML = f"""
     <method name="ModelsOnDrives"><arg type="s" name="json" direction="out"/></method>
     <method name="ModelBringIn"><arg type="s" name="path" direction="in"/><arg type="s" name="job" direction="in"/>
       <arg type="u" name="id" direction="out"/></method>
+    <!-- the Library view (D68): the Wikipedia shelves here, downloads running or stopped part way, free space -->
+    <method name="LibraryView"><arg type="s" name="json" direction="out"/></method>
+    <!-- Kiwix's Wikipedia files in a language ("" = the person's): only the language is sent -->
+    <method name="LibraryCatalog"><arg type="s" name="lang" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
+    <!-- fetch a listed file onto the shelf in the background (resumes, checked against Kiwix's SHA-256); stop it;
+         take a downloaded shelf off -->
+    <method name="LibraryGet"><arg type="s" name="file" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
+    <method name="LibraryStop"><arg type="s" name="file" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
+    <method name="LibraryRemove"><arg type="s" name="path" direction="in"/><arg type="s" name="json" direction="out"/>
+    </method>
     <!-- keys for sources that need one (keys.py): the key goes to the login keyring and nowhere else; the answer
          never repeats it. json: ok and the source's name, or ok false and the error -->
     <method name="KeySet"><arg type="s" name="source" direction="in"/><arg type="s" name="key" direction="in"/>
@@ -263,6 +276,9 @@ class Service:
         self.chain_offers: dict[str, dict] = {}  # D91: a chain waiting for its Search click, by offer id
         self.hub_found: dict = {}  # repo -> its files as Hugging Face listed them (the checksums come from here)
         self.hub_checked: dict = {}  # file -> the matcher's entry, read from its header: only these are fetched
+        self.shelf_offers: dict = {}  # D68: Kiwix's files last listed, by file: only these are fetched
+        self.shelf_jobs: dict = {}  # shelf downloads this session, by file: have, total, state, error
+        self.shelf_cancel: dict = {}
         self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
         self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
@@ -626,6 +642,9 @@ class Service:
         elif method in ("ModelsView", "ModelAssign", "ModelRemove", "HubSearch", "HubFiles", "HubCheck", "ModelsOnDrives"):
             args = params.unpack() if params is not None else ()
             threading.Thread(target=self.models_call, args=(method, args, inv), daemon=True).start()
+        elif method in ("LibraryView", "LibraryCatalog", "LibraryGet", "LibraryStop", "LibraryRemove"):
+            args = params.unpack() if params is not None else ()
+            threading.Thread(target=self.library_call, args=(method, args, inv), daemon=True).start()
         elif method == "StandingList":
             inv.return_value(GLib.Variant("(s)", (json.dumps(self.standing_listing(), ensure_ascii=False),)))
         elif method == "StandingChange":
@@ -1920,6 +1939,87 @@ class Service:
         if method == "ModelAssign":
             log(f"job {args[0]}: " + (f"our pick again ({out.get('model', '')})" if out.get("ours") else out["model"]))
         GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
+
+    def library_call(self, method: str, args: tuple, inv) -> None:
+        """The Library view (D68) off the main loop: Kiwix's list and its mirrors are on the network. A download runs
+        on its own thread, not as a request: a shelf can take hours, and the assistant answers meanwhile."""
+        from . import library
+        try:
+            out = self.library_do(method, args)
+        except Exception as e:
+            if isinstance(e, library.LibraryError):
+                msg = str(e)
+            else:
+                log(f"library view: {type(e).__name__}: {e}")
+                msg = "couldn't read the library"
+            GLib.idle_add(lambda: inv.return_dbus_error(f"{IFACE}.Error.Library", msg) and False)
+            return
+        GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
+
+    def library_do(self, method: str, args: tuple):
+        from . import library
+        import shutil
+        mine = os.path.realpath(library.SHELVES[0])
+        if method == "LibraryView":
+            os.makedirs(mine, exist_ok=True)
+            return {"lang": self.guide.tools.lang, "offline": offline.on(),
+                    "shelves": [dict(s, removable=os.path.dirname(os.path.realpath(s["path"])) == mine)
+                                for s in library.shelves()],
+                    "getting": {f: dict(j) for f, j in self.shelf_jobs.items()},
+                    "partial": library.partial(), "free_bytes": shutil.disk_usage(mine).free}
+        if method == "LibraryCatalog":
+            if offline.on():
+                raise library.LibraryError("this computer is kept offline; go online to see Kiwix's list")
+            lang = args[0] or self.guide.tools.lang
+            entries = library.catalog(lang)
+            self.shelf_offers = {e["file"]: e for e in entries}
+            here = {s["title"] for s in library.shelves()}
+            return {"lang": lang, "files": [dict(e, here=e["file"] in here) for e in entries]}
+        if method == "LibraryGet":
+            entry = self.shelf_offers.get(args[0])
+            if entry is None:
+                raise library.LibraryError("look at Kiwix's list first: only files listed there are fetched")
+            if offline.on():
+                raise library.LibraryError("this computer is kept offline; go online to download a shelf")
+            if self.shelf_jobs.get(args[0], {}).get("state") == "running":
+                return {"started": False}
+            threading.Thread(target=self.shelf_get, args=(entry,), daemon=True).start()
+            return {"started": True}
+        if method == "LibraryStop":
+            cancel = self.shelf_cancel.get(args[0])
+            if cancel is not None:
+                cancel.set()
+            return {"stopping": cancel is not None}
+        if method == "LibraryRemove":
+            hook.run("remove_shelf", lambda: library.remove(args[0]),
+                     f"take the Wikipedia file {os.path.basename(args[0])} off the shelf (it can be downloaded again)",
+                     reversible=False)
+            log(f"library: removed {os.path.basename(args[0])}")
+            return {"removed": True}
+        raise library.LibraryError("unknown library call")
+
+    def shelf_get(self, entry: dict) -> None:
+        from . import library
+        file, cancel = entry["file"], threading.Event()
+        job = {"have": 0, "total": entry["size"], "state": "running", "error": ""}
+        self.shelf_jobs[file], self.shelf_cancel[file] = job, cancel
+        log(f"library: downloading {file}")
+        try:
+            hook.run("download_shelf", lambda: library.download(
+                entry, lambda have, total: job.update(have=have, total=total), cancel),
+                f"download the Wikipedia file {file} from Kiwix's mirrors (checked before use)",
+                reversible=False, private=False)
+            job["state"] = "done"
+        except library.Stopped:
+            job["state"] = "stopped"
+        except library.LibraryError as e:
+            job.update(state="failed", error=str(e))
+        except Exception as e:
+            log(f"library: {type(e).__name__}: {e}")
+            job.update(state="failed", error="the download stopped with an error")
+        finally:
+            self.shelf_cancel.pop(file, None)
+        log(f"library: {file} {job['state']}" + (f" ({job['error']})" if job["error"] else ""))
 
     def answer(self, inv, method: str, out) -> None:
         """A method's reply as its declaration says: one declared to answer always does — null when there's nothing

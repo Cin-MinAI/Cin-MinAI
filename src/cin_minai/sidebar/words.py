@@ -702,6 +702,122 @@ T_DAILY = {
 for _code, _extra in T_DAILY.items():
     T[_code].update(_extra)
 
+# the Library view (D68): Wikipedia shelves on this computer and Kiwix's list
+T_LIBRARY = {
+    "en": {"library": "Library", "lib_note": "Wikipedia on this computer: the assistant reads it to answer you, and "
+                                             "nothing is sent.",
+           "lib_here": "On this computer", "lib_none": "No Wikipedia here yet.", "lib_free": "{gb} GB free",
+           "lib_shipped": "comes with the system", "lib_more": "More from Kiwix",
+           "lib_look_note": "Looking sends your choice of language to Kiwix (library.kiwix.org), and nothing else.",
+           "lib_look": "Look at Kiwix's list", "lib_reading": "Reading Kiwix's list…",
+           "lib_suggest": "Suggested: the best-known articles with pictures, and the summaries of all of Wikipedia. "
+                          "Together they answer most questions.",
+           "ed_top": "Best-known articles", "ed_all": "All of Wikipedia", "ed_simple": "Simple English Wikipedia",
+           "kind_maxi": "with pictures", "kind_nopic": "text only", "kind_mini": "summaries",
+           "lib_line": "{kind} · {gb} GB · {articles} articles · {date}", "lib_suggested": "suggested",
+           "lib_get": "Download", "lib_carry": "Carry on", "lib_have": "on this computer",
+           "lib_room": "not enough free space", "lib_getting": "Downloading: {have} of {total} GB",
+           "lib_checking": "Checking it against Kiwix's checksum…",
+           "lib_stopped": "Stopped part way: {have} of {total} GB kept.",
+           "lib_done": "Ready: the assistant uses it from the next question.", "lib_failed": "Didn't finish: {error}",
+           "lib_sure": "Remove? It can be downloaded again.", "lib_offline": "This computer is kept offline: go "
+                                                                             "online to download Wikipedia."},
+    "es": {"library": "Biblioteca", "lib_note": "Wikipedia en este equipo: el asistente la lee para responderte y "
+                                                "no se envía nada.",
+           "lib_here": "En este equipo", "lib_none": "Todavía no hay Wikipedia aquí.", "lib_free": "{gb} GB libres",
+           "lib_shipped": "viene con el sistema", "lib_more": "Más de Kiwix",
+           "lib_look_note": "Al mirar se envía el idioma elegido a Kiwix (library.kiwix.org), y nada más.",
+           "lib_look": "Ver la lista de Kiwix", "lib_reading": "Leyendo la lista de Kiwix…",
+           "lib_suggest": "Sugerido: los artículos más conocidos con imágenes y los resúmenes de toda Wikipedia. "
+                          "Juntos responden a la mayoría de las preguntas.",
+           "ed_top": "Artículos más conocidos", "ed_all": "Toda Wikipedia", "ed_simple": "Wikipedia en inglés simple",
+           "kind_maxi": "con imágenes", "kind_nopic": "solo texto", "kind_mini": "resúmenes",
+           "lib_line": "{kind} · {gb} GB · {articles} artículos · {date}", "lib_suggested": "sugerido",
+           "lib_get": "Descargar", "lib_carry": "Continuar", "lib_have": "en este equipo",
+           "lib_room": "no hay espacio suficiente", "lib_getting": "Descargando: {have} de {total} GB",
+           "lib_checking": "Comprobándolo con la suma de Kiwix…",
+           "lib_stopped": "Se detuvo a medias: se guardan {have} de {total} GB.",
+           "lib_done": "Lista: el asistente la usa desde la próxima pregunta.", "lib_failed": "No terminó: {error}",
+           "lib_sure": "¿Quitarla? Se puede volver a descargar.", "lib_offline": "Este equipo está sin conexión: "
+                                                                                 "conéctate para descargar Wikipedia."},
+    "pt": {"library": "Biblioteca", "lib_note": "Wikipédia neste computador: o assistente a lê para responder, e "
+                                                "nada é enviado.",
+           "lib_here": "Neste computador", "lib_none": "Ainda não há Wikipédia aqui.", "lib_free": "{gb} GB livres",
+           "lib_shipped": "vem com o sistema", "lib_more": "Mais do Kiwix",
+           "lib_look_note": "Ao olhar, o idioma escolhido é enviado ao Kiwix (library.kiwix.org), e nada mais.",
+           "lib_look": "Ver a lista do Kiwix", "lib_reading": "Lendo a lista do Kiwix…",
+           "lib_suggest": "Sugerido: os artigos mais conhecidos com imagens e os resumos de toda a Wikipédia. Juntos "
+                          "respondem à maioria das perguntas.",
+           "ed_top": "Artigos mais conhecidos", "ed_all": "Toda a Wikipédia", "ed_simple": "Wikipédia em inglês simples",
+           "kind_maxi": "com imagens", "kind_nopic": "só texto", "kind_mini": "resumos",
+           "lib_line": "{kind} · {gb} GB · {articles} artigos · {date}", "lib_suggested": "sugerido",
+           "lib_get": "Baixar", "lib_carry": "Continuar", "lib_have": "neste computador",
+           "lib_room": "espaço livre insuficiente", "lib_getting": "Baixando: {have} de {total} GB",
+           "lib_checking": "Conferindo com a soma do Kiwix…",
+           "lib_stopped": "Parou no meio: {have} de {total} GB guardados.",
+           "lib_done": "Pronto: o assistente a usa a partir da próxima pergunta.", "lib_failed": "Não terminou: {error}",
+           "lib_sure": "Remover? Pode ser baixada de novo.", "lib_offline": "Este computador está offline: conecte-se "
+                                                                            "para baixar a Wikipédia."},
+    "fr": {"library": "Bibliothèque", "lib_note": "Wikipédia sur cet ordinateur : l'assistant la lit pour vous "
+                                                  "répondre, et rien n'est envoyé.",
+           "lib_here": "Sur cet ordinateur", "lib_none": "Pas encore de Wikipédia ici.", "lib_free": "{gb} Go libres",
+           "lib_shipped": "fournie avec le système", "lib_more": "Plus chez Kiwix",
+           "lib_look_note": "Regarder envoie la langue choisie à Kiwix (library.kiwix.org), et rien d'autre.",
+           "lib_look": "Voir la liste de Kiwix", "lib_reading": "Lecture de la liste de Kiwix…",
+           "lib_suggest": "Suggéré : les articles les plus connus avec images, et les résumés de toute Wikipédia. "
+                          "Ensemble, ils répondent à la plupart des questions.",
+           "ed_top": "Articles les plus connus", "ed_all": "Toute Wikipédia", "ed_simple": "Wikipédia en anglais simple",
+           "kind_maxi": "avec images", "kind_nopic": "texte seul", "kind_mini": "résumés",
+           "lib_line": "{kind} · {gb} Go · {articles} articles · {date}", "lib_suggested": "suggéré",
+           "lib_get": "Télécharger", "lib_carry": "Reprendre", "lib_have": "sur cet ordinateur",
+           "lib_room": "pas assez de place", "lib_getting": "Téléchargement : {have} sur {total} Go",
+           "lib_checking": "Vérification avec la somme de Kiwix…",
+           "lib_stopped": "Arrêté en cours : {have} sur {total} Go gardés.",
+           "lib_done": "Prête : l'assistant l'utilise dès la prochaine question.",
+           "lib_failed": "Pas terminé : {error}",
+           "lib_sure": "La retirer ? Elle peut être téléchargée à nouveau.",
+           "lib_offline": "Cet ordinateur est hors ligne : connectez-vous pour télécharger Wikipédia."},
+    "de": {"library": "Bibliothek", "lib_note": "Wikipedia auf diesem Computer: Der Assistent liest darin, um zu "
+                                                "antworten, und nichts wird gesendet.",
+           "lib_here": "Auf diesem Computer", "lib_none": "Noch keine Wikipedia hier.", "lib_free": "{gb} GB frei",
+           "lib_shipped": "gehört zum System", "lib_more": "Mehr von Kiwix",
+           "lib_look_note": "Beim Ansehen wird die gewählte Sprache an Kiwix (library.kiwix.org) gesendet, sonst "
+                            "nichts.",
+           "lib_look": "Kiwix-Liste ansehen", "lib_reading": "Kiwix-Liste wird gelesen…",
+           "lib_suggest": "Vorschlag: die bekanntesten Artikel mit Bildern und die Zusammenfassungen der ganzen "
+                          "Wikipedia. Zusammen beantworten sie die meisten Fragen.",
+           "ed_top": "Bekannteste Artikel", "ed_all": "Die ganze Wikipedia", "ed_simple": "Simple English Wikipedia",
+           "kind_maxi": "mit Bildern", "kind_nopic": "nur Text", "kind_mini": "Zusammenfassungen",
+           "lib_line": "{kind} · {gb} GB · {articles} Artikel · {date}", "lib_suggested": "Vorschlag",
+           "lib_get": "Herunterladen", "lib_carry": "Fortsetzen", "lib_have": "auf diesem Computer",
+           "lib_room": "nicht genug Platz", "lib_getting": "Wird heruntergeladen: {have} von {total} GB",
+           "lib_checking": "Wird mit der Prüfsumme von Kiwix verglichen…",
+           "lib_stopped": "Unterwegs angehalten: {have} von {total} GB behalten.",
+           "lib_done": "Bereit: Der Assistent nutzt sie ab der nächsten Frage.",
+           "lib_failed": "Nicht fertig: {error}",
+           "lib_sure": "Entfernen? Sie kann wieder heruntergeladen werden.",
+           "lib_offline": "Dieser Computer ist offline: Gehen Sie online, um Wikipedia herunterzuladen."},
+    "ja": {"library": "ライブラリ", "lib_note": "このコンピューターのウィキペディア：アシスタントが回答のために読みます。何も送信されません。",
+           "lib_here": "このコンピューター", "lib_none": "まだウィキペディアはありません。", "lib_free": "空き {gb} GB",
+           "lib_shipped": "システムに付属", "lib_more": "Kiwixからさらに",
+           "lib_look_note": "見ると、選んだ言語だけがKiwix（library.kiwix.org）に送られます。",
+           "lib_look": "Kiwixの一覧を見る", "lib_reading": "Kiwixの一覧を読んでいます…",
+           "lib_suggest": "おすすめ：よく知られた記事（画像付き）と、ウィキペディア全体の要約。この2つでたいていの質問に答えられます。",
+           "ed_top": "よく知られた記事", "ed_all": "ウィキペディア全体", "ed_simple": "Simple English Wikipedia",
+           "kind_maxi": "画像付き", "kind_nopic": "テキストのみ", "kind_mini": "要約",
+           "lib_line": "{kind}・{gb} GB・{articles}記事・{date}", "lib_suggested": "おすすめ",
+           "lib_get": "ダウンロード", "lib_carry": "続ける", "lib_have": "このコンピューターにあります",
+           "lib_room": "空き容量が足りません", "lib_getting": "ダウンロード中：{total} GB中 {have} GB",
+           "lib_checking": "Kiwixのチェックサムと照合しています…",
+           "lib_stopped": "途中で止まりました：{total} GB中 {have} GBを保存。",
+           "lib_done": "準備完了：次の質問から使われます。", "lib_failed": "完了しませんでした：{error}",
+           "lib_sure": "削除しますか？もう一度ダウンロードできます。",
+           "lib_offline": "このコンピューターはオフラインです。ウィキペディアをダウンロードするにはオンラインにしてください。"},
+}
+for _code, _extra in T_LIBRARY.items():
+    T[_code].update(_extra)
+LANG_NAMES = {"en": "English", "es": "Español", "pt": "Português", "fr": "Français", "de": "Deutsch", "ja": "日本語"}
+
 
 PROVIDERS = {
     "es": {"DuckDuckGo and Bing": "DuckDuckGo y Bing",
