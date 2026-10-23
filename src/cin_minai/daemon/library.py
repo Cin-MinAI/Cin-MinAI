@@ -18,12 +18,13 @@ import glob
 import json
 import os
 import re
+import unicodedata
 import urllib.parse
 
 SHELVES = (os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "cinminai", "library"),
            "/usr/share/cinminai/library")
 ISO639 = {"eng": "en", "spa": "es", "por": "pt", "fra": "fr", "deu": "de", "jpn": "ja"}
-ARTICLES = 2            # articles read per question
+ARTICLES = 2            # articles read per question online (Wikipedia's own search; a shelf gives the one named)
 PAGE_CHARS = 2400       # the same budget as a web page (websearch.PAGE_CHARS)
 
 
@@ -59,37 +60,52 @@ def article_url(lang: str, title: str) -> str:
     return f"https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
 
 
-def read_shelf(shelf: dict, query: str, articles: int = ARTICLES) -> dict:
-    """The best articles for the query from a file on this computer (the title search first, then the full text)."""
+def _same(a: str, b: str) -> bool:
+    """The same title, whatever the capitals, accents or underscores: "pho" is "Phở", "marie curie" is "Marie Curie"."""
+    def key(s):
+        s = unicodedata.normalize("NFKD", s.replace("_", " ").replace("đ", "d").replace("Đ", "D"))
+        return " ".join("".join(c for c in s if not unicodedata.combining(c)).casefold().split())
+    return key(a) == key(b)
+
+
+def _article(archive, title: str):
+    """The entry for exactly this article (or a name Wikipedia redirects to it), or None. Never the nearest title: a
+    shelf without "Dandelion" offers "Dandelion Mind" (a comedy tour) first, and the answer would be about that
+    (found on Kiwix's English files, 2026-10-23)."""
+    name = title.strip().replace(" ", "_")
+    for path in dict.fromkeys((name, name[:1].upper() + name[1:])):
+        if archive.has_entry_by_path(path):
+            return archive.get_entry_by_path(path)
+    from libzim.suggestion import SuggestionSearcher
+    for path in SuggestionSearcher(archive).suggest(title).getResults(0, 20):
+        entry = archive.get_entry_by_path(path)
+        if _same(entry.title, title):
+            return entry
+    return None
+
+
+def read_shelf(shelf: dict, query: str) -> dict:
+    """The article named by the query from a file on this computer, or LibraryError when the shelf doesn't have it (a
+    "top articles" file leaves most things out); the guide then offers Wikipedia itself."""
     try:
         from libzim.reader import Archive
-        from libzim.search import Query, Searcher
-        from libzim.suggestion import SuggestionSearcher
     except ImportError:
         raise LibraryError("the Wikipedia reader (python3-libzim) isn't installed") from None
     try:
-        archive = Archive(shelf["path"])
-        paths = list(SuggestionSearcher(archive).suggest(query).getResults(0, articles))
-        if len(paths) < articles and archive.has_fulltext_index:
-            found = Searcher(archive).search(Query().set_query(query)).getResults(0, articles * 2)
-            paths += [p for p in found if p not in paths]
-        sources = []
-        for path in paths:
-            entry = archive.get_entry_by_path(path)
-            item = entry.get_item()
-            if not item.mimetype.startswith("text/html"):
-                continue
-            text = _text(bytes(item.content).decode("utf-8", "replace"))
-            if text:
-                sources.append({"n": len(sources) + 1, "title": entry.title, "url": article_url(shelf["lang"], entry.title),
-                                "text": text[:PAGE_CHARS]})
-            if len(sources) >= articles:
-                break
+        entry = _article(Archive(shelf["path"]), query)
+        if entry is None:
+            raise LibraryError("this shelf doesn't have that article")
+        while entry.is_redirect:
+            entry = entry.get_redirect_entry()
+        item = entry.get_item()
+        text = _text(bytes(item.content).decode("utf-8", "replace")) if item.mimetype.startswith("text/html") else ""
     except (RuntimeError, OSError, KeyError) as e:
         raise LibraryError(f"the Wikipedia file couldn't be read: {e}") from None
-    if not sources:
-        raise LibraryError("Wikipedia has no article on that")
-    return {"query": query, "sources": sources, "shelf": f"Wikipedia on this computer ({shelf['date']})"}
+    if not text:
+        raise LibraryError("this shelf doesn't have that article")
+    return {"query": query, "shelf": f"Wikipedia on this computer ({shelf['date']})",
+            "sources": [{"n": 1, "title": entry.title, "url": article_url(shelf["lang"], entry.title),
+                         "text": text[:PAGE_CHARS]}]}
 
 
 def read_online(query: str, lang: str, articles: int = ARTICLES) -> dict:

@@ -58,7 +58,11 @@ class Shelf(unittest.TestCase):
     ARTICLES = {"Marie_Curie": ("Marie Curie", "<html><body><p>Marie Curie was a physicist and chemist who did "
                                                "pioneering research on radioactivity.</p><script>x()</script></body></html>"),
                 "Radium": ("Radium", "<html><body><p>Radium is a chemical element discovered by the Curies.</p>"
-                                     "</body></html>")}
+                                     "</body></html>"),
+                "Phở": ("Phở", "<html><body><p>Phở is a Vietnamese soup of broth, rice noodles and meat.</p>"
+                               "</body></html>"),
+                "Dandelion_Mind": ("Dandelion Mind", "<html><body><p>Dandelion Mind was a stand-up comedy tour "
+                                                     "that played theatres across Britain in 2010.</p></body></html>")}
 
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -79,6 +83,7 @@ class Shelf(unittest.TestCase):
             creator.set_mainpath("Marie_Curie")
             for url, (title, html) in self.ARTICLES.items():
                 creator.add_item(Page(url, title, html))
+            creator.add_redirection("Maria_Skłodowska", "Maria Skłodowska", "Marie_Curie", {Hint.FRONT_ARTICLE: True})
 
     def tearDown(self):
         import shutil
@@ -95,6 +100,17 @@ class Shelf(unittest.TestCase):
         self.assertNotIn("x()", first["text"])  # scripts are not text
         self.assertEqual(first["url"], "https://en.wikipedia.org/wiki/Marie_Curie")
         self.assertIn("on this computer", found["shelf"])
+
+    def test_only_the_article_asked_for(self):
+        # Kiwix's English "top" file has no "Dandelion", and its title search offers "Dandelion Mind" (a comedy tour)
+        shelf = library.shelf_for("en", (self.dir,))
+        with self.assertRaises(library.LibraryError):
+            library.read_shelf(shelf, "Dandelion")
+        with self.assertRaises(library.LibraryError):
+            library.read_shelf(shelf, "Kimchi")
+        for asked, title in (("marie curie", "Marie Curie"), ("Maria Skłodowska", "Marie Curie"), ("Pho", "Phở"),
+                             ("pho", "Phở"), ("Dandelion Mind", "Dandelion Mind")):
+            self.assertEqual(library.read_shelf(shelf, asked)["sources"][0]["title"], title, asked)
 
 
 class Shelves(unittest.TestCase):
