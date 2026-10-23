@@ -490,6 +490,14 @@
    "fr": "Installer Cin-MinAI",
    "de": "Cin-MinAI installieren",
    "ja": "Cin-MinAI のインストール"
+  },
+  "updates_window": {
+   "en": "Updates",
+   "es": "Actualizaciones",
+   "pt": "Atualizações",
+   "fr": "Mises à jour",
+   "de": "Updates",
+   "ja": "アップデート"
   }
  },
  "ui": {
@@ -808,6 +816,94 @@
    "fr": "Installer les mises à jour",
    "de": "Aktualisierungen installieren",
    "ja": "アップデートをインストール"
+  },
+  "ui_updates_expert": {
+   "en": "Update Manager (for experts)",
+   "es": "Gestor de actualizaciones (para expertos)",
+   "pt": "Gerenciador de atualizações (para especialistas)",
+   "fr": "Gestionnaire de mises à jour (pour les experts)",
+   "de": "Aktualisierungsverwaltung (für Fachleute)",
+   "ja": "アップデートマネージャー（上級者向け）"
+  },
+  "ui_updates_wait": {
+   "en": "Let new updates wait",
+   "es": "Dejar esperar las actualizaciones nuevas",
+   "pt": "Deixar as atualizações novas esperarem",
+   "fr": "Faire attendre les nouvelles mises à jour",
+   "de": "Neue Updates warten lassen",
+   "ja": "新しいアップデートを待たせる"
+  },
+  "ui_updates_daily": {
+   "en": "Install updates by themselves once a day (the ones nothing holds)",
+   "es": "Instalar las actualizaciones solas una vez al día (las que nada retiene)",
+   "pt": "Instalar as atualizações sozinhas uma vez por dia (as que nada segura)",
+   "fr": "Installer les mises à jour toutes seules une fois par jour (celles que rien ne retient)",
+   "de": "Updates einmal am Tag selbst installieren (die, die nichts zurückhält)",
+   "ja": "1日に1回アップデートを自動でインストールする（保留されていないもの）"
+  },
+  "ui_updates_hold": {
+   "en": "Hold",
+   "es": "Retener",
+   "pt": "Segurar",
+   "fr": "Retenir",
+   "de": "Zurückhalten",
+   "ja": "保留"
+  },
+  "ui_updates_hold_update": {
+   "en": "Hold this update",
+   "es": "Retener esta actualización",
+   "pt": "Segurar esta atualização",
+   "fr": "Retenir cette mise à jour",
+   "de": "Dieses Update zurückhalten",
+   "ja": "このアップデートを保留"
+  },
+  "ui_updates_hold_program": {
+   "en": "Hold every update to this program",
+   "es": "Retener todas las actualizaciones de este programa",
+   "pt": "Segurar todas as atualizações deste programa",
+   "fr": "Retenir toutes les mises à jour de ce programme",
+   "de": "Alle Updates dieses Programms zurückhalten",
+   "ja": "このプログラムのすべてのアップデートを保留"
+  },
+  "ui_updates_save": {
+   "en": "Save these settings",
+   "es": "Guardar estos ajustes",
+   "pt": "Salvar estas configurações",
+   "fr": "Enregistrer ces réglages",
+   "de": "Diese Einstellungen speichern",
+   "ja": "この設定を保存"
+  },
+  "ui_library": {
+   "en": "Library",
+   "es": "Biblioteca",
+   "pt": "Biblioteca",
+   "fr": "Bibliothèque",
+   "de": "Bibliothek",
+   "ja": "ライブラリ"
+  },
+  "ui_library_look": {
+   "en": "Look at Kiwix's list",
+   "es": "Ver la lista de Kiwix",
+   "pt": "Ver a lista do Kiwix",
+   "fr": "Voir la liste de Kiwix",
+   "de": "Kiwix-Liste ansehen",
+   "ja": "Kiwixの一覧を見る"
+  },
+  "ui_library_get": {
+   "en": "Download",
+   "es": "Descargar",
+   "pt": "Baixar",
+   "fr": "Télécharger",
+   "de": "Herunterladen",
+   "ja": "ダウンロード"
+  },
+  "ui_library_remove": {
+   "en": "Remove",
+   "es": "Quitar",
+   "pt": "Remover",
+   "fr": "Retirer",
+   "de": "Entfernen",
+   "ja": "削除"
   }
  }
 }

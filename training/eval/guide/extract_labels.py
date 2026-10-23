@@ -78,6 +78,38 @@ UI = {  # names inside programs (menus, buttons) the cards use as {ui_…}: (get
     "ui_resources": ("gnome-system-monitor", "Resources"), "ui_install_updates": ("mintupdate", "Install Updates"),
 }
 LOCALE_DIRS = ("usr/share/locale", "usr/share/locale-langpack", "usr/share/linuxmint/locale")
+# Cin-MinAI's own windows and the names inside them: in no Mint catalogue, so read from this repository (the words the
+# person sees). The Updates window is a program open_app can open; the Library is a card in the sidebar.
+REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+OWN_LABELS = {"updates_window": "distro/packages/cinminai-daemon/root/usr/share/applications/cinminai-updates.desktop"}
+OWN_UI = {  # key -> (module, table, word). Not the Install button: it shows the count ("Install 4 updates")
+    "ui_updates_expert": ("cin_minai.daemon.updates", "WORDS", "expert"),
+    "ui_updates_wait": ("cin_minai.daemon.updates", "WORDS_HOLDS", "wait_check"),
+    "ui_updates_daily": ("cin_minai.daemon.updates", "WORDS_HOLDS", "auto"),
+    "ui_updates_hold": ("cin_minai.daemon.updates", "WORDS_HOLDS", "hold_menu"),
+    "ui_updates_hold_update": ("cin_minai.daemon.updates", "WORDS_HOLDS", "hold_update"),
+    "ui_updates_hold_program": ("cin_minai.daemon.updates", "WORDS_HOLDS", "hold_program"),
+    "ui_updates_save": ("cin_minai.daemon.updates", "WORDS_HOLDS", "save"),
+    "ui_library": ("cin_minai.sidebar.words", "T", "library"),
+    "ui_library_look": ("cin_minai.sidebar.words", "T", "lib_look"),
+    "ui_library_get": ("cin_minai.sidebar.words", "T", "lib_get"),
+    "ui_library_remove": ("cin_minai.sidebar.words", "T", "h_remove"),
+}
+
+
+def own() -> tuple[dict, dict]:
+    """(labels, ui) for Cin-MinAI's own names, in the six languages."""
+    import importlib
+    sys.path.insert(0, os.path.join(REPO, "src"))
+    labels = {}
+    for key, rel in OWN_LABELS.items():
+        e = entry(os.path.join(REPO, rel))
+        labels[key] = {"en": e["Name"], **{lang: e[f"Name[{lang}]"] for lang in LANGS if f"Name[{lang}]" in e}}
+    ui = {}
+    for key, (module, table, word) in OWN_UI.items():
+        t = getattr(importlib.import_module(module), table)
+        ui[key] = {lang: t[lang][word] for lang in ("en", *LANGS) if word in t.get(lang, {})}
+    return labels, ui
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",
 }
@@ -167,6 +199,9 @@ def main() -> None:
                     row[lang] = ui_label(t._catalog[msgid])
                     break
         ui[key] = row
+    own_labels, own_ui = own()
+    labels.update(own_labels)
+    ui.update(own_ui)
     if missing:
         print("missing .desktop files: " + ", ".join(missing), file=sys.stderr)
     info = at("/etc/linuxmint/info")

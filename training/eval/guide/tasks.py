@@ -79,12 +79,12 @@ TASKS = [
            "fr": "Comment je fais les mises à jour, comme Windows Update ?",
            "de": "Wie mache ich Updates, so wie Windows Update?",
            "ja": "Windows Updateのような更新はどうやりますか？"},
-     "expect": [{"tool": "lookup_help"}, {"tool": "open_app", "args": {"app": ["update_manager"]}},
+     "expect": [{"tool": "lookup_help"}, {"tool": "open_app", "args": {"app": ["updates_window", "update_manager"]}},
                 {"tool": "inspect_system", "args": {"topic": ["updates"]}}],
      "card": "Updates: {update_manager} does what Windows Update does. When updates are ready, its shield icon "
              "in the panel (bottom-right) shows a dot. Click it, then click Install Updates and type your "
              "password. It never restarts the computer by itself; it tells you if a restart is needed.",
-     "must": [["{update_manager}"]], "must_not": NO_CMD},
+     "must": [["{updates_window}", "{update_manager}"]], "must_not": NO_CMD},  # D84 2026-10-23: Updates is ours now
     {"id": "T04", "cat": "transition",
      "q": {"en": "How can I change my desktop wallpaper?",
            "es": "¿Cómo cambio el fondo de escritorio?",

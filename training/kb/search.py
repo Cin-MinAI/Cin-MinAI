@@ -87,7 +87,12 @@ KEYWORDS = {
                    "ソフトウェアキーボード",
     "windows_update": "windows update updates update system upgrade actualizar actualizaciones actualización "
                       "atualizar atualizações mise à jour mettre à jour aktualisieren aktualisierung updates "
-                      "アップデート 更新 Windows Update check for updates install updates look for updates buscar actualizaciones procurar atualizações rechercher des mises à jour nach updates suchen",
+                      "アップデート 更新 Windows Update check for updates install updates look for updates buscar actualizaciones procurar atualizações rechercher des mises à jour nach updates suchen "
+                      "hold an update wait delay updates postpone automatic updates daily updates "
+                      "retener actualización posponer actualizaciones automáticas segurar atualização adiar "
+                      "atualizações automáticas retenir mise à jour reporter mises à jour automatiques "
+                      "update zurückhalten verschieben automatische updates アップデートを保留 延期 自動アップデート "
+                      "alguns dias アップデートをインストール",
     "antivirus": "antivirus windows defender virus protection malware security antivirus protección "
                  "seguridad proteção segurança protection sécurité virenschutz virenscanner sicherheit "
                  "ウイルス対策 アンチウイルス ウイルス セキュリティ malware malware scan clamav escanear malware "
@@ -192,6 +197,13 @@ KEYWORDS = {
                    "aktualisieren wichtig なぜ更新 アップデートの重要性 bother worth skip need updates should i update",
     "word_files": "word files docx doc open word document save as word archivo word abrir docx arquivo word "
                   "fichier word ouvrir docx word-datei öffnen docx ワードファイル docx 開く",
+    "wikipedia_library": "wikipedia offline wikipedia download wikipedia encyclopedia library kiwix shelf "
+                         "offline encyclopedia "
+                         "descargar wikipedia enciclopedia biblioteca "
+                         "wikipédia offline baixar wikipédia enciclopédia biblioteca "
+                         "wikipédia hors ligne télécharger wikipédia encyclopédie bibliothèque "
+                         "wikipedia offline herunterladen enzyklopädie bibliothek "
+                         "ウィキペディア オフライン ダウンロード 百科事典 ライブラリ",
     "vpn": "vpn virtual private network openvpn ovpn wireguard proxy hide ip address public wifi privacy "
            "red privada virtual ocultar ip rede privada virtual esconder ip réseau privé virtuel masquer "
            "adresse ip virtuelles privates netzwerk ip verbergen vpnを使う 仮想プライベートネットワーク IPアドレス",

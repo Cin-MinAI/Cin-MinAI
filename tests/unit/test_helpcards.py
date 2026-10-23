@@ -162,6 +162,28 @@ class HelpCards(unittest.TestCase):
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
                 self.assertEqual(self.index.lookup(q, lang)[0], card, q)
 
+    def test_updates_window_and_library_found_in_six_languages(self):
+        # D84 (2026-10-23): the Updates window (D29, D89) and the Library (D68), our own features' cards
+        asked = {
+            "windows_update": ["How do I install updates?", "¿Cómo instalo las actualizaciones?",
+                               "Como instalo as atualizações?", "Comment installer les mises à jour ?",
+                               "Wie installiere ich Updates?", "アップデートはどうやってインストールしますか？",
+                               "Can I hold an update back for a few days?",
+                               "¿Puedo retener una actualización unos días?",
+                               "Posso segurar uma atualização por alguns dias?",
+                               "Puis-je retenir une mise à jour quelques jours ?",
+                               "Kann ich ein Update ein paar Tage zurückhalten?", "アップデートを数日保留できますか？"],
+            "wikipedia_library": ["Can I download Wikipedia to read offline?",
+                                  "¿Puedo descargar Wikipedia para leerla sin conexión?",
+                                  "Posso baixar a Wikipédia para ler offline?",
+                                  "Puis-je télécharger Wikipédia pour la lire hors ligne ?",
+                                  "Kann ich Wikipedia herunterladen, um sie offline zu lesen?",
+                                  "ウィキペディアをダウンロードしてオフラインで読めますか？"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"] * 2, questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

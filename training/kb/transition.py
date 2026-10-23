@@ -129,11 +129,22 @@ TOPICS = [
      "must": ["onboard"], "steps": False},
 
     # --- updates, safety, backups -----------------------------------------------------------------
+    # D84 (2026-10-23): the Updates window (D29, D89) replaced Update Manager as the way in; the delivery and the phone
+    # update pictures are drafted by Claude for Ian's review
     {"id": "windows_update", "windows": "Windows Update",
-     "card": "Updates: {update_manager} does what Windows Update does. When updates are ready, its shield "
-             "icon in the panel (bottom-right) shows a dot. Click it, then click {ui_install_updates} and type your "
-             "password. It never restarts the computer by itself; it tells you if a restart is needed.",
-     "must": ["update_manager"], "steps": True},
+     "card": "Updates: think of a delivery checked at the door. {updates_window} shows what's waiting in plain "
+             "words, security fixes first, and checks everything before it goes in: that it comes from who it says "
+             "(signed), a safety snapshot first if Timeshift is set up, and every file against the signed list. It "
+             "never restarts the computer by itself; it says when a restart is needed. To install: open "
+             "{updates_window} from the assistant's start screen, or right-click the assistant's icon in the panel "
+             "and choose {updates_window}; untick any you want to leave for now; click the Install button at the "
+             "bottom (it says how many) and type your password; then watch each check. Under the list: "
+             "{ui_updates_wait} for a few days, like waiting after a new phone update so others find a problem "
+             "first (a security fix Debian's security team confirms still goes at once); {ui_updates_daily}; and "
+             "{ui_updates_hold} on an update's row, then {ui_updates_hold_update} or {ui_updates_hold_program}. "
+             "Click {ui_updates_save} and type your password to keep the settings. {update_manager} is still "
+             "there: {ui_updates_expert}, at the bottom.",
+     "must": ["updates_window"], "steps": True},
     {"id": "antivirus", "windows": "Windows Defender / needing an antivirus",
      "card": "Antivirus: Linux Mint doesn't need an antivirus for everyday use. What keeps it safe: install "
              "updates from {update_manager}, get programs from {software_manager} instead of random websites, "
@@ -296,10 +307,25 @@ TOPICS = [
      "card": "Offline mode: right-click the assistant's icon in the panel and switch on Keep this computer offline. "
              "Wi-Fi and the cable are switched off for the whole computer, the panel says OFFLINE, and the "
              "assistant doesn't offer web searches or downloads. To install updates, choose Go online to install "
-             "updates in the same menu: Update Manager opens, and when it's finished click Back offline (the "
-             "computer waits for any install to finish first). Once a month at most, a reminder says when security "
+             "updates in the same menu: {updates_window} opens, goes online for the check and the install, and "
+             "goes back offline by itself once any install has finished. Once a month at most, a reminder says when security "
              "updates are due. To stay online again, switch Keep this computer offline off. The assistant itself "
              "works without the internet.",
+     "must": [], "steps": True},
+    # D84 (2026-10-23): the Library view (D68); the bookshelf and pocket-edition pictures are drafted by Claude for
+    # Ian's review
+    {"id": "wikipedia_library", "windows": "an encyclopedia app, or downloading Wikipedia to read offline",
+     "card": "Library: think of an encyclopedia set on your own shelf instead of a trip to the library. With "
+             "Wikipedia on this computer, the assistant looks things up at home: nothing is sent, nobody sees what "
+             "you asked, and it works without the internet. The files come from Kiwix: the best-known articles with "
+             "pictures are the illustrated set, and the summaries are a pocket edition of every article. They take "
+             "disk space, from about 0.1 GB (the best-known articles' summaries) to over 100 GB (all of English "
+             "Wikipedia with pictures). Without one, the assistant offers to read the article online, after you "
+             "agree. To get one: open the assistant and click {ui_library} on its start screen (or right-click the "
+             "assistant's icon in the panel and choose {ui_library}); click {ui_library_look} (only your choice of "
+             "language is sent to Kiwix); then click {ui_library_get} next to the one you want. It downloads in the "
+             "background while you keep using the computer, and it's checked before the assistant uses it. To take "
+             "one off, click {ui_library_remove} next to it, then click again to confirm.",
      "must": [], "steps": True},
 
     # --- update 5 (2026-10-07): the news scan (D92), standing tasks (D88) and keys for sources ------------------------

@@ -100,7 +100,8 @@ def build(repo: str) -> dict:
     unknown = set(S.KEYWORDS) - set(ids)
     if unknown:
         raise SystemExit(f"search words for unknown cards: {sorted(unknown)}")
-    desktop = {**{k: v + ".desktop" for k, v in X.LABELS.items()}, **{k: None for k in X.ACTIONS}}
+    desktop = {**{k: v + ".desktop" for k, v in X.LABELS.items()}, **{k: None for k in X.ACTIONS},
+               **{k: os.path.basename(v) for k, v in X.OWN_LABELS.items()}}  # our own windows (the Updates window)
     help_ = {"labels": R.LABELS, "ui": R.UI, "desktop": desktop, "cards": cards}
     for c in cards:
         for key in re.findall(r"\{(\w+)\}", c["card"]):
