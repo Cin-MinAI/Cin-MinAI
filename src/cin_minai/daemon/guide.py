@@ -127,7 +127,8 @@ class Guide:
         """The reply from fetched material only (web pages, Wikipedia articles), each point with its number."""
         on_action(tool, {"query": query}, "done",
                   json.dumps({"query": query, "shelf": found.get("shelf", ""),
-                              "sources": [{k: s[k] for k in ("n", "title", "url")} for s in found["sources"]]},
+                              "sources": [{k: s[k] for k in ("n", "title", "url", "pictures") if k in s}
+                                          for s in found["sources"]]},
                              ensure_ascii=False))
         prompt = websearch.answer_prompt(question, found)
         guard = self.reply_guard(on_text)
@@ -260,14 +261,14 @@ class Guide:
                 self.history += [user, {"role": "assistant", "content": raw}]
                 return {"reply": reply, "tool": tool, "args": args, "timings": timings}
             if tool == "wikipedia":
-                shelf = library.shelf_for(self.tools.lang)
+                shelves = library.shelves_for(self.tools.lang)
                 query = str(args.get("title", "")).strip()[:200] or text[:200]
-                if shelf is not None:  # D68: the shelf on this computer: nothing is sent, nothing to agree to
+                if shelves:  # D68: the shelves on this computer: nothing is sent, nothing to agree to
                     on_action(tool, {"query": query}, "running", "")
                     try:
-                        found = library.read_shelf(shelf, query)
+                        found = library.read_shelves(shelves, query)
                     except library.LibraryError:
-                        found = None  # not on the shelf (a "top articles" file): Wikipedia itself is offered
+                        found = None  # not on the shelves (a "top articles" file alone): Wikipedia itself is offered
                     if found is not None:
                         out = self.answer_from(found, text, tool, query, on_text, on_action, cancel)
                         out["timings"] = timings + out["timings"]

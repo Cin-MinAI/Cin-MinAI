@@ -38,6 +38,10 @@ def wikipedia_done(found: dict) -> str:
     return f"From {found.get('shelf') or 'Wikipedia'}"
 
 
+def picture_tip(kind: str, title: str) -> str:
+    return f"Where {title} is (Wikipedia's map)" if kind == "map" else f"{title} (Wikipedia's picture)"
+
+
 def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
     """(icon name, words) for a tool the guide used."""
     if tool == "calculate":  # D68: the answer is the calculator's, and it says so

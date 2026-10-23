@@ -113,6 +113,69 @@ class Shelf(unittest.TestCase):
             self.assertEqual(library.read_shelf(shelf, asked)["sources"][0]["title"], title, asked)
 
 
+@unittest.skipIf(Creator is None, "needs libzim")
+class Pictures(unittest.TestCase):
+    # laid out like Kiwix's English files (2026-10-23): the logo before the photo (Eiffel Tower, Raspberry Pi), the
+    # locator map in the fact box, more pictures in the sections
+    HTML = ('<html><body><table class="infobox"><tr><td><img src="./_assets_/a1/Tower_logo.svg.png" width="279"></td>'
+            '</tr><tr><td><img src="./_assets_/a1/Tower%252C_Paris.jpg"></td></tr><tr><td>'
+            '<img src="./_assets_/a1/France_locator_map.svg.png"></td></tr></table><p>The tower is a wrought-iron '
+            'lattice tower on the Champ de Mars in Paris, France, named after the engineer whose company built it.</p>'
+            '<div class="mw-heading mw-heading2"><h2>History</h2></div><img src="./_assets_/a1/Building.jpg">'
+            '</body></html>')
+    WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 20
+
+    def setUp(self):
+        import cin_minai.daemon.library as lib
+        self.dir = tempfile.mkdtemp()
+        self.saved, lib.PICTURES = lib.PICTURES, os.path.join(self.dir, "pictures")
+        test = self
+
+        class Blob(Item):
+            def __init__(self, path, data, mime, title=""):
+                super().__init__()
+                self.p, self.d, self.m, self.t = path, data, mime, title
+
+            def get_path(self): return self.p
+            def get_title(self): return self.t
+            def get_mimetype(self): return self.m
+            def get_contentprovider(self): return StringProvider(self.d) if isinstance(self.d, str) else BytesProv(self.d)
+            def get_hints(self): return {Hint.FRONT_ARTICLE: self.m == "text/html"}
+
+        from libzim.writer import ContentProvider, Blob as ZBlob
+
+        class BytesProv(ContentProvider):
+            def __init__(self, data):
+                super().__init__()
+                self.data = data
+
+            def get_size(self): return len(self.data)
+            def gen_blob(self): yield ZBlob(self.data)
+
+        for kind in ("maxi", "mini"):
+            with Creator(os.path.join(self.dir, f"wikipedia_en_top_{kind}_2026-09.zim")).config_indexing(True, "eng") as c:
+                c.set_mainpath("Tower")
+                c.add_item(Blob("Tower", test.HTML, "text/html", "Tower"))
+                for name in ("Tower_logo.svg.png", "Tower%2C_Paris.jpg", "France_locator_map.svg.png", "Building.jpg"):
+                    c.add_item(Blob(f"_assets_/a1/{name}", test.WEBP, "image/webp"))
+
+    def tearDown(self):
+        import shutil
+        import cin_minai.daemon.library as lib
+        lib.PICTURES = self.saved
+        shutil.rmtree(self.dir, True)
+
+    def test_the_photo_and_the_map(self):
+        maxi, mini = library.shelves_for("en", (self.dir,))
+        pictures = library.read_shelf(maxi, "Tower")["sources"][0]["pictures"]
+        self.assertEqual([p["kind"] for p in pictures], ["photo", "map"])
+        for p in pictures:
+            with open(p["path"], "rb") as f:
+                self.assertEqual(f.read(), self.WEBP)
+            self.assertTrue(p["path"].endswith(".webp"))
+        self.assertNotIn("pictures", library.read_shelf(mini, "Tower")["sources"][0])  # a summary file has none
+
+
 class Shelves(unittest.TestCase):
     def test_named_by_kiwix(self):
         with tempfile.TemporaryDirectory() as d:
@@ -120,9 +183,33 @@ class Shelves(unittest.TestCase):
                          "wikipedia_en_all_mini_2026-08.zim", "devdocs_en_python_2026-10.zim", "notes.txt"):
                 open(os.path.join(d, name), "w").close()
             found = library.shelves((d,))
-            self.assertEqual([(s["lang"], s["date"]) for s in found], [("es", "2026-10"), ("en", "2026-09"),
-                                                                       ("en", "2026-08")])
-            self.assertEqual(library.shelf_for("en", (d,))["title"], "wikipedia_en_top_nopic_2026-09")  # the newest
+            # whole articles before summaries, then the newest
+            self.assertEqual([(s["lang"], s["kind"], s["date"]) for s in found],
+                             [("en", "nopic", "2026-09"), ("es", "mini", "2026-10"), ("en", "mini", "2026-08")])
+            self.assertEqual(library.shelf_for("en", (d,))["title"], "wikipedia_en_top_nopic_2026-09")
+
+    def test_a_pair_asks_the_whole_article_first(self):
+        # Ian's pair (2026-10-23): the best-known articles with pictures, and every article's summary
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("wikipedia_en_all_mini_2026-09.zim", "wikipedia_en_top_maxi_2026-09.zim",
+                         "wikipedia_fr_top_mini_2026-10.zim"):
+                open(os.path.join(d, name), "w").close()
+            self.assertEqual([s["kind"] for s in library.shelves_for("en", (d,))], ["maxi", "mini"])
+            asked = []
+
+            def read(shelf, query):
+                asked.append(shelf["kind"])
+                if shelf["kind"] == "maxi":
+                    raise library.LibraryError("this shelf doesn't have that article")
+                return {"sources": [{"title": query}]}
+            saved, library.read_shelf = library.read_shelf, read
+            try:
+                library.read_shelves(library.shelves_for("en", (d,)), "Kimchi")
+            finally:
+                library.read_shelf = saved
+            self.assertEqual(asked, ["maxi", "mini"])
+            with self.assertRaises(library.LibraryError):
+                library.read_shelves([], "Kimchi")
 
 
 if __name__ == "__main__":

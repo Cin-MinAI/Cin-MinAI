@@ -1775,6 +1775,16 @@ class Sidebar(Gtk.Application):
         head.get_style_context().add_class("note")
         box.pack_start(head, False, False, 0)
         for s in found.get("sources", []):
+            # an article from a shelf on this computer brings its own photo and, for a place, its map (D68): what it
+            # is and where, beside the answer; the daemon saved them from the file, nothing was fetched
+            for p in s.get("pictures", []):
+                try:
+                    pic = Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(p["path"], 240, 240, True))
+                except (GLib.Error, KeyError, TypeError):
+                    continue
+                pic.set_halign(Gtk.Align.START)
+                pic.set_tooltip_text(words.picture_tip(p.get("kind", ""), s.get("title", "")))
+                box.pack_start(pic, False, False, 0)
             link = Gtk.LinkButton(uri=s.get("url", ""), label=words.source_line(s))
             link.set_halign(Gtk.Align.START)
             link.get_child().set_line_wrap(True)
