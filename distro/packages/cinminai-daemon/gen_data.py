@@ -52,8 +52,12 @@ def build(repo: str) -> dict:
     # v2.4 = v2.3 plus compose_email (D88: the guide writes the email and opens it as a draft), offered only when an
     # email is asked for (daemon/intent.py), adopted 2026-10-07 after the paired A/B on the 4070: public 142 = 142,
     # D84 88 vs 82, terminal 22 vs 21, web/diagnostics/create equal.
+    # v2.6 = v2.4 plus calculate and wikipedia, the guide's own tools for knowledge (D68), with rule 2 saying which goes
+    # where; adopted 2026-10-22 (Ian) after two A/Bs on the 4070: D68 34/34 vs 8/34, public 139 vs 144 (two tool picks:
+    # "What is Linux?" to Wikipedia, Japanese "solve quadratic equations" to the help; the rest reply wording on
+    # how-tos rule 2 doesn't touch), D84 81 vs 80, terminal 20 = 20, create 3 vs 4, diagnostics 16 vs 17.
     # CINMINAI_GUIDE_PROMPT: a test daemon tries another prompt without changing what ships.
-    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.4")
+    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.6")
     guide = {
         "prompt": R.PROMPT,
         "system": R.system_prompt({}),

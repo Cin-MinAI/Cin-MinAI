@@ -11,7 +11,7 @@ TASKS = [
     {"id": "W01", "cat": "web", "q": {"en": "How tall is the Eiffel Tower?",
                                       "fr": "Quelle est la hauteur de la tour Eiffel ?"},
      "expect": [{"tool": "web_search", "args": {"query": "~eiffel"}}]},
-    {"id": "W02", "cat": "web", "q": {"en": "Will it rain in Chicago tomorrow?"},
+    {"id": "W02", "cat": "web", "q": {"en": "Will it rain in Chicago tomorrow?"}, "web_only": True,
      "expect": [{"tool": "web_search", "args": {"query": "~chicago"}}]},
     {"id": "W03", "cat": "writing", "q": {"en": "Write a short poem for my wife's birthday. She loves gardening."},
      "expect": [{"tool": "answer"}]},

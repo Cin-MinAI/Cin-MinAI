@@ -29,8 +29,27 @@ STATES = {  # State property -> (dot colour class, words)
 }
 
 
+def wikipedia_running(args: dict) -> str:
+    return f"Reading Wikipedia about: {args.get('query', '')}"
+
+
+def wikipedia_done(found: dict) -> str:
+    """Which shelf the answer came from (D68: every answer says where it came from)."""
+    return f"From {found.get('shelf') or 'Wikipedia'}"
+
+
 def action(tool: str, args: dict, result: str = "") -> tuple[str, str]:
     """(icon name, words) for a tool the guide used."""
+    if tool == "calculate":  # D68: the answer is the calculator's, and it says so
+        try:
+            out = json.loads(result) if result else {}
+        except ValueError:
+            out = {}
+        shown = out.get("expression") or args.get("expression", "")
+        if out.get("error"):
+            return "dialog-warning-symbolic", f"The calculator couldn't work out {shown}: {out['error']}"
+        answer = out.get("result") or ", ".join(out.get("solutions", [])) or out.get("simplified") or             ("true" if out.get("true") else "false" if "true" in out else "")
+        return "accessories-calculator-symbolic", f"Worked out with the calculator: {shown} → {answer}"
     if tool == "lookup_help":
         return "system-search-symbolic", "Looked it up in the built-in help"
     if tool == "terminal":

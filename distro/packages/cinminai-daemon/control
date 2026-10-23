@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Cin-MinAI <https://github.com/Cin-MinAI/Cin-MinAI>
 Section: misc
 Priority: optional
-Depends: python3 (>= 3.12), python3-gi, python3-apt, gir1.2-glib-2.0, cinminai-llama (>= @RELEASE@), cinminai-table (>= @RELEASE@)
+Depends: python3 (>= 3.12), python3-gi, python3-apt, python3-sympy, python3-libzim, gir1.2-glib-2.0, cinminai-llama (>= @RELEASE@), cinminai-table (>= @RELEASE@)
 Recommends: network-manager, pulseaudio-utils, cups-client, pciutils, ubuntu-drivers-common
 Description: Cin-MinAI assistant (the daemon)
  The assistant built into Cin-MinAI: it answers on the session bus as
@@ -15,4 +15,6 @@ Description: Cin-MinAI assistant (the daemon)
  guide's read-only tools: the built-in help, checking this computer, and opening
  programs. It carries the diagnostics too (cinminai-diag): fault codes with plain
  explanations and fixes, read from the kernel log, drivers, disks and packages.
- Nothing is sent over the network.
+ The guide works things out with a real calculator (SymPy) and reads Wikipedia
+ from a Kiwix file on this computer when there is one.
+ Nothing is sent over the network without the person agreeing on a card.

@@ -22,7 +22,7 @@ from cin_minai.inference.backend import BackendError, Cancelled, InferenceBacken
 
 from .helpcards import HelpIndex
 from .office import Office, OfficeError
-from . import facts, intent, offline, websearch
+from . import facts, intent, library, offline, websearch
 from .repetition import LoopDetected, ReplyGuard
 from .tools import Tools
 
@@ -110,16 +110,26 @@ class Guide:
         if offer is None:
             raise BackendError("That search was already done or dismissed.")
         query = (query or offer["query"]).strip()[:200]
-        on_action("web_search", {"query": query}, "running", "")
+        tool = offer.get("tool", "web_search")
+        on_action(tool, {"query": query}, "running", "")
         try:
-            found = websearch.gather(query, self.tools.lang)
-        except websearch.SearchError as e:
+            if tool == "wikipedia":  # D68: the article from Wikipedia itself, once the person agreed
+                found = library.read_online(query, self.tools.lang)
+            else:
+                found = websearch.gather(query, self.tools.lang)
+        except (websearch.SearchError, library.LibraryError) as e:
             self.searches[sid] = offer  # can be tried again (e.g. once online)
             raise BackendError(f"The search didn't work: {e}.")
-        on_action("web_search", {"query": query}, "done",
-                  json.dumps({"query": query, "sources": [{k: s[k] for k in ("n", "title", "url")} for s in found["sources"]]},
+        return self.answer_from(found, offer["question"], tool, query, on_text, on_action, cancel)
+
+    def answer_from(self, found: dict, question: str, tool: str, query: str, on_text, on_action,
+                    cancel: threading.Event) -> dict:
+        """The reply from fetched material only (web pages, Wikipedia articles), each point with its number."""
+        on_action(tool, {"query": query}, "done",
+                  json.dumps({"query": query, "shelf": found.get("shelf", ""),
+                              "sources": [{k: s[k] for k in ("n", "title", "url")} for s in found["sources"]]},
                              ensure_ascii=False))
-        prompt = websearch.answer_prompt(offer["question"], found)
+        prompt = websearch.answer_prompt(question, found)
         guard = self.reply_guard(on_text)
         try:
             reply, timings = self.backend.chat([{"role": "user", "content": prompt}], max_tokens=500,
@@ -129,8 +139,8 @@ class Guide:
         except LoopDetected as e:
             reply, timings, loop_stopped = e.reply, {}, True
         # the conversation goes on from here as if the guide had answered (follow-up questions work)
-        self.history += [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": reply}]
-        return {"reply": reply, "tool": "web_search", "args": {"query": query}, "sources": len(found["sources"]),
+        self.history += [{"role": "user", "content": question}, {"role": "assistant", "content": reply}]
+        return {"reply": reply, "tool": tool, "args": {"query": query}, "sources": len(found["sources"]),
                 "timings": [timings], "loop_stopped": loop_stopped}
 
     def document(self) -> tuple[dict | None, str, dict]:
@@ -194,6 +204,9 @@ class Guide:
             return json.dumps(self.tools.compose_email(args), ensure_ascii=False)
         if tool == "request_install":
             return json.dumps(self.tools.request_install(str(args.get("package", ""))), ensure_ascii=False)
+        if tool == "calculate":  # D68: the answer comes from the calculator, not the model's memory
+            from .calc import calculate
+            return json.dumps(calculate(str(args.get("expression", ""))), ensure_ascii=False)
         return json.dumps({"error": f"unknown tool {tool}"})
 
     def turn(self, text: str, on_text: Callable[[str], None], on_action: Callable[[str, dict, str, str], None],
@@ -246,20 +259,37 @@ class Guide:
                     on_text(reply)
                 self.history += [user, {"role": "assistant", "content": raw}]
                 return {"reply": reply, "tool": tool, "args": args, "timings": timings}
+            if tool == "wikipedia":
+                shelf = library.shelf_for(self.tools.lang)
+                query = str(args.get("title", "")).strip()[:200] or text[:200]
+                if shelf is not None:  # D68: the shelf on this computer: nothing is sent, nothing to agree to
+                    on_action(tool, {"query": query}, "running", "")
+                    try:
+                        found = library.read_shelf(shelf, query)
+                    except library.LibraryError:
+                        found = None  # not on the shelf (a "top articles" file): Wikipedia itself is offered
+                    if found is not None:
+                        out = self.answer_from(found, text, tool, query, on_text, on_action, cancel)
+                        out["timings"] = timings + out["timings"]
+                        return out
+                tool = "web_search" if offline.on() else tool  # offline: said the way a search is
             if tool == "web_search" and offline.on():  # D28: offline mode offers no search, it says how to go online
                 reply = offline.words("assistant", self.tools.lang)
                 on_text(reply)
                 self.history += [user, {"role": "assistant", "content": reply}]
                 return {"reply": reply, "tool": "offline", "args": args, "timings": timings}
-            if tool == "web_search":
+            if tool in ("web_search", "wikipedia"):
                 # nothing is sent here: the sidebar shows the query; the user clicks Search (D55, §7.5)
                 import uuid
                 sid = uuid.uuid4().hex[:12]
-                query = intent.search_query(str(args.get("query", "")), text)
-                self.searches = {sid: {"query": query, "question": text}}  # only the newest offer stands
+                if tool == "wikipedia":  # D68: only the subject goes, to Wikipedia in the person's language
+                    query, provider = str(args.get("title", "")).strip()[:200] or text[:200], "Wikipedia"
+                else:
+                    query, provider = intent.search_query(str(args.get("query", "")), text), websearch.PROVIDER
+                self.searches = {sid: {"query": query, "question": text, "tool": tool}}  # only the newest offer stands
                 online = self.tools.online()
-                on_action(tool, {"query": query}, "proposal", json.dumps({"id": sid, "query": query, "online": online,
-                                                                          "provider": websearch.PROVIDER}, ensure_ascii=False))
+                on_action("web_search", {"query": query}, "proposal", json.dumps(
+                    {"id": sid, "query": query, "online": online, "provider": provider}, ensure_ascii=False))
                 from .say import say
                 reply = say(self.tools.lang, "search_offer" if online else "search_offline")
                 on_text(reply)

@@ -137,12 +137,25 @@ EMAIL_TOOLS = {
 }
 
 
+# Prompt v2.6 (2026-10-22, D68): v2.4 plus two tools the guide calls itself (Ian: "The AI is supposed to be able to
+# use the tools") — the calculator, and Wikipedia (a shelf on this computer, or the article online after the person
+# agrees) — and rule 2 saying which goes where. Only rule 2 changes (asserted).
+D68_TOOLS = {
+    "calculate": ({"expression": S}, "work something out exactly: sums, percentages, prices, time, powers and roots, "
+                                     "or an equation to solve (written like 3*x + 7 = 25); the calculator gives the "
+                                     "answer, never you"),
+    "wikipedia": ({"title": S}, "read Wikipedia's article on a subject (a person, place, event, idea, or how "
+                                "something works), in the user's language: the subject as the article's title"),
+}
+
+
 def tools_for(doc: str | None) -> dict:
     # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
     extra = {}
-    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4", "v2.5") and not doc:
-        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5") else {}),
-                 **(EMAIL_TOOLS if PROMPT in ("v2.4", "v2.5") else {})}
+    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6") and not doc:
+        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5", "v2.6") else {}),
+                 **(EMAIL_TOOLS if PROMPT in ("v2.4", "v2.5", "v2.6") else {}),
+                 **(D68_TOOLS if PROMPT == "v2.6" else {})}
     return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
@@ -234,6 +247,19 @@ _RULE1_V23 = ('If it\'s a how-to, a "where is…", or a "what is…" question ab
               'idea behind it (a VPN, a firewall, the keyring, drivers, backups…), call lookup_help first')
 assert SYSTEM_V22.count(_RULE1_V22) == 1
 SYSTEM_V23 = SYSTEM_V22.replace(_RULE1_V22, _RULE1_V23)
+_RULE2_WORLD_V22 = ("2. Questions about the world — history, politics, school subjects, maths, science, recipes, news, "
+                    "weather, sports: call web_search with a short search query in the user's language (nothing is "
+                    "sent until the user agrees; you answer from the pages they let you fetch).")
+# (the first wording, "Maths, sums…: call calculate", left a maths question with no sum in it — "help me solve
+# quadratic equations" — nowhere to go: the 4B answered from memory; measured 2026-10-22, public 139 vs 144)
+_RULE2_WORLD_V26 = ("2. A sum, price, percentage or equation to work out: call calculate with it; never work it out "
+                    "yourself. A subject to learn about — a person, a place, an event, an idea, how something works "
+                    "(history, science, school subjects, maths included): call wikipedia with the article's title. "
+                    "News, weather, sports results, recipes "
+                    "and anything recent: call web_search with a short search query in the user's language (nothing "
+                    "is sent until the user agrees; you answer from what they let you fetch).")
+assert SYSTEM_V23.count(_RULE2_WORLD_V22) == 1
+SYSTEM_V26 = SYSTEM_V23.replace(_RULE2_WORLD_V22, _RULE2_WORLD_V26)
 WEB_TOOLS = {
     "web_search": ({"query": S}, "search the web for a question about the world: a short search query in the user's "
                                  "language (the user sees it and agrees before anything is sent)"),
@@ -242,7 +268,8 @@ PROMPT = "v1"
 
 
 def style() -> str:
-    return (STYLE_V25 if PROMPT == "v2.5" else STYLE_V23 if PROMPT in ("v2.3", "v2.4") else STYLE_V2) if PROMPT.startswith("v2") else STYLE
+    return (STYLE_V25 if PROMPT == "v2.5" else STYLE_V23 if PROMPT in ("v2.3", "v2.4", "v2.6") else STYLE_V2) \
+        if PROMPT.startswith("v2") else STYLE
 
 
 HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
@@ -267,7 +294,7 @@ def system_prompt(task: dict) -> str:
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    system = (SYSTEM_V23 if PROMPT in ("v2.3", "v2.4", "v2.5") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
+    system = (SYSTEM_V26 if PROMPT == "v2.6" and not doc else SYSTEM_V23 if PROMPT in ("v2.3", "v2.4", "v2.5") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
               else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM)
     return system.format(document=document, tools=tools)
 
@@ -299,9 +326,12 @@ def items() -> list[dict]:
             if "result" in t:
                 it["result"] = json.loads(resolve(json.dumps(t["result"], ensure_ascii=False), lang))
             it["must"] = [[resolve(a, lang) for a in group] for group in t.get("must", [])]
-            if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5") and "v22" in t:
+            if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5", "v2.6") and "v22" in t:
                 # D54/D55: no longer a decline; the action is checked, the decline's reply checks don't apply
                 it.update(expect=t["v22"]["expect"], must=[], must_not=[], b_skip=True)
+            if PROMPT == "v2.6" and not t.get("web_only") and any(e.get("tool") == "web_search" for e in it["expect"]):
+                # D68: a subject to learn about may go to Wikipedia instead of the web (not news, weather, results, recipes)
+                it["expect"] = it["expect"] + [{"tool": "wikipedia"}]
             out.append(it)
     return out
 
@@ -392,7 +422,10 @@ STEP = re.compile(r"^\s*(?:\*\*)?(?:[0-9０-９]+[.)．、:]|[①-⑩])", re.M)
 
 def stage_b(it: dict, text: str) -> list[str]:
     fails = []
-    if it["lang"] not in language_candidates(text):  # a tie that includes the right language passes
+    found = language_candidates(text)
+    # a tie that includes the right language passes; so does a short reply with no function words at all ("Jeder
+    # zahlt 31,25 €."), which shows no language either way
+    if it["lang"] not in found and not (found == {"?"} and len(text.split()) <= 12):
         fails.append(f"language {language(text)}")
     low = text.lower()
     for group in it["must"]:
@@ -451,6 +484,10 @@ def run_item(srv: Server, it: dict, loop_detector: bool = False) -> dict:
         result = it["card"]
     elif tool == "inspect_system" and "result" in it:
         result = json.dumps(it["result"], ensure_ascii=False)
+    elif tool == "calculate" and it["cat"] == "calculate":
+        from cin_minai.daemon.calc import calculate  # the real calculator: the reply must carry its answer
+        result = json.dumps(calculate(str(args.get("expression", ""))), ensure_ascii=False)
+        rec["calc"] = result
     else:
         result = None
     if reply is None and result is not None:
@@ -465,7 +502,7 @@ def run_item(srv: Server, it: dict, loop_detector: bool = False) -> dict:
         rec["loop_stopped"] = match is not None
         if match is not None:
             rec["loop_piece"] = match.piece
-    if reply is not None and not it.get("b_skip") and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret", "terminal")):
+    if reply is not None and not it.get("b_skip") and ("card" in it or "result" in it or it["cat"] in ("decline", "interpret", "terminal", "calculate")):
         rec["reply"] = reply
         rec["b_fails"] = stage_b(it, reply)
         rec["b_ok"] = not rec["b_fails"]
@@ -502,7 +539,7 @@ def main() -> None:
     ap.add_argument("--loop-detector", action="store_true",
                     help="score the deterministic repaired reply the product shows when generation loops")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")

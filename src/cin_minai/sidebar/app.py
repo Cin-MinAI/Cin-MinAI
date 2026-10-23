@@ -592,6 +592,12 @@ class Sidebar(Gtk.Application):
             self.progress_line(f"Searching the web for: {json.loads(args[2] or '{}').get('query', '')}")
         elif signal == "Action" and args[1] == "web_search" and args[3] == "done":
             self.sources_card(json.loads(args[4] or "{}"))
+        elif signal == "Action" and args[1] == "wikipedia" and args[3] == "running":  # D68
+            self.progress_line(words.wikipedia_running(json.loads(args[2] or "{}")))
+        elif signal == "Action" and args[1] == "wikipedia" and args[3] == "done":
+            found = json.loads(args[4] or "{}")
+            self.progress_line(words.wikipedia_done(found))
+            self.sources_card(found)
         elif signal == "Action" and args[1] == "journal" and args[3] == "done":
             self.progress_line(words.journal_written(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "download":
