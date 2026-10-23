@@ -1,6 +1,8 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-21** (latest: journal "the Team Table at work, and update 7"; before it "the git flow, and a machine named Simon"; before it "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
+Updated **2026-10-23** (latest: journal "the guide reaches for Wikipedia, and learns to hold a conversation"; before it
+"the fill run: offline, a diagnosis that walks, and updates you can trust"; before it "the Team Table at work, and
+update 7"; before it "the git flow, and a machine named Simon"; before it "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
@@ -13,6 +15,32 @@ model's story: `docs/guide-model-journal.md`.
   sites checked). Ian's call: the warning to users waits **two days** — make sure no one is pushing a campaign and a
   fix is out (Ubuntu noble had no php8.3 fix on 10-22). **Re-check 2026-10-24**, then bring Ian an attributed
   warning shown only where PHP is installed.
+
+## Where we stopped (2026-10-23) — the guide's Wikipedia and conversations tuned; Updates proven on the NVMe
+
+- **All pushed** (main be1be00). Ian's NVMe runs test build **203411** (release key) with everything below.
+- **Fill run:** 66 of 95 filled (86 is the bar, 20 to go). Filled since update 7: D62 (name the machine), D28
+  (offline button), D7 (D51's trees walked by code, Think it through), D89 (the Updates window: plan, holds, daily
+  updates, Debian/CISA confirmations, oss-security holds; D29 partly with it), D88 ("keep my computer updated" and
+  "put a hold" in the person's words). D35 back to partly (the whole computer on a cloud model, Ian's call). N-gram
+  drafting on for coding. **Next in the fill list:** D68's remaining parts (Library view), D84, then D94's reviews,
+  D40, D93, D51+D91.
+- **D68 as built:** calculate (SymPy) and wikipedia (Kiwix shelves: top maxi + all mini, exact titles, the article's
+  photo and map; online after the person agrees). The guide's prompt is **v2.7**. The history is the talk alone
+  (`guide.remember`). Nothing on the computer answers → "This is what I have in memory about X" + an offer
+  (Wikipedia online, then the web); pages that don't answer → the NOT_IN_PAGES marker (`guide.Gate`). Web follow-ups
+  are rewritten to stand alone (`guide.standalone`, `intent.follow_up_query`). Help cards found only by their own
+  search words, Windows name, id or program names (`helpcards.anchors`). Eval: `tasks_conversation.py`; A/B results
+  in WSL `~/cinminai-build/ab/v27` and `ab/help-anchor`.
+- **Updates fix:** a second architecture's package (`zlib1g:i386`) passes the fingerprint check (140eba5); Ian's 4
+  waiting updates installed through the window 2026-10-23.
+- **Open, Ian's calls:** a model check for a help card that isn't about the question (needs an A/B); narrowing tools
+  by the question's words (on hold: "show a picture of X" and recipes still go to the web); the "will I die"
+  dodge; web search junk among results; articles read only to 2,400 characters (PAGE_CHARS); the Library view to
+  download shelves; update 8 (nothing shipped since update 7). `casper-md5check` still fails on the NVMe (an install
+  from before the ISO fix; `sudo apt remove casper` clears it, Ian's call).
+- **Test builds** stamp `CINMINAI_PKG_VERSION` with the time when the tree has changes since the last commit
+  (the version otherwise comes from the commit and would equal the installed one).
 
 ## Where we stopped (2026-10-21) — update 7 out; next: the fill run (D97)
 

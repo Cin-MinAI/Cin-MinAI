@@ -1994,3 +1994,132 @@ Ian, 18 packages, checked live.
 
 **Next (Ian):** the fill run toward D97's 90 %: D62's guided setup, D28's offline button, D7, D68, D84, then
 D29 + D89 + D88 together. Ian wants to film the table refreshing test21's README with OBS.
+
+## 2026-10-21 to 10-22 — the fill run: offline, a diagnosis that walks, and updates you can trust
+
+The fill run went in Ian's order, and five decisions were filled in two days.
+
+**D62, naming the machine.** After the GitHub sign-in, AICUI offers once to name the computer and say who
+maintains it. It gives Ian's advice for the account (a separate email for development, a passkey or an
+authenticator app), opens GitHub's profile page with the two lines to copy, and reads the profile back to check.
+AICUI never edits the profile itself, so the app needs no profile permission.
+
+**D28, an offline button.** The panel icon's menu gets "Keep this computer offline". It switches networking off for
+the whole machine, and the panel says OFFLINE. The assistant then offers nothing that would go online, and says how
+to come back. "Go online to install updates" connects, updates, and goes back offline once the install is done. A
+test helper turned up a real problem along the way: run on the NVMe, the credential-helper test printed Ian's real
+GitHub token from the login keyring. It now runs without a session bus.
+
+**D7 and D51, a diagnosis that walks.** When a check finds a fault, code walks D51's tree, not the model. A card
+shows fix *n* of *N*, its steps and what fixed looks like, and **Check again** lets the rule decide. A fix that needs
+a restart is checked again once the assistant is back. Where the tree runs out, the person is offered **Think it
+through?**, never automatically: the coding model they already have reasons over the full report with a thinking
+budget. Measured first on 14 cases on the 4070. The 27B with thinking got 14 of 14 at about 74 s. Answering plainly
+also got 14 of 14 in 6 s, but sounded surer than its evidence. The 4B couldn't finish a thought (0 of 18). On the
+1080 Ti, four models all got 14 of 14, from 43 s (27B-A2.8B) to 152 s (27B dense, too slow on Pascal). Ian: the
+thinking model comes with installation as an offer matched to the card, never on the USB.
+
+**Faster edits, measured before turned on.** N-gram drafting makes a file given back with a change 3-7x faster
+(the 9B went from 40 to 166 tok/s on the 1080 Ti), and new code no faster. AICUI's coding run held at the same stages
+with it as without, so it's on for the coding role and off for the guide.
+
+**D29, D89 and D88, the Updates window.** This was the biggest piece, in four slices:
+- **What's waiting, in plain words.** The list is apt's own plan, security fixes first. Checking needs no
+  password; installing asks once. Every step is a real check: a Timeshift snapshot when it's set up (said when it
+  isn't), the download, every file's SHA-256 against the signed index, the install with nothing removed, and a
+  look afterwards for failed services or a needed restart.
+- **Holds and daily updates, both optional and off by default.** "Let new updates wait N days", "install by
+  themselves once a day", and a Hold menu on each update. Ian chose our own daily timer over Mint's, because Mint's
+  re-checks the servers after any step and a version published in between would skip the wait.
+- **Confirmations and an emergency path.** While the wait is on, a security fix whose CVEs Debian's security team
+  confirms (through OSV.dev, only CVE numbers sent) doesn't wait. One on CISA's list of exploited weaknesses goes
+  first. The CVEs come from the changelog inside the package itself, since Ubuntu's changelog server returned 404
+  for both of that day's security updates.
+- **A reason to hold.** The check reads the titles of posts on the oss-security list, where the xz backdoor was
+  first reported. A title that names the update's program and talks about a backdoor, malware or a compromised
+  release holds it until the person has looked. Replayed against the archive, the xz report holds liblzma5 and
+  xz-utils and nothing else.
+
+Then D88: "keep my computer updated", said in the person's own words, proposes those same settings on an Allow
+card. Ian's next sentence, "Can you put a hold on those updates?", went to a help card and changed nothing, so the
+hold is now read from the request too.
+
+**A slip, caught by the design.** Two test builds carried the development key. Installed on the NVMe, they replaced
+the release key, and apt refused our own repo (NO_PUBKEY). The new Updates window reported it as a failed check,
+which is exactly what it's for. The build script now says when it uses the development key, and test builds for
+real machines use the release public key.
+
+**A hold of our own.** An advisory for PHP ("php2shell") and a GitLab one came out. None of our machines run
+either. Ian's call: a warning to users waits two days, so there's time to make sure no one is pushing a campaign and
+a fix is out. Re-check 10-24.
+
+## 2026-10-22 to 10-23 — the guide reaches for Wikipedia, and learns to hold a conversation
+
+**D68, the guide's own tools** (Ian: "The AI is supposed to be able to use the tools"). A sum, price, percentage or
+equation goes to **calculate**: the model's text is parsed into SymPy, never run as Python. A subject to learn about
+goes to **Wikipedia**: a Kiwix shelf on this computer, with nothing sent, or the article online after the person
+agrees. Prompt v2.6 sends each question to the right one. On the A/B it took the D68 tasks from 8 of 34 to 34 of 34
+and cost 5 on the public set: two tool picks, and reply wording on how-tos.
+
+**Shelves, and the wrong article.** Kiwix's English "top" file has no Dandelion, and its title search offered
+"Dandelion Mind", a comedy tour. Pho became Wat Pho, a hammer became Hammer (Castlevania). A shelf now answers only
+with the article asked for, by its exact title or a name Wikipedia redirects to it. Ian chose two shelves per
+language: the best-known articles with their pictures (top maxi) and every article's summary (all mini, 18 million
+entries). An answer from the picture file brings the article's own photo, skipping logos (the Eiffel Tower's logo
+comes before its photo), and a locator map for a place. Ian also added two ideas to PLAN without deciding them:
+bilingual learning on the language shelves, with a tutor that asks rather than tells; and the whole computer on a
+cloud model by the person's own key ("Agents belong in the whole architecture, not a sidepiece add on").
+
+**"The responses fell flat."** Ian's first evening with it on the NVMe went wrong in a way the evals hadn't shown.
+- **Wrong tools.** "What does a coral snake look like?" went to the help, and a stray word found the sudo card. Pho
+  went to the web, which offered make.com. A newborn's weight went to the calculator as "3.5".
+- **Copying.** In a second conversation, after one web search, every subject went to the web. Watched on D-Bus, the
+  4B was copying whatever tool the recent turns had used.
+
+**Ian's design.** "This is what I have in memory about X — would you like to search the web for more?" Questions go
+to this computer's Wikipedia first, then Wikipedia online, then the web.
+- **Nothing here.** When nothing on the computer answers, the guide says what it knows, says that it's from memory,
+  and offers the next place on a card.
+- **Pages that don't answer.** When fetched pages don't answer, the 4B writes one marker word. The sidebar holds it
+  back as it streams and clears anything already shown, so the guide says "The article doesn't say." and goes on
+  from memory.
+
+**Measured, then decided.** A new eval asks Ian's questions in the middle of conversations of several shapes. With
+the history kept as the daemon kept it, Ian's own talk scored 2 or 3 of 10. Kept as the talk alone (what was asked
+and what was answered, no tool calls), it scored 7 or 8 of 10, and follow-ups still worked. The A/B of prompts:
+
+| | D68 | public | D84 | diagnostics | conversation |
+|---|---|---|---|---|---|
+| v2.6 (shipped) | 46/48 | 142 | 80 | 15 | 71/123 |
+| v2.7 (subjects named: things, animals, food, looks) | 47/48 | 140 | 82 | 16 | 76/123 |
+| v2.8 (v2.7 + detailed steps) | 47/48 | 138 | 81 | 16 | 73/123 |
+
+Ian adopted v2.7 and the plain history. On the NVMe, after three web searches in a row, "What is death?" went to
+this computer's Wikipedia, which Ian liked very much. Earlier that day, one web search had been enough to send
+every subject to the web.
+
+**A follow-up that lied.** After "Who shot John Lennon?", the question "Did he ever say why he did it?" was searched
+as typed. The pages were about dissociative identity disorder and another murder, and the guide answered "No, he
+never said why he did it." That's wrong: he has. With earlier turns, the guide now first rewrites the question so it
+stands alone ("Did Mark David Chapman ever say why he shot John Lennon?"). That rewrite is the query when the
+model's own query lacks the names, and the pages are checked against it. Four wordings were probed on 10 follow-ups
+and fresh questions in four languages. The one kept got 8 right and left 2 unchanged, and never dragged an old topic
+into a fresh question. A wording without its example changed a Japanese question's meaning. Asked again on the
+NVMe with the fix in, the Lennon pair went to Wikipedia and was answered right.
+
+**The help's stray words.** "What causes cancer?" found System Restore, whose card says "…if an update causes
+trouble". A card now counts only when the question has one of its own search words, its Windows name or its
+programs' names, not a word of its prose alone. That gained one on each labelled set, held-out included. Stricter
+rules cleared more subjects but lost real lookups ("how to take a screenshot" matches only one word). A subject
+that shares a real search word still finds a card: "why is the sky blue" finds the night light.
+
+**Updates, tested for real.** Later that evening Ian ran the new Updates window, and it stopped: "a downloaded file
+didn't match the signed list", on the 32-bit zlib1g. The file was genuine; its hash was the signed index's own.
+apt calls the package `zlib1g:i386` but saves the file without the `:i386`, and our check looked for the wrong name.
+It failed safe, nothing was installed, and a one-line fix let all four updates through after Ian entered his
+password.
+
+**Open.** A model check for a help card that isn't about the question (Ian's call, an A/B first). "Will I die
+someday?" got a dodge where a gentle yes was wanted. Web search still brings junk among the results (a dictionary's
+"WHY", the common cold for "how cold"). Articles are read only to their first 2,400 characters, so the coral
+snake's bands were missed, though its photo showed them.
