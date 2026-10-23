@@ -41,6 +41,10 @@ class LibraryError(Exception):
     pass
 
 
+class NoArticle(LibraryError):
+    """Wikipedia was reached and has nothing on it (the web may: Ian, 2026-10-23)."""
+
+
 def shelves(dirs: tuple[str, ...] = SHELVES) -> list[dict]:
     """The Wikipedia files on this computer: [{"path", "lang", "date", "title", "kind"}], whole articles before
     summaries, then newest first. Kiwix names the kind last: maxi (with pictures), nopic (the whole text), mini (each
@@ -197,6 +201,8 @@ def read_online(query: str, lang: str, articles: int = ARTICLES) -> dict:
             continue
         if text:
             sources.append({"n": len(sources) + 1, "title": title, "url": url, "text": text[:PAGE_CHARS]})
+    if not titles:
+        raise NoArticle("Wikipedia has no article on that")
     if not sources:
-        raise LibraryError("Wikipedia has no article on that")
+        raise LibraryError("Wikipedia's articles couldn't be read")
     return {"query": query, "sources": sources, "shelf": f"Wikipedia ({host})"}

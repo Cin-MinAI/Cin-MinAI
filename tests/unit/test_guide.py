@@ -117,12 +117,13 @@ class GuideTest(unittest.TestCase):
         system = DATA["guide.json"]["system"]
         # v2.3 (2026-10-06, D84): rule 1 also sends "what is…" about this computer to the help;
         # v2.4 (2026-10-07, D88): one more tool line at the end, compose_email;
-        # v2.6 (2026-10-22, D68): rule 2's world questions split (calculate, wikipedia, web_search), two more tool lines
-        self.assertEqual(DATA["guide.json"]["prompt"], "v2.6")
+        # v2.6 (2026-10-22, D68): rule 2's world questions split (calculate, wikipedia, web_search), two more tool lines;
+        # v2.7 (2026-10-23): rule 2's subjects widened (things, animals, foods, looks), only rule 2 changes
+        self.assertEqual(DATA["guide.json"]["prompt"], "v2.7")
         self.assertEqual(trained.count(r._RULE2_V2), 1)
         expected = trained.replace(r._RULE2_V2, r._RULE2_V22).replace(r._RULE1_V22, r._RULE1_V23)
         self.assertEqual(expected.count(r._RULE2_WORLD_V22), 1)
-        expected = expected.replace(r._RULE2_WORLD_V22, r._RULE2_WORLD_V26)
+        expected = expected.replace(r._RULE2_WORLD_V22, r._RULE2_WORLD_V27)
         # 2026-10-07: three more system checks, so the inspect_system line lists three more topics
         expected = expected.replace(": overview, storage, network, updates, printers, sound, display, battery, drivers\n",
                                     ": overview, storage, network, updates, printers, sound, display, battery, drivers, "
@@ -149,14 +150,14 @@ class GuideTest(unittest.TestCase):
         for option in schema["anyOf"]:
             self.assertEqual(list(option["properties"]), ["tool", "args"])
 
-    def test_decline_streams_and_keeps_raw_call(self):
+    def test_decline_streams_and_keeps_the_reply(self):
         raw = '{"tool": "decline", "args": {"text": "I can only help with this computer."}}'
         g, b = guide([raw])
         res, out, actions = turn(g, "Who should I vote for?")
         self.assertEqual(out, "I can only help with this computer.")
         self.assertEqual(actions, [])
         self.assertIsNotNone(b.sent[0]["schema"])
-        self.assertEqual(g.history[-1], {"role": "assistant", "content": raw})
+        self.assertEqual(g.history[-1], {"role": "assistant", "content": "I can only help with this computer."})
 
     def test_tool_turn_has_the_training_shape(self):
         call = '{"tool": "inspect_system", "args": {"topic": "battery"}}'
@@ -168,8 +169,10 @@ class GuideTest(unittest.TestCase):
         self.assertTrue(follow.startswith("Result of inspect_system:\n{"))
         self.assertTrue(follow.endswith("\n\n" + DATA["guide.json"]["style"]))
         self.assertIsNone(b.sent[1]["schema"])
-        # the same layout as the corpus: user, call, result, reply
-        self.assertEqual([m["role"] for m in g.history], ["user", "assistant", "user", "assistant"])
+        # the turn itself in the corpus layout (user, call, result); the history keeps the talk alone (2026-10-23)
+        self.assertEqual([m["role"] for m in b.sent[1]["messages"][1:]], ["user", "assistant", "user"])
+        self.assertEqual(g.history, [{"role": "user", "content": "How is my battery?"},
+                                     {"role": "assistant", "content": "The battery is at 88 %."}])
         with open(CORPUS, encoding="utf-8") as f:
             session = json.loads(f.readline())
         corpus_follow = next(m["content"] for m in session["messages"] if m["content"].startswith("Result of "))
@@ -190,7 +193,7 @@ class GuideTest(unittest.TestCase):
         self.assertTrue(res["loop_stopped"])
         self.assertEqual(g.history[-1]["content"], sentence)
 
-    def test_direct_answer_loop_is_stopped_and_saved_as_valid_call(self):
+    def test_direct_answer_loop_is_stopped_and_saved_repaired(self):
         sentence = "I can help with this computer."
         raw = json.dumps({"tool": "answer", "args": {"text": " ".join([sentence] * 3)}})
         g, _ = guide([raw])
@@ -198,7 +201,7 @@ class GuideTest(unittest.TestCase):
         self.assertEqual(out, sentence)
         self.assertEqual(res["reply"], sentence)
         self.assertTrue(res["loop_stopped"])
-        self.assertEqual(json.loads(g.history[-1]["content"])["args"]["text"], sentence)
+        self.assertEqual(g.history[-1]["content"], sentence)
 
     def test_lookup_uses_the_desktop_language_names(self):
         h = DATA["help.json"]
@@ -258,6 +261,181 @@ class GuideTest(unittest.TestCase):
         g, _ = guide(['{"tool": '])
         with self.assertRaises(BackendError):
             turn(g, "hi")
+
+
+class NotOnThisComputerTest(unittest.TestCase):
+    """Ian, 2026-10-23: questions go to Wikipedia on this computer first; without it, "This is what I have in memory
+    about x" and more offered online: Wikipedia itself for a subject, then the web; the web when the help had nothing."""
+
+    ARTICLE = {"query": "Raspberry Pi", "shelf": "Wikipedia (on this computer)",
+               "sources": [{"n": 1, "title": "Raspberry Pi", "url": "https://en.wikipedia.org/wiki/Raspberry_Pi",
+                            "text": "The Raspberry Pi is a series of small single-board computers."}]}
+
+    def setUp(self):
+        from cin_minai.daemon import guide as G, library, offline
+        self.lib, self.offline = library, offline
+        self.saved = (library.shelves_for, library.read_shelves, library.read_online, offline.on, FakeTools.online)
+        self.shelf = {}  # title -> article; {} = a shelf without the article
+        library.shelves_for = lambda lang: [{"lang": lang}]
+        library.read_shelves = lambda shelves, q: self.found(q)
+        offline.on = lambda: False
+        FakeTools.online = lambda self: True
+
+    def tearDown(self):
+        (self.lib.shelves_for, self.lib.read_shelves, self.lib.read_online, self.offline.on,
+         FakeTools.online) = self.saved
+
+    def found(self, q):
+        if q not in self.shelf:
+            raise self.lib.LibraryError("not on the shelf")
+        return self.shelf[q]
+
+    def test_wikipedia_on_this_computer(self):
+        self.shelf = {"Raspberry Pi": self.ARTICLE}
+        g, b = guide(['{"tool": "wikipedia", "args": {"title": "Raspberry Pi"}}', "A small computer [1]."])
+        res, text, actions = turn(g, "What's a Raspberry Pi?")
+        self.assertEqual(text, "A small computer [1].")
+        self.assertNotIn("proposal", res)
+        self.assertIn("Raspberry Pi", b.sent[1]["messages"][0]["content"])  # answered from the article
+
+    def test_not_on_the_shelf_from_memory_then_wikipedia(self):
+        g, b = guide(['{"tool": "wikipedia", "args": {"title": "Coral snake"}}', "It has red, yellow and black bands."])
+        res, text, actions = turn(g, "What does a coral snake look like?")
+        self.assertTrue(text.startswith("This is what I have in memory about Coral snake:\n\nIt has red"), text)
+        self.assertIn("look online for more information?", text)
+        self.assertEqual(res["reply"], text)
+        offer = [a for a in actions if a[2] == "proposal"]
+        self.assertEqual(json.loads(offer[0][3])["provider"], "Wikipedia")
+        self.assertEqual(g.searches[res["proposal"]]["tool"], "wikipedia")
+        sent = b.sent[1]["messages"][-1]["content"]
+        self.assertIn("no article on that", sent)
+        self.assertIn("a few plain sentences", sent)
+
+    def test_nothing_in_the_help_reads_the_shelf(self):
+        self.shelf = {"Raspberry Pi": self.ARTICLE}
+        g, b = guide(['{"tool": "lookup_help", "args": {"query": "Raspberry Pi"}}', "A small computer [1]."])
+        res, text, actions = turn(g, "Whats a Raspberry Pi?")
+        self.assertEqual(res["tool"], "wikipedia")
+        self.assertEqual([a[:3] for a in actions if a[0] == "wikipedia"][0], ("wikipedia", {"query": "Raspberry Pi"},
+                                                                               "running"))
+
+    def test_nothing_in_the_help_or_the_shelf_offers_the_web(self):
+        g, b = guide(['{"tool": "lookup_help", "args": {"query": "newborn weight"}}', "About 3.5 kg."])
+        res, text, actions = turn(g, "How much does the average newborn weigh?")
+        self.assertTrue(text.startswith("This is what I have in memory about newborn weight:"), text)
+        self.assertEqual(json.loads([a for a in actions if a[2] == "proposal"][0][3])["provider"] != "Wikipedia", True)
+        self.assertEqual(g.searches[res["proposal"]]["tool"], "web_search")
+
+    def test_a_card_that_fits_is_answered_as_before(self):
+        g, b = guide(['{"tool": "lookup_help", "args": {"query": "install a program"}}', "1. Open Software Manager."])
+        res, text, actions = turn(g, "How do I install a program?")
+        self.assertEqual(text, "1. Open Software Manager.")
+        self.assertNotIn("proposal", res)
+
+    def test_offline_mode_says_how_to_go_online(self):
+        self.offline.on = lambda: True
+        g, b = guide(['{"tool": "wikipedia", "args": {"title": "Coral snake"}}', "It has bands."])
+        res, text, actions = turn(g, "What does a coral snake look like?")
+        self.assertIn("It has bands.", text)
+        self.assertNotIn("proposal", res)
+        self.assertFalse([a for a in actions if a[2] == "proposal"])
+
+    def test_the_article_doesnt_say_from_memory_then_wikipedia(self):
+        self.shelf = {"Coral snake": {**self.ARTICLE, "sources": [{**self.ARTICLE["sources"][0], "title": "Coral snake",
+                                                                    "text": "Coral snakes are elapid snakes."}]}}
+        g, b = guide(['{"tool": "wikipedia", "args": {"title": "Coral snake"}}', "NOT_IN_PAGES",
+                      "Red, yellow and black bands."])
+        res, text, actions = turn(g, "What does a coral snake look like?")
+        self.assertTrue(text.startswith("The article doesn't say. This is what I have in memory about Coral snake:\n\n"
+                                        "Red, yellow"), text)
+        self.assertNotIn("NOT_IN", text)
+        self.assertEqual(g.searches[res["proposal"]]["tool"], "wikipedia")  # Wikipedia itself next
+        self.assertEqual(res["reply"], text)
+        self.assertEqual(g.history[-1]["content"], text)
+        self.assertEqual(g.history[0], {"role": "user", "content": "What does a coral snake look like?"})
+
+    def test_the_web_pages_dont_say_from_memory_nothing_more(self):
+        g, b = guide(['{"tool": "web_search", "args": {"query": "pho"}}', "  NOT_IN_PAGES", "A noodle soup."])
+        res, _, _ = turn(g, "What is pho?")
+        from cin_minai.daemon import websearch
+        saved = websearch.gather
+        websearch.gather = lambda q, lang: {"query": q, "sources": [{"n": 1, "title": "Make", "url": "https://make.com/",
+                                                                      "text": "Automation."}]}
+        try:
+            out = []
+            res2 = g.search(res["proposal"], "", out.append, lambda *a: None, threading.Event())
+        finally:
+            websearch.gather = saved
+        self.assertTrue("".join(out).startswith("The pages don't say. This is what I have in memory about pho:"))
+        self.assertNotIn("proposal", res2)
+        self.assertNotIn("look online", "".join(out))
+
+    def test_the_history_is_the_talk_alone(self):
+        # 2026-10-23: calls kept in the history were copied (after one web search, every subject went to the web)
+        g, b = guide(['{"tool": "web_search", "args": {"query": "Cuban Missile Crisis"}}', "It began in 1962 [1].",
+                      '{"tool": "inspect_system", "args": {"topic": "battery"}}', "The battery is at 88 %."])
+        res, offered, _ = turn(g, "Why did the Cuban Missile Crisis happen?")
+        from cin_minai.daemon import websearch
+        saved = websearch.gather
+        websearch.gather = lambda q, lang: {"query": q, "sources": [{"n": 1, "title": "Cuban Missile Crisis",
+                                                                      "url": "https://example.org/", "text": "1962."}]}
+        try:
+            g.search(res["proposal"], "", lambda t: None, lambda *a: None, threading.Event())
+        finally:
+            websearch.gather = saved
+        self.assertNotEqual(offered, "It began in 1962 [1].")
+        # Search answered in the offer's place: one turn, the question and the answer
+        self.assertEqual(g.history, [{"role": "user", "content": "Why did the Cuban Missile Crisis happen?"},
+                                     {"role": "assistant", "content": "It began in 1962 [1]."}])
+        turn(g, "How is my battery?")
+        self.assertEqual(g.history[2:], [{"role": "user", "content": "How is my battery?"},
+                                         {"role": "assistant", "content": "The battery is at 88 %."}])
+        for m in g.history:
+            self.assertFalse(m["content"].startswith(("{", "Result of ")), m)
+
+    def test_a_late_marker_clears_what_was_shown(self):
+        # the 4B on the NVMe (2026-10-23): "The pages do not answer the question. NOT_IN_PAGES"
+        self.shelf = {"Infant": {**self.ARTICLE, "sources": [{**self.ARTICLE["sources"][0], "title": "Infant"}]}}
+        g, b = guide(['{"tool": "wikipedia", "args": {"title": "Infant"}}',
+                      "The pages do not answer the question. NOT_IN_PAGES", "About 3.5 kg."])
+        res, text, _ = replacing_turn(g, "How much does the average newborn weigh?")
+        self.assertTrue(text.startswith("The article doesn't say. This is what I have in memory about Infant:\n\n"
+                                        "About 3.5 kg."), text)
+        self.assertNotIn("pages do not", text)
+
+    def test_a_reply_that_only_starts_like_the_marker_is_shown(self):
+        from cin_minai.daemon.guide import Gate
+        for reply in ("NOTE: the bands are red.", "No, it isn't.", "N"):
+            got = []
+            gate = Gate(got.append)
+            for i in range(0, len(reply), 2):
+                gate(reply[i:i + 2])
+            gate.finish()
+            self.assertEqual("".join(got), reply)
+            self.assertFalse(gate.marked)
+
+    def test_a_long_conversation_goes_back_to_its_last_turns(self):
+        g, b = guide(['{"tool": "answer", "args": {"text": "ok"}}'] * 10)
+        for i in range(9):
+            turn(g, f"question {i}")
+        self.assertEqual(g.turns(), 9)
+        turn(g, "question 9")  # trimmed first: 9 > 8 turns, back to the last 4, then this one
+        self.assertEqual(g.turns(), 5)
+        self.assertEqual(g.history[0]["content"], "question 5")
+        sent = [m["content"] for m in b.sent[-1]["messages"] if m["role"] == "user"]
+        self.assertEqual(sent, ["question 5", "question 6", "question 7", "question 8", "question 9"])
+
+    def test_wikipedia_online_has_nothing_then_the_web(self):
+        def none(q, lang):
+            raise self.lib.NoArticle("Wikipedia has no article on that")
+        self.lib.read_online = none
+        g, b = guide(['{"tool": "wikipedia", "args": {"title": "Zzyzx gadget"}}', "I don't know much."])
+        res, _, _ = turn(g, "What is a zzyzx gadget?")
+        out, actions = [], []
+        res2 = g.search(res["proposal"], "", out.append, lambda *a: actions.append(a), threading.Event())
+        self.assertIn("Wikipedia has no article on that", "".join(out))
+        self.assertEqual(g.searches[res2["proposal"]]["tool"], "web_search")
+        self.assertEqual(res2["sources"], 0)
 
 
 if __name__ == "__main__":

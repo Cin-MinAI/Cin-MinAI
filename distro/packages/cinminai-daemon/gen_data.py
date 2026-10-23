@@ -56,8 +56,12 @@ def build(repo: str) -> dict:
     # where; adopted 2026-10-22 (Ian) after two A/Bs on the 4070: D68 34/34 vs 8/34, public 139 vs 144 (two tool picks:
     # "What is Linux?" to Wikipedia, Japanese "solve quadratic equations" to the help; the rest reply wording on
     # how-tos rule 2 doesn't touch), D84 81 vs 80, terminal 20 = 20, create 3 vs 4, diagnostics 16 vs 17.
+    # v2.7 = v2.6 with rule 2's subjects naming things, animals and plants, foods and what something is or looks like,
+    # recipes off the web's list, and the calculator never for a number only remembered; adopted 2026-10-23 (Ian) after
+    # the A/B on the 4070: D68 47/48 vs 46/48, public 140 vs 142 ("teach me quadratic equations" in en/de left
+    # Wikipedia), D84 82 vs 80, diagnostics 16 vs 15, terminal/create/web equal, conversation 76/123 vs 71/123.
     # CINMINAI_GUIDE_PROMPT: a test daemon tries another prompt without changing what ships.
-    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.6")
+    R.PROMPT = os.environ.get("CINMINAI_GUIDE_PROMPT", "v2.7")
     guide = {
         "prompt": R.PROMPT,
         "system": R.system_prompt({}),

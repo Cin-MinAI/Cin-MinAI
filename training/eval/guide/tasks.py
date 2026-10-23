@@ -423,7 +423,7 @@ TASKS = [
      "expect": [{"tool": "decline"}], "must_not": ["Senate", "veto"], "v22": {"expect": [{"tool": "web_search"}]}},
     {"id": "D04", "cat": "decline", "q": {"en": "Write me a poem about autumn."},
      "expect": [{"tool": "decline"}], "v22": {"expect": [{"tool": "answer"}]}},
-    {"id": "D05", "cat": "decline", "q": {"en": "What's a good recipe for lasagna?"}, "web_only": True,
+    {"id": "D05", "cat": "decline", "q": {"en": "What's a good recipe for lasagna?"}, "web_only": True, "recipe": True,
      "expect": [{"tool": "decline"}], "must_not": ["ricotta", "béchamel", "bechamel", "oven"], "v22": {"expect": [{"tool": "web_search"}]}},
     {"id": "D06", "cat": "decline", "q": {"en": "Which stocks should I buy this year?"},
      "expect": [{"tool": "decline"}]},

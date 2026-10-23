@@ -86,6 +86,57 @@ class TextStream:
 PROPOSED = ("I've prepared this change: {summary}. It's shown below — nothing changes until you click Apply, "
             "and one Ctrl+Z in LibreOffice undoes it.")
 # the search offer's words are in say.py, in six languages
+# Nothing on this computer has it (Ian, 2026-10-23: "This is what I have in memory about x, would you like to search the
+# web for more information?"): the daemon says where the answer comes from and offers more; the model writes the middle.
+NOT_HERE = {"wikipedia": "This computer's Wikipedia has no article on that.",
+            "lookup_help": "Nothing in the built-in help or this computer's Wikipedia matches this."}
+NOT_IN_PAGES = "NOT_IN_PAGES"  # websearch.ANSWER: what the model writes when the pages don't answer the question
+FROM_MEMORY = ("Now write your reply to the user as plain text (not JSON), in the language of their message: what you "
+               "know about it, in a few plain sentences, without saying where it comes from (that is said for you). "
+               "Numbered steps only for something the person does, one action each, with enough detail to follow.")
+
+
+class Gate:
+    """Streams a reply from pages but never the marker NOT_IN_PAGES: a tail that could be its start is held back, and
+    when it comes (the 4B often writes "The pages don't answer the question. NOT_IN_PAGES"), what was shown is
+    cleared (the sidebar's Replace, as the reply guard uses) and the guide answers from memory instead."""
+
+    def __init__(self, emit: Callable[[str], None]) -> None:
+        self.emit, self.text, self.shown, self.marked = emit, "", 0, False
+
+    def feed(self, piece: str) -> None:
+        if self.marked:
+            return
+        self.text += piece
+        if NOT_IN_PAGES in self.text:
+            self.marked = True
+            replace = getattr(self.emit, "replace", None)
+            if self.shown and replace is not None:
+                replace("")
+            return
+        if not self.text.strip():
+            return
+        safe = len(self.text)
+        for k in range(min(len(NOT_IN_PAGES) - 1, len(self.text)), 0, -1):
+            if self.text.endswith(NOT_IN_PAGES[:k]):
+                safe -= k
+                break
+        if safe > self.shown and self.text[:safe].strip():
+            self.emit(self.text[self.shown:safe])
+            self.shown = safe
+
+    __call__ = feed
+
+    def replace(self, text: str) -> None:  # the reply guard's repair of what was shown (repetition.py)
+        replace = getattr(self.emit, "replace", None)
+        if not self.marked and replace is not None:
+            self.text, self.shown = text, len(text)
+            replace(text)
+
+    def finish(self) -> None:
+        if not self.marked and self.shown < len(self.text):
+            self.emit(self.text[self.shown:])
+            self.shown = len(self.text)
 
 
 class Guide:
@@ -117,32 +168,117 @@ class Guide:
                 found = library.read_online(query, self.tools.lang)
             else:
                 found = websearch.gather(query, self.tools.lang)
+        except library.NoArticle:  # Wikipedia, then the web (Ian, 2026-10-23): another place, so asked again
+            on_action(tool, {"query": query}, "done", json.dumps({"query": query, "sources": []}))
+            from .say import say
+            reply = say(self.tools.lang, "wiki_none")
+            on_text(reply)
+            sid = self.offer("web_search", query, offer["question"], on_action)
+            return {"reply": reply, "tool": tool, "args": {"query": query}, "sources": 0, "proposal": sid,
+                    "timings": []}
         except (websearch.SearchError, library.LibraryError) as e:
             self.searches[sid] = offer  # can be tried again (e.g. once online)
             raise BackendError(f"The search didn't work: {e}.")
-        return self.answer_from(found, offer["question"], tool, query, on_text, on_action, cancel)
+        turn = None
+        if offer.get("said") and self.history and self.history[-1]["content"] == offer["said"]:
+            del self.history[-2:]  # the offer's own turn, nothing since: the answer takes its place
+            turn = [{"role": "user", "content": offer["question"]}, {"role": "assistant", "content": offer["call"]}]
+        return self.answer_from(found, offer["question"], tool, query, on_text, on_action, cancel,
+                                then="web_search" if tool == "wikipedia" else None, turn=turn)
 
     def answer_from(self, found: dict, question: str, tool: str, query: str, on_text, on_action,
-                    cancel: threading.Event) -> dict:
-        """The reply from fetched material only (web pages, Wikipedia articles), each point with its number."""
+                    cancel: threading.Event, then: str | None = None, turn: list | None = None,
+                    recorded: tuple[str, str] | None = None) -> dict:
+        """The reply from fetched material only (web pages, Wikipedia articles), each point with its number. When they
+        don't answer the question (Ian, 2026-10-23): what the guide knows, said as that, and `then` offered (Wikipedia
+        itself after this computer's, the web after Wikipedia; nothing after the web).
+
+        turn: the person's message and the call, for the from-memory reply (default: a call made from the query);
+        recorded: (tool, words before the result) when the call was another tool's. The history keeps the talk alone
+        (remember)."""
         on_action(tool, {"query": query}, "done",
                   json.dumps({"query": query, "shelf": found.get("shelf", ""),
                               "sources": [{k: s[k] for k in ("n", "title", "url", "pictures") if k in s}
                                           for s in found["sources"]]},
                              ensure_ascii=False))
         prompt = websearch.answer_prompt(question, found)
-        guard = self.reply_guard(on_text)
+        gate = Gate(on_text)
+        guard = self.reply_guard(gate)
         try:
             reply, timings = self.backend.chat([{"role": "user", "content": prompt}], max_tokens=500,
                                                on_text=guard.feed, cancel=cancel)
             guard.finish()
+            gate.finish()
             loop_stopped = False
         except LoopDetected as e:
             reply, timings, loop_stopped = e.reply, {}, True
+        if turn is None:
+            turn = [{"role": "user", "content": question}, {"role": "assistant", "content": json.dumps(
+                {"tool": tool, "args": {"title" if tool == "wikipedia" else "query": query}}, ensure_ascii=False)}]
+        rec_tool, before_titles = recorded or (tool, "")
+        if gate.marked or NOT_IN_PAGES in reply:
+            from .say import say
+            lead = say(self.tools.lang, "not_in_article" if tool == "wikipedia" else "not_in_pages")
+            out = self.from_memory([{"role": "system", "content": self.data["system"]}] + self.history, turn, rec_tool,
+                                   before_titles + "The pages don't answer this.", {"query": query}, query, then,
+                                   on_text, on_action, cancel, [timings], lead=lead, question=question)
+            return {**out, "sources": len(found["sources"])}
         # the conversation goes on from here as if the guide had answered (follow-up questions work)
-        self.history += [{"role": "user", "content": question}, {"role": "assistant", "content": reply}]
+        self.remember(turn[0], reply)
         return {"reply": reply, "tool": tool, "args": {"query": query}, "sources": len(found["sources"]),
                 "timings": [timings], "loop_stopped": loop_stopped}
+
+    def offer(self, tool: str, query: str, question: str, on_action, call: str | None = None) -> str:
+        """A search card (D55): the sidebar shows exactly what would be sent; nothing goes until the user clicks
+        Search. Only the newest offer stands. Returns its id. call: the model's call, kept in the history."""
+        import uuid
+        sid = uuid.uuid4().hex[:12]
+        self.searches = {sid: {"query": query, "question": question, "tool": tool, "call": call}}
+        provider = "Wikipedia" if tool == "wikipedia" else websearch.PROVIDER
+        on_action("web_search", {"query": query}, "proposal", json.dumps(
+            {"id": sid, "query": query, "online": self.tools.online(), "provider": provider}, ensure_ascii=False))
+        return sid
+
+    def from_memory(self, before: list, turn: list, tool: str, result: str, args: dict, subject: str,
+                    offer_tool: str | None, on_text, on_action, cancel: threading.Event, timings: list,
+                    lead: str = "", question: str | None = None) -> dict:
+        """Nothing here answers it: what the guide knows, said as that, then more offered online (`offer_tool`:
+        Wikipedia for a subject, the web when the help had nothing; None after the web). In offline mode, how to go
+        online instead of a card. before: the system prompt and history; turn: the person's message and the call."""
+        from .say import say
+        lang = self.tools.lang
+        intro = (lead + " " if lead else "") + say(lang, "memory_intro", subject=subject)
+        on_text(intro + "\n\n")
+        followup = {"role": "user", "content": self.data["result_format"].format(
+            tool=tool, result=result, style=FROM_MEMORY)}
+        guard = self.reply_guard(on_text)
+        try:
+            reply, t2 = self.backend.chat(before + turn + [followup],
+                                          max_tokens=600, on_text=guard.feed, cancel=cancel)
+            guard.finish()
+            timings.append(t2)
+            loop_stopped = False
+        except LoopDetected as e:
+            reply, loop_stopped = e.reply, True
+        out = {"tool": tool, "args": args, "timings": timings, "loop_stopped": loop_stopped}
+        more = ""
+        if offer_tool and offline.on():
+            more = offline.words("assistant", lang)
+        elif offer_tool:
+            more = say(lang, "memory_more" if self.tools.online() else "memory_more_offline")
+            out["proposal"] = self.offer(offer_tool, subject, question or turn[0]["content"], on_action)
+        if more:
+            on_text("\n\n" + more)
+        reply = f"{intro}\n\n{reply}" + (f"\n\n{more}" if more else "")
+        self.remember(turn[0], reply)
+        return {**out, "reply": reply}
+
+    def remember(self, user: dict, reply: str) -> None:
+        """A turn kept as the talk alone: the person's message and the reply the person saw, no calls or results.
+        2026-10-23: with the calls kept, the 4B copied the tools of the turns before (after the help, subjects went to
+        the help; after one web search, every subject to the web): Ian's talk 3/11 on the conversation eval, 7/10 kept
+        plain (prompt v2.7); follow-ups ("How cold does it get?") still work, the reply carries what was said."""
+        self.history += [user, {"role": "assistant", "content": reply}]
 
     def document(self) -> tuple[dict | None, str, dict]:
         """(the shared document or None, the system prompt, the schema): with a document shared, the prompt
@@ -169,13 +305,17 @@ class Guide:
         on_cpu = self.backend.status().build == "cpu"
         return int(self.cfg["cpu_history_chars"] if on_cpu else self.cfg["history_chars"])
 
+    def turns(self) -> int:
+        return sum(m["role"] == "user" and not m["content"].startswith("Result of ") for m in self.history)
+
     def trim(self) -> None:
-        """Drop whole turns from the start until the history is under half the budget (then the
-        prompt cache holds for a while)."""
+        """Drop whole turns from the start until the history is under half the budget, and past `history_turns`
+        turns back to the last half of them (in steps: then the prompt cache holds for a while). 2026-10-23: after
+        about 23 turns the guide sent subjects to the help that it sends to Wikipedia in a fresh conversation."""
         size = lambda: sum(len(m["content"]) for m in self.history)
-        if size() <= self.budget():
-            return
-        while self.history and size() > self.budget() // 2:
+        most = int(self.cfg.get("history_turns", 8))
+        over_size, over_turns = size() > self.budget(), self.turns() > most
+        while self.history and ((over_size and size() > self.budget() // 2) or (over_turns and self.turns() > most // 2)):
             del self.history[0]
             while self.history and not (self.history[0]["role"] == "user"
                                         and not self.history[0]["content"].startswith("Result of ")):
@@ -244,8 +384,7 @@ class Guide:
             except LoopDetected as e:
                 tool = stream.tool or "answer"
                 args = {"text": e.reply}
-                raw = json.dumps({"tool": tool, "args": args}, ensure_ascii=False)
-                self.history += [user, {"role": "assistant", "content": raw}]
+                self.remember(user, e.reply)
                 return {"reply": e.reply, "tool": tool, "args": args, "timings": timings,
                         "loop_stopped": True}
             timings.append(t1)
@@ -258,7 +397,7 @@ class Guide:
                 reply = str(args.get("text", ""))
                 if stream.pos is None:  # the stream didn't recognise the layout: send the text whole
                     on_text(reply)
-                self.history += [user, {"role": "assistant", "content": raw}]
+                self.remember(user, reply)
                 return {"reply": reply, "tool": tool, "args": args, "timings": timings}
             if tool == "wikipedia":
                 shelves = library.shelves_for(self.tools.lang)
@@ -270,31 +409,27 @@ class Guide:
                     except library.LibraryError:
                         found = None  # not on the shelves (a "top articles" file alone): Wikipedia itself is offered
                     if found is not None:
-                        out = self.answer_from(found, text, tool, query, on_text, on_action, cancel)
+                        out = self.answer_from(found, text, tool, query, on_text, on_action, cancel, then=tool,
+                                               turn=[user, {"role": "assistant", "content": raw}])
                         out["timings"] = timings + out["timings"]
                         return out
-                tool = "web_search" if offline.on() else tool  # offline: said the way a search is
+                # not on this computer: what the guide knows, then Wikipedia itself offered (Ian, 2026-10-23)
+                return self.from_memory(messages[:-1], [user, {"role": "assistant", "content": raw}], tool,
+                                        NOT_HERE[tool], args, query, tool, on_text, on_action, cancel, timings)
             if tool == "web_search" and offline.on():  # D28: offline mode offers no search, it says how to go online
                 reply = offline.words("assistant", self.tools.lang)
                 on_text(reply)
-                self.history += [user, {"role": "assistant", "content": reply}]
+                self.remember(user, reply)
                 return {"reply": reply, "tool": "offline", "args": args, "timings": timings}
-            if tool in ("web_search", "wikipedia"):
+            if tool == "web_search":
                 # nothing is sent here: the sidebar shows the query; the user clicks Search (D55, §7.5)
-                import uuid
-                sid = uuid.uuid4().hex[:12]
-                if tool == "wikipedia":  # D68: only the subject goes, to Wikipedia in the person's language
-                    query, provider = str(args.get("title", "")).strip()[:200] or text[:200], "Wikipedia"
-                else:
-                    query, provider = intent.search_query(str(args.get("query", "")), text), websearch.PROVIDER
-                self.searches = {sid: {"query": query, "question": text, "tool": tool}}  # only the newest offer stands
-                online = self.tools.online()
-                on_action("web_search", {"query": query}, "proposal", json.dumps(
-                    {"id": sid, "query": query, "online": online, "provider": provider}, ensure_ascii=False))
+                query = intent.search_query(str(args.get("query", "")), text)
+                sid = self.offer(tool, query, text, on_action, call=raw)
                 from .say import say
-                reply = say(self.tools.lang, "search_offer" if online else "search_offline")
+                reply = say(self.tools.lang, "search_offer" if self.tools.online() else "search_offline")
                 on_text(reply)
-                self.history += [user, {"role": "assistant", "content": raw}]
+                self.searches[sid]["said"] = reply  # Search answers in this turn's place, if nothing came between
+                self.remember(user, reply)
                 return {"reply": reply, "tool": tool, "args": {"query": query}, "proposal": sid, "timings": timings}
             try:
                 if tool in edits:
@@ -303,7 +438,7 @@ class Guide:
                     on_action(tool, args, "proposal", json.dumps(pv, ensure_ascii=False, default=str))
                     reply = PROPOSED.format(summary=pv.get("summary", "an edit").rstrip("."))
                     on_text(reply)
-                    self.history += [user, {"role": "assistant", "content": raw}]
+                    self.remember(user, reply)
                     return {"reply": reply, "tool": tool, "args": args, "proposal": pv["id"], "timings": timings}
                 on_action(tool, args, "running", "")
                 result = self.run_tool(tool, args, doc, text)
@@ -315,6 +450,25 @@ class Guide:
                 continue
             break
         on_action(tool, args, "done", result)
+        if tool == "lookup_help" and self.last_card is None and not self.terminal_question and doc is None:
+            # nothing in the help (Ian, 2026-10-23): Wikipedia on this computer first, then what the guide knows
+            query = str(args.get("query", "")).strip()[:200]
+            shelves = library.shelves_for(self.tools.lang) if query else []
+            try:
+                found = library.read_shelves(shelves, query) if shelves else None
+            except library.LibraryError:
+                found = None
+            if found is not None:
+                on_action("wikipedia", {"query": query}, "running", "")
+                out = self.answer_from(found, text, "wikipedia", query, on_text, on_action, cancel, then="wikipedia",
+                                       turn=[user, {"role": "assistant", "content": raw}],
+                                       recorded=(tool, "Nothing in the built-in help matches this. This computer's "
+                                                       "Wikipedia has:\n"))
+                out["timings"] = timings + out["timings"]
+                return out
+            return self.from_memory(messages[:-1], [user, {"role": "assistant", "content": raw}], tool,
+                                    NOT_HERE[tool], args, query or text[:200], "web_search", on_text, on_action, cancel,
+                                    timings)
         if tool == "inspect_system":  # a fault found: its tree is walked on a card (D51, D7), the guide explains
             self.tools.asked = text  # the person's words, for Think it through at the tree's end (D7)
             step = self.tools.walk_start(result)
@@ -327,7 +481,7 @@ class Guide:
         direct = facts.direct_reply(tool, args, result, self.tools.lang)
         if direct:  # a plain fact (the time): said by the daemon, the same way every time
             on_text(direct)
-            self.history += [user, {"role": "assistant", "content": raw}, followup, {"role": "assistant", "content": direct}]
+            self.remember(user, direct)
             return {"reply": direct, "tool": tool, "args": args, "result": result, "timings": timings,
                     "loop_stopped": False}
         guard = self.reply_guard(on_text)
@@ -339,7 +493,7 @@ class Guide:
             loop_stopped = False
         except LoopDetected as e:
             reply, loop_stopped = e.reply, True
-        self.history += [user, {"role": "assistant", "content": raw}, followup, {"role": "assistant", "content": reply}]
+        self.remember(user, reply)
         out = {"reply": reply, "tool": tool, "args": args, "result": result, "timings": timings,
                "loop_stopped": loop_stopped}
         if think:

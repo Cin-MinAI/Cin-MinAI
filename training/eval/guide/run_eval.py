@@ -152,10 +152,10 @@ D68_TOOLS = {
 def tools_for(doc: str | None) -> dict:
     # appended last, the way the office tools follow answer/decline: the v2 list itself stays as trained
     extra = {}
-    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6") and not doc:
-        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5", "v2.6") else {}),
-                 **(EMAIL_TOOLS if PROMPT in ("v2.4", "v2.5", "v2.6") else {}),
-                 **(D68_TOOLS if PROMPT == "v2.6" else {})}
+    if PROMPT in ("v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8") and not doc:
+        extra = {**CREATE_TOOLS, **(WEB_TOOLS if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8") else {}),
+                 **(EMAIL_TOOLS if PROMPT in ("v2.4", "v2.5", "v2.6", "v2.7", "v2.8") else {}),
+                 **(D68_TOOLS if PROMPT in ("v2.6", "v2.7", "v2.8") else {})}
     return {**GUIDE_TOOLS, **(OFFICE_TOOLS[doc] if doc else {}), **extra}
 
 
@@ -223,6 +223,13 @@ STYLE_V23 = ("Now write your reply to the user as plain text (not JSON), in the 
 # v2.5 (2026-10-07, round 3): after "what time is it?" the 4B added "1. Click Restart … 2. Wait …" from the earlier
 # topic; v2.4's instruction asks for steps whenever there are two. One clause more.
 STYLE_V25 = STYLE_V23 + " Steps only for what the person does next; a plain fact needs none."
+# v2.8 (2026-10-23, Ian: "Detailed numbered steps"): v2.7, and each step says what to click and what the person will
+# see. No clause against steps (v2.5's cost diagnostics 17 -> 14): facts stay plain through the Wikipedia and
+# from-memory replies, which have their own instructions.
+STYLE_V28 = ("Now write your reply to the user as plain text (not JSON), in the language of their message: "
+             "one short sentence, then numbered steps if there are two or more, one action each, saying what to "
+             "click and what the person will see, using the names exactly as they appear above. Keep the help's "
+             "everyday comparison and every caution it gives.")
 # Prompt v2.2 (2026-10-01, D54 + D55): v2.1 with rule 2 rewritten — knowledge questions go to web_search (the
 # user sees the query and clicks Search before anything is sent), writing is in scope, advice that decides for
 # the person stays declined. Only rule 2 changes (asserted); one tool more.
@@ -260,6 +267,20 @@ _RULE2_WORLD_V26 = ("2. A sum, price, percentage or equation to work out: call c
                     "is sent until the user agrees; you answer from what they let you fetch).")
 assert SYSTEM_V23.count(_RULE2_WORLD_V22) == 1
 SYSTEM_V26 = SYSTEM_V23.replace(_RULE2_WORLD_V22, _RULE2_WORLD_V26)
+# Prompt v2.7 (2026-10-23, Ian on the NVMe): "what does a coral snake look like?", "what's a Raspberry Pi?" and the Golden
+# Gate Bridge went to the help (a stray word found the sudo card), "how do you make pho, where does it come from?" to the
+# web (make.com), a newborn's weight to the calculator as "3.5". Ian: questions go to Wikipedia on this computer first.
+# Rule 2's subject list names things, animals, foods and what something looks like; recipes leave the web's list; the
+# calculator is for working something out, not a remembered number. Only rule 2 changes (asserted).
+_RULE2_WORLD_V27 = ("2. A sum, price, percentage or equation to work out: call calculate with it; never work it out "
+                    "yourself, and never call it with a number you only remember. A subject to learn about — a person, "
+                    "a place, a thing, an animal or plant, a food, an event, an idea, what something is or looks like, "
+                    "how it works (history, science, school subjects, maths included): call wikipedia with the "
+                    "article's title. News, weather, sports results "
+                    "and anything recent: call web_search with a short search query in the user's language (nothing "
+                    "is sent until the user agrees; you answer from what they let you fetch).")
+assert SYSTEM_V26.count(_RULE2_WORLD_V26) == 1
+SYSTEM_V27 = SYSTEM_V26.replace(_RULE2_WORLD_V26, _RULE2_WORLD_V27)
 WEB_TOOLS = {
     "web_search": ({"query": S}, "search the web for a question about the world: a short search query in the user's "
                                  "language (the user sees it and agrees before anything is sent)"),
@@ -268,7 +289,8 @@ PROMPT = "v1"
 
 
 def style() -> str:
-    return (STYLE_V25 if PROMPT == "v2.5" else STYLE_V23 if PROMPT in ("v2.3", "v2.4", "v2.6") else STYLE_V2) \
+    return (STYLE_V25 if PROMPT == "v2.5" else STYLE_V28 if PROMPT == "v2.8"
+            else STYLE_V23 if PROMPT in ("v2.3", "v2.4", "v2.6", "v2.7") else STYLE_V2) \
         if PROMPT.startswith("v2") else STYLE
 
 
@@ -294,7 +316,7 @@ def system_prompt(task: dict) -> str:
                          "it up or read it again. New entries go in next_empty_row.\n")
     else:
         document = "\nNo document is shared.\n"
-    system = (SYSTEM_V26 if PROMPT == "v2.6" and not doc else SYSTEM_V23 if PROMPT in ("v2.3", "v2.4", "v2.5") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
+    system = (SYSTEM_V27 if PROMPT in ("v2.7", "v2.8") and not doc else SYSTEM_V26 if PROMPT == "v2.6" and not doc else SYSTEM_V23 if PROMPT in ("v2.3", "v2.4", "v2.5") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
               else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM)
     return system.format(document=document, tools=tools)
 
@@ -326,11 +348,12 @@ def items() -> list[dict]:
             if "result" in t:
                 it["result"] = json.loads(resolve(json.dumps(t["result"], ensure_ascii=False), lang))
             it["must"] = [[resolve(a, lang) for a in group] for group in t.get("must", [])]
-            if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5", "v2.6") and "v22" in t:
+            if PROMPT in ("v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8") and "v22" in t:
                 # D54/D55: no longer a decline; the action is checked, the decline's reply checks don't apply
                 it.update(expect=t["v22"]["expect"], must=[], must_not=[], b_skip=True)
-            if PROMPT == "v2.6" and not t.get("web_only") and any(e.get("tool") == "web_search" for e in it["expect"]):
-                # D68: a subject to learn about may go to Wikipedia instead of the web (not news, weather, results, recipes)
+            web_only = t.get("web_only") and not (PROMPT in ("v2.7", "v2.8") and t.get("recipe"))  # v2.7: dishes too
+            if PROMPT in ("v2.6", "v2.7", "v2.8") and not web_only and any(e.get("tool") == "web_search" for e in it["expect"]):
+                # D68: a subject to learn about may go to Wikipedia instead of the web (not news, weather, results)
                 it["expect"] = it["expect"] + [{"tool": "wikipedia"}]
             out.append(it)
     return out
@@ -457,8 +480,28 @@ def names_for(lang: str) -> set[str]:
     return {row.get(lang) or row.get("en", "") for row in list(LABELS.values()) + list(UI.values())}
 
 
+def history(turns: list) -> list[dict]:
+    """Earlier turns in the daemon's own shape (guide.py): a tool's call, its result and the reply. A sixth element
+    "before" gives the shape before 2026-10-23: an answer from Wikipedia kept as the question and the reply alone, a
+    web search as the question, the call, the question again and the reply."""
+    out = []
+    for q, tool, args, result, reply, *shape in turns:
+        out.append({"role": "user", "content": q})
+        call = {"role": "assistant", "content": json.dumps({"tool": tool, "args": args}, ensure_ascii=False)}
+        if shape == ["plain"]:  # the talk alone: what was asked and answered, no calls or results
+            pass
+        elif shape == ["before"]:
+            out += [call, {"role": "user", "content": q}] if tool == "web_search" else []
+        elif result is not None:
+            out += [{"role": "assistant", "content": json.dumps({"tool": tool, "args": args}, ensure_ascii=False)},
+                    {"role": "user", "content": f"Result of {tool}:\n{result}\n\n{style()}"}]
+        out.append({"role": "assistant", "content": reply})
+    return out
+
+
 def run_item(srv: Server, it: dict, loop_detector: bool = False) -> dict:
-    messages = [{"role": "system", "content": system_prompt(it)}, {"role": "user", "content": it["q"]}]
+    messages = ([{"role": "system", "content": system_prompt(it)}] + history(it.get("history", []))
+                + [{"role": "user", "content": it["q"]}])
     sch = schema(it.get("doc"))
     raw, ta = srv.chat(messages, sch if it.get("doc") else narrow(sch, it["q"]), 700)
     try:
@@ -539,7 +582,7 @@ def main() -> None:
     ap.add_argument("--loop-detector", action="store_true",
                     help="score the deterministic repaired reply the product shows when generation loops")
     ap.add_argument("--tasks", help="tasks file (default: tasks.py here)")
-    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6"], default="v1")
+    ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")

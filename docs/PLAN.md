@@ -220,7 +220,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D65 | filled | standing rule |
 | D66 | open | memory and personality (M4b) |
 | D67 | partly | action record and walls (M4 slices 1-3); memory atoms not built |
-| D68 | partly | web search and fetch; the calculator (SymPy) and Wikipedia (a shelf on this computer, or online after the person agrees) are the guide's own tools, prompt v2.6 (2026-10-22); a Library view for the shelves, Z3, Khan Academy, Lean, LaTeX not built |
+| D68 | partly | web search and fetch; the calculator (SymPy) and Wikipedia (a shelf on this computer, or online after the person agrees) are the guide's own tools, prompt v2.7 (2026-10-23; v2.6 2026-10-22), the history kept as the talk alone (2026-10-23); a Library view for the shelves, Z3, Khan Academy, Lean, LaTeX not built |
 | D69 | filled | standing rule (guide and AICUI ask) |
 | D70 | filled | the org, the download, the path |
 | D71 | filled | CinMin/Cin-MinAI-OS |

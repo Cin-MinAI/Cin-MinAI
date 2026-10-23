@@ -30,6 +30,7 @@ DEFAULTS = {
         "data_dir": "/usr/share/cinminai/guide",
         "history_chars": 12000,       # on the graphics card
         "cpu_history_chars": 3000,    # on the processor: every token read costs time (D27)
+        "history_turns": 8,           # past this, back to the last half: a long talk pulls the 4B's choices (2026-10-23)
         "preload": "auto",            # load the model when the daemon starts; auto = not on the live USB
     },
     "actions": {

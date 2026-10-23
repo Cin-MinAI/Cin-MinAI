@@ -5,6 +5,8 @@ tool. Same format as tasks.py. Stage B for the calculator: the reply must carry 
 commas allowed).
 
     python3 run_eval.py --prompt v2.6 --tasks tasks_d68.py --url ...
+
+v2.7 (2026-10-23) is measured on the same items plus K05-K11, Ian's own wording from the NVMe.
 """
 
 from tasks import BRANDS  # noqa: F401  (run_eval loads BRANDS from the tasks file)
@@ -45,6 +47,29 @@ TASKS = [
      "expect": [{"tool": "wikipedia", "args": {"title": "~rom|röm"}}]},
     {"id": "K04", "cat": "wikipedia", "q": {"en": "How do volcanoes form?", "es": "¿Cómo se forman los volcanes?"},
      "expect": [{"tool": "wikipedia"}, {"tool": "web_search"}]},
+    # Ian's wording on the NVMe (2026-10-23): v2.6 sent these to the help, the web or the calculator, never Wikipedia.
+    # "What's a Raspberry Pi?" may go to the help too: with nothing there, the daemon reads the shelf (guide.py).
+    {"id": "K05", "cat": "wikipedia",
+     "q": {"en": "What does a coral snake look like?", "es": "¿Cómo es una serpiente coral?",
+           "de": "Wie sieht eine Korallenotter aus?", "ja": "サンゴヘビはどんな見た目？"},
+     "expect": [{"tool": "wikipedia", "args": {"title": "~coral|korallen|サンゴ"}}]},
+    {"id": "K06", "cat": "wikipedia", "q": {"en": "Can you show a picture of a coral snake?"},
+     "expect": [{"tool": "wikipedia", "args": {"title": "~coral"}}]},
+    {"id": "K07", "cat": "wikipedia",
+     "q": {"en": "How do you make Pho and where does it come from? Whats it normally look like?",
+           "fr": "Comment fait-on le phở et d'où vient-il ? À quoi ressemble-t-il ?"},
+     "expect": [{"tool": "wikipedia", "args": {"title": "~ph"}}]},
+    {"id": "K08", "cat": "wikipedia", "q": {"en": "How much does the average newborn weigh?",
+                                            "pt": "Quanto pesa em média um recém-nascido?"},
+     "expect": [{"tool": "wikipedia"}, {"tool": "web_search"}]},
+    {"id": "K09", "cat": "wikipedia", "q": {"en": "Whats a Raspberry Pi?"},
+     "expect": [{"tool": "wikipedia", "args": {"title": "~raspberry"}}, {"tool": "lookup_help"}]},
+    {"id": "K10", "cat": "wikipedia", "q": {"en": "What does a transistor look like?"},
+     "expect": [{"tool": "wikipedia", "args": {"title": "~transistor"}}]},
+    {"id": "K11", "cat": "wikipedia",
+     "q": {"en": "Whats th Golden Gate Bridge look like? How long is it?",
+           "es": "¿Cómo es el puente Golden Gate? ¿Cuánto mide?", "ja": "ゴールデンゲートブリッジはどんな見た目？長さは？"},
+     "expect": [{"tool": "wikipedia", "args": {"title": "~golden|ゴールデン"}}]},
 
     # ---------------- still the web: news, weather, results ---------------------------------------------------
     {"id": "R01", "cat": "web", "q": {"en": "What's the weather in Madrid today?",
