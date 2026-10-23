@@ -76,6 +76,7 @@ class HelpIndex:
         self.names = {**self.labels, **data.get("ui", {})}  # + names inside programs ({ui_…}): only filled in
         self.cards = {c["id"]: c for c in data["cards"]}
         self.docs: dict[str, Counter] = {}
+        self.anchors: dict[str, set] = {}  # the words a card is found by: all its fields but its prose
         for c in data["cards"]:
             keys = re.findall(r"\{(\w+)\}", c["card"])
             fields = {
@@ -90,6 +91,7 @@ class HelpIndex:
                 for t in tokens(text):
                     tf[t] += FIELD_WEIGHT[field]
             self.docs[c["id"]] = tf
+            self.anchors[c["id"]] = {t for f, text in fields.items() if f != "card" for t in tokens(text)}
         n = len(self.docs)
         df = Counter(t for tf in self.docs.values() for t in tf)
         self.idf = {t: math.log(1 + (n - d + 0.5) / (d + 0.5)) for t, d in df.items()}
@@ -101,9 +103,17 @@ class HelpIndex:
             return cls(json.load(f))
 
     def rank(self, query: str) -> list[tuple[str, float]]:
+        """Cards by score. A card counts only when the query has one of the words it is found by (its id, search
+        words, Windows habit or programs' names), not words of its prose alone. 2026-10-23: "what causes cancer"
+        found System Restore ("...if an update causes trouble"), so the guide answered without saying it was from
+        memory and offered nothing; measured on tests/data/lookup_queries.jsonl: sessions 462 vs 461 of 511, eval
+        79 vs 78 of 80, held-out 37 vs 36 of 47, and 3 of 35 subject queries (cancer, vaccines, a car engine) no
+        longer find a card. A subject sharing a search word ("why is the sky blue": the night light) still does."""
         q = Counter(tokens(query))
         scores = []
         for cid, tf in self.docs.items():
+            if not q.keys() & self.anchors[cid]:
+                continue
             length = sum(tf.values())
             s = 0.0
             for t in q:

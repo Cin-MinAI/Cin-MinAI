@@ -165,6 +165,12 @@ class HelpCards(unittest.TestCase):
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 
+    def test_a_word_of_a_cards_prose_alone_finds_nothing(self):
+        # NVMe 2026-10-23: "what causes cancer" found System Restore ("...if an update causes trouble")
+        for q in ("what causes cancer", "how do vaccines work", "how does a car engine work"):
+            self.assertIsNone(self.index.lookup(q, "en")[0], q)
+        self.assertEqual(self.index.lookup("undo a bad update", "en")[0], "system_restore")
+
     def test_names_in_the_users_language(self):
         cid, text = self.index.lookup("Logithèque installer programme", "fr")
         self.assertEqual(cid, "install")
