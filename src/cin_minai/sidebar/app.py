@@ -181,7 +181,9 @@ class Sidebar(Gtk.Application):
         self.chat = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, name="chat")
         self.scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
         self.scroll.add(self.chat)
+        self.at_bottom = True  # follow the newest text only while the person is down there (Ian, 2026-10-24)
         self.scroll.get_vadjustment().connect("changed", self.follow)
+        self.scroll.get_vadjustment().connect("value-changed", self.scrolled)
         self.hello()
 
         # input
@@ -301,7 +303,18 @@ class Sidebar(Gtk.Application):
         row.show_all()
 
     def follow(self, adj: Gtk.Adjustment) -> None:
-        adj.set_value(adj.get_upper() - adj.get_page_size())  # keep the newest text in view
+        """Keep the newest text in view — unless the person scrolled up: the Models view's file checks kept adding
+        lines and pulled them away from the Download button they were about to click (Ian, 2026-10-24)."""
+        if self.at_bottom:
+            adj.set_value(adj.get_upper() - adj.get_page_size())
+
+    def scrolled(self, adj: Gtk.Adjustment) -> None:
+        self.at_bottom = adj.get_value() >= adj.get_upper() - adj.get_page_size() - 24
+
+    def to_bottom(self) -> None:
+        """Something the person started (a question, a job): follow its answer again."""
+        self.at_bottom = True
+        self.follow(self.scroll.get_vadjustment())
 
     def show(self) -> None:
         self.win.show()
@@ -394,8 +407,9 @@ class Sidebar(Gtk.Application):
         busy = self.rid is not None
         self.stop.set_visible(busy)
         self.go.set_visible(not busy)
-        if self.reply is not None and not self.reply_started:
-            self.reply.set_text(words.waiting(state, status.get("build", ""), status.get("detail", "")))
+        if self.reply is not None and not self.reply_started:  # a job keeps its own words ("Getting the model…")
+            self.reply.set_text(getattr(self, "job_waiting", None) or
+                                words.waiting(state, status.get("build", ""), status.get("detail", "")))
 
     def update_now(self, button) -> None:
         button.set_sensitive(False)
@@ -492,6 +506,8 @@ class Sidebar(Gtk.Application):
         if not self.proxy:
             self.pending_ask = text
             return
+        self.to_bottom()
+        self.job_waiting = None
         self.bubble("user", text)
         self.terminal_turn = False
         self.reply = self.bubble("assistant", words.waiting(self.state(), (self.prop("Status", {}) or {}).get("build", "")))
@@ -952,7 +968,8 @@ class Sidebar(Gtk.Application):
                     return
         if not self.proxy or self.rid is not None:
             return
-        self.reply = self.bubble("assistant", "Writing today's entry…")
+        self.job_waiting = "Writing today's entry…"
+        self.reply = self.bubble("assistant", self.job_waiting)
         self.reply.get_style_context().add_class("waiting")
         self.reply_started = False
         self.rid = -1
@@ -1124,11 +1141,13 @@ class Sidebar(Gtk.Application):
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
 
-    def models_view(self) -> None:
+    def models_view(self, opened: bool = True) -> None:
         """Which model does each job, and the models on this computer (SPEC §22.3): give a job another model that
         runs here, or our pick again. Help and the system stay with the guide (D94)."""
         if not self.proxy:
             return
+        if opened:  # opened by the person, not refreshed: show it (a refresh leaves them where they were)
+            self.to_bottom()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
         title = Gtk.Label(label=words.t("models"), xalign=0)
@@ -1141,7 +1160,7 @@ class Sidebar(Gtk.Application):
 
         def again() -> bool:
             box.destroy()
-            self.models_view()
+            self.models_view(False)
             return False
 
         def assigned(p, r) -> None:
@@ -1233,12 +1252,14 @@ class Sidebar(Gtk.Application):
 
         self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
 
-    def library_view(self) -> None:
+    def library_view(self, opened: bool = True) -> None:
         """The Library (D68): the Wikipedia shelves on this computer, each removable if the person downloaded it, and
         Kiwix's list for a language, with Ian's pair suggested, never chosen. Downloads run in the daemon on their own
         (hours for the big files); this card shows how far each is while it's open."""
         if not self.proxy:
             return
+        if opened:
+            self.to_bottom()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
         title = Gtk.Label(label=words.t("library"), xalign=0)
@@ -1591,12 +1612,14 @@ class Sidebar(Gtk.Application):
         drives.connect("clicked", lambda b: (b.set_sensitive(False),
                                              self.daemon_async("ModelsOnDrives", (), "()", drive_list)))
 
-    def requests_view(self) -> None:
+    def requests_view(self, opened: bool = True) -> None:
         """Recent requests, each with its tree of tasks: state, what kind, which model did it; Stop on anything not
         finished (turn tokens, SPEC §22.4)."""
         trees = self.daemon_json("TurnList")
         if trees is None:
             return
+        if opened:
+            self.to_bottom()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.get_style_context().add_class("proposal")
         head = Gtk.Box(spacing=6)
@@ -1604,7 +1627,7 @@ class Sidebar(Gtk.Application):
         title.get_style_context().add_class("what")
         head.pack_start(title, True, True, 0)
         refresh = Gtk.Button(label=words.t("refresh"))
-        refresh.connect("clicked", lambda b: (box.destroy(), self.requests_view()))
+        refresh.connect("clicked", lambda b: (box.destroy(), self.requests_view(False)))
         head.pack_end(refresh, False, False, 0)
         box.pack_start(head, False, False, 0)
         if not trees:
@@ -1628,7 +1651,7 @@ class Sidebar(Gtk.Application):
                 def stop_it(b, tid=task["id"]) -> None:
                     b.set_sensitive(False)
                     self.proxy.call("TurnCancel", GLib.Variant("(u)", (tid,)), Gio.DBusCallFlags.NONE, 10000, None,
-                                    lambda p, r: GLib.idle_add(lambda: (box.destroy(), self.requests_view()) and False))
+                                    lambda p, r: GLib.idle_add(lambda: (box.destroy(), self.requests_view(False)) and False))
                 stop.connect("clicked", stop_it)
                 row.pack_end(stop, False, False, 0)
             box.pack_start(row, False, False, 0)
@@ -1997,6 +2020,8 @@ class Sidebar(Gtk.Application):
         """WriteUp / WriteDraft / Search: like a question, but nothing typed: the reply streams into a new bubble."""
         if not self.proxy or self.rid is not None:
             return
+        self.to_bottom()
+        self.job_waiting = waiting  # 2026-10-24: a status change put "Reading your question…" over a download
         self.reply = self.bubble("assistant", waiting)
         self.reply.get_style_context().add_class("waiting")
         self.reply_started = False
