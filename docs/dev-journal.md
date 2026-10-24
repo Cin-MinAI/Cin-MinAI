@@ -2123,3 +2123,82 @@ password.
 someday?" got a dodge where a gentle yes was wanted. Web search still brings junk among the results (a dictionary's
 "WHY", the common cold for "how cold"). Articles are read only to their first 2,400 characters, so the coral
 snake's bands were missed, though its photo showed them.
+
+## 2026-10-23 to 10-24 — the help learns our own windows, and the evals that ran on the wrong chip
+
+**D84, help for what we built.** The guide's help cards covered Mint, but not much of what we added ourselves. Ian set
+what "filled" means: every feature of ours that people open has a help card, with its real button names in six
+languages and eval items that pass. Each card starts with a picture from everyday life, then gives steps that name our
+buttons. The names are read from our own windows' words (`extract_labels.py`), so a renamed button changes the card
+too.
+- **The first two (10-23):**
+  - Updates: a delivery checked at the door.
+  - The Library: an encyclopedia on your own shelf.
+- **Batch 1:**
+  - The assistant: a friend at the side of your desk.
+  - Writing projects: a friend who takes notes and asks what's missing.
+  - The journal: a good listener who only asks. Its private entries are a diary with a lock.
+  - Models: the staff list of a small shop. "Does it run here?" is measuring the doorway before you buy the sofa.
+  - Video summaries.
+- **Batch 2:**
+  - Requests: order tickets on a restaurant's rail.
+  - Terminal sharing: a friend looking over your shoulder.
+  - The internet log: a phone bill's calls, who and when, never what was said.
+  - LibreOffice: a helper who writes in pencil until you press Apply.
+
+LibreOffice's Assistant menu was English only, so it now comes in six languages. Ian: "pictures are good", "yes
+translate the menu too". D68 was filled ("68 is good for now"), and Z3, Khan Academy, Lean and LaTeX went to PLAN §5b.
+That makes 67 of 95. Only two D84 cards are left, dual boot and Secure Boot, and they wait for screenshots from a VM
+install.
+
+**Card ids are search words.** A card's id is split into words for the search. `requests_view` took "view startup
+programs", and `office_assistant` took "open a spreadsheet". The search also cuts words to five letters, so "cancel"
+found "what causes cancer". The cards are now `requests` and `libreoffice_helper`, and Stop's search words say stop.
+
+**On the live USB.** Asked "Will my files be saved?" from the stick, the guide found the card on removing a USB
+stick and said yes. On the live USB, everything is lost at shutdown. When the guide runs there, one line in its
+instructions now says so. It answers right in 4 of 6 languages (it was 1).
+
+**The evals ran on the CPU.** Every WSL eval from 10-22 to 10-24 said "on the 4070", but llama-server couldn't find
+the CUDA libraries, quietly fell back to the CPU. Ian had seen it too: "the gpu wasnt
+spooling up." The scores and each A/B stand, since like was compared with like; the hardware claim didn't. RESUME
+says so. The scripts now take the CUDA libraries from the training venv and stop when the GPU's memory doesn't rise.
+
+**Ian at the screen, one fix at a time.** Each fix went to his NVMe as a test build, and he tried it:
+- **Downloads.** "There should be a download progress bar somewhere." Now there is one under the numbers, in the
+  chat and in the Library. Asked "Is the model downloading?" with nothing downloading, the guide said yes, because
+  nothing told it what was downloading. Now the network check lists what is downloading, or says "nothing is
+  downloading". Think it through had blamed a model-server failure from three starts earlier. Its instructions now say that findings
+  from earlier starts are history.
+- **The sidebar stretched** across half the 4K screen when Qwen 3.8's long repository names came up. Names now wrap
+  inside the name: a repository button went from 403 px to 46 px wide.
+- **It scrolled away** from the Download button while results came in. Now it follows the newest text only while
+  you're at the bottom.
+- **The chat waits for a model download.** It always had: the download and the speed test after it are one of the
+  assistant's jobs. That's Ian's call ("they can keep using the computer but add the Assistant will be available
+  after the download and benchmark complete"), and the bubble now says so.
+- **The internet log questions.** "How can I see what went out to the internet?" read the network check, which said
+  nothing about the log. Now the network check names the log and the menu entry that switches it on. The privacy card
+  names the log too. "List of features" found the Uninstall card; it now finds the assistant's own card.
+
+Ian: "looks good". All of it is pushed (fab54f5).
+
+**Measured on the GPU this time.**
+
+| | result |
+|---|---|
+| Think it through A/B (9B, with its thinking budget) | old instructions 13/15, new 15/15 |
+| D84 eval | 144/175 (the earlier 150 items unchanged at 127) |
+| Public set | 140/157, as before |
+| Batch 2 items, three runs | 29/37 each time |
+
+Help lookups didn't move (464/511), and the unit suite passed (815).
+
+Still missed:
+- "What is the assistant working on?" (1 of 6): the guide checks the system instead of pointing to Requests.
+- After a plain fact, the guide still adds filler steps.
+
+**For later (PLAN §5b): the AICUI harness.** Ian wants to make weak models do more than they should: tests on
+everything ("otherwise youre gonna be spending weeks finding a bug"), compaction, and **recall and blend**. In
+recall and blend, a compacted note too far back gets dropped, but the model keeps a flowchart of where it went. It
+can go back to the note, reread it and blend it into the current work.
