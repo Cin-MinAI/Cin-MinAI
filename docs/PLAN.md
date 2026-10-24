@@ -220,7 +220,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D65 | filled | standing rule |
 | D66 | open | memory and personality (M4b) |
 | D67 | partly | action record and walls (M4 slices 1-3); memory atoms not built |
-| D68 | partly | web search and fetch; the calculator (SymPy) and Wikipedia (a shelf on this computer, or online after the person agrees) are the guide's own tools, prompt v2.7 (2026-10-23; v2.6 2026-10-22), the history kept as the talk alone (2026-10-23), the Library view to get shelves from Kiwix (2026-10-23); Z3, Khan Academy, Lean, LaTeX not built |
+| D68 | filled | web search and fetch; the calculator (SymPy) and Wikipedia (a shelf on this computer, or online after the person agrees) are the guide's own tools, prompt v2.7 (2026-10-23; v2.6 2026-10-22), the history kept as the talk alone (2026-10-23), the Library view to get shelves from Kiwix (2026-10-23). Filled for now (Ian, 2026-10-24: "68 is good for now, push the rest into plan 5b"): Z3, Khan Academy, Lean and LaTeX moved to §5b |
 | D69 | filled | standing rule (guide and AICUI ask) |
 | D70 | filled | the org, the download, the path |
 | D71 | filled | CinMin/Cin-MinAI-OS |
@@ -236,7 +236,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D81 | open | voice not built (whisper only for video files) |
 | D82 | partly | base + matched upgrades + Hugging Face explorer; memory that outlives a model waits for D66 |
 | D83 | open | the host assistant |
-| D84 | partly | coverage audit 80/84, tasks 69/77 |
+| D84 | partly | **Filled when** (Ian, 2026-10-24): every feature of ours that people open has a help card with its real names in the six languages, and eval items that pass. Done: Updates, Library, offline mode, standing tasks, news scan and its keys, AICUI (GitHub, Team Table) (tasks_d84 100/116 with v2.7, 2026-10-23); D84-19 the live USB told to the guide (2026-10-24). To do: the assistant itself (Super+A, the panel icon, New conversation), writing projects, the journal, the Requests view, the Models view and the Benchmark, terminal sharing, the internet log, video summaries, LibreOffice with the assistant; dual boot and Secure Boot wait for VM install screenshots |
 | D85 | filled | Ask / Auto / undo on the one action path |
 | D86 | filled | what's sent shown first, search offered |
 | D88 | filled | installs, standing watches; 'keep my computer updated' (2026-10-22): asked in the person's own words (six languages; "how do I…" is explained, not done), the assistant proposes the Updates window's own settings (D89: daily updates on or off, the wait when they name it, nothing else changed) on the Allow card, then the password; the wait is offered, not decided; the hold asked for by itself ("put a hold on those updates": the wait, 2 days unless a number is said; "remove the hold"), one update or program pointed to the Hold menu in Updates (Ian's test, same day); the daily updates are listed under Standing tasks (last run, Open Updates) and changed in the Updates window |
@@ -1152,6 +1152,12 @@ record is detected; a lost USB is recovered with the printed code.
   after its training, licence unconfirmed); LearnLM and Khanmigo are closed cloud services. To measure with:
   MathTutorBench (teaching, not answer-getting) and EduFair-Bench (fair to every student). No open tutor model for
   languages or bilingual teaching was found.
+- **D68's other instruments: Z3, Khan Academy, Lean, LaTeX** (moved here 2026-10-24 when D68 was filled; Ian: "68 is
+  good for now, push the rest into plan 5b"). D68 named them beside the calculator and Wikipedia: **Khan Academy**
+  for maths curriculum (lessons, practice), **Z3** for axioms and constraints, **Lean** for verification and proofs,
+  **LaTeX** for formalisms. Each the way the calculator and the shelves went: a tool of the guide's own that says
+  which instrument answered, offline where it can be (packages, or fetches the person approves; D21), the model's
+  memory never the answer.
 - **MusicMakr: a karaoke and cover mode** (Ian, 2026-10-24, an idea for after the 90 decisions are filled: "strips
   any song of the vocals and lets the person sing over the instrumental… you had to sing over the original track if
   you werent at a bar with a professional setup. We could even include a lyrics finder"). MusicMakr is Ian's music

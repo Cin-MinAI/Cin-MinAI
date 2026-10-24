@@ -21,7 +21,11 @@ model's story: `docs/guide-model-journal.md`.
 ## Where we stopped (2026-10-23) — the guide's Wikipedia and conversations tuned; Updates proven on the NVMe
 
 - **All pushed** (main be1be00). Ian's NVMe runs test build **203411** (release key) with everything below.
-- **Fill run:** 66 of 95 filled (86 is the bar, 20 to go). Filled since update 7: D62 (name the machine), D28
+- **Fill run (2026-10-24):** 67 of 95 filled (86 is the bar, 19 to go): D68 filled with the Library view (Ian: "68 is
+  good for now"; Z3, Khan Academy, Lean, LaTeX moved to PLAN §5b). D84 now has a "filled when" (PLAN D84 row): help
+  cards batch 1 in (the assistant, writing, journal, Models, video); batch 2 next (Requests, terminal sharing, the
+  internet log, LibreOffice), then D94.
+- **Fill run (2026-10-23):** 66 of 95 filled. Filled since update 7: D62 (name the machine), D28
   (offline button), D7 (D51's trees walked by code, Think it through), D89 (the Updates window: plan, holds, daily
   updates, Debian/CISA confirmations, oss-security holds; D29 partly with it), D88 ("keep my computer updated" and
   "put a hold" in the person's words). D35 back to partly (the whole computer on a cloud model, Ian's call). N-gram
