@@ -18,6 +18,12 @@ TOPICS = {
 UPDATE_READY = "An update is installed. The assistant restarts into it on a short break, or now:"
 UPDATE_NOW = "Restart now"
 UPDATED = "The assistant was updated to the new version."
+# a model download is one of the assistant's jobs: the chat waits for it (Ian, 2026-10-24: "they can keep using the
+# computer but add the Assistant will be available after the download and benchmark complete")
+MODEL_GETTING = ("Getting the model… You can keep using the computer; the assistant will be available again "
+                 "after the download and its speed test are done.")
+MODEL_COPYING = ("Copying the model… You can keep using the computer; the assistant will be available again "
+                 "after the copy and its speed test are done.")
 
 STATES = {  # State property -> (dot colour class, words)
     "idle": ("ok", "Ready"),

@@ -810,7 +810,7 @@ class Sidebar(Gtk.Application):
                 self.daemon_json("ModelUse", task, offer["file"])
                 self.progress_line(words.model_line({"model": offer.get("model")}))
             else:
-                self.start_job("ModelDownload", task, "Getting the model… (you can keep using the computer)")
+                self.start_job("ModelDownload", task, words.MODEL_GETTING)
         get.connect("clicked", go)
         get.set_sensitive(bool(offer.get("space_ok", True)))
         later.connect("clicked", lambda b: box.destroy())
@@ -1503,7 +1503,7 @@ class Sidebar(Gtk.Application):
                 get = Gtk.Button(label=words.t("h_get", gb=f"{v['size'] / 2**30:.1f}"))
                 get.connect("clicked", lambda b: (b.set_sensitive(False), self.start_job(
                     "HubDownload", (v["file"], pick.get_active_id() or ""),
-                    "Getting the model… (you can keep using the computer)", "(ss)")))
+                    words.MODEL_GETTING, "(ss)")))
                 area.pack_start(pick, False, False, 0)
                 area.pack_start(get, False, False, 0)
             area.show_all()
@@ -1605,7 +1605,7 @@ class Sidebar(Gtk.Application):
                     bring = Gtk.Button(label=words.t("h_bring", gb=f"{d['size'] / 2**30:.1f}"))
                     bring.connect("clicked", lambda b, path=d["path"], pick=pick: (b.set_sensitive(False),
                                   self.start_job("ModelBringIn", (path, pick.get_active_id() or ""),
-                                                 "Copying the model…", "(ss)")))
+                                                 words.MODEL_COPYING, "(ss)")))
                     on_drives.pack_start(pick, False, False, 0)
                     on_drives.pack_start(bring, False, False, 0)
             on_drives.show_all()
