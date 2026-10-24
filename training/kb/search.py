@@ -206,7 +206,9 @@ KEYWORDS = {
                          "ウィキペディア オフライン ダウンロード 百科事典 ライブラリ",
     # D84 batch 1 (2026-10-24)
     "the_assistant": "assistant sidebar super+a open the assistant close the assistant hide the assistant copilot "
-                     "cortana new conversation start over "
+                     "cortana new conversation start over features list of features what can you do "
+                     "funciones qué puedes hacer funções o que você pode fazer fonctionnalités que peux-tu faire "
+                     "funktionen was kannst du 機能 何ができる "
                      "asistente abrir el asistente nueva conversación assistente abrir o assistente nova conversa "
                      "assistant ouvrir l'assistant nouvelle conversation assistent assistenten öffnen neues gespräch "
                      "アシスタント アシスタントを開く アシスタントの開き方 新しい会話",

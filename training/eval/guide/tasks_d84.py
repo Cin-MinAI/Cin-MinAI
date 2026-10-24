@@ -420,4 +420,16 @@ TASKS = [
      "expect": [{"tool": "lookup_help"}],
      "card": CARD["requests"],
      "must": [["{ui_requests}"], ["{ui_requests_stop}"]], "must_not": NO_CMD},
+    # Ian's NVMe, 2026-10-24: asked this, the guide read the network check, which didn't say the log; now it does
+    {"id": "D84-47", "cat": "system",
+     "q": {"en": "How can I see what went out to the internet?", "es": "¿Cómo veo qué se conectó a internet?",
+           "pt": "Como vejo o que saiu para a internet?", "fr": "Comment voir ce qui est sorti sur Internet ?",
+           "de": "Wie sehe ich, welche Verbindungen ins Internet gingen?", "ja": "インターネットに何が出ていったか見るには？"},
+     "expect": [{"tool": "inspect_system", "args": {"topic": ["network"]}}, {"tool": "lookup_help"}],
+     "card": CARD["internet_log"],
+     "result": {"wifi": {"enabled": True, "network": "Home", "signal_pct": 70}, "wired": "connected",
+                "internet": True, "open_with": "{network}", "downloads": "nothing is downloading",
+                "internet_log": {"on": False, "where": "right-click the assistant's icon in the panel",
+                                 "switch": "{ui_log_switch}", "open": "{ui_log_open}"}},
+     "must": [["{ui_log_switch}"]], "must_not": NO_CMD},
 ]

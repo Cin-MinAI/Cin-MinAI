@@ -237,6 +237,10 @@ class Tools:
         out = {"wifi": wifi, "wired": wired, "internet": conn == "full", "open_with": self.label("network")}
         # Ian, 2026-10-24: asked "Is the model downloading?" it read the Wi-Fi and said yes while nothing was
         out["downloads"] = self.downloads() or "nothing is downloading"
+        # Ian's NVMe, 2026-10-24: "How can I see what went out to the internet?" read this check, and the log wasn't in it
+        from cin_minai.inference import reach
+        out["internet_log"] = {"on": reach.logging(), "where": "right-click the assistant's icon in the panel",
+                               "switch": self.label("ui_log_switch"), "open": self.label("ui_log_open")}
         if not conn:
             out["note"] = "network status not available"
         return out

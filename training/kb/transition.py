@@ -300,7 +300,9 @@ TOPICS = [
              "you ask for it: a web search sends its words to DuckDuckGo (or to Bing, if DuckDuckGo asks for a "
              "pause); the news sends its topic to Google News, Bing, Reddit and Mastodon; and a news watch you set "
              "up sends its topic once a day until you pause or delete it under Standing tasks. Each time, a card "
-             "first shows the exact words and where they go. Nothing about you or this computer is sent.",
+             "first shows the exact words and where they go. Nothing about you or this computer is sent. No record "
+             "of it is kept unless you want one: {ui_log_switch} in the assistant's icon menu in the panel keeps "
+             "the internet log (when and where, never what).",
      "must": [], "steps": False},
     {"id": "offline_mode", "windows": "keeping the computer completely off the internet",
      # update 5 (2026-10-07) said offline mode was planned; built 2026-10-21 (PLAN D28)
