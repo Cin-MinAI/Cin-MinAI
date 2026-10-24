@@ -25,6 +25,12 @@ model's story: `docs/guide-model-journal.md`.
   good for now"; Z3, Khan Academy, Lean, LaTeX moved to PLAN §5b). D84 now has a "filled when" (PLAN D84 row): help
   cards batch 1 in (the assistant, writing, journal, Models, video); batch 2 next (Requests, terminal sharing, the
   internet log, LibreOffice), then D94.
+- **Correction (found 2026-10-24): the guide evals of 10-22 to 10-24 ran on the CPU, not the 4070.** In WSL the
+  llama build couldn't load libcudart/libcublas ("no usable GPU found") and fell back to the CPU, so the commits that
+  say "on the 4070" for v2.6, v2.7, the help anchors, the D84 cards (068e1a5) and the live-USB line (09e80a5) were
+  measured on the CPU. The scores and each A/B (like with like) stand; the hardware claim doesn't. Re-run on the GPU
+  10-24: D84's old items 126/148 (CPU 122), public 140 (the same). The run scripts now take the CUDA libraries from
+  `~/cinminai-train/.venv/.../nvidia/{cuda_runtime,cublas}/lib` and stop if the model isn't on the GPU.
 - **Fill run (2026-10-23):** 66 of 95 filled. Filled since update 7: D62 (name the machine), D28
   (offline button), D7 (D51's trees walked by code, Think it through), D89 (the Updates window: plan, holds, daily
   updates, Debian/CISA confirmations, oss-security holds; D29 partly with it), D88 ("keep my computer updated" and

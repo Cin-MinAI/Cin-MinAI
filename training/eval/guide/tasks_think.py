@@ -122,4 +122,19 @@ CASES = [
                  "without a clean shutdown stops mid-line; no kernel error, no overheating message and no panic were "
                  "logged before it. CPU temperature now: 48 °C.",
      "cause": [r"(power|not enough to tell|can.?t tell|unclear|not sure|no (clear )?sign|hard to (say|tell))"]},
+    # Ian's NVMe, 2026-10-24: asked this with nothing downloading, the 9B blamed a crash from three starts before
+    {"id": "X1", "source": "recorded", "question": "Is the model downloading?",
+     "evidence": "## What the assistant's check read\n\n{\"wifi\": {\"enabled\": true, \"network\": \"Home\", "
+                 "\"signal_pct\": 69}, \"wired\": \"connected\", \"internet\": true, \"open_with\": \"Network\", "
+                 "\"downloads\": \"nothing is downloading\"}\n\n## Findings\n\n"
+                 "### X101 — The assistant's model server crashed (seen)\n\nThe program that runs the assistant's "
+                 "model crashed in 1 starts (kernel 7.0.0-38-generic), so the assistant couldn't answer then.\n\n"
+                 "Evidence:\n\n```\n2026-10-14T18:35:39 systemd-coredump[47390]: Process 47346 (llama-server) of "
+                 "user 1000 dumped core.\n2026-10-14T18:36:04 systemd-coredump[47499]: Process 47433 (llama-server) "
+                 "of user 1000 dumped core.\n```\n\n## Recent starts\n\n| start | kernel | clean end |\n|---|---|---|\n"
+                 "| 2026-10-22 10:19 | 7.0.0-38-generic | |\n| 2026-10-22 01:05 | 7.0.0-38-generic | yes |\n"
+                 "| 2026-10-17 01:28 | 7.0.0-38-generic | yes |\n| 2026-10-13 13:45 | 7.0.0-38-generic | yes |",
+     # right: nothing is downloading; the crash, if mentioned, was before ("not": no "it has crashed" as if now)
+     "cause": [r"(nothing is downloading|not downloading|no download|isn.?t downloading|nothing.{0,20}download)"],
+     "not": [r"\b(has|have|had) crashed\b(?!.{0,60}\b(before|earlier|ago|Oct|10-14)\b)", r"\bis crashing\b"]},
 ]

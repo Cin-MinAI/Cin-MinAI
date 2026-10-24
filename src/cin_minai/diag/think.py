@@ -21,6 +21,9 @@ Answer in plain words, for someone who isn't technical:
 2. The one next step that is safe to try first: the way without the terminal if there is one. A command only if it \
 only reads, and say what it does.
 3. What would tell them it worked.
+A finding marked (seen) happened in earlier starts, not in this one: it is history, not the cause of what is \
+happening now, unless this start's evidence shows it too; if you mention it, say it was before. If nothing recorded \
+explains what the person asked, say so plainly.
 If the evidence isn't enough to tell, say so and say what to look at next. Never suggest reinstalling the system, \
 deleting files, formatting a disk or removing packages. Never claim more certainty than the evidence gives. Keep it \
 under 180 words, in the person's language."""

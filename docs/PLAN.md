@@ -1172,6 +1172,23 @@ record is detected; a lost USB is recovered with the printed code.
   search does. To check: lyrics belong to their songwriters (show them, don't store or pass them on); splitting a
   song you own to sing over is personal use, sharing the cover is the person's question about the song's rights.
   MusicMakr's code not yet seen here.
+- **AICUI's harness makes weak models put up more than they should** (Ian, 2026-10-24, for later: "We want to try
+  and buff the weak models to put up more than they should, so things like compaction, recall and blend, tests, all of
+  those things that make a model work more efficiently. Especially in code work"). The idea: the harness carries
+  what a small local model can't, so its work holds up like a bigger one's (the habits cycle, D96: the model directs,
+  code carries the bulk). **Tests on everything** (Ian: people who code, by hand too, say "put tests on everything
+  otherwise you're gonna be spending weeks finding a bug"): a bug found gets its test first, then the fix, so it
+  stays fixed; the harness runs the project's tests after each change and a task counts as done only when they pass
+  (a pass/fail is progress, the four kinds); a project without tests is offered a first set. Found the hard way the
+  same night: two days of our own evals ran on the CPU because nothing checked the GPU, and the guide said a model
+  was downloading because no test asked. **Compaction** (AICUI has rolling compaction and handovers, D40 partly),
+  **recall and blend** (Ian: "a model does a compact but this one is so far up the line it has to get dumped. The
+  model can keep a flowchart, go back to that compressed note, reread it and blend into the current frame of the
+  conversation or work": an old compaction too far back to keep in the context is dropped, but kept outside it as a
+  compressed note, with a flowchart of the work so far that points to it; when the work comes back to that part,
+  the model rereads the note and blends what it needs into the current frame, instead of losing it),
+  measured as everything else is (D33): the same task on the same small model with and without each, kept only if
+  it helps.
 
 ## 6. Open questions
 

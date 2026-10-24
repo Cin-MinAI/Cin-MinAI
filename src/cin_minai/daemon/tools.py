@@ -69,6 +69,7 @@ class Tools:
         self.labels, self.desktop, self.ui = labels, desktop, ui or {}
         self.lang = lang or desktop_lang()
         self._diag: tuple[float, dict, dict] | None = None  # (when, the guide's view, the whole report)
+        self.downloads = lambda: []  # the daemon's downloads this session, models and Wikipedia (set by the service)
 
     def label(self, key: str) -> str:
         row = self.labels.get(key) or self.ui.get(key, {})
@@ -211,10 +212,14 @@ class Tools:
         # the real names and facts, not the model's guesses (round 3, 2026-10-07: it said "Apply Updates" and "restart
         # to complete the updates" when no restart was needed)
         restart = os.path.exists("/var/run/reboot-required")
-        return {"updates_available": len(inst), "security_updates": len(security), "last_checked": checked,
-                "open_with": self.label("update_manager"), "install_button": self.label("ui_install_updates"),
-                "restart_needed": restart,
-                "restart_for": sorted(set(read("/var/run/reboot-required.pkgs").split()))[:5] if restart else []}
+        out = {"updates_available": len(inst), "security_updates": len(security), "last_checked": checked,
+               "open_with": self.label("update_manager"), "install_button": self.label("ui_install_updates"),
+               "restart_needed": restart,
+               "restart_for": sorted(set(read("/var/run/reboot-required.pkgs").split()))[:5] if restart else []}
+        got = self.downloads()  # "is the model downloading?" sometimes reads this check (2026-10-24 eval): only when
+        if got:                 # something is, so an answer about updates stays about updates
+            out["downloads"] = got
+        return out
 
     def _network(self) -> dict:
         radio = run(["nmcli", "-t", "-f", "WIFI", "general"]).strip()
@@ -230,6 +235,8 @@ class Tools:
                 wired = "connected"
         conn = run(["nmcli", "-t", "-f", "CONNECTIVITY", "general"]).strip()
         out = {"wifi": wifi, "wired": wired, "internet": conn == "full", "open_with": self.label("network")}
+        # Ian, 2026-10-24: asked "Is the model downloading?" it read the Wi-Fi and said yes while nothing was
+        out["downloads"] = self.downloads() or "nothing is downloading"
         if not conn:
             out["note"] = "network status not available"
         return out

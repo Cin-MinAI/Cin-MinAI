@@ -603,7 +603,9 @@ class Sidebar(Gtk.Application):
             self.progress_line(words.journal_written(json.loads(args[4] or "{}")))
         elif signal == "Action" and args[1] == "download":
             p = json.loads(args[4] or "{}")
-            self.progress_line(words.download_progress(p) if args[3] == "running" else words.download_done(p))
+            running = args[3] == "running"
+            self.progress_line(words.download_progress(p) if running else words.download_done(p),
+                               p["have"] / p["total"] if running and p.get("total") and not p.get("testing") else None)
         elif signal == "Action" and args[1] == "draft":
             p = json.loads(args[4] or "{}")
             self.progress_line(words.draft_progress(p) if args[3] == "running" else words.draft_done(p))
@@ -1293,6 +1295,8 @@ class Sidebar(Gtk.Application):
                         "LibraryStop", (f,), "(s)", lambda r: None)))
                     row.pack_end(stop, False, False, 0)
                 here.pack_start(row, False, False, 0)
+                if j["state"] in ("running", "stopped") and j["total"]:  # the numbers, and a bar (Ian, 2026-10-24)
+                    here.pack_start(Gtk.ProgressBar(fraction=min(j["have"] / j["total"], 1.0)), False, False, 0)
             here.pack_start(self.note_label(words.t("lib_free", gb=f"{v['free_bytes'] / 2**30:.0f}")), False, False, 0)
             here.show_all()
 
@@ -2074,14 +2078,22 @@ class Sidebar(Gtk.Application):
         self.chat.pack_start(box, False, False, 0)
         box.show_all()
 
-    def progress_line(self, text: str) -> None:
-        """One line that follows the draft (scene n of N), then says where it was saved."""
+    def progress_line(self, text: str, fraction: float | None = None) -> None:
+        """One line that follows the draft (scene n of N), then says where it was saved; with a fraction (a
+        download), a bar under it as well as the numbers (Ian, 2026-10-24)."""
         if getattr(self, "progress", None) is None or self.progress.get_parent() is None:
             self.progress = Gtk.Label(xalign=0, wrap=True, max_width_chars=30)
             self.progress.get_style_context().add_class("action")
             self.chat.pack_start(self.progress, False, False, 0)
             self.progress.show()
+            self.progress_bar = Gtk.ProgressBar()
+            self.chat.pack_start(self.progress_bar, False, False, 0)
         self.progress.set_text(text)
+        if fraction is None:
+            self.progress_bar.hide()
+        else:
+            self.progress_bar.set_fraction(min(max(fraction, 0.0), 1.0))
+            self.progress_bar.show()
 
     def proposal_card(self, pv: dict) -> None:
         """A document edit the assistant prepared: before -> after, Apply / Discard (SPEC §7.8). Nothing

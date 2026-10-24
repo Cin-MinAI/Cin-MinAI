@@ -279,6 +279,8 @@ class Service:
         self.shelf_offers: dict = {}  # D68: Kiwix's files last listed, by file: only these are fetched
         self.shelf_jobs: dict = {}  # shelf downloads this session, by file: have, total, state, error
         self.shelf_cancel: dict = {}
+        self.model_jobs: dict = {}  # model downloads and copies this session, by file: model, have, total, state, rid
+        guide.tools.downloads = self.downloads_now  # the guide can say what's downloading (inspect_system network)
         self.offers: dict = {}  # task -> (time, the matcher's plan), so the machine isn't read on every open
         self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
@@ -1047,7 +1049,8 @@ class Service:
             try:
                 self.store.download(m, lambda have, total, m=m: on_action(
                     "download", {"file": m.file}, "running", json.dumps({
-                        "model": m.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}"})),
+                        "model": m.name, "have_gb": f"{have / 2**30:.1f}", "total_gb": f"{total / 2**30:.1f}",
+                        "have": have, "total": total})),
                     self.cancel)
             except DownloadStopped:
                 on_text("Stopped. What was downloaded is kept, so it can carry on later.")
@@ -1632,7 +1635,8 @@ class Service:
             try:
                 hook.run("download_model", lambda: self.store.download(m, lambda have, total: on_action(
                     "download", {"file": m.file}, "running",
-                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total)})), self.cancel),
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total), "have": have, "total": total})),
+                    self.cancel),
                     f"download the model {m.name} from Hugging Face (checked before use)", reversible=False,
                     private=False)
             except DownloadStopped:
@@ -1854,6 +1858,8 @@ class Service:
         on_text.replace = lambda text: GLib.idle_add(self.emit, "Replace", "(us)", rid, text)
 
         def on_action(tool: str, args: dict, state: str, result: str) -> None:
+            if tool == "download":
+                self.note_download(rid, args.get("file", ""), state, result)
             GLib.idle_add(self.emit, "Action", "(ussss)", rid, tool,
                           json.dumps(args, ensure_ascii=False), state, result)
 
@@ -1869,10 +1875,36 @@ class Service:
             except Exception as e:  # never leave the sidebar waiting
                 log(f"turn failed: {type(e).__name__}: {e}")
                 error = "Something went wrong while answering. Please try again."
+            for j in self.model_jobs.values():  # the job is over: a download it left running stopped with it
+                if j["rid"] == rid and j["state"] == "running":
+                    j["state"] = "stopped"
             stats["seconds"] = round(time.monotonic() - t0, 2)
             GLib.idle_add(self.finish, rid, error, stats)
 
         threading.Thread(target=work, daemon=True).start()
+
+    def note_download(self, rid: int, file: str, state: str, result: str) -> None:
+        """A model download's progress, kept for the guide (downloads_now)."""
+        try:
+            p = json.loads(result or "{}")
+        except ValueError:
+            return
+        j = self.model_jobs.setdefault(file, {"model": p.get("model", file), "have": 0, "total": 0})
+        j.update(rid=rid, state="checking" if p.get("testing") else state)
+        if "have" in p:
+            j.update(have=p["have"], total=p["total"])
+
+    def downloads_now(self) -> list[dict]:
+        """What's downloading, or was this session: models (a job, so the guide waits while one runs) and Wikipedia
+        shelves (their own thread, so the guide answers meanwhile). The numbers, in GB, as the views show them."""
+        gb = lambda b: round(b / 2**30, 1)  # noqa: E731
+        out = [{"what": j["model"], "state": j["state"], "have_gb": gb(j["have"]), "total_gb": gb(j["total"])}
+               for j in self.model_jobs.values()]
+        for file, j in self.shelf_jobs.items():
+            state = "checking" if j["state"] == "running" and j["total"] and j["have"] >= j["total"] else j["state"]
+            out.append({"what": f"Wikipedia ({file})", "state": state, "have_gb": gb(j["have"]),
+                        "total_gb": gb(j["total"])} | ({"error": j["error"]} if j.get("error") else {}))
+        return out
 
     def finish(self, rid: int, error: str | None, stats: dict) -> bool:
         self.active_at = time.monotonic()
@@ -2113,7 +2145,8 @@ class Service:
             try:
                 hook.run("download_model", lambda: self.store.download(m, lambda have, total: on_action(
                     "download", {"file": m.file}, "running",
-                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total)})), self.cancel),
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total), "have": have, "total": total})),
+                    self.cancel),
                     f"download the model {m.name} from huggingface.co/{repo} (checked before use)",
                     reversible=False, private=False)
             except DownloadStopped:
@@ -2140,7 +2173,8 @@ class Service:
             try:
                 self.store._copy_checked(path, self.store.path(m.file), "", lambda have, total: on_action(
                     "download", {"file": m.file}, "running",
-                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total), "copy": True})),
+                    json.dumps({"model": m.name, "have_gb": gb(have), "total_gb": gb(total), "have": have, "total": total,
+                                "copy": True})),
                     self.cancel)
             except DownloadStopped:
                 part = self.store.path(m.file) + ".part"

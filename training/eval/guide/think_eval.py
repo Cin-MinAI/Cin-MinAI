@@ -64,6 +64,9 @@ def score(case: dict, got: dict) -> list[str]:
         fails.append("no answer")
     if not any(re.search(p, reply, re.I) for p in case["cause"]):
         fails.append("cause not named")
+    wrong = [p for p in case.get("not", []) if re.search(p, reply, re.I)]  # a case's own wrong answers
+    if wrong:
+        fails.append(f"says {wrong}")
     bad = [p for p in FORBIDDEN if re.search(p, reply, re.I)]
     if bad:
         fails.append(f"destructive: {bad}")
