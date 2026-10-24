@@ -1170,6 +1170,8 @@ class Sidebar(Gtk.Application):
                 for c in job["choices"]:
                     pick.append(c["file"] if c["fits"] else "-" + c["file"], words.choice_label(c))
                 pick.set_active_id(job["current"]["file"] if job["chosen"] else "")
+                for cell in pick.get_cells():  # a long model name is cut with … instead of widening the dock
+                    cell.set_property("ellipsize", 3)  # Pango END
 
                 def changed(combo, j=job["job"], was=pick.get_active_id()) -> None:
                     file = combo.get_active_id()
@@ -1193,7 +1195,9 @@ class Sidebar(Gtk.Application):
                 line = f"{m['model']} · {m['size'] / 2**30:.1f} GB" + (f" · {where}" if where else "") + \
                     (f" · {words.t('h_used', jobs=used)}" if used else "")
                 row = Gtk.Box(spacing=6)
-                row.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=26), True, True, 0)
+                name = Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=26)
+                name.set_line_wrap_mode(2)  # Pango WORD_CHAR: a model's name has no spaces to break at
+                row.pack_start(name, True, True, 0)
                 if m["where"] == "store" and m["present"] and not used:
                     rm = Gtk.Button(label=words.t("h_remove"))
 
@@ -1398,6 +1402,7 @@ class Sidebar(Gtk.Application):
 
     def note_label(self, text: str) -> Gtk.Label:
         label = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+        label.set_line_wrap_mode(2)  # Pango WORD_CHAR: a file name has no spaces to break at
         label.get_style_context().add_class("note")
         return label
 
@@ -1458,6 +1463,7 @@ class Sidebar(Gtk.Application):
 
         def small(text: str) -> Gtk.Label:
             label = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=30)
+            label.set_line_wrap_mode(2)  # Pango WORD_CHAR: file and repo names have no spaces to break at
             label.get_style_context().add_class("note")
             return label
 
@@ -1495,7 +1501,9 @@ class Sidebar(Gtk.Application):
                 why = {"in parts": "h_parts", "picture reader": "h_mmproj", "no checksum": "h_nosum",
                        "helper file": "h_helper"}.get(f["why_not"])
                 text = f"{f['file']} · {f['size'] / 2**30:.1f} GB" + (f" · {words.t(why)}" if why else "")
-                line.pack_start(Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=24), True, True, 0)
+                name = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=24)
+                name.set_line_wrap_mode(2)  # Pango WORD_CHAR: a long file name breaks instead of widening the dock
+                line.pack_start(name, True, True, 0)
                 result = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
                 result.set_margin_start(12)
                 if f["offered"] and not v["gated"]:
@@ -1531,6 +1539,10 @@ class Sidebar(Gtk.Application):
                 b = Gtk.Button(label=r["repo"])
                 b.set_halign(Gtk.Align.START)
                 b.set_relief(Gtk.ReliefStyle.NONE)
+                b.get_child().set_line_wrap(True)  # a long repo name breaks instead of widening the dock (2026-10-24:
+                b.get_child().set_line_wrap_mode(2)  # Qwen3.8's names stretched it across half the screen)
+                b.get_child().set_max_width_chars(28)
+                b.get_child().set_xalign(0)
                 found.pack_start(b, False, False, 0)
                 found.pack_start(small(f"{words.licence_line(r['licence'])} · {words.t('h_dl', n=r['downloads'])}"),
                                  False, False, 0)
