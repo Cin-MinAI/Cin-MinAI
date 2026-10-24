@@ -8,13 +8,15 @@ Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read 
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
 
-## Open hold (2026-10-22) — the PHP advisory
+## Hold closed (2026-10-24) — the PHP advisory
 
-- PHP core "php2shell" (CVE-2026-109618/109619; PHP rates 9.2, a leaked post said 10.0; an NSA advisory reported)
-  and GitLab CVE-2026-97229 (10.0, public exploit): **none of our machines run either** (NVMe, dev PC, ISO, Ian's
-  sites checked). Ian's call: the warning to users waits **two days** — make sure no one is pushing a campaign and a
-  fix is out (Ubuntu noble had no php8.3 fix on 10-22). **Re-check 2026-10-24**, then bring Ian an attributed
-  warning shown only where PHP is installed.
+- PHP core "php2shell" (CVE-2026-109618/109619) and GitLab CVE-2026-97229: **none of our machines run either**
+  (re-checked 10-24: no PHP on the NVMe, dev PC or WSL). Re-check 2026-10-24: PHP fixed it 10-21 (8.5.12, 8.4.27,
+  8.3.36, 8.2.35; "updating is the only safe choice"); Ubuntu USN-8948-1 (10-21) has noble's php8.3
+  8.3.6-0ubuntu0.24.04.13, seen in noble-security; CISA's KEV catalog (10-23 19:30 UTC) lists neither; Amazon,
+  watchTowr and HKCERT report exploitation attempts, others mostly scanning. **Ian's call: no warning and nothing built
+  for it** — the user watches for this themselves; our part is a general setup ready with information (sources, the
+  Updates window showing the security fix as soon as Ubuntu ships it).
 
 ## Where we stopped (2026-10-23) — the guide's Wikipedia and conversations tuned; Updates proven on the NVMe
 

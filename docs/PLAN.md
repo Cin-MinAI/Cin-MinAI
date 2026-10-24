@@ -1152,6 +1152,20 @@ record is detected; a lost USB is recovered with the printed code.
   after its training, licence unconfirmed); LearnLM and Khanmigo are closed cloud services. To measure with:
   MathTutorBench (teaching, not answer-getting) and EduFair-Bench (fair to every student). No open tutor model for
   languages or bilingual teaching was found.
+- **MusicMakr: a karaoke and cover mode** (Ian, 2026-10-24, an idea for after the 90 decisions are filled: "strips
+  any song of the vocals and lets the person sing over the instrumental… you had to sing over the original track if
+  you werent at a bar with a professional setup. We could even include a lyrics finder"). MusicMakr is Ian's music
+  studio (instruments, mixing), to be offered as a download here. The mode: a song split on the person's own machine
+  into vocals and the rest, and the person sings over the real instrumental. Open models do the split: **Demucs**
+  (Meta, MIT; seconds to a minute a song on a GPU, minutes on a CPU, fits the 6 GB floor) and **Spleeter** (Deezer,
+  MIT; faster, rougher); the same split gives the studio stems (drums only, the bass out to play along). What would
+  make it good: a key change so the song fits the voice, a guide-vocal slider (a little of the original voice left
+  in to learn the song, faded out), and recording lined up with the track (the audio delay corrected) into
+  MusicMakr's own mixing, so a cover becomes a project. **The lyrics finder:** LRCLIB (free, open, community, timed
+  lyrics that scroll with the song; a public API), only the title and artist sent, said before it's sent as the web
+  search does. To check: lyrics belong to their songwriters (show them, don't store or pass them on); splitting a
+  song you own to sing over is personal use, sharing the cover is the person's question about the song's rights.
+  MusicMakr's code not yet seen here.
 
 ## 6. Open questions
 
