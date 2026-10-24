@@ -206,6 +206,34 @@ class HelpCards(unittest.TestCase):
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
                 self.assertEqual(self.index.lookup(q, lang)[0], card, q)
 
+    def test_our_features_batch_2_found_in_six_languages(self):
+        # D84 (2026-10-24): the Requests view, terminal sharing, the internet log, the assistant in LibreOffice
+        asked = {
+            "requests": ["How do I see what the assistant is working on?", "¿Cómo veo en qué está trabajando el asistente?",
+                         "Como vejo no que o assistente está trabalhando?", "Comment voir ce sur quoi l'assistant travaille ?",
+                         "Wie sehe ich, woran der Assistent gerade arbeitet?", "アシスタントが何をしているか見るには？"],
+            "terminal_sharing": ["How do I let the assistant see my terminal?", "¿Cómo dejo que el asistente vea mi terminal?",
+                                 "Como deixo o assistente ver meu terminal?", "Comment laisser l'assistant voir mon terminal ?",
+                                 "Wie lasse ich den Assistenten mein Terminal sehen?", "アシスタントにターミナルを見せるには？"],
+            "internet_log": ["How can I see what went out to the internet?",
+                             "¿Dónde veo las conexiones a internet que hizo el asistente?",
+                             "Como vejo o que saiu para a internet?", "Comment voir ce qui est sorti sur Internet ?",
+                             "Wie sehe ich, welche Verbindungen ins Internet gingen?", "インターネットに何が出ていったか見るには？"],
+            "libreoffice_helper": ["How do I use the assistant in LibreOffice?", "¿Cómo uso el asistente en LibreOffice?",
+                                   "Como uso o assistente no LibreOffice?", "Comment utiliser l'assistant dans LibreOffice ?",
+                                   "Wie benutze ich den Assistenten in LibreOffice?", "LibreOfficeでアシスタントを使うには？"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+        for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], [
+                "How do I stop something I asked the assistant to do?", "¿Cómo detengo algo que le pedí al asistente?",
+                "Como paro algo que pedi ao assistente?", "Comment arrêter quelque chose que j'ai demandé à l'assistant ?",
+                "Wie stoppe ich etwas, worum ich den Assistenten gebeten habe?", "アシスタントに頼んだことを止めるには？"]):
+            self.assertEqual(self.index.lookup(q, lang)[0], "requests", q)
+        # the cards' ids are search words too: "view" and "office" took other cards' questions until renamed
+        self.assertEqual(self.index.lookup("How do I open a spreadsheet?", "en")[0], "office")
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

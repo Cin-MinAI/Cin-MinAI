@@ -994,6 +994,116 @@
   },
   "ui_journal_entries": {
    "en": "Entries"
+  },
+  "ui_requests": {
+   "en": "Requests",
+   "es": "Peticiones",
+   "pt": "Pedidos",
+   "fr": "Demandes",
+   "de": "Anfragen",
+   "ja": "リクエスト"
+  },
+  "ui_requests_stop": {
+   "en": "Stop",
+   "es": "Detener",
+   "pt": "Parar",
+   "fr": "Arrêter",
+   "de": "Stoppen",
+   "ja": "停止"
+  },
+  "ui_requests_refresh": {
+   "en": "Refresh",
+   "es": "Actualizar",
+   "pt": "Atualizar",
+   "fr": "Actualiser",
+   "de": "Aktualisieren",
+   "ja": "更新"
+  },
+  "ui_terminal_share": {
+   "en": "Let the assistant see my terminals",
+   "es": "Dejar que el asistente vea mis terminales",
+   "pt": "Deixar o assistente ver meus terminais",
+   "fr": "Laisser l'assistant voir mes terminaux",
+   "de": "Den Assistenten meine Terminals sehen lassen",
+   "ja": "アシスタントにターミナルを見せる"
+  },
+  "ui_lo_apply": {
+   "en": "Apply"
+  },
+  "ui_lo_discard": {
+   "en": "Discard"
+  },
+  "ui_log_switch": {
+   "en": "Log every internet session on this computer",
+   "es": "Registrar cada sesión de internet en este ordenador",
+   "pt": "Registrar cada sessão de internet neste computador",
+   "fr": "Journaliser chaque session internet sur cet ordinateur",
+   "de": "Jede Internetsitzung auf diesem Computer protokollieren",
+   "ja": "このコンピューターのインターネット接続をすべて記録する"
+  },
+  "ui_log_open": {
+   "en": "Open the internet log",
+   "es": "Abrir el registro de internet",
+   "pt": "Abrir o registro de internet",
+   "fr": "Ouvrir le journal internet",
+   "de": "Internetprotokoll öffnen",
+   "ja": "インターネットの記録を開く"
+  },
+  "ui_lo_menu": {
+   "en": "Assistant",
+   "es": "Asistente",
+   "pt": "Assistente",
+   "fr": "Assistant",
+   "de": "Assistent",
+   "ja": "アシスタント"
+  },
+  "ui_lo_ask": {
+   "en": "Ask about selection",
+   "es": "Preguntar sobre la selección",
+   "pt": "Perguntar sobre a seleção",
+   "fr": "Poser une question sur la sélection",
+   "de": "Zur Auswahl fragen",
+   "ja": "選択範囲について質問"
+  },
+  "ui_lo_rewrite": {
+   "en": "Rewrite selection…",
+   "es": "Reescribir la selección…",
+   "pt": "Reescrever a seleção…",
+   "fr": "Réécrire la sélection…",
+   "de": "Auswahl umschreiben…",
+   "ja": "選択範囲を書き直す…"
+  },
+  "ui_lo_explain": {
+   "en": "Explain this formula",
+   "es": "Explicar esta fórmula",
+   "pt": "Explicar esta fórmula",
+   "fr": "Expliquer cette formule",
+   "de": "Diese Formel erklären",
+   "ja": "この数式を説明"
+  },
+  "ui_lo_summarize": {
+   "en": "Summarize document",
+   "es": "Resumir el documento",
+   "pt": "Resumir o documento",
+   "fr": "Résumer le document",
+   "de": "Dokument zusammenfassen",
+   "ja": "文書を要約"
+  },
+  "ui_lo_share": {
+   "en": "Share this document with the assistant",
+   "es": "Compartir este documento con el asistente",
+   "pt": "Compartilhar este documento com o assistente",
+   "fr": "Partager ce document avec l'assistant",
+   "de": "Dieses Dokument mit dem Assistenten teilen",
+   "ja": "この文書をアシスタントと共有"
+  },
+  "ui_lo_unshare": {
+   "en": "Stop sharing this document",
+   "es": "Dejar de compartir este documento",
+   "pt": "Parar de compartilhar este documento",
+   "fr": "Arrêter de partager ce document",
+   "de": "Freigabe dieses Dokuments beenden",
+   "ja": "この文書の共有をやめる"
   }
  }
 }

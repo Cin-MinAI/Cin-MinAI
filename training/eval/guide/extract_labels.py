@@ -100,7 +100,19 @@ OWN_UI = {  # key -> (module, table, word). Not the Install button: it shows the
     "ui_models_check": ("cin_minai.sidebar.words", "T", "h_check"),
     "ui_models_drives": ("cin_minai.sidebar.words", "T", "h_drives"),
     "ui_models_system": ("cin_minai.sidebar.words", "T", "job_system"),
+    "ui_requests": ("cin_minai.sidebar.words", "T", "requests"),
+    "ui_requests_stop": ("cin_minai.sidebar.words", "T", "stop"),
+    "ui_requests_refresh": ("cin_minai.sidebar.words", "T", "refresh"),
+    "ui_terminal_share": ("cin_minai.sidebar.words", "T", "t_share"),
 }
+# the panel icon's internet log (applet.js LOG_WORDS: [switch, open]) and LibreOffice's Assistant menu (Addons.xcu),
+# read from the files that show them
+APPLET = "distro/packages/cinminai-applet/root/usr/share/cinnamon/applets/cinminai@cinminai/applet.js"
+OWN_LOG = {"ui_log_switch": 0, "ui_log_open": 1}
+ADDONS = "src/libreoffice-extension/Addons.xcu"
+OWN_LO = {"ui_lo_menu": "Assistant", "ui_lo_ask": "Ask about selection", "ui_lo_rewrite": "Rewrite selection…",
+          "ui_lo_explain": "Explain this formula", "ui_lo_summarize": "Summarize document",
+          "ui_lo_share": "Share this document with the assistant", "ui_lo_unshare": "Stop sharing this document"}
 # names the sidebar shows in English in every language (words.py: only its newer views are translated yet); a name
 # moves up to OWN_UI once it has a translation
 OWN_UI_EN = {
@@ -110,7 +122,27 @@ OWN_UI_EN = {
     "ui_write_manuscript": "Make a manuscript",
     "ui_journal_open": "Open the journal", "ui_journal": "Journal", "ui_journal_private": "Private",
     "ui_journal_write": "Write today's entry", "ui_journal_entries": "Entries",
+    "ui_lo_apply": "Apply", "ui_lo_discard": "Discard",
 }
+
+
+def applet_log() -> dict:
+    """The internet log's two menu names per language, from the panel icon's own table."""
+    table = open(os.path.join(REPO, APPLET), encoding="utf-8").read().split("const LOG_WORDS", 1)[1].split("};", 1)[0]
+    rows = {lang: (a, b) for lang, a, b in re.findall(r'^\s*(\w\w): \["([^"]+)", "([^"]+)"\],', table, re.M)}
+    return {key: {lang: pair[i] for lang, pair in rows.items()} for key, i in OWN_LOG.items()}
+
+
+def addons_menu() -> dict:
+    """LibreOffice's Assistant menu per language, from the extension's Addons.xcu (en-US is English)."""
+    import xml.etree.ElementTree as ET
+    lang_attr = "{http://www.w3.org/XML/1998/namespace}lang"
+    titles = {}
+    for prop in ET.parse(os.path.join(REPO, ADDONS)).iter("prop"):
+        if prop.get("{http://openoffice.org/2001/registry}name") == "Title":
+            vals = {v.get(lang_attr, "en-US").split("-")[0]: v.text for v in prop.findall("value")}
+            titles[vals.get("en")] = vals
+    return {key: titles[en] for key, en in OWN_LO.items()}
 
 
 def own() -> tuple[dict, dict]:
@@ -126,6 +158,8 @@ def own() -> tuple[dict, dict]:
         t = getattr(importlib.import_module(module), table)
         ui[key] = {lang: t[lang][word] for lang in ("en", *LANGS) if word in t.get(lang, {})}
     ui.update({key: {"en": text} for key, text in OWN_UI_EN.items()})
+    ui.update(applet_log())
+    ui.update(addons_menu())
     return labels, ui
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",

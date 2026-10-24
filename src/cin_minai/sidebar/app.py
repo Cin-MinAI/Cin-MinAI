@@ -705,10 +705,9 @@ class Sidebar(Gtk.Application):
         sharing = self.daemon_json("TerminalSharing", "state") or {}
         if sharing.get("available"):  # D77: the switch, for after the one-time offer
             menu.append(Gtk.SeparatorMenuItem())
-            check = Gtk.CheckMenuItem(label="Let the assistant see my terminals")
+            check = Gtk.CheckMenuItem(label=words.t("t_share"))
             check.set_active(bool(sharing.get("on")))
-            check.set_tooltip_text("New terminals show ◆ and the assistant can read their commands and output. "
-                                   "Type ai off in one to make it private. Nothing leaves this computer.")
+            check.set_tooltip_text(words.t("t_share_tip"))
 
             def toggled(item) -> None:
                 state = self.daemon_json("TerminalSharing", "on" if item.get_active() else "off") or {}

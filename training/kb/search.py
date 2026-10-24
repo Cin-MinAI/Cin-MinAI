@@ -191,7 +191,7 @@ KEYWORDS = {
                          "datenschutz assistent daten プライバシー アシスタント データ 送信 does it send what i type user input sent to the internet listen record ネットに送る 送ってる 入力内容",
     "offline_mode": "offline disconnect internet no internet airplane keep offline desconectar sin internet "
                     "desconectar sem internet hors ligne déconnecter sans internet offline trennen ohne "
-                    "internet オフライン 切断 インターネットを切る disable internet turn off internet disable network network adapter no connection desligar a internet desactivar internet désactiver internet internet ausschalten",
+                    "internet オフライン 切断 インターネットを切る disable internet turn off internet disable network network adapter no connection desligar a internet desativar a conexão de internet desactivar internet désactiver internet internet ausschalten",
     "updates_why": "why updates important updates matter security updates ignore por qué actualizar "
                    "importancia por que atualizar importância pourquoi mettre à jour importance warum "
                    "aktualisieren wichtig なぜ更新 アップデートの重要性 bother worth skip need updates should i update",
@@ -228,6 +228,24 @@ KEYWORDS = {
     "video_summaries": "summarize video summarize this video youtube video summary video file transcript "
                        "resumir video resumir este vídeo resumo do vídeo résumer la vidéo résumé de vidéo "
                        "video zusammenfassen zusammenfassung des videos 動画を要約 動画の要約",
+    "requests": "requests assistant working on stop a request list of requests "
+                "peticiones en qué está trabajando el asistente detener una petición "
+                "pedidos no que o assistente está trabalhando parar um pedido parar algo que pedi ao assistente "
+                "demandes sur quoi l'assistant travaille arrêter une demande "
+                "anfragen woran arbeitet der assistent anfrage stoppen リクエスト アシスタントが何をしているか 依頼を止める",
+    "terminal_sharing": "let the assistant see my terminal terminal sharing read my terminal ai off "
+                        "que el asistente vea mi terminal deixar o assistente ver meu terminal "
+                        "laisser l'assistant voir mon terminal den assistenten mein terminal sehen lassen "
+                        "ターミナルを見せる",
+    "internet_log": "internet log log of internet sessions what went out to the internet web cloud indicator "
+                    "registro de internet qué se conectó a internet conexiones a internet o que saiu para a internet "
+                    "journal internet ce qui est sorti sur internet internetprotokoll welche verbindungen ins internet "
+                    "インターネットの記録 インターネットに何が出ていった",
+    "libreoffice_helper": "assistant in libreoffice libreoffice writer calc impress share this document explain this "
+                          "formula summarize document asistente en libreoffice compartir este documento explicar "
+                          "esta fórmula uso o assistente no libreoffice compartilhar este documento explicar esta "
+                          "fórmula utiliser l'assistant dans libreoffice partager ce document expliquer cette formule in libreoffice "
+                          "dokument teilen formel erklären libreofficeでアシスタントを使う 文書を共有 数式を説明",
     "vpn": "vpn virtual private network openvpn ovpn wireguard proxy hide ip address public wifi privacy "
            "red privada virtual ocultar ip rede privada virtual esconder ip réseau privé virtuel masquer "
            "adresse ip virtuelles privates netzwerk ip verbergen vpnを使う 仮想プライベートネットワーク IPアドレス",

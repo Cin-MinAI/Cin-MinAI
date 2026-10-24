@@ -2,32 +2,33 @@
 <!-- An "Assistant" menu in the menu bar of Writer, Calc, and Impress. -->
 <oor:component-data xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema"
                     oor:name="Addons" oor:package="org.openoffice.Office">
+  <!-- the six languages (D25, 2026-10-24); the help cards read these names from here -->
   <node oor:name="AddonUI">
     <node oor:name="OfficeMenuBar">
       <node oor:name="org.cinminai.lo.menu" oor:op="replace">
-        <prop oor:name="Title" oor:type="xs:string"><value>Assistant</value></prop>
+        <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Assistant</value><value xml:lang="es">Asistente</value><value xml:lang="pt">Assistente</value><value xml:lang="fr">Assistant</value><value xml:lang="de">Assistent</value><value xml:lang="ja">アシスタント</value></prop>
         <prop oor:name="Context" oor:type="xs:string">
           <value>com.sun.star.text.TextDocument,com.sun.star.sheet.SpreadsheetDocument,com.sun.star.presentation.PresentationDocument</value>
         </prop>
         <node oor:name="Submenu">
           <node oor:name="m01" oor:op="replace">
             <prop oor:name="URL"><value>org.cinminai.lo:ask-selection</value></prop>
-            <prop oor:name="Title"><value>Ask about selection</value></prop>
+            <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Ask about selection</value><value xml:lang="es">Preguntar sobre la selección</value><value xml:lang="pt">Perguntar sobre a seleção</value><value xml:lang="fr">Poser une question sur la sélection</value><value xml:lang="de">Zur Auswahl fragen</value><value xml:lang="ja">選択範囲について質問</value></prop>
             <prop oor:name="Target"><value>_self</value></prop>
           </node>
           <node oor:name="m02" oor:op="replace">
             <prop oor:name="URL"><value>org.cinminai.lo:rewrite-selection</value></prop>
-            <prop oor:name="Title"><value>Rewrite selection…</value></prop>
+            <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Rewrite selection…</value><value xml:lang="es">Reescribir la selección…</value><value xml:lang="pt">Reescrever a seleção…</value><value xml:lang="fr">Réécrire la sélection…</value><value xml:lang="de">Auswahl umschreiben…</value><value xml:lang="ja">選択範囲を書き直す…</value></prop>
             <prop oor:name="Target"><value>_self</value></prop>
           </node>
           <node oor:name="m03" oor:op="replace">
             <prop oor:name="URL"><value>org.cinminai.lo:explain-formula</value></prop>
-            <prop oor:name="Title"><value>Explain this formula</value></prop>
+            <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Explain this formula</value><value xml:lang="es">Explicar esta fórmula</value><value xml:lang="pt">Explicar esta fórmula</value><value xml:lang="fr">Expliquer cette formule</value><value xml:lang="de">Diese Formel erklären</value><value xml:lang="ja">この数式を説明</value></prop>
             <prop oor:name="Target"><value>_self</value></prop>
           </node>
           <node oor:name="m04" oor:op="replace">
             <prop oor:name="URL"><value>org.cinminai.lo:summarize</value></prop>
-            <prop oor:name="Title"><value>Summarize document</value></prop>
+            <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Summarize document</value><value xml:lang="es">Resumir el documento</value><value xml:lang="pt">Resumir o documento</value><value xml:lang="fr">Résumer le document</value><value xml:lang="de">Dokument zusammenfassen</value><value xml:lang="ja">文書を要約</value></prop>
             <prop oor:name="Target"><value>_self</value></prop>
           </node>
           <node oor:name="m05" oor:op="replace">
@@ -35,12 +36,12 @@
           </node>
           <node oor:name="m06" oor:op="replace">
             <prop oor:name="URL"><value>org.cinminai.lo:share</value></prop>
-            <prop oor:name="Title"><value>Share this document with the assistant</value></prop>
+            <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Share this document with the assistant</value><value xml:lang="es">Compartir este documento con el asistente</value><value xml:lang="pt">Compartilhar este documento com o assistente</value><value xml:lang="fr">Partager ce document avec l&apos;assistant</value><value xml:lang="de">Dieses Dokument mit dem Assistenten teilen</value><value xml:lang="ja">この文書をアシスタントと共有</value></prop>
             <prop oor:name="Target"><value>_self</value></prop>
           </node>
           <node oor:name="m07" oor:op="replace">
             <prop oor:name="URL"><value>org.cinminai.lo:unshare</value></prop>
-            <prop oor:name="Title"><value>Stop sharing this document</value></prop>
+            <prop oor:name="Title" oor:type="xs:string"><value xml:lang="en-US">Stop sharing this document</value><value xml:lang="es">Dejar de compartir este documento</value><value xml:lang="pt">Parar de compartilhar este documento</value><value xml:lang="fr">Arrêter de partager ce document</value><value xml:lang="de">Freigabe dieses Dokuments beenden</value><value xml:lang="ja">この文書の共有をやめる</value></prop>
             <prop oor:name="Target"><value>_self</value></prop>
           </node>
         </node>

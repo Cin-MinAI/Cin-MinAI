@@ -391,6 +391,41 @@ TOPICS = [
              "what it needs to download once (the speech reader is about 465 MB), checked when it arrives; nothing "
              "leaves this computer when it watches.",
      "must": [], "steps": True},
+    # --- D84 batch 2 (Ian, 2026-10-24: "pictures are good") -----------------------------------------------------------
+    {"id": "requests", "windows": "the print queue, or Task Manager's list of what's running",
+     "card": "Requests: like the order tickets on a restaurant's rail. Each thing you asked the assistant is a "
+             "ticket: what it was, which model is on it, and whether it's waiting, working or done, with the smaller "
+             "tasks under it (a look, a check, a piece of code). Click {ui_requests} on the assistant's start screen "
+             "(or New… at the top, then {ui_requests}, or right-click the assistant's icon in the panel and choose "
+             "{ui_requests}). {ui_requests_stop} next to one that isn't finished takes it off the rail: a waiting one "
+             "never starts, a running one stops. {ui_requests_refresh} shows the latest.",
+     "must": [], "steps": True},
+    {"id": "terminal_sharing", "windows": "sending someone a screenshot of an error message",
+     "card": "Terminal sharing: like letting a friend look over your shoulder when something goes wrong, instead of "
+             "reading the error out to them over the phone. It's off until you turn it on: click New… at the top of "
+             "the assistant and tick {ui_terminal_share} (it also offers once, when a terminal question comes up). "
+             "Terminals opened after that show ◆ at the start of the prompt: the assistant can read their commands "
+             "and what they printed, so you can ask \"why did that fail?\". Terminals already open stay private until "
+             "you close and reopen them. Typing ai off in a terminal is turning the screen away: that one stays "
+             "private. Password prompts are never seen, and nothing leaves this computer. Untick it to stop.",
+     "must": [], "steps": True},
+    {"id": "internet_log", "windows": "a firewall's connection log, or the list of calls on a phone bill",
+     "card": "The internet log: like the list of calls on a phone bill: who was called and when, never what was said. "
+             "It's off unless you switch it on: right-click the assistant's icon in the panel and tick "
+             "{ui_log_switch}; then {ui_log_open} in the same menu shows it. Each line is one connection: when, WEB "
+             "(a website or search) or CLOUD (a cloud model you gave a key for), and where to; never what was sent. "
+             "Without the log, the panel shows the same thing live, like an \"on air\" light: WEB or CLOUD beside "
+             "the assistant's icon while something is going out, nothing while everything stays on this computer.",
+     "must": [], "steps": True},
+    {"id": "libreoffice_helper", "windows": "Copilot in Word or Excel",
+     "card": "The assistant in LibreOffice: like a helper at your desk who suggests changes in pencil: nothing is "
+             "inked until you say so, and one Undo takes it all back. It only sees a document you share. In "
+             "{writer}, {calc} or {impress}, open the {ui_lo_menu} menu and choose {ui_lo_share}, then ask in the "
+             "assistant, for example \"add a total row\". A change comes as a card showing before and after: "
+             "{ui_lo_apply} puts it in, {ui_lo_discard} leaves the document as it was. The same menu has "
+             "{ui_lo_ask}, {ui_lo_rewrite}, {ui_lo_explain} and {ui_lo_summarize} (choosing one shares the document "
+             "too); {ui_lo_unshare} ends it. Nothing leaves this computer.",
+     "must": [], "steps": True},
 
     # --- update 5 (2026-10-07): the news scan (D92), standing tasks (D88) and keys for sources ------------------------
     {"id": "news_scan", "windows": "news apps or a news feed (MSN News, Google News)",
