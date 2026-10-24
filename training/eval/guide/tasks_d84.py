@@ -9,6 +9,7 @@ training/kb/transition.py, so a task always tests the card as it ships.
 
 import importlib.util
 import os
+import sys
 
 from tasks import BRANDS, NO_CMD, STEPS  # noqa: F401  (run_eval loads BRANDS from the tasks file)
 
@@ -17,6 +18,9 @@ _spec = importlib.util.spec_from_file_location(
 _kb = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_kb)
 CARD = {t["id"]: t["card"] for t in _kb.TOPICS}
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
+from cin_minai.daemon.tools import Tools  # noqa: E402
+LIVE_NOTE = Tools.LIVE_NOTE  # what the storage check says on the live USB
 
 # The names inside programs ({ui_…}) are Mint's own, from its catalogues (labels.json "ui"): a made-up translation
 # fails. The warnings must reach the reply in every language (the first run's "how do I" replies dropped them)
@@ -172,8 +176,10 @@ TASKS = [
            "fr": "Je l'utilise depuis la clé USB. Mes fichiers seront-ils gardés ?",
            "de": "Ich nutze es vom USB-Stick aus. Werden meine Dateien gespeichert?",
            "ja": "USBメモリから起動しています。ファイルは保存されますか？"},
-     "expect": [{"tool": "lookup_help"}],
-     "card": CARD["live_usb"],
+     # on the live USB (2026-10-24): the guide is told so and may answer from it; its storage check says so too
+     "expect": [{"tool": "lookup_help"}, {"tool": "answer"}, {"tool": "inspect_system", "args": {"topic": ["storage"]}}],
+     "card": CARD["live_usb"], "live": True,
+     "result": {"live_session": True, "note": LIVE_NOTE, "memory_space_free_gb": 7, "open_with": "{files}"},
      "must": [["{install_cinminai}"]], "must_not": NO_CMD},
     # --- from the hands-on round on the test SSD (2026-10-07): the guide invented menus for these -------------------
     {"id": "D84-20", "cat": "system",

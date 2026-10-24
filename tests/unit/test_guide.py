@@ -262,6 +262,18 @@ class GuideTest(unittest.TestCase):
         with self.assertRaises(BackendError):
             turn(g, "hi")
 
+    def test_live_usb_is_told_to_the_model(self):
+        # D84-19: "I'm running it from the USB stick. Will my files be saved?" had the guide say yes
+        from unittest import mock
+        from cin_minai.daemon import guide as guide_mod
+        for live in (True, False):
+            g, b = guide(['{"tool": "answer", "args": {"text": "No."}}'])
+            with mock.patch.object(guide_mod, "live_session", return_value=live):
+                turn(g, "Will my files be saved?")
+            system = b.sent[0]["messages"][0]["content"]
+            self.assertEqual(system.endswith(guide_mod.LIVE_SYSTEM), live)
+            self.assertTrue(system.startswith(DATA["guide.json"]["system"]))
+
 
 class NotOnThisComputerTest(unittest.TestCase):
     """Ian, 2026-10-23: questions go to Wikipedia on this computer first; without it, "This is what I have in memory

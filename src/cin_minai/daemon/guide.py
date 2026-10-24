@@ -24,6 +24,7 @@ from .helpcards import HelpIndex
 from .office import Office, OfficeError
 from . import facts, intent, library, offline, websearch
 from .repetition import LoopDetected, ReplyGuard
+from .config import live_session
 from .tools import Tools
 
 TEXT_START = re.compile(r'^\s*\{\s*"tool"\s*:\s*"(answer|decline)"\s*,\s*"args"\s*:\s*\{\s*"text"\s*:\s*"')
@@ -31,6 +32,11 @@ ESCAPES = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r":
 
 
 TERMINAL_MIN_SCORE = 8.0
+# D84-19 (2026-10-24): on the live USB the guide is told so in its prompt; asked "will my files be saved?" it had
+# found the card on removing a USB stick and said yes
+LIVE_SYSTEM = ("\nThis computer is running from the USB stick (the live session), not installed: files saved now are "
+               "kept in memory and lost at shutdown. Install Cin-MinAI to keep them, or copy them to another USB "
+               "drive first.\n")
 
 
 class TextStream:
@@ -397,6 +403,8 @@ class Guide:
         doc, system, schema = self.document()
         if doc is None:
             schema = intent.narrow(schema, text)  # the email tool only when an email is asked for (D88)
+            if live_session():
+                system += LIVE_SYSTEM
         messages = [{"role": "system", "content": system}] + self.history + [user]
         edits = set(self.data["documents"][doc["type"]]["edit"]) if doc else set()
         timings = []

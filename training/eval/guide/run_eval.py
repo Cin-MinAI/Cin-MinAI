@@ -294,6 +294,8 @@ def style() -> str:
         if PROMPT.startswith("v2") else STYLE
 
 
+LIVE = ""  # --live: the line the daemon adds on the live USB (guide.LIVE_SYSTEM)
+LIVE_ALL = False  # --live-all: every item as if on the live USB (does the line leak into other answers?)
 HELP = None  # --help-json: the daemon's help index (src/cin_minai/daemon/helpcards.py)
 
 
@@ -318,7 +320,7 @@ def system_prompt(task: dict) -> str:
         document = "\nNo document is shared.\n"
     system = (SYSTEM_V27 if PROMPT in ("v2.7", "v2.8") and not doc else SYSTEM_V26 if PROMPT == "v2.6" and not doc else SYSTEM_V23 if PROMPT in ("v2.3", "v2.4", "v2.5") and not doc else SYSTEM_V22 if PROMPT == "v2.2" and not doc
               else SYSTEM_V2 if PROMPT.startswith("v2") else SYSTEM)
-    return system.format(document=document, tools=tools)
+    return system.format(document=document, tools=tools) + ((LIVE if not doc else "") if task.get("live") or LIVE_ALL else "")
 
 
 # --- items: one per (task, language) --------------------------------------------------------------
@@ -585,10 +587,15 @@ def main() -> None:
     ap.add_argument("--prompt", choices=["v1", "v2", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8"], default="v1")
     ap.add_argument("--help-json", help="look help up for real: the daemon's help.json (distro/packages/"
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
+    ap.add_argument("--live", action="store_true", help="tasks marked live get the daemon's live-USB line")
+    ap.add_argument("--live-all", action="store_true", help="every task gets it (needs --live)")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")
     o = ap.parse_args()
-    global PROMPT, HELP
+    global PROMPT, HELP, LIVE, LIVE_ALL
     PROMPT = o.prompt
+    if o.live:
+        from cin_minai.daemon.guide import LIVE_SYSTEM
+        LIVE, LIVE_ALL = LIVE_SYSTEM, o.live_all
     if o.help_json:
         from cin_minai.daemon.helpcards import HelpIndex
         HELP = HelpIndex.load(o.help_json)
