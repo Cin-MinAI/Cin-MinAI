@@ -204,6 +204,30 @@ KEYWORDS = {
                          "wikipédia hors ligne télécharger wikipédia encyclopédie bibliothèque "
                          "wikipedia offline herunterladen enzyklopädie bibliothek "
                          "ウィキペディア オフライン ダウンロード 百科事典 ライブラリ",
+    # D84 batch 1 (2026-10-24)
+    "the_assistant": "assistant sidebar super+a open the assistant close the assistant hide the assistant copilot "
+                     "cortana new conversation start over "
+                     "asistente abrir el asistente nueva conversación assistente abrir o assistente nova conversa "
+                     "assistant ouvrir l'assistant nouvelle conversation assistent assistenten öffnen neues gespräch "
+                     "アシスタント アシスタントを開く アシスタントの開き方 新しい会話",
+    "writing_projects": "writing project write a story write a novel write a book chapter manuscript story circle "
+                        "outline "
+                        "escribir una historia escribir una novela capítulo manuscrito proyecto de escritura "
+                        "escrever uma história escrever um romance capítulo manuscrito projeto de escrita "
+                        "écrire une histoire écrire un roman chapitre manuscrit projet d'écriture "
+                        "geschichte schreiben roman schreiben kapitel manuskript schreibprojekt "
+                        "物語を書く 小説を書く 章 原稿 執筆プロジェクト",
+    "journal": "journal diary daily journal private entry pin "
+               "diario entrada privada diário entrada privada journal intime entrée privée "
+               "tagebuch privater eintrag 日記 日記をつける",
+    "ai_models": "models ai model download a model change model hugging face which model bigger model "
+                   "models window the assistant's models "
+                   "modelos modelo de ia descargar un modelo cambiar el modelo baixar um modelo trocar o modelo "
+                   "modèles modèle d'ia télécharger un modèle changer de modèle "
+                   "modelle ki-modell modell herunterladen modell wechseln モデル AIモデル モデルをダウンロード",
+    "video_summaries": "summarize video summarize this video youtube video summary video file transcript "
+                       "resumir video resumir este vídeo resumo do vídeo résumer la vidéo résumé de vidéo "
+                       "video zusammenfassen zusammenfassung des videos 動画を要約 動画の要約",
     "vpn": "vpn virtual private network openvpn ovpn wireguard proxy hide ip address public wifi privacy "
            "red privada virtual ocultar ip rede privada virtual esconder ip réseau privé virtuel masquer "
            "adresse ip virtuelles privates netzwerk ip verbergen vpnを使う 仮想プライベートネットワーク IPアドレス",

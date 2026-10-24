@@ -904,6 +904,96 @@
    "fr": "Retirer",
    "de": "Entfernen",
    "ja": "削除"
+  },
+  "ui_models": {
+   "en": "Models",
+   "es": "Modelos",
+   "pt": "Modelos",
+   "fr": "Modèles",
+   "de": "Modelle",
+   "ja": "モデル"
+  },
+  "ui_models_ours": {
+   "en": "Our pick",
+   "es": "Nuestra elección",
+   "pt": "Nossa escolha",
+   "fr": "Notre choix",
+   "de": "Unsere Wahl",
+   "ja": "おすすめ"
+  },
+  "ui_models_more": {
+   "en": "More models",
+   "es": "Más modelos",
+   "pt": "Mais modelos",
+   "fr": "Plus de modèles",
+   "de": "Weitere Modelle",
+   "ja": "ほかのモデル"
+  },
+  "ui_models_check": {
+   "en": "Does it run here?",
+   "es": "¿Funciona aquí?",
+   "pt": "Roda aqui?",
+   "fr": "Tourne-t-il ici ?",
+   "de": "Läuft es hier?",
+   "ja": "ここで動きますか？"
+  },
+  "ui_models_drives": {
+   "en": "Look on connected drives",
+   "es": "Buscar en unidades conectadas",
+   "pt": "Procurar nas unidades conectadas",
+   "fr": "Chercher sur les disques branchés",
+   "de": "Auf angeschlossenen Laufwerken suchen",
+   "ja": "接続したドライブを探す"
+  },
+  "ui_models_system": {
+   "en": "Help and the system",
+   "es": "Ayuda y el sistema",
+   "pt": "Ajuda e o sistema",
+   "fr": "Aide et système",
+   "de": "Hilfe und System",
+   "ja": "ヘルプとシステム"
+  },
+  "ui_open_assistant": {
+   "en": "Open assistant"
+  },
+  "ui_new_conversation": {
+   "en": "New conversation"
+  },
+  "ui_write_start": {
+   "en": "Start a writing project"
+  },
+  "ui_write_new": {
+   "en": "New writing project…"
+  },
+  "ui_write_notes": {
+   "en": "Notes"
+  },
+  "ui_write_up": {
+   "en": "Write it up"
+  },
+  "ui_write_plan": {
+   "en": "Plan the chapter"
+  },
+  "ui_write_it": {
+   "en": "Write it"
+  },
+  "ui_write_manuscript": {
+   "en": "Make a manuscript"
+  },
+  "ui_journal_open": {
+   "en": "Open the journal"
+  },
+  "ui_journal": {
+   "en": "Journal"
+  },
+  "ui_journal_private": {
+   "en": "Private"
+  },
+  "ui_journal_write": {
+   "en": "Write today's entry"
+  },
+  "ui_journal_entries": {
+   "en": "Entries"
   }
  }
 }

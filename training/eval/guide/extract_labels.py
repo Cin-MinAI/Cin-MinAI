@@ -94,6 +94,22 @@ OWN_UI = {  # key -> (module, table, word). Not the Install button: it shows the
     "ui_library_look": ("cin_minai.sidebar.words", "T", "lib_look"),
     "ui_library_get": ("cin_minai.sidebar.words", "T", "lib_get"),
     "ui_library_remove": ("cin_minai.sidebar.words", "T", "h_remove"),
+    "ui_models": ("cin_minai.sidebar.words", "T", "models"),
+    "ui_models_ours": ("cin_minai.sidebar.words", "T", "m_use_ours"),
+    "ui_models_more": ("cin_minai.sidebar.words", "T", "h_more"),
+    "ui_models_check": ("cin_minai.sidebar.words", "T", "h_check"),
+    "ui_models_drives": ("cin_minai.sidebar.words", "T", "h_drives"),
+    "ui_models_system": ("cin_minai.sidebar.words", "T", "job_system"),
+}
+# names the sidebar shows in English in every language (words.py: only its newer views are translated yet); a name
+# moves up to OWN_UI once it has a translation
+OWN_UI_EN = {
+    "ui_open_assistant": "Open assistant", "ui_new_conversation": "New conversation",
+    "ui_write_start": "Start a writing project", "ui_write_new": "New writing project…", "ui_write_notes": "Notes",
+    "ui_write_up": "Write it up", "ui_write_plan": "Plan the chapter", "ui_write_it": "Write it",
+    "ui_write_manuscript": "Make a manuscript",
+    "ui_journal_open": "Open the journal", "ui_journal": "Journal", "ui_journal_private": "Private",
+    "ui_journal_write": "Write today's entry", "ui_journal_entries": "Entries",
 }
 
 
@@ -109,6 +125,7 @@ def own() -> tuple[dict, dict]:
     for key, (module, table, word) in OWN_UI.items():
         t = getattr(importlib.import_module(module), table)
         ui[key] = {lang: t[lang][word] for lang in ("en", *LANGS) if word in t.get(lang, {})}
+    ui.update({key: {"en": text} for key, text in OWN_UI_EN.items()})
     return labels, ui
 ACTIONS = {  # desktop right-click menu items (Nemo actions); "_" marks the access key
     "change_background": "/usr/share/nemo/actions/change-background.nemo_action",

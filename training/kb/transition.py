@@ -328,6 +328,70 @@ TOPICS = [
              "one off, click {ui_library_remove} next to it, then click again to confirm.",
      "must": [], "steps": True},
 
+    # --- D84 batch 1 of our own features (2026-10-24; pictures drafted by Claude, approved by Ian: "Those are great");
+    # words checked against sidebar/app.py, daemon/journal.py, webvideo.py, video.py; names in English where the
+    # sidebar shows them in English (extract_labels.OWN_UI_EN) ------------------------------------------------------
+    {"id": "the_assistant", "windows": "Copilot, Cortana or the search box on the taskbar",
+     "card": "The assistant: think of a knowledgeable friend sitting at the side of your desk. Press Super+A (the "
+             "Windows key and A), or click the assistant's icon in the panel, to bring it in; do it again (or press "
+             "Esc) to send it away. It docks on the right of the screen without covering your windows. It runs on "
+             "this computer: what you type stays here, and nothing is sent unless you agree, for example to a web "
+             "search, which shows exactly what would be sent first. Its start screen has buttons for writing, the "
+             "journal, coding and its other windows. To start over, click New… at the top and choose "
+             "{ui_new_conversation} (or right-click its icon in the panel and choose {ui_new_conversation}). Hiding "
+             "it keeps the conversation; restarting the computer starts a new one.",
+     "must": [], "steps": True},
+    {"id": "writing_projects", "windows": "writing a story or a novel in Word",
+     "card": "Writing projects: like telling your story to a friend who takes notes while you talk, then asks "
+             "what's still missing before each chapter. Click {ui_write_start} on the assistant's start screen (or "
+             "New… at the top, then {ui_write_new}), give it a working title and choose one chapter or several. Then "
+             "tell it about the story: the people, the places, what happens, how it should feel. It keeps "
+             "{ui_write_notes}, along Dan Harmon's story circle (eight steps, from You to Change). When you're "
+             "ready, click {ui_write_up}: it shows where the story is and asks its questions; answer if you like, "
+             "then click {ui_write_plan}. It lays out the scenes: say what should change, or click {ui_write_it}. "
+             "Each chapter is written as a new file and opens in {writer}; it never writes over the last one. The "
+             "files are in Documents, then Writing, then the project's title. When the story is done, "
+             "{ui_write_manuscript} in {ui_write_notes} makes a copy in the standard format for sending to "
+             "publishers, as .odt and .docx.",
+     "must": [], "steps": True},
+    {"id": "journal", "windows": "a diary app, or keeping a journal in Word or OneNote",
+     "card": "Journal: like ending the day with a good listener who only asks questions (never advice, never "
+             "judging) and then writes it up in your own words. Click {ui_journal_open} on the assistant's start "
+             "screen (or New… at the top, then {ui_journal}) and tell it about your day; it asks one short question "
+             "at a time. When you're done, click {ui_journal_write}: the entry is written in your words, saved in "
+             "Documents, then Journal, and opened in {writer}. To keep an entry private, tick {ui_journal_private} "
+             "before writing it. The first time, you choose a 4-digit PIN: think of a diary with a lock, and the PIN "
+             "as its key. A private entry is locked against people looking, the assistant can't read it while it's "
+             "locked, and it opens only inside the assistant, from {ui_journal_entries}, with the PIN. Don't lose "
+             "the PIN: there's no way to reset it, and without it a private entry can't be opened. The assistant "
+             "hears what you tell it while the entry is being written; the conversation itself isn't kept.",
+     "must": [], "steps": True},
+    {"id": "ai_models", "windows": "choosing which AI model an app uses, or downloading one",
+     "card": "Models: like the staff list of a small shop, each job has someone on it. Click {ui_models} on the "
+             "assistant's start screen, or right-click the assistant's icon in the panel and choose {ui_models}. "
+             "Each job (writing, pictures and video, writing code) shows the model on it, {ui_models_ours} or your "
+             "choice; {ui_models_system} always stays with the built-in guide, because it holds the system's tools. "
+             "To put another model on a job, pick it from the list beside the job: each says whether it runs well "
+             "here, slowly, or not at all. {ui_models_more} searches Hugging Face for others; only your search "
+             "words are sent. {ui_models_check} is measuring the doorway before you buy the sofa: it checks the "
+             "model fits this computer before anything is downloaded. A download is checked against its checksum "
+             "before it's used, and a stopped one carries on later. A model kept on another drive comes back with "
+             "{ui_models_drives}. To take off a downloaded model no job uses, click {ui_library_remove} next to it, "
+             "then click again to confirm.",
+     "must": [], "steps": True},
+    {"id": "video_summaries", "windows": "a YouTube summary extension, or watching a video file in a player",
+     "card": "Video summaries: like a friend who watched the video and tells you the main points, with the times so "
+             "you can check for yourself. For YouTube: open the video in Firefox and ask the assistant \"summarize "
+             "this video\". It reads the video's transcript and its preview pictures (youtube.com only), so the ads "
+             "aren't in it; a long video is done in parts. To find one first, ask for example \"find a video about "
+             "baking bread\": a card shows what would be searched, and nothing is sent until you click Search. For a "
+             "video file on this computer: drop it on the assistant, or click the picture button beside the box and "
+             "choose it. It takes a few minutes, like someone listening to the whole recording, and you can do "
+             "other things meanwhile; speech in any of the languages is understood. The first time, a card offers "
+             "what it needs to download once (the speech reader is about 465 MB), checked when it arrives; nothing "
+             "leaves this computer when it watches.",
+     "must": [], "steps": True},
+
     # --- update 5 (2026-10-07): the news scan (D92), standing tasks (D88) and keys for sources ------------------------
     {"id": "news_scan", "windows": "news apps or a news feed (MSN News, Google News)",
      "card": "News: ask the assistant for the news about something, for example \"pull up the news about Linux "
@@ -425,7 +489,9 @@ TOPICS = [
              "open the Menu, then Programming, then AICUI (or click Open AICUI in the assistant's sidebar), choose "
              "your project folder, type what you want in the box at the bottom and click Send to the AI. To end "
              "everything at once (the AI, its models, its commands and what Run started), click Stop everything in "
-             "the middle of the top bar; what was done stays, with undo.",
+             "the middle of the top bar; what was done stays, with undo. To measure how much your setup holds on "
+             "this graphics card, click Benchmark in the top bar (it asks first, and can take an hour or more); "
+             "Context, beside it, sets how much each model keeps in mind.",
      "must": [], "steps": True, "langs": ["en"]},
     # --- update 7 (2026-10-21): AICUI's GitHub flow and the Team Table; words checked against aicui/app.py and
     # aicui/tableview.py ------------------------------------------------------------------------------------------

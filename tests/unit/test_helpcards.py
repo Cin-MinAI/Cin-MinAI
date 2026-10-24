@@ -184,6 +184,28 @@ class HelpCards(unittest.TestCase):
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"] * 2, questions):
                 self.assertEqual(self.index.lookup(q, lang)[0], card, q)
 
+    def test_our_features_batch_1_found_in_six_languages(self):
+        # D84 (2026-10-24): the assistant itself, writing projects, the journal, the Models view, video summaries
+        asked = {
+            "the_assistant": ["How do I open the assistant?", "¿Cómo abro el asistente?", "Como abro o assistente?",
+                              "Comment ouvrir l'assistant ?", "Wie öffne ich den Assistenten?",
+                              "アシスタントはどうやって開きますか？"],
+            "writing_projects": ["Can you help me write a story?", "¿Me ayudas a escribir una historia?",
+                                 "Você me ajuda a escrever uma história?", "Peux-tu m'aider à écrire une histoire ?",
+                                 "Kannst du mir helfen, eine Geschichte zu schreiben?", "物語を書くのを手伝ってくれますか？"],
+            "journal": ["How do I keep a diary?", "¿Cómo llevo un diario?", "Como faço um diário?",
+                        "Comment tenir un journal intime ?", "Wie führe ich ein Tagebuch?", "日記はどうやってつけますか？"],
+            "ai_models": ["How do I download a bigger AI model?", "¿Cómo descargo un modelo de IA más grande?",
+                          "Como baixo um modelo de IA maior?", "Comment télécharger un modèle d'IA plus grand ?",
+                          "Wie lade ich ein größeres KI-Modell herunter?", "もっと大きなAIモデルをダウンロードするには？"],
+            "video_summaries": ["Can you summarize a YouTube video?", "¿Puedes resumir un video de YouTube?",
+                                "Você pode resumir um vídeo do YouTube?", "Peux-tu résumer une vidéo YouTube ?",
+                                "Kannst du ein YouTube-Video zusammenfassen?", "YouTubeの動画を要約できますか？"],
+        }
+        for card, questions in asked.items():
+            for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):
+                self.assertEqual(self.index.lookup(q, lang)[0], card, q)
+
     def test_no_match(self):
         self.assertEqual(self.index.lookup("the the and of", "en"), (None, "Nothing in the built-in help matches this."))
 

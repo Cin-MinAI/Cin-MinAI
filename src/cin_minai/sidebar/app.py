@@ -1194,8 +1194,14 @@ class Sidebar(Gtk.Application):
                 row.pack_start(Gtk.Label(label=line, xalign=0, wrap=True, max_width_chars=26), True, True, 0)
                 if m["where"] == "store" and m["present"] and not used:
                     rm = Gtk.Button(label=words.t("h_remove"))
-                    rm.connect("clicked", lambda b, f=m["file"]: (b.set_sensitive(False), self.daemon_async(
-                        "ModelRemove", (f,), "(s)", lambda v: again())))
+
+                    def remove(b, f=m["file"]) -> None:
+                        if b.get_label() == words.t("h_remove"):
+                            b.set_label(words.t("m_sure"))  # the second click removes it (Ian, 2026-10-24; D85)
+                            return
+                        b.set_sensitive(False)
+                        self.daemon_async("ModelRemove", (f,), "(s)", lambda v: again())
+                    rm.connect("clicked", remove)
                     row.pack_end(rm, False, False, 0)
                 box.pack_start(row, False, False, 0)
             free = Gtk.Label(label=words.t("m_free", gb=f"{v['free_bytes'] / 2**30:.0f}"), xalign=0)
