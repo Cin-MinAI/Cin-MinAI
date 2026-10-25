@@ -245,10 +245,66 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D91 | partly | chains for video and news; other successive actions not built; the live report, gathered by the guide and passed on by the person, planned after the alpha (2026-10-16) |
 | D92 | filled | press / social / official, standing watches |
 | D93 | partly | Models view + Hugging Face fit check; context sizes chosen per computer (AICUI, 2026-10-14); models in parts, sign-in repos, the setup helper not built |
-| D94 | partly | the two cards, Senior and Junior, built (styles A and B, PLAN §1b, 2026-10-09/10; GatheredData 2026-10-10); the guide holds system tools; the admin key not built. **Reviews by another model: measured 2026-10-24, not built.** On Ian's PC (1080 Ti 11 GB, 32 GB RAM, the NVMe on a PCIe 2.0 x2 slot), each candidate reviewed a ~660-line GUI another model wrote, scored against a 16-item answer key checked by running the program. Qwen3.8-Flash-Next (UD-Q2_K_XL, 79 GB, needs llama.cpp 0.6.0 and `--device CUDA0`): its unbounded thinking found the most (~13.5 of 16, including a major bug the key had missed) but took 36-46 min per review, and its written answers padded or never came; it waits for hardware (Ian: a second 1080 Ti, then a platform with 128 GB+). Qwen3.6-35B-A3B (experts in RAM): 5 min per review, ~6 of 16 per review, about 1 wrong claim. A pruned 27B-A2.8B made up bugs (~8 wrong claims), not offered as a reviewer. **The review's shape (Ian, 2026-10-24): three "what breaks" passes, from the beginning (from the start command forward: what runs at load, each view as it's built), from the end (the person's goal, backwards link by link) and in operation (every control; twice, out of order, away and back).** Merged, three sets found 6, 10.5 and 10 of 16 (the five majors 3, 5 and 4), against ~8.5 for the same pass three times and ~7 for three topic lenses; one bug (an empty deck when the board is opened directly) only this shape found reliably. Each set still carried ~4 wrong claims (made-up crashes, a "done" verdict), so **claims are checked in code before the person sees them** wherever a check can exist (start it offscreen, press the button). One defect no review found (a file dialog's malformed filter) only running the program shows. Next: build it (the 35B reviewer on this class of machine, the three passes, the merge, the checks) |
+| D94 | partly | the two cards, Senior and Junior, built (styles A and B, PLAN §1b, 2026-10-09/10; GatheredData 2026-10-10); every setup and card written down as the foundation, and where the code drifted from it (2026-10-25, "AICUI's setups and cards" below); the guide holds system tools; the admin key not built. **Reviews by another model: measured 2026-10-24, not built.** On Ian's PC (1080 Ti 11 GB, 32 GB RAM, the NVMe on a PCIe 2.0 x2 slot), each candidate reviewed a ~660-line GUI another model wrote, scored against a 16-item answer key checked by running the program. Qwen3.8-Flash-Next (UD-Q2_K_XL, 79 GB, needs llama.cpp 0.6.0 and `--device CUDA0`): its unbounded thinking found the most (~13.5 of 16, including a major bug the key had missed) but took 36-46 min per review, and its written answers padded or never came; it waits for hardware (Ian: a second 1080 Ti, then a platform with 128 GB+). Qwen3.6-35B-A3B (experts in RAM): 5 min per review, ~6 of 16 per review, about 1 wrong claim. A pruned 27B-A2.8B made up bugs (~8 wrong claims), not offered as a reviewer. **The review's shape (Ian, 2026-10-24): three "what breaks" passes, from the beginning (from the start command forward: what runs at load, each view as it's built), from the end (the person's goal, backwards link by link) and in operation (every control; twice, out of order, away and back).** Merged, three sets found 6, 10.5 and 10 of 16 (the five majors 3, 5 and 4), against ~8.5 for the same pass three times and ~7 for three topic lenses; one bug (an empty deck when the board is opened directly) only this shape found reliably. Each set still carried ~4 wrong claims (made-up crashes, a "done" verdict), so **claims are checked in code before the person sees them** wherever a check can exist (start it offscreen, press the button). One defect no review found (a file dialog's malformed filter) only running the program shows. Next: build it (the 35B reviewer on this class of machine, the three passes, the merge, the checks) |
 | D95 | filled | turn tokens, the Requests view, placement, the AICUI tandem on the Team Table, the coder leading and the guide helping (2026-10-09) |
 | D96 | partly | in AICUI: code-made structure and checks, pages and files kept whole, each goal's cycle state, use needs checked data (built 2026-10-08 night); the habit format, shipped habits and assimilation not built |
 | D97 | filled | standing rule; this table |
+
+### AICUI's setups and cards: the foundation (Ian, 2026-10-25) — fills D63, D94, D95; no new decision (D97)
+
+Written after a day of flow fixes tuned on one setup (a cloud lead with a local junior) had drifted the others. Ian:
+"Theres a whole scheme of schemes we need to make sure we keep… All of this and what else youve seen is the point of
+AICUI with team table. Terminal with whatever team you want to put together." Every AICUI change is checked against
+every setup below; none is narrowed to fix another.
+
+**The setups**
+
+| Setup | Who codes | Reached by | Stands |
+|---|---|---|---|
+| One local model | the model | Team: One model | built |
+| One cloud model | the cloud model | Cloud: Work with the cloud only (Exclusive); Finish this project (Finisher: the locals built it, the cloud takes it to working) | built |
+| Team A: a coder and its errand intern | the coder (it is the Senior) | Team: Team A | built; errands are read and look only (fetch-and-structure, assets missing) |
+| Senior + Junior, both local | both (Senior: the mechanisms that matter; Junior: inside the frame) | Team: Team B | built; the two models fixed (9B, 35B-A3B) |
+| Senior + Junior, cloud or local in either seat | both | cloud Senior + local Junior: Cloud: Lead (crew one or two); the other mixes only as a free-form Table | partly |
+| A cloud Advisor for a local builder | the locals; the Advisor reads and instructs, never writes | Cloud: Advise the local models | built; it sees a summary, not the files; only the lead may ask it |
+| Locals as token reducers for the cloud | the locals do the reading, distilling, LFD and exact edits | inside the cloud Lead only | partly |
+| The Team Table: any mix of local, cloud and outside seats, one project | the crown and the seats | Team: The Team Table | built; seats have no roles (crown or worker), one shared budget |
+| A local relay over a cloud worker | the cloud model | — | planned, waits for a bigger local model and hardware (below) |
+
+**The cards** (the original names, 2026-10-09/10: "a real jr/Sr developer setup"), the same in every setup:
+
+- **Senior Developer:** holds the goals and the plan ("the script") and the final word; lays the skeleton (every
+  file with its imports, signatures and stubs, compiling); **writes the mechanisms that matter**; directs and
+  organizes; reviews against what was gathered. "Sr is the main compiler for the project while Jr can compile for a
+  file." "Both do write." A cloud Senior saves its tokens by giving the volume (reading, distilling, errands, exact
+  edits) to the Junior, not by not coding.
+- **Junior Developer:** a queue, one task at a time, each reported with evidence; mostly reading and distilling;
+  writes inside the skeleton; escalates to the Senior, not the person; its reviews are flags, never verdicts.
+- **Advisor:** reads and instructs only; can sit over any lead, local or cloud.
+- **Worker seat** (the Table): takes the lead's tasks; a seat's card (Senior Developer, Junior, Advisor, token
+  reducer) is the person's choice.
+- **The bigger model is the Senior** unless the person crowns another; the person is above all of them.
+
+**The local relay** (Ian, 2026-10-25, planned): a local lead on a cloud worker, mainly scheduled — "the local model is
+basically a relay when you want the cloud model to do whatever you are having it do" — and a lever: "Small information
+input for big information output, and the leverage comes from the prompt you give it. More details, more leverage."
+The local model keeps a working script and reads the person's intentions from the original prompt
+(`original-request.txt`) and the updates given to it. "We need a bigger model and hardware before I trust that."
+
+**Where the code stood, 2026-10-25** (four read-only audits; the fix plan goes to Ian before anything is built):
+
+- *Today's flow fixes, outside their setup:* a goal other than the last open one is checked against its own files,
+  and the one-model setups' goals have none, so a crash or no tests don't hold it there; the goals-still-open note
+  reaches only a Senior (not one model, the Finisher, team A); the Advisor's stall trigger is skipped under a Senior;
+  a draft is owned by role, not seat (two juniors can finish each other's); the folder hold misses the Table's lead;
+  the web-tool line says "no need to ask" where AICUI still asks before the first fetch in every mode (D86).
+- *Drift from the cards:* the cloud Senior is told "Direct; keep your own reading and writing small", and its fix task
+  has it read the code while the Junior only applies lines (the reading split turned round); no Senior prompt says to
+  lay the skeleton and write the mechanisms that matter; a plan's junior goals go to the Junior whole, past assign's
+  skeleton check and the Senior's specifics (A41); every role carries the one-model prompt's errand and "do it
+  yourself" lines; the Table's seats have no cards, a cloud seat is always a junior.
+- *Setups that cross:* the Team button and the cloud role override each other without a word (Team B shown while a
+  cloud model works alone; the Table drops a saved cloud role, the Advisor attaches anyway).
 
 ### The look closure (Ian, 2026-10-09) — built the same day
 
