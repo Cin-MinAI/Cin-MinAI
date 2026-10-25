@@ -251,8 +251,9 @@ class Pair:
                 return "error: say what the junior should run and look for"
             return self.queue(rel if os.path.exists(full) else "", task.strip(), "test",
                               f"test {rel}: {task.strip()}"[:200], hold=[])
-        if also and not self.many:
-            return "error: one file per task here — give the other files their own tasks"
+        later = []
+        if also and not self.many:  # the first file goes ahead (2026-10-25: Haiku 5.5 sent the same call twice, was
+            later, also = [f for f in also if f != rel], None  # refused twice and stopped with nothing done)
         if not os.path.isfile(full):
             return (f"error: {rel} doesn't exist yet — lay the skeleton first (the file with its imports, classes and "
                     "signatures, stubs marked TODO), then assign it")
@@ -271,8 +272,12 @@ class Pair:
         if len(task) > cap:
             return (f"error: that task is {len(task):,} characters, over the {cap:,} your junior takes in one task (5 % "
                     "of its context): split it into tasks of one function or part each")
-        return self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200], attempt=attempt,
-                          hold=[rel, *(also or [])])
+        out = self.queue(rel, task.strip(), kind, f"{kind} {rel}: {task.strip()}"[:200], attempt=attempt,
+                         hold=[rel, *(also or [])])
+        if later and not out.startswith("error"):
+            out += (f" — only {rel} is in this task (one file per task here): give {', '.join(later)} their own "
+                    "tasks")
+        return out
 
     def queue(self, rel: str, task: str, kind: str, what: str, hold: list | None = None,
               goal: dict | None = None, attempt: int = 1) -> str:

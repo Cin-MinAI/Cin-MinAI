@@ -175,8 +175,11 @@ class Running(unittest.TestCase):
         with open(os.path.join(self.root, "deck.py")) as f:
             self.assertEqual(f.read(), "DECK = []\n")
         coder_pair = next(iter(t.pairs.values()))
-        coder_pair.many = False  # a senior and its junior outside the table: one file per task, as before
-        self.assertIn("one file per task here", coder_pair.assign("rules.py", "x" * 30 + DETAIL, also=["deck.py"]))
+        coder_pair.many = False  # a senior and its junior outside the table: one file per task, the first goes ahead
+        got = coder_pair.assign("rules.py", "x" * 30 + DETAIL, also=["deck.py"])  # (2026-10-25: refused twice, it
+        self.assertIn("given to your junior", got)  # stopped with nothing done)
+        self.assertIn("only rules.py is in this task (one file per task here): give deck.py their own tasks", got)
+        self.assertNotIn("deck.py", coder_pair.held)
 
     def test_goals_on_the_paper_go_to_their_seat(self):
         lead, coder, t = self.table()
