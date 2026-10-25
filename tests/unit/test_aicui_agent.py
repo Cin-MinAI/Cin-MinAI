@@ -528,6 +528,7 @@ class AgentTest(unittest.TestCase):
                                        step("Wrong operator.", tool="edit", path="app.py", old="a - b", new="a + b"),
                                        step("Report.", tool="answer", text="add() is fixed. Next I will do the docs."),
                                        step("It's done.", tool="goal_done", id=1),
+                                       step("Report.", tool="answer", text="Goal 1 ticked."),  # new progress: again
                                        step("Report.", tool="answer", text="add() is fixed; goal 1 ticked."),
                                        ]), "m", "auto", say=self.said.append)
         a.role = "senior"
@@ -605,6 +606,60 @@ class AgentTest(unittest.TestCase):
         sent = "\n".join(m["content"] for m in a.chat.sent[-1])
         self.assertNotIn("No progress in the last", sent)
         self.assertIn("Your junior's question (task 640) waits for your word", sent)
+
+    def test_one_version_of_a_file_a_draft_and_the_file(self):
+        """2026-10-25 (test16): read gave only a draft's end, to the lead and to the junior asking for line 234; an edit
+        to the file was then undone when a part finished the old draft over it (379 lines became 269); a second write
+        restarted a 514-line draft at 249."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.role = "junior"
+        a.content_max = 200
+        line = "# " + "x" * 60 + "\n"
+        self.assertIn("kept as a draft", a.do({"tool": "write", "path": "app.py", "content": line * 4}))
+        self.assertIn("isn't started over", a.do({"tool": "write", "path": "app.py", "content": line * 4}))
+        self.assertIn("The draft from line 2:\n    2 # xx", a.do({"tool": "read", "path": "app.py", "start": 2}))
+        lead = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        lead.role = "senior"
+        seen = lead.do({"tool": "read", "path": "app.py"})
+        self.assertIn("being drafted by your junior", seen)
+        self.assertIn("    2     return a - b", seen)  # the file as it is
+        with open(os.path.join(self.root, "app.py"), "a", encoding="utf-8") as f:
+            f.write("# changed meanwhile\n")
+        self.assertIn("changed since its draft began", a.do({"tool": "append", "path": "app.py", "content": "y = 1\n"}))
+        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
+            self.assertIn("# changed meanwhile", f.read())  # the file stands
+        self.assertFalse(os.path.exists(a.draft_path("app.py")))
+        a.do({"tool": "write", "path": "app.py", "content": line * 4})  # a new draft…
+        self.assertIn("logged as change", a.do({"tool": "edit", "path": "app.py", "old": "a - b", "new": "a + b"}))
+        self.assertFalse(os.path.exists(a.draft_path("app.py")))  # …out of date once the file is edited
+
+    def test_edits_for_files_that_exist_parts_for_new_ones(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.edits_only, a.made_here = True, set()
+        self.assertIn("app.py exists: change it with edit", a.do({"tool": "write", "path": "app.py", "content": "x\n"}))
+        self.assertIn("logged as change", a.do({"tool": "write", "path": "new.py", "content": "a = 1\n"}))
+        self.assertIn("logged as change", a.do({"tool": "append", "path": "new.py", "content": "b = 2\n"}))
+
+    def test_a_replan_merges_with_the_goals_there(self):
+        """2026-10-25 (test16): after LFD the new plan copied the person's nine goals as 14–21."""
+        a = Agent(self.root, Scripted([]), "m", "auto", ask=lambda p: "y", say=self.said.append)
+        a.role = "senior"
+        a.goals.add("Design and implement the C++ engine with turn phases", by="user", files=["engine/old.h"])
+        a.replan_ok = True
+        said = a.make_plan([{"text": "Design and implement the C++ engine with turn phases.", "from_outside": [],
+                             "files": ["engine/phases.cpp"], "who": "junior"},
+                            {"text": "Write the README", "from_outside": [], "files": ["README.md"], "who": "senior"}])
+        goals = a.goals.load()
+        self.assertEqual([g["text"][:12] for g in goals], ["Design and i", "Write the RE"])
+        self.assertEqual(goals[0]["files"], ["engine/phases.cpp"])  # the person's goal, with the plan's files
+        self.assertIn("Already goals, kept as they are", said)
+
+    def test_the_checkpoint_is_the_leads(self):
+        """2026-10-25 (test16): Resume gave Haiku the junior's old task 643 as the person's request."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.role = "junior"
+        a.checkpoint("[goal] Task 643 from your senior", "stopped", [])
+        self.assertFalse(os.path.exists(os.path.join(self.root, ".cinminai", "checkpoint.json")))
 
     def test_a_new_project_keeps_its_first_request_and_a_screenshots_folder(self):
         """Ian, 2026-10-12: he kept both by hand for test10 (origprompt, screenshots/), and the cloud finished from them."""

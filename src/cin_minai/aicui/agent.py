@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -742,6 +743,14 @@ def check_file(full: str) -> str:
     return ""
 
 
+META = ".meta.json"  # beside a draft: what it started from and whose it is (Agent.draft_meta)
+
+
+def base_of(text: str) -> str:
+    """A file's version, for a draft to finish only over the version it started from."""
+    return hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()
+
+
 def changed_lines(a: dict) -> int:
     """The lines of code a change writes: a write's or an append's content, an edit's or a replace's new text."""
     text = str(a.get("content") if a.get("tool") in ("write", "append") else a.get("new") or "")
@@ -1291,7 +1300,12 @@ class Agent:
     def checkpoint(self, request: str, state: str, steps: list | None = None) -> None:
         """Where the AI stands, for AICUI's Resume (Ian, 2026-10-09: power cuts from storms): the request, its state
         (working / stopped / finished), the step, its last thoughts and the files it changed in this task. Written
-        after every step, atomically; a cut loses at most the step in flight."""
+        after every step, atomically; a cut loses at most the step in flight.
+
+        The lead's alone: a junior's task is the lead's to give again (2026-10-25, test16: the junior's steps wrote it
+        last, and Resume gave Haiku the junior's old task 643 as the person's request)."""
+        if self.role == "junior":
+            return
         steps = steps if steps is not None else getattr(self, "steps", [])
         thoughts = [s["did"].get("thinking", "") for s in steps if isinstance(s, dict) and s.get("did")][-4:]
         changed = sorted({s["did"]["action"].get("path", "") for s in steps if isinstance(s, dict) and s.get("did")
@@ -1340,13 +1354,32 @@ class Agent:
     def set_aside_drafts(self) -> list[str]:
         moved = []
         for rel in sorted(getattr(self, "task_drafts", ())):
-            draft = self.draft_path(rel)
-            if os.path.exists(draft):
-                aside = os.path.join(self.root, ".cinminai", "drafts-stale", rel + time.strftime("-%Y%m%d-%H%M%S"))
-                os.makedirs(os.path.dirname(aside), exist_ok=True)
-                os.replace(draft, aside)
+            if os.path.exists(self.draft_path(rel)):
+                self.set_aside_draft(rel)
                 moved.append(rel)
         return moved
+
+    def set_aside_draft(self, rel: str) -> str:
+        """A draft out of its task, or out of date: kept in drafts-stale/, never finished over the file."""
+        rel = rel.replace(os.sep, "/")
+        aside = os.path.join(".cinminai", "drafts-stale", rel + time.strftime("-%Y%m%d-%H%M%S"))
+        os.makedirs(os.path.dirname(os.path.join(self.root, aside)), exist_ok=True)
+        os.replace(self.draft_path(rel), os.path.join(self.root, aside))
+        self.drop_draft(rel)
+        return aside.replace(os.sep, "/")
+
+    def drop_draft(self, rel: str) -> None:
+        for p in (self.draft_path(rel), self.draft_path(rel) + META):
+            if os.path.exists(p):
+                os.remove(p)
+
+    def draft_meta(self, rel: str) -> dict:
+        """What a draft started from (`base`, the file's hash then) and whose it is (`by`, a role)."""
+        try:
+            with open(self.draft_path(rel) + META, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return {}
 
     def note(self, steps: list[dict], text: str) -> None:
         """A note to the model is also an event: the chat and the record show what it was told."""
@@ -1360,9 +1393,10 @@ class Agent:
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
         self.flagged: set[int] = set()  # goals the helper flagged in this task (a second goal_done ticks)
-        self.goals_nudged = False  # a lead's answer with goals open was sent back (a second answer goes through)
+        self.goals_nudged = 0  # the step a lead's answer with goals open was last sent back (again after new progress)
         self.drafted: dict[str, int] = {}  # lines in each draft this task wrote (a part that grew it is progress)
         self.junior_asks = None  # a junior task back with a question for the lead (see deliver)
+        self.made_here: set[str] = set()  # files this task created (their parts may follow while edits_only)
         last_progress = 0
         unusable = 0  # replies in a row that weren't a step
         empty = 0  # answers or questions with nothing in them
@@ -1449,11 +1483,12 @@ class Agent:
                                  "in the task). If this answer is for the person, answer again.")
                 continue
             open_goals = [g for g in self.goals.load() if not g["done"]] if self.role == "senior" else []
-            if act["tool"] == "answer" and open_goals and self.kinds_done and not getattr(self, "goals_nudged", False):
+            if act["tool"] == "answer" and open_goals and self.kinds_done and last_progress > self.goals_nudged:
                 # a lead's progress report isn't the end while goals are open (Ian, 2026-10-25, test16: told to complete
                 # the session goals, Haiku fixed one, said "Goal 10 is done" without ticking it, and answered "Next I
-                # will…"); once per task: a second answer goes through
-                self.goals_nudged = True
+                # will…"); again after each stretch of new progress (the same day: once per task, it ticked the GUI
+                # goals and stopped with 16 open); an answer with nothing done since goes through
+                self.goals_nudged = n
                 self.note(steps, "Goals are still open: " + "; ".join(f"{g['id']}. {g['text'][:80]}" for g in open_goals[:6])
                           + (f" and {len(open_goals) - 6} more" if len(open_goals) > 6 else "") + ". Tick each one "
                           "that's done now with goal_done (one the work already met too: its checks run), then go on "
@@ -2032,14 +2067,28 @@ class Agent:
         # the first plan is the person's request, approved by them: their goals, which the AI ticks but never erases
         # (Ian, 2026-10-14; test14's replan rewrote them as "(complete) — Mark complete" and ticked them)
         by = "ai" if replan else "user"
-        made = [self.goals.add(g["text"], by=by, from_outside=g["from_outside"], files=g["files"], who=g["who"],
-                               **({} if replan else {"via": "plan"}))
-                for g in goals]
+        made, merged = [], []
+        for g in goals:
+            # a goal that says what a kept one says is that goal (2026-10-25, test16: after LFD the new plan copied the
+            # person's nine goals as 14–21): an open one takes the new plan's files and who; a ticked one stays ticked
+            same = next((k for k in self.goals.load() if difflib.SequenceMatcher(
+                None, k["text"].lower(), g["text"].lower()).ratio() >= 0.85), None)
+            if same:
+                if not same["done"]:
+                    self.goals.update(same["id"], files=g["files"], who=g["who"])
+                merged.append(same)
+                continue
+            made.append(self.goals.add(g["text"], by=by, from_outside=g["from_outside"], files=g["files"], who=g["who"],
+                                       **({} if replan else {"via": "plan"})))
         self.event("goals")
         planned = getattr(self, "planned", None)
         if callable(planned):
             planned()  # team B: the junior's goals with nothing to wait for go to it now
-        return (f"the plan is in: goals {made[0]['id']}–{made[-1]['id']}. What a goal takes from outside comes first: "
+        kept = (f" Already goals, kept as they are (their files updated if open): "
+                + ", ".join(str(g["id"]) for g in merged) + ".") if merged else ""
+        if not made:
+            return "the plan is in: every goal of it is already a goal." + kept
+        return (f"the plan is in: goals {made[0]['id']}–{made[-1]['id']}.{kept} What a goal takes from outside comes first: "
                 "fetch and distill it with that goal's number (goal N); until then its files can't be written and it "
                 "can't be ticked. Your assistant's goals go to it once their needs are in.")
 
@@ -2395,22 +2444,36 @@ class Agent:
                 full = self.path(a["path"])
                 if full.lower().endswith(intake.PICTURE_EXT[:-1]):  # 2026-10-12: screenshots read as text
                     return f"{a['path']} is a picture: look at it (target picture, address {a['path']}) with your question"
-                draft = self.draft_path(os.path.relpath(full, self.root))
-                if os.path.exists(draft):  # 2026-10-13 (test13): it read the old file, saw it empty, and began again —
-                    # three times, 150 s each; the draft is its own work so far: shown, where it ends, to go on from
+                rel = os.path.relpath(full, self.root).replace(os.sep, "/")
+                draft = self.draft_path(rel)
+                note = ""
+                if os.path.exists(draft):
                     with open(draft, encoding="utf-8", errors="replace") as f:
                         dlines = f.read().splitlines()
-                    on_disk = 0
-                    if os.path.exists(full):
-                        with open(full, encoding="utf-8", errors="replace") as f:
-                            on_disk = len(f.read().splitlines())
-                    tail = dlines[-30:]
-                    first = len(dlines) - len(tail) + 1
-                    return (f"{a['path']} has a draft in progress — your new version so far, {len(dlines)} lines, not "
-                            f"in the file yet (the file on disk still has its old {on_disk} lines). Don't start over: "
-                            f"append the rest to {a['path']} from line {len(dlines) + 1}; it replaces the file when a "
-                            f"part ends without filling the step. Where the draft ends:\n"
-                            + "\n".join(f"{first + i:5} {line}" for i, line in enumerate(tail)))
+                    meta = self.draft_meta(rel)
+                    mine = meta.get("by") == self.role if meta else rel in getattr(self, "task_drafts", ())
+                    if mine:  # 2026-10-13 (test13): it read the old file, saw it empty, and began again — three times,
+                        # 150 s each; the draft is its own work so far, to go on from: from the line asked, else its end
+                        on_disk = 0
+                        if os.path.exists(full):
+                            with open(full, encoding="utf-8", errors="replace") as f:
+                                on_disk = len(f.read().splitlines())
+                        if a.get("start"):  # 2026-10-25 (test16): asked for line 234 on, eight times, and got the end
+                            first = max(1, int(a["start"]))
+                            part = dlines[first - 1:first - 1 + self.read_lines]
+                        else:
+                            part = dlines[-30:]
+                            first = len(dlines) - len(part) + 1
+                        return (f"{a['path']} has a draft in progress — your new version so far, {len(dlines)} lines, "
+                                f"not in the file yet (the file on disk still has its old {on_disk} lines). Don't start "
+                                f"over: append the rest to {a['path']} from line {len(dlines) + 1}; it replaces the file "
+                                f"when a part ends without filling the step. The draft from line {first}:\n"
+                                + "\n".join(f"{first + i:5} {line}" for i, line in enumerate(part)))
+                    # anyone else reads the file as it is (2026-10-25, test16: the lead got the junior's draft's end,
+                    # eight times, and never the file)
+                    note = (f"(A new version of {a['path']} is being drafted by your "
+                            f"{'junior' if meta.get('by') == 'junior' else 'teammate'}, {len(dlines)} lines so far, "
+                            "not in the file yet. This is the file as it is.)\n")
                 if not os.path.exists(full):  # 2026-10-13: "[Errno 2]" twice, and the model meant to create it
                     return (f"error: {a['path']} doesn't exist yet — write it to create it (list shows what's "
                             "there)")
@@ -2423,7 +2486,7 @@ class Agent:
                 shape = py_map("\n".join(lines)) if full.endswith(".py") and len(lines) > self.read_lines \
                     and start == 1 else ""
                 head = f"Map of {a['path']} ({len(lines)} lines, from the code):\n{shape}\n\n" if shape else ""
-                return head + "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
+                return note + head + "\n".join(f"{start + i:5} {line}" for i, line in enumerate(part)) + more
             if t == "list":
                 return self.listing(self.path(a.get("path") or "."))
             if t == "search":
@@ -2444,10 +2507,16 @@ class Agent:
                 if os.path.normpath(a.get("path", "")).replace(os.sep, "/").startswith(WORKFLOWS):
                     return ("error: GitHub workflows run code on GitHub's machines, and publishing is AICUI's: the "
                             "person turns on GitHub Pages from AICUI's GitHub menu, no workflow needed for a site.")
+                rel = os.path.relpath(self.path(a.get("path", "")), self.root).replace(os.sep, "/")
                 if t in ("write", "append") and getattr(self, "edits_only", False) and os.path.isfile(
-                        self.path(a.get("path", ""))):  # a fix task: edits (pair.py run_task)
-                    return (f"error: this is a fix: change the named lines of {a.get('path')} with edit or replace_lines "
-                            "(read them first), not a whole-file write or append")
+                        self.path(a.get("path", ""))) and rel not in getattr(self, "made_here", set()) and \
+                        not (t == "append" and os.path.exists(self.draft_path(rel))):
+                    # a junior's task changes a file that exists with edits (pair.py run_task; 2026-10-25, test16:
+                    # every whole-file rewrite stalled, every small edit held); a file it made here, or a draft it goes
+                    # on with, takes its parts
+                    return (f"error: {a.get('path')} exists: change it with edit or replace_lines (read the lines "
+                            "first), not a whole-file write or append. A new file is written in parts: write, then "
+                            "append.")
                 said = self.change(a)
                 rel = os.path.normpath(a.get("path", "")).replace(os.sep, "/")
                 if "logged as change" in said and intake.origins(self.root).get(rel, {}).get("kind") == "compiled":
@@ -2524,10 +2593,14 @@ class Agent:
         if limit and self.role == "junior" and getattr(self, "task_lines", 0) + lines > limit:
             return (f"error: that would bring this task to {self.task_lines + lines} lines of code, over its limit of "
                     f"{limit}. Answer now with what's done and what's left; your senior gives the rest as its own task.")
+        existed = os.path.exists(self.path(a["path"]))
         with CHANGE_LOCK:
             result = self._change(a, filled)
         if "logged as change" in result:
             self.task_lines = getattr(self, "task_lines", 0) + lines
+            if not existed:  # made in this task: its parts may follow (the edits-only rule is for files that were there)
+                self.made_here = getattr(self, "made_here", set()) | {
+                    os.path.relpath(self.path(a["path"]), self.root).replace(os.sep, "/")}
         return result
 
     def shrinks(self, rel: str, old: str, new: str) -> str:
@@ -2552,11 +2625,27 @@ class Agent:
         if filled is None:
             filled = a["tool"] in ("write", "append") and len(a["content"]) >= self.content_max - 5
         draft = self.draft_path(rel)
+        if os.path.exists(draft) and self.draft_meta(rel).get("base", base_of(old)) != base_of(old):
+            # the file changed since its draft began (2026-10-25, test16: the junior edited the file, then a part
+            # finished the old draft over it — 379 lines became 269): the draft goes aside, the file stands
+            aside = self.set_aside_draft(rel)
+            return (f"error: {rel} changed since its draft began, so the draft is set aside ({aside}) and the file "
+                    "stands as it is now: read it, then change it with edit or replace_lines.")
+        if a["tool"] == "write" and filled and os.path.exists(draft):
+            with open(draft, encoding="utf-8", errors="replace") as f:
+                n = f.read().count("\n")
+            return (f"error: a new version of {rel} is in progress as a draft ({n} lines); it isn't started over "
+                    f"(2026-10-25: a restart lost 514 lines). Append the rest from line {n + 1}.")
+        if a["tool"] in ("edit", "replace_lines") and os.path.exists(draft):
+            self.set_aside_draft(rel)  # the file moved on: its draft is out of date (the edit goes ahead below)
         if a["tool"] in ("write", "append") and filled and (old.strip() and a["tool"] == "write" or
                                                             os.path.exists(draft)):
             # a new version of an existing file, longer than a step: the parts go to a draft and the file stays whole
             content = a["content"][:a["content"].rfind("\n") + 1] if "\n" in a["content"] else a["content"]
             os.makedirs(os.path.dirname(draft), exist_ok=True)
+            if not os.path.exists(draft):  # what it starts from, and whose it is (read shows the writer the draft)
+                with open(draft + META, "w", encoding="utf-8") as f:
+                    json.dump({"base": base_of(old), "by": self.role}, f)
             with open(draft, "w" if a["tool"] == "write" else "a", encoding="utf-8") as f:
                 f.write(content)
             with open(draft, encoding="utf-8") as f:
@@ -2571,11 +2660,11 @@ class Agent:
         if a["tool"] == "append" and os.path.exists(draft):  # the last part: the draft becomes the file
             with open(draft, encoding="utf-8") as f:
                 whole = f.read()
-            os.remove(draft)
+            self.drop_draft(rel)
             getattr(self, "task_drafts", set()).discard(rel)
             a = {**a, "tool": "write", "content": whole + a["content"]}
         elif a["tool"] == "write" and os.path.exists(draft):
-            os.remove(draft)  # written whole after all: the draft is stale
+            self.drop_draft(rel)  # written whole after all: the draft is stale
         if a["tool"] in ("write", "append") and filled:  # it filled the step
             if not a["content"].endswith("\n") and "\n" in a["content"]:
                 a = {**a, "content": a["content"][:a["content"].rfind("\n") + 1]}  # up to its last whole line

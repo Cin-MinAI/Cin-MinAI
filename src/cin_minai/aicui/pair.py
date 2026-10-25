@@ -699,6 +699,9 @@ class Pair:
                     "first) — never rewrite the whole file. Then verify: compile it (python3 -m py_compile for Python), "
                     "start the program for a few seconds if it has one (timeout 5), and read the changed lines back. "
                     "Answer with what you changed (file:lines) and what each check showed.")
+        elif kind != "test":  # the same day, task 654: a goal task rewrote duel.cpp whole, 242 → 514 → 249 lines, stalled
+            may += ("\nA file that exists is changed with edit or replace_lines (read the lines first), a part at a "
+                    "time — never rewritten whole. A new file is written in parts: write, then append.")
         lim = self.limits()
         may += (f"\nThis task's limits: {lim['steps']} steps" + ("" if kind == "test" else
                 f", {lim['lines']} lines of code written or changed") + ("" if lim["measured"] else
@@ -709,7 +712,7 @@ class Pair:
         self.junior.__dict__.pop("resumed", None)
         self.junior.task_lines, self.junior.line_limit = 0, (0 if kind == "test" else lim["lines"])
         steps_were, self.junior.max_steps = self.junior.max_steps, lim["steps"]
-        self.junior.edits_only = kind == "fix"
+        self.junior.edits_only = kind != "test"  # a file that exists: edits, in every task (a fix first, then all)
         # a write task's unfinished draft waits for the next write on its file (2026-10-25, test16: 193 lines set
         # aside when the task stopped); any other kind of task on the file sets it aside first
         self.junior.keep_drafts = kind == "write"
@@ -745,7 +748,10 @@ class Pair:
             result = f"task {n} ({kind} {rel}) — not done: stopped by the person."
         else:
             result = (f"task {n} ({kind} {rel}) — {verdict}. It said: {said[:900]}\nChanged: "
-                      + (", ".join(changed) or "nothing") + checks + "\nAccept it, or send it back, with review_task.")
+                      + (", ".join(changed) or "nothing") + checks + "\nAccept it, or send it back, with review_task."
+                      + (" The diff is in pieces here: before sending it back, read the part you'd send it back for "
+                         "(2026-10-25: a duplicate seen in a diff wasn't in the file)."
+                         if sum(c.get("added", 0) + c.get("removed", 0) for c in changes) > 80 else ""))
         if table is not None and self.engine is not None:
             try:
                 self.engine.finish(table, self.second, self.models[self.second], verdict, result)

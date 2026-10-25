@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(ROOT, "third_party", "team-table", "src"))  # th
 from test_aicui_agent import Scripted, step  # noqa: E402
 
 from cin_minai import engine  # noqa: E402
-from cin_minai.aicui.agent import Agent, schema  # noqa: E402
+from cin_minai.aicui.agent import Agent, base_of, schema  # noqa: E402
 from cin_minai.aicui.pair import Pair  # noqa: E402
 
 # the code specifics a senior gives (the protocol, 2026-10-15: a write or fix task names them)
@@ -118,7 +118,7 @@ class PairTest(unittest.TestCase):
         sent = junior.chat.sent[0][-1]["content"]
         self.assertIn("This is a fix: change only the lines your senior named, with edit or replace_lines", sent)
         refused = junior.chat.sent[1][-1]["content"]
-        self.assertIn("this is a fix: change the named lines of rules.py with edit or replace_lines", refused)
+        self.assertIn("rules.py exists: change it with edit or replace_lines", refused)
         ((n, kind, result),) = senior.inbox
         self.assertIn("— done. It said: rules.py:2 now returns deck.pop(0)", result)
         self.assertIn("What changed:", result)
@@ -134,9 +134,14 @@ class PairTest(unittest.TestCase):
         """2026-10-25 (test16): the junior's 193-line draft of a rewrite was set aside when its task stopped."""
         senior, junior, p = self.pair(junior_steps=[step("", tool="answer", text="placeholder")])
         line = "# " + "x" * 200 + "\n"
-        junior.chat.steps[:0] = [step("The first part.", tool="write", path="rules.py",
-                                      content=line * (junior.content_max // len(line) + 1))]
         draft = junior.draft_path("rules.py")
+        os.makedirs(os.path.dirname(draft), exist_ok=True)
+        with open(draft, "w") as f:  # an earlier task's draft, from the file as it is
+            f.write(line * 3)
+        with open(os.path.join(self.root, "rules.py")) as f, open(draft + ".meta.json", "w") as m:
+            json.dump({"base": base_of(f.read()), "by": "junior"}, m)
+        junior.chat.steps[:0] = [step("The next part.", tool="append", path="rules.py",
+                                      content=line * (junior.content_max // len(line) + 1))]
         senior.do({"tool": "assign", "path": "rules.py", "kind": "write",
                    "task": "rewrite draw() to take the top card and return it" + DETAIL})
         self.wait(p)
