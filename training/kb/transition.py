@@ -528,7 +528,11 @@ TOPICS = [
              "everything at once (the AI, its models, its commands and what Run started), click Stop everything in "
              "the middle of the top bar; what was done stays, with undo. To measure how much your setup holds on "
              "this graphics card, click Benchmark in the top bar (it asks first, and can take an hour or more); "
-             "Context, beside it, sets how much each model keeps in mind.",
+             "Context, beside it, sets how much each model keeps in mind. To have another model check the code, "
+             "click Review in the top bar: it reads the project three times for what breaks (from the start, from "
+             "your goal backwards, and in use), checks what it can by starting what was built, and lists what it "
+             "found; tick the ones you want and click Send the ticked ones to the AI. Which model reviews is "
+             "chosen in the assistant's sidebar: click Models, under Reviewing.",
      "must": [], "steps": True, "langs": ["en"]},
     # --- update 7 (2026-10-21): AICUI's GitHub flow and the Team Table; words checked against aicui/app.py and
     # aicui/tableview.py ------------------------------------------------------------------------------------------
