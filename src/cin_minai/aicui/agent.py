@@ -1345,6 +1345,7 @@ class Agent:
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
         self.flagged: set[int] = set()  # goals the helper flagged in this task (a second goal_done ticks)
+        self.goals_nudged = False  # a lead's answer with goals open was sent back (a second answer goes through)
         last_progress = 0
         unusable = 0  # replies in a row that weren't a step
         empty = 0  # answers or questions with nothing in them
@@ -1422,6 +1423,17 @@ class Agent:
                 if getattr(self, "inbox", None):
                     self.deliver(steps)
                     continue
+            open_goals = [g for g in self.goals.load() if not g["done"]] if self.role == "senior" else []
+            if act["tool"] == "answer" and open_goals and self.kinds_done and not getattr(self, "goals_nudged", False):
+                # a lead's progress report isn't the end while goals are open (Ian, 2026-10-25, test16: told to complete
+                # the session goals, Haiku fixed one, said "Goal 10 is done" without ticking it, and answered "Next I
+                # will…"); once per task: a second answer goes through
+                self.goals_nudged = True
+                self.note(steps, "Goals are still open: " + "; ".join(f"{g['id']}. {g['text'][:80]}" for g in open_goals[:6])
+                          + (f" and {len(open_goals) - 6} more" if len(open_goals) > 6 else "") + ". Tick each one "
+                          "that's done now with goal_done (one the work already met too: its checks run), then go on "
+                          "with the next. If the person asked only for this, answer again and it goes to them.")
+                continue
             if act["tool"] in ("answer", "ask"):
                 msg = str(act.get("text") or act.get("question") or "").strip()
                 if not msg:  # 2026-10-12: Haiku put its whole answer in its thinking; the person saw a blank reply
@@ -1939,8 +1951,11 @@ class Agent:
         really make a plan"): each with what must come from outside, its files and who does it; the person sees it
         once and says OK or what to change."""
         replan = getattr(self, "replan_ok", False) and self.goals.load()  # after LFD: the plan for moving forward
-        if self.goals.load() and not replan:
-            return "error: this project has its goals already; add one with goal_add"
+        if self.goals.load() and not replan:  # 2026-10-25, test16: told to complete them, Haiku re-planned, twice
+            open_ = [g for g in self.goals.load() if not g["done"]]
+            return ("error: this project has its goals already" + (
+                f" ({len(open_)} open; the next: {open_[0]['id']}. {open_[0]['text'][:100]}): work them in order and "
+                "tick each with goal_done when it's done" if open_ else "") + "; add one with goal_add")
         goals = []
         for it in items[:PLAN_MAX]:
             text = " ".join(str(it.get("text", "")).split())

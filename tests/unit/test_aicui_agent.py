@@ -518,6 +518,31 @@ class AgentTest(unittest.TestCase):
                   "m", "auto", say=self.said.append)
         self.assertEqual(b.turn("what's wrong?"), "All three kinds are missing.")  # its thinking, never a blank
 
+    def test_a_lead_works_the_open_goals_before_it_answers(self):
+        """Ian, 2026-10-25 (test16): told to complete the session goals, Haiku re-planned (refused twice), fixed one,
+        said "Goal 10 is done" without ticking it, and answered "Next I will…"; the run ended there."""
+        with open(os.path.join(self.root, "test_app.py"), "w", encoding="utf-8") as f:
+            f.write("from app import add\nassert add(2, 3) == 5\n")
+        a = Agent(self.root, Scripted([step("A new plan.", tool="plan", goals=[
+                                           {"text": "Fix add()", "from_outside": [], "files": [], "who": "senior"}]),
+                                       step("Wrong operator.", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("Report.", tool="answer", text="add() is fixed. Next I will do the docs."),
+                                       step("It's done.", tool="goal_done", id=1),
+                                       step("Report.", tool="answer", text="add() is fixed; goal 1 ticked."),
+                                       ]), "m", "auto", say=self.said.append)
+        a.role = "senior"
+        a.goals.add("Fix add()", by="user")
+        a.goals.add("Write the docs", by="user")
+        self.assertEqual(a.turn("complete the session goals"), "add() is fixed; goal 1 ticked.")
+        sent = "\n".join(m["content"] for m in a.chat.sent[-1])
+        self.assertIn("2 open; the next: 1. Fix add()", sent)  # the plan's refusal points at the goals
+        self.assertIn("Goals are still open: 1. Fix add(); 2. Write the docs", sent)
+        self.assertTrue(a.goals.load()[0]["done"])
+        b = Agent(self.root, Scripted([step("", tool="answer", text="The docs come next.")]), "m", "auto",
+                  say=self.said.append)
+        b.role = "senior"
+        self.assertEqual(b.turn("what's next?"), "The docs come next.")  # a question, no work: answered at once
+
     def test_a_new_project_keeps_its_first_request_and_a_screenshots_folder(self):
         """Ian, 2026-10-12: he kept both by hand for test10 (origprompt, screenshots/), and the cloud finished from them."""
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok"), step("", tool="answer", text="ok")]),

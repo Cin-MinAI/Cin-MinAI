@@ -770,6 +770,7 @@ class PairTest(unittest.TestCase):
                 step("Meanwhile, the deck.", tool="write", path="deck.py", content="DECK = []\n"),
                 step("", tool="answer", text="Waiting."),
                 step("", tool="review_task", n=3, accept=True, note=""),
+                step("", tool="answer", text="Skeleton laid."),  # goal 1 is open: sent back once
                 step("", tool="answer", text="Skeleton laid; battle filled by the junior and accepted.")],
             junior_steps=[
                 step("Fill it.", tool="edit", path="battle.py", old="    # TODO\n    pass\n",
@@ -780,6 +781,7 @@ class PairTest(unittest.TestCase):
         self.assertEqual(out, "Skeleton laid; battle filled by the junior and accepted.")
         sent = "\n".join(m[-1]["content"] for m in senior.chat.sent)
         self.assertIn("Task 3 is back from your junior", sent)
+        self.assertIn("Goals are still open: 1. A match follows the rules", sent)
         with open(os.path.join(self.root, "battle.py")) as f:
             self.assertIn("return a if a >= b else b", f.read())
         events = [json.loads(line) for line in open(os.path.join(self.root, ".cinminai", "events.jsonl"))]
