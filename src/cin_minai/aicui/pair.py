@@ -663,6 +663,25 @@ class Pair:
                 pass
         return result
 
+    def verified(self, changes: list[dict]) -> str:
+        """What the task changed and whether the program still starts, by AICUI, for the Senior to judge from in one
+        step (2026-10-25: Haiku 5.5 re-checked each result by hand, compile, start, read, search, ~20 of its 38 paid
+        calls on test16)."""
+        log = self.junior.log
+        diff = "\n".join(log.diff(c) for c in changes if hasattr(log, "diff"))
+        diff = "\n".join(line for line in diff.splitlines() if not line.startswith(("diff --git", "index ")))
+        if len(diff) > DIFF_CHARS:
+            diff = diff[:DIFF_CHARS] + f"\n… ({len(diff) - DIFF_CHARS:,} more characters: read the file for the rest)"
+        out = "\nWhat changed:\n" + (diff.strip() or "(no difference)")
+        from .agent import entry_point
+        entry = entry_point(self.junior.root)
+        if entry and not entry.endswith((".html", ".htm")) and callable(getattr(self.junior, "execute", None)):
+            how = f"./{entry}" if entry.endswith(".sh") else f"python3 {entry}"
+            code, printed = self.junior.execute(f"timeout 5 {how}", 30, self.junior.bwrap)
+            out += (f"\nStarted by AICUI ({entry}, 5 s): " + ("still running after 5 s" if code == 124 else
+                    "finished" if code == 0 else f"STOPPED (exit {code})\n" + (printed or "")[-600:]))
+        return out
+
     def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None, files: list | None = None) -> str:
         self.current = set() if kind == "test" else set(files) if files is not None else {rel}
         self.current_table = table
@@ -674,6 +693,12 @@ class Pair:
             task += "\nYour senior adds: " + " ".join(notes)
         may = ("Change no file: run what's needed and report what works and what fails, with the errors as they "
                "were printed." if kind == "test" else f"You may change only {', '.join(sorted(self.current))}.")
+        if kind == "fix":  # Ian, 2026-10-25: "the Senior reads, assigns edits, then the junior does them and verifies
+            # the edits before dumping and moving on" (on test16 every whole-file rewrite stalled; small edits all held)
+            may += ("\nThis is a fix: change only the lines your senior named, with edit or replace_lines (read them "
+                    "first) — never rewrite the whole file. Then verify: compile it (python3 -m py_compile for Python), "
+                    "start the program for a few seconds if it has one (timeout 5), and read the changed lines back. "
+                    "Answer with what you changed (file:lines) and what each check showed.")
         lim = self.limits()
         may += (f"\nThis task's limits: {lim['steps']} steps" + ("" if kind == "test" else
                 f", {lim['lines']} lines of code written or changed") + ("" if lim["measured"] else
@@ -684,12 +709,14 @@ class Pair:
         self.junior.__dict__.pop("resumed", None)
         self.junior.task_lines, self.junior.line_limit = 0, (0 if kind == "test" else lim["lines"])
         steps_were, self.junior.max_steps = self.junior.max_steps, lim["steps"]
+        self.junior.edits_only = kind == "fix"
         try:
             said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\n{may}", self.stop_junior)
         finally:
             self.current, self.current_table, self.running = set(), None, None
             self.junior.inbox.clear()
             self.junior.max_steps, self.junior.line_limit = steps_were, 0
+            self.junior.edits_only = False
             self.junior.history = []  # accepted or not, the next task starts fresh
         changes = self.junior.log.entries()[before:] if hasattr(self.junior.log, "entries") else []
         changed = sorted({c.get("file", "") for c in changes} - {""})
@@ -697,6 +724,8 @@ class Pair:
         ended = getattr(self.junior, "stopped", "")
         verdict = {"answer": "done", "ask": "asks the senior"}.get(ended, ended or "done")
         checks = "\nThe checks on " + rel + ": " + ("; ".join(found) or "nothing found")
+        if changes and kind in ("fix", "write"):
+            checks += self.verified(changes)
         if ended in ("stuck", "limit", "error", "ask"):  # its stuck point goes up (Ian: "gets stuck, sends to sr…")
             last = [s for s in getattr(self.junior, "steps", []) if isinstance(s, dict) and s.get("did")][-3:]
             trail = "\n".join(f"- {s['did'].get('thinking', '')[:200]} → {str(s.get('result', ''))[:200]}" for s in last)
@@ -789,6 +818,7 @@ class Crew:
 
 
 DETAIL_WORDS = 20  # a write or fix task names the code specifics (Ian, 2026-10-15: "Sr gives detail on code specifics")
+DIFF_CHARS = 2500  # a result's diff for the Senior: enough for a fix, a pointer to the file beyond it
 TASK_SHARE = 0.05  # D95: a task is at most 5 % of the receiving model's context
 FOLLOW_UP = 3   # the Senior's steps of progress while a task is with the Junior before a word on how it's going
 TEAM = os.path.join(".cinminai", "team.json")   # {"team": "solo" | "A" | "B"} — chosen in AICUI's top bar

@@ -102,6 +102,34 @@ class PairTest(unittest.TestCase):
         self.assertIn("logged as change", senior.do({"tool": "edit", "path": "rules.py", "old": "deck.pop(0)",
                                                      "new": "deck.pop(0)  # the top card"}))  # free again once closed
 
+    def test_a_fix_is_edits_checked_and_shown(self):
+        """Ian, 2026-10-25: "have the Senior read, assign edits, then the junior does them and verifies the edits before
+        dumping and moving on to the next job". A fix changes lines, never the whole file; the result carries what
+        changed and AICUI's own start, so the Senior judges in one step (on test16 it re-checked by hand: ~20 calls)."""
+        with open(os.path.join(self.root, "main.py"), "w") as f:
+            f.write("import rules\nprint('ok')\n")
+        senior, junior, p = self.pair(junior_steps=[
+            step("Rewrite it.", tool="write", path="rules.py", content="def draw(deck):\n    return deck.pop(0)\n"),
+            step("Edit the stub.", tool="replace_lines", path="rules.py", first=2, last=3, new="    return deck.pop(0)"),
+            step("", tool="answer", text="rules.py:2 now returns deck.pop(0); py_compile passes; main.py starts.")])
+        senior.do({"tool": "assign", "path": "rules.py", "kind": "fix",
+                   "task": "fix draw() at lines 2-3: the stub returns None; make it return deck.pop(0)" + DETAIL})
+        self.wait(p)
+        sent = junior.chat.sent[0][-1]["content"]
+        self.assertIn("This is a fix: change only the lines your senior named, with edit or replace_lines", sent)
+        refused = junior.chat.sent[1][-1]["content"]
+        self.assertIn("this is a fix: change the named lines of rules.py with edit or replace_lines", refused)
+        ((n, kind, result),) = senior.inbox
+        self.assertIn("— done. It said: rules.py:2 now returns deck.pop(0)", result)
+        self.assertIn("What changed:", result)
+        self.assertIn("+    return deck.pop(0)", result)
+        self.assertIn("-    pass", result)
+        self.assertIn("Started by AICUI (main.py, 5 s): finished", result)
+        self.assertFalse(junior.edits_only)  # the next task is whatever it is: a write task may write the file
+        p.current = {"rules.py"}
+        self.assertIn("logged as change", junior.do({"tool": "write", "path": "rules.py",
+                                                     "content": "def draw(deck):\n    return deck.pop(0)  # top\n"}))
+
     def test_the_table_is_the_backbone(self):
         """Ian, 2026-10-21: "make the table the backbone". The Junior's queue, its holds and its instructions are on the
         table; the table's refusals reach the Senior; a cancel there frees the file; no team without it."""

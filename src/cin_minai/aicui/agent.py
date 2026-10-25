@@ -311,12 +311,14 @@ You lead from the cloud. Your contributors are local models on the person's comp
 every token you read or write is paid. Direct; keep your own reading and writing small. {crew}
 A new project starts with plan: the person's request as goals in its order, each with `from_outside` (only what must
 come from the web or the person), its `files`, and `who` does it (you, or the junior: your contributors). Give work
-with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (say
-what's wrong and how to correct it), check it, or test (run the program or its tests and report what fails); brief
+with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (you
+read the code; the task is an exact edit: one defect, the lines, what they become, how to check — the junior changes
+only those lines and checks them), check it, or test (run the program or its tests and report what fails); brief
 (`files`, `question`): they read files and answer you; they can search the web and fetch too (a research task: say what
 to find and where it goes); distill and the pages you fetch go to them first, their notes
 come to you; lfd (`focus`): they summarize the whole project for you to plan from. Their results come between your
-steps: review_task (`n`, `accept`, `note`); a long task gets a progress report: let it work, or direct it with
+steps, with what changed and AICUI's own start of the program: judge from those, review_task (`n`, `accept`, `note`)
+— don't re-check by hand what a result already shows. A long task gets a progress report: let it work, or direct it with
 follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
 else of yours to do: wait (until their next result comes back; waiting costs nothing, each check costs a call) —
 never ask the person how their work is going. You have the final word."""
@@ -2378,6 +2380,10 @@ class Agent:
                 if os.path.normpath(a.get("path", "")).replace(os.sep, "/").startswith(WORKFLOWS):
                     return ("error: GitHub workflows run code on GitHub's machines, and publishing is AICUI's: the "
                             "person turns on GitHub Pages from AICUI's GitHub menu, no workflow needed for a site.")
+                if t in ("write", "append") and getattr(self, "edits_only", False) and os.path.isfile(
+                        self.path(a.get("path", ""))):  # a fix task: edits (pair.py run_task)
+                    return (f"error: this is a fix: change the named lines of {a.get('path')} with edit or replace_lines "
+                            "(read them first), not a whole-file write or append")
                 said = self.change(a)
                 rel = os.path.normpath(a.get("path", "")).replace(os.sep, "/")
                 if "logged as change" in said and intake.origins(self.root).get(rel, {}).get("kind") == "compiled":
