@@ -20,7 +20,7 @@ model's story: `docs/guide-model-journal.md`.
   the bottom only while you're there; a model download says the assistant is back after the download and speed test.
 - **Measured on the GPU:** D84 144/175, public 140/157, batch 2 items 29/37 ×3, Think it through A/B 15/15 (old 13).
   Known misses: D84-41 "what is the assistant working on?" 1/6; es internet log; filler steps after a fact.
-- **Next:** D94 (the Flash-Next reviewer measurement, needs the admin key); then a build-all run (VM screenshots,
+- **Next:** D94 (reviews by another model, starting with the Flash-Next reviewer measurement; the admin key is a separate part); then a build-all run (VM screenshots,
   before update 8).
 
 ## Hold closed (2026-10-24) — the PHP advisory

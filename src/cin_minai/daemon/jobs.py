@@ -6,7 +6,9 @@ computer unless the person chose another — and the person can give it any mode
   model we trained and measured.
 * **Writing code** (AICUI), **writing** and **pictures and video** use the choice today. Pictures need a model with a
   picture reader (a projector).
-* **Laying out code**, **reviewing** and **research papers** come with the hand-offs (§22.5): shown, not yet chosen.
+* **Reviewing** (AICUI's Review button, aicui/review.py): another model reads the code for what breaks. Ours is the
+  35B-A3B, measured as a reviewer on a 1080 Ti (2026-10-24); the 27B comes next when the 35B isn't here.
+* **Laying out code** and **research papers** come with the hand-offs (§22.5): shown, not yet chosen.
 * The news has no job: its report is built in code, never by a model (D92).
 
 The choice is kept in the model store (ModelStore.use: the plan, with the matcher's settings for this machine).
@@ -26,10 +28,13 @@ JOBS = [
     ("writing", "writing", False, True),
     ("vision", "coding", False, True),
     ("junior", "help", False, False),
-    ("review", "coding", False, False),
+    ("review", "coding", False, True),
     ("research", "writing", False, False),
 ]
 BY_JOB = {j[0]: j for j in JOBS}
+# a review reads the code with its thinking and answer beside it: ~10K tokens of code, 4K thinking, 5K answer
+REVIEW_CONTEXT = 24576
+REVIEW_ORDER = ["Qwen3.6-35B-A3B-Q4_K_M.gguf", "Qwen3.8-27B-UD-IQ3_XXS.gguf", "Qwen3.8-27B-UD-IQ4_XS.gguf"]
 
 
 class JobError(Exception):
@@ -37,6 +42,8 @@ class JobError(Exception):
 
 
 def context(job: str) -> int:
+    if job == "review":
+        return REVIEW_CONTEXT
     return matcher.VISION_CONTEXT if job == "vision" else matcher.CONTEXT[BY_JOB[job][1]]
 
 
@@ -46,7 +53,7 @@ def job_plan(m, machine, job: str, why: str = "your choice") -> dict | None:
     import dataclasses
     plan = matcher.full_plan(m, machine, context(job), why=why)
     task = BY_JOB[job][1]
-    if plan and job != "vision" and task in matcher.MORE_CONTEXT:
+    if plan and job not in ("vision", "review") and task in matcher.MORE_CONTEXT:
         tighter = dataclasses.replace(machine, cards=[{**c, "free_mib": c["free_mib"] - matcher.MORE_CONTEXT_EXTRA_MIB}
                                                       for c in machine.cards])
         big = matcher.full_plan(m, tighter, matcher.MORE_CONTEXT[task], why=why)
@@ -102,6 +109,13 @@ def ours(store, job: str, machine) -> dict | None:
     if job == "system":
         return {"model": matcher.CATALOG["help"][0].name, "file": matcher.CATALOG["help"][0].file}
     task = BY_JOB[job][1]
+    if job == "review":  # our measured order, not the coding list's (the 27B codes best, the 35B reviews in 5 min)
+        by_file = {m.file: m for m in matcher.CATALOG[task]}
+        for file in REVIEW_ORDER:
+            m = by_file.get(file)
+            if m is not None and store.has(m.file) and matcher.plan(m, machine, context(job)):
+                return {"model": m.name, "file": m.file}
+        return None  # the guide doesn't review code
     for m in matcher.CATALOG[task] if job in ("coding", "vision") else []:
         if job == "vision" and m.file not in matcher.PROJECTORS:
             continue
@@ -169,9 +183,9 @@ def assign(store, job: str, file: str, guide_path: str = "", machine=None) -> di
         raise JobError("this job comes with the hand-offs; it can't be given a model yet")
     machine = machine or matcher.read_machine(models_dir=store.root)
     if not file:  # our pick again: the matcher's, when it's here (an offer once accepted), else as if never chosen
-        pick = matcher.match(machine).get(BY_JOB[job][1]) if job != "vision" else None
+        pick = matcher.match(machine).get(BY_JOB[job][1]) if job not in ("vision", "review") else None
         store.use(job, pick if pick and store.has(pick["file"]) else None)
-        return {"job": job, "ours": True, **ours(store, job, machine)}
+        return {"job": job, "ours": True, **(ours(store, job, machine) or {"model": "", "file": ""})}
     if job == "vision" and os.path.basename(file) not in matcher.PROJECTORS:
         raise JobError("pictures and video need a model with a picture reader")
     if not store.has(file):

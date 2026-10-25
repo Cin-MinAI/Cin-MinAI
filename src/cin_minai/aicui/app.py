@@ -587,8 +587,13 @@ class Workspace(Gtk.ApplicationWindow):
         look.set_tooltip_text("The chat and the AI terminal: bubbles, boxes or a straight terminal; colours, fonts "
                               "and sizes, for each speaker")
         look.connect("clicked", lambda b: self.look_dialog())
+        review = Gtk.Button(label="Review")
+        review.set_tooltip_text("Another model reads the code for what breaks: from the beginning, from the end and "
+                                "in operation. What it says is checked where it can be, then you choose what goes "
+                                "to the AI")
+        review.connect("clicked", lambda b: self.review())
         box = Gtk.Box(spacing=6, margin_top=4, margin_start=4)
-        for w in (file_button, self.team_button, context, bench, look):
+        for w in (file_button, self.team_button, context, bench, review, look):
             box.pack_start(w, False, False, 0)
         # the master Stop, in the middle (Ian, 2026-10-21): no question first — it's for when everything must end now
         halt = Gtk.Button(label="Stop everything")
@@ -1676,6 +1681,155 @@ class Workspace(Gtk.ApplicationWindow):
         GLib.timeout_add(800, lambda: (self.term.feed_child(b"\x04"), False)[1])
         GLib.timeout_add(2500, lambda: (self.term.feed_child((f"{bench}; {self.agent_command()}\n").encode()),
                                         False)[1])
+
+    # --- Review (review.py, PLAN D94): another model reads the code; the person chooses what the AI gets ----------
+    def review(self) -> None:
+        """Ian, 2026-10-24: a Review button only (nothing runs unless pressed); the findings shown, the ticked ones
+        sent to the AI; the model is the Models view's Review job."""
+        if self.busy is not None:
+            self.bubble("app", "The AI is working: Review when it has finished (or Stop it first).")
+            return
+        if getattr(self, "reviewing", None) is not None:
+            self.bubble("app", "A review is already running; its findings open here when it's done.")
+            return
+
+        def read() -> None:
+            from . import review as rv
+            try:
+                _, plan = rv.reviewer_plan()
+                shown, left, code = rv.pick(self.root, rv.budget(plan))
+                got = {"plan": plan, "shown": shown, "left": left, "chars": len(code), "lines": code.count("\n"),
+                       "writers": rv.writers(self.root, shown)}
+            except SystemExit as e:
+                got = {"error": str(e)}
+            except Exception as e:
+                got = {"error": f"the review can't start: {e}"}
+            GLib.idle_add(lambda: (self.review_offer(got), False)[1])
+        threading.Thread(target=read, daemon=True).start()
+
+    def review_offer(self, got: dict) -> None:
+        from . import review as rv
+        if got.get("error"):
+            self.bubble("app", got["error"])
+            return
+        if not got["shown"]:
+            self.bubble("app", "Nothing to review yet: there's no code in this project.")
+            return
+        plan, model = got["plan"], got["plan"].get("model", "")
+        detail = (f"{model} reads {len(got['shown'])} file{'' if len(got['shown']) == 1 else 's'} ({got['lines']} "
+                  f"lines) three times for what breaks: from the beginning, from the end, and in operation — about "
+                  f"{rv.minutes(plan, got['chars'])} minutes. Then the program is started for {rv.START_SECONDS} "
+                  "seconds, sandboxed and without the internet, to check what the review says.")
+        if got["left"]:
+            detail += (f"\n\nToo long for one review, left out: {', '.join(got['left'][:8])}"
+                       + (f" and {len(got['left']) - 8} more" if len(got["left"]) > 8 else "") + ".")
+        mine = sum(n for who, n in got["writers"].items() if rv.same_model(who, model))
+        if mine:
+            detail += (f"\n\n{model} wrote {mine} of the {sum(got['writers'].values())} changes to these files: a "
+                       "model reviewing its own work finds less. Models → Reviewing can give the job another model.")
+        if not self.yes_no("Review this project?", detail):
+            return
+        launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
+        launcher.set_cwd(self.root)
+        try:
+            proc = launcher.spawnv([sys.executable, "-P", "-m", "cin_minai.aicui.review", self.root])
+        except GLib.Error as e:
+            self.bubble("app", f"The review couldn't start: {e.message}")
+            return
+        self.reviewing = proc
+        self.runs = [r for r in self.runs if r.get_identifier()] + [proc]  # the master Stop ends it too
+        self.bubble("app", f"Reviewing with {model}…")
+        lines = Gio.DataInputStream.new(proc.get_stdout_pipe())
+        lines.read_line_async(GLib.PRIORITY_DEFAULT, None, self.review_line, (proc, lines))
+
+    def review_line(self, stream, result, data) -> None:
+        proc, lines = data
+        try:
+            raw, _ = stream.read_line_finish_utf8(result)
+        except GLib.Error:
+            raw = None
+        if raw is None:  # the end: stopped, or finished without saying DONE
+            if self.reviewing is proc:
+                self.reviewing = None
+                if not self.stopping:
+                    self.bubble("app", "The review ended without findings (stopped, or its model couldn't start).")
+            return
+        if raw.startswith("DONE "):
+            self.reviewing = None
+            self.review_window(raw[5:].strip())
+        elif raw.startswith("ERROR "):
+            self.reviewing = None
+            self.bubble("app", raw[6:])
+        elif raw.startswith(("Review ", "Checking", "Reviewer")):
+            self.bubble("app", raw)
+        lines.read_line_async(GLib.PRIORITY_DEFAULT, None, self.review_line, data)
+
+    def review_window(self, path: str) -> None:
+        from . import review as rv
+        try:
+            with open(path, encoding="utf-8") as f:
+                got = json.load(f)
+        except (OSError, ValueError) as e:
+            self.bubble("app", f"The review's findings couldn't be read: {e}")
+            return
+        found, dropped = got.get("findings", []), got.get("dropped", [])
+        checked = sum(1 for f in found if f.get("state") == "checked")
+        verdicts = [v for v in got.get("verdicts", {}).values() if v]
+        d = Gtk.Dialog(title="Review", transient_for=self, modal=False)
+        d.set_default_size(720, 640)
+        box = d.get_content_area()
+        box.set_spacing(6)
+        head = (f"{got.get('model', '')} found {len(found)} thing{'' if len(found) == 1 else 's'} to look at "
+                f"({checked} checked by running or reading the code; the rest not checked: a review can be wrong). "
+                + (f"{len(dropped)} more {'was' if len(dropped) == 1 else 'were'} dropped: a check showed "
+                   f"{'it' if len(dropped) == 1 else 'they'} weren't true. " if dropped else "")
+                + (f"Its verdicts: {', '.join(verdicts)}." if verdicts else ""))
+        box.pack_start(Gtk.Label(label=head, wrap=True, xalign=0, max_width_chars=90, margin=8), False, False, 0)
+        rows, ticks = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin=8), []
+        for f in found:
+            where = f"{f['file']}:{f['line']}" if f.get("line") else f["file"]
+            tag = "checked" if f.get("state") == "checked" else "not checked"
+            tick = Gtk.CheckButton(active=f.get("state") == "checked")
+            text = f"<b>{GLib.markup_escape_text(where)}</b> · <i>{tag}</i>\n{GLib.markup_escape_text(f['wrong'])}"
+            if f.get("sees"):
+                text += f"\n<small>You see: {GLib.markup_escape_text(f['sees'][:400])}</small>"
+            if f.get("why"):
+                text += f"\n<small>Check: {GLib.markup_escape_text(f['why'])}</small>"
+            label = Gtk.Label(wrap=True, xalign=0, max_width_chars=80, selectable=True)
+            label.set_markup(text)
+            row = Gtk.Box(spacing=6)
+            row.pack_start(tick, False, False, 0)
+            row.pack_start(label, True, True, 0)
+            rows.pack_start(row, False, False, 0)
+            ticks.append((tick, f))
+        if dropped:
+            exp = Gtk.Expander(label=f"Dropped ({len(dropped)})")
+            gone = "\n".join(f"{f['file']}:{f['line']} — {f['wrong'][:160]}\n    {f.get('why', '')}" for f in dropped)
+            exp.add(Gtk.Label(label=gone, wrap=True, xalign=0, selectable=True, max_width_chars=80))
+            rows.pack_start(exp, False, False, 0)
+        if got.get("left_out"):
+            rows.pack_start(Gtk.Label(label="Not reviewed (too long for one review): " + ", ".join(got["left_out"]),
+                                      wrap=True, xalign=0, max_width_chars=80), False, False, 0)
+        box.pack_start(scrolled(rows), True, True, 0)
+        d.add_button("Close", Gtk.ResponseType.CLOSE)
+        send = d.add_button("Send the ticked ones to the AI", Gtk.ResponseType.OK)
+        send.set_sensitive(bool(found))
+
+        def response(dialog, r) -> None:
+            if r == Gtk.ResponseType.OK:
+                chosen = [f for t, f in ticks if t.get_active()]
+                if not chosen:
+                    self.bubble("app", "Nothing ticked: tick the findings the AI should look at.")
+                    return
+                if self.busy is not None:
+                    self.bubble("app", "The AI is working: send the review when it has finished.")
+                    return
+                self.term.feed_child((" ".join(rv.handover(chosen).splitlines()) + "\n").encode())
+            dialog.destroy()
+        d.connect("response", response)
+        d.show_all()
+        self.bubble("app", f"Review done: {len(found)} to look at, {len(dropped)} dropped by the checks. "
+                           f"Kept in {os.path.relpath(path, self.root)}.")
 
     def cloud_role(self) -> str:
         from cin_minai.inference import cloud

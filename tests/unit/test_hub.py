@@ -114,7 +114,7 @@ class Searching(unittest.TestCase):
         self.assertIn(f"/resolve/{REV}/coder-q4_k_m.gguf", [u for u, r in h.asked if "/resolve/" in u][0])
         self.assertEqual((m.file, m.source, m.sha256, m.size, m.weights),
                          ("coder-q4_k_m.gguf", f"Qwen/Qwen2.5-Coder-7B-Instruct-GGUF@{REV}", SHA, len(data), 2500))
-        self.assertEqual(set(hub.fit(m, machine())), {"coding", "writing"})
+        self.assertEqual(set(hub.fit(m, machine())), {"coding", "writing", "review"})
         self.assertTrue(all(x["fits"] for x in hub.fit(m, machine()).values()))
         with self.assertRaises(hub.HubError):
             hub.model_for("Qwen/Qwen2.5-Coder-7B-Instruct-GGUF", "main", f, opener=h)  # only a pinned revision
