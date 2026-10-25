@@ -60,6 +60,24 @@ CSS = b"""
 .proposal .before { opacity: 0.6; }
 .proposal .cell { font-family: monospace; font-size: 88%; padding: 1px 4px; border: 1px solid alpha(@theme_fg_color, 0.12); }
 #input { padding: 6px 8px 8px 8px; }
+#chatscroll, #chatscroll viewport, #chat { background-color: #ffffff; }
+#chat label { color: #241f31; }
+#chat button label, #chat combobox label, #chat entry { color: @theme_fg_color; }
+#chat .bubble.assistant { background: #efeff3; }
+#chat .bubble.user { background: alpha(@theme_selected_bg_color, 0.30); }
+#chat .command, #chat .proposal .cell { border-color: alpha(#000000, 0.18); }
+.start { background-image: none; color: #ffffff; border-color: alpha(#000000, 0.15); text-shadow: none; }
+#chat .start label, .start label { color: #ffffff; }
+.start:hover { background-image: linear-gradient(alpha(#ffffff, 0.12), alpha(#ffffff, 0.12)); }
+.start:active { background-image: linear-gradient(alpha(#000000, 0.12), alpha(#000000, 0.12)); }
+.start.writing { background-color: #1c71d8; }
+.start.journal { background-color: #813d9c; }
+.start.aicui { background-color: #26a269; }
+.start.standing { background-color: #c64600; }
+.start.updates { background-color: #0f7b8a; }
+.start.requests { background-color: #5e5c64; }
+.start.models { background-color: #a51d6f; }
+.start.library { background-color: #865e3c; }
 """
 
 
@@ -179,7 +197,9 @@ class Sidebar(Gtk.Application):
 
         # the conversation
         self.chat = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, name="chat")
-        self.scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
+        # the conversation on white, dark or light theme alike; the box to type in stays the window's grey (Ian,
+        # 2026-10-24: "the chat history white background and the box stays grey"); buttons in it keep the theme's look
+        self.scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER, name="chatscroll")
         self.scroll.add(self.chat)
         self.at_bottom = True  # follow the newest text only while the person is down there (Ian, 2026-10-24)
         self.scroll.get_vadjustment().connect("changed", self.follow)
@@ -233,15 +253,19 @@ class Sidebar(Gtk.Application):
         # a 1024-pixel screen the whole conversation was cut off at the sidebar's edge (boot test, 2026-10-03).
         row = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False, column_spacing=6,
                           row_spacing=6, min_children_per_line=1, max_children_per_line=2)
-        for label, cb in (("Start a writing project", lambda b: self.new_project()),
-                          ("Open the journal", lambda b: self.open_journal()),
-                          ("Open AICUI (coding)", lambda b: self.open_aicui()),
-                          (words.t("standing"), lambda b: self.standing_list()),  # D88: found where people look
-                          (words.t("updates_window"), lambda b: self.open_updates()),  # D29: updates you can watch
-                          (words.t("requests"), lambda b: self.requests_view()),  # turn tokens (SPEC §22.4)
-                          (words.t("models"), lambda b: self.models_view()),  # which model does which job (§22.3)
-                          (words.t("library"), lambda b: self.library_view())):  # Wikipedia on this computer (D68)
+        # each in its own colour, on the start screen only (Ian, 2026-10-24: "for the initial UI it gets colored for
+        # aesthetic"); the buttons inside the views keep the theme's grey, one look for every choice
+        for kind, label, cb in (("writing", "Start a writing project", lambda b: self.new_project()),
+                                ("journal", "Open the journal", lambda b: self.open_journal()),
+                                ("aicui", "Open AICUI (coding)", lambda b: self.open_aicui()),
+                                ("standing", words.t("standing"), lambda b: self.standing_list()),  # D88
+                                ("updates", words.t("updates_window"), lambda b: self.open_updates()),  # D29
+                                ("requests", words.t("requests"), lambda b: self.requests_view()),  # SPEC §22.4
+                                ("models", words.t("models"), lambda b: self.models_view()),  # §22.3
+                                ("library", words.t("library"), lambda b: self.library_view())):  # D68
             b = Gtk.Button(label=label)
+            for c in ("start", kind):
+                b.get_style_context().add_class(c)
             b.connect("clicked", cb)
             row.add(b)
         self.chat.pack_start(row, False, False, 0)
