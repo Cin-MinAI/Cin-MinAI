@@ -543,6 +543,69 @@ class AgentTest(unittest.TestCase):
         b.role = "senior"
         self.assertEqual(b.turn("what's next?"), "The docs come next.")  # a question, no work: answered at once
 
+    def test_a_goal_is_held_to_its_own_files_and_the_last_to_the_whole_project(self):
+        """Ian, 2026-10-25 (test16): "fix the engine's compile errors" stayed open: tests/ was empty and the GUI ran off
+        the screen, nothing that goal's work could change."""
+        with open(os.path.join(self.root, "gui.py"), "w", encoding="utf-8") as f:
+            f.write("raise SystemExit('no window toolkit')\n")
+        with open(os.path.join(self.root, "main.py"), "w", encoding="utf-8") as f:
+            f.write("import gui\n")
+        with open(os.path.join(self.root, "test_app.py"), "w", encoding="utf-8") as f:
+            f.write("from app import add\nassert add(2, 3) == 5\n")  # names app.py: it fails while add subtracts
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        engine = a.goals.add("The engine builds", by="user", files=["engine.py"])
+        app = a.goals.add("add() adds", by="user", files=["app.py"])
+        a.goals.add("The window opens", by="user", files=["gui.py"])
+        ok, report = a.verify(engine)
+        self.assertTrue(ok, report)  # no test names engine.py, and the stop isn't in its files: said, not held
+        self.assertIn("no test names this goal's files", report)
+        self.assertIn("not in this goal's files", report)
+        self.assertFalse(a.verify(app)[0])  # its own test fails
+        with open(os.path.join(self.root, "gui.py"), "w", encoding="utf-8") as f:
+            f.write("raise RuntimeError('no display')\n")  # its traceback names gui.py
+        ok, report = a.verify(a.goals.load()[2])
+        self.assertFalse(ok)
+        self.assertIn("CRASHED in this goal's files", report)
+        for g in (engine, app):
+            a.goals.set_done(g["id"], True)
+        ok, report = a.verify(a.goals.load()[2])  # the last goal open: the whole project's checks
+        self.assertFalse(ok)
+        self.assertIn("test_app.py: FAILED", report)
+        self.assertIn("CRASHED (exit 1)", report)
+
+    def test_a_source_kept_for_one_goal_counts_for_all(self):
+        """Ian, 2026-10-25 (test16): the deck pages came in for goal 1, and goal 13's parser that reads them was locked."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.goals.add("Parse the decks", by="ai", files=["parse.py"], from_outside=[{"what": "deck lists", "kind": "text"}])
+        self.assertIn("belongs to goal 1", a.needs_block("parse.py"))
+        os.makedirs(os.path.join(self.root, "sources"))
+        with open(os.path.join(self.root, "sources", "Starter-Deck.txt"), "w", encoding="utf-8") as f:
+            f.write("Stone Giant\n")
+        self.assertEqual(a.needs_block("parse.py"), "")
+
+    def test_a_draft_that_grows_is_progress(self):
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.drafted = {}
+        part = {"tool": "append", "path": "big.py"}
+        self.assertTrue(a.progressed(part, "The new version of big.py … kept as a draft: 70 lines so far"))
+        self.assertTrue(a.progressed(part, "The new version of big.py … kept as a draft: 140 lines so far"))
+        self.assertFalse(a.progressed(part, "The new version of big.py … kept as a draft: 140 lines so far"))
+
+    def test_a_lead_reads_without_nags_and_its_juniors_question_comes_first(self):
+        """2026-10-25 (test16): "no progress" fired on a lead checking its junior's work; Haiku answered its junior's
+        question with answer, which goes to the person."""
+        a = Agent(self.root, Scripted([step("", tool="read", path="app.py")] * 8 + [
+                                       step("", tool="answer", text="Use the text files."),
+                                       step("", tool="answer", text="Waiting on you for the card details.")]),
+                  "m", "auto", say=self.said.append)
+        a.role = "senior"
+        a.inbox = [(640, "task", "task 640 (write parse.py) — STUCK POINT from your junior (asks the senior). It said: "
+                                 "use the text files?")]
+        self.assertEqual(a.turn("go on"), "Waiting on you for the card details.")
+        sent = "\n".join(m["content"] for m in a.chat.sent[-1])
+        self.assertNotIn("No progress in the last", sent)
+        self.assertIn("Your junior's question (task 640) waits for your word", sent)
+
     def test_a_new_project_keeps_its_first_request_and_a_screenshots_folder(self):
         """Ian, 2026-10-12: he kept both by hand for test10 (origprompt, screenshots/), and the cloud finished from them."""
         a = Agent(self.root, Scripted([step("", tool="answer", text="ok"), step("", tool="answer", text="ok")]),

@@ -130,6 +130,27 @@ class PairTest(unittest.TestCase):
         self.assertIn("logged as change", junior.do({"tool": "write", "path": "rules.py",
                                                      "content": "def draw(deck):\n    return deck.pop(0)  # top\n"}))
 
+    def test_a_write_tasks_draft_waits_for_the_next_write(self):
+        """2026-10-25 (test16): the junior's 193-line draft of a rewrite was set aside when its task stopped."""
+        senior, junior, p = self.pair(junior_steps=[step("", tool="answer", text="placeholder")])
+        line = "# " + "x" * 200 + "\n"
+        junior.chat.steps[:0] = [step("The first part.", tool="write", path="rules.py",
+                                      content=line * (junior.content_max // len(line) + 1))]
+        draft = junior.draft_path("rules.py")
+        senior.do({"tool": "assign", "path": "rules.py", "kind": "write",
+                   "task": "rewrite draw() to take the top card and return it" + DETAIL})
+        self.wait(p)
+        self.assertTrue(os.path.exists(draft))  # kept for the next write on it
+        ((n, kind, result),) = senior.inbox
+        self.assertIn("Drafted and kept (the file itself is as it was): rules.py", result)
+        senior.inbox.clear()
+        junior.chat.steps.append(step("", tool="answer", text="Fixed line 2."))
+        senior.do({"tool": "assign", "path": "rules.py", "kind": "fix",
+                   "task": "fix draw() at line 2: return deck.pop(0) instead of pass" + DETAIL})
+        self.wait(p)
+        self.assertFalse(os.path.exists(draft))  # another kind of task sets it aside
+        self.assertTrue(os.listdir(os.path.join(self.root, ".cinminai", "drafts-stale")))
+
     def test_the_table_is_the_backbone(self):
         """Ian, 2026-10-21: "make the table the backbone". The Junior's queue, its holds and its instructions are on the
         table; the table's refusals reach the Senior; a cancel there frees the file; no team without it."""

@@ -265,8 +265,9 @@ Your commands have a screen of their own that nobody sees: a tkinter or Qt windo
 windowless), so `timeout 5` around the program shows its errors; look shows a program for real, at the user's screen size. Check your work with tests, `python3 -m py_compile`, or `timeout 5` around a program with a main
 loop; the user opens the program or the page to try it. The user runs it outside your sandbox, with AICUI's Run
 button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
-project's top. Before a goal is ticked, the project's tests (test_*.py) run and its entry point is started for a few
-seconds; a goal whose checks fail stays open. Never edit tests or the entry point to pass.
+project's top. Before a goal is ticked, the tests that name its files (test_*.py) run and the entry point is started
+for a few seconds; a goal stays open when they fail in its files. The last goal open gets the whole project's checks
+(tests, the start, the window on the screen). Never edit tests or the entry point to pass.
 GitHub and publishing are the person's (AICUI's GitHub menu): no git that changes the repository, no workflows; a
 site is ready with its index.html at the top.{venv}
 
@@ -1003,6 +1004,8 @@ class Agent:
         while inbox:
             n, kind, text = inbox.pop(0)
             got = got or (kind == "task" and ("(brief, by your junior)" in text or "gathered record" in text))
+            if kind == "task" and "STUCK POINT from your junior (asks the senior)" in text:
+                self.junior_asks = n  # its question waits for the lead's word (answered with assign, not answer)
             self.note(steps, f"Task {n} is back from your junior:\n{text}" if kind == "task" else
                       f"Task {n} is still with your junior — how it's going:\n{text}" if kind == "progress" else
                       f"Your senior's direction on task {n}:\n{text}" if kind == "direction" else
@@ -1314,6 +1317,18 @@ class Agent:
         self.cancel_event = cancel  # LFD's long call stops with the rest
         self.task_drafts: set[str] = set()  # drafts this task started or added to
         msg = self.steps_of(text, cancel)
+        if getattr(self, "keep_drafts", False):  # a junior's write task: its draft waits for the next write on the file
+            kept = sorted(rel for rel in self.task_drafts if os.path.exists(self.draft_path(rel)))
+            if kept:
+                sizes = []
+                for rel in kept:
+                    with open(self.draft_path(rel), encoding="utf-8", errors="replace") as f:
+                        sizes.append(f"{rel}, {f.read().count(chr(10))} lines")
+                note = ("Drafted and kept (the file itself is as it was): " + "; ".join(sizes) + ". A write task on "
+                        "it goes on from the draft; another kind of task sets it aside.")
+                self.event("note", text=note)
+                msg += "\n" + note
+            return msg
         stale = self.set_aside_drafts()
         if stale:  # a draft belongs to its task: unfinished, it's kept aside, never completed by a later append
             note = ("The unfinished new version of " + ", ".join(stale) + " was set aside (.cinminai/drafts-stale/); "
@@ -1346,6 +1361,8 @@ class Agent:
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
         self.flagged: set[int] = set()  # goals the helper flagged in this task (a second goal_done ticks)
         self.goals_nudged = False  # a lead's answer with goals open was sent back (a second answer goes through)
+        self.drafted: dict[str, int] = {}  # lines in each draft this task wrote (a part that grew it is progress)
+        self.junior_asks = None  # a junior task back with a question for the lead (see deliver)
         last_progress = 0
         unusable = 0  # replies in a row that weren't a step
         empty = 0  # answers or questions with nothing in them
@@ -1423,6 +1440,14 @@ class Agent:
                 if getattr(self, "inbox", None):
                     self.deliver(steps)
                     continue
+            asks = getattr(self, "junior_asks", None)
+            if act["tool"] == "answer" and asks is not None:
+                # 2026-10-25 (test16): Haiku meant to answer its junior's question with answer, which goes to the person
+                self.junior_asks = None  # once: a second answer goes to the person
+                self.note(steps, f"Your junior's question (task {asks}) waits for your word, and answer goes to the "
+                                 "person, not to it: give your answer as a new task (assign, the same file, your answer "
+                                 "in the task). If this answer is for the person, answer again.")
+                continue
             open_goals = [g for g in self.goals.load() if not g["done"]] if self.role == "senior" else []
             if act["tool"] == "answer" and open_goals and self.kinds_done and not getattr(self, "goals_nudged", False):
                 # a lead's progress report isn't the end while goals are open (Ian, 2026-10-25, test16: told to complete
@@ -1486,6 +1511,9 @@ class Agent:
                 last_progress = n
                 self.kinds_done.append(act["tool"])
                 self.progress_total = getattr(self, "progress_total", 0) + 1  # across tasks (team B's follow-up)
+            elif self.role == "senior":
+                pass  # a lead reads and judges: no "make the change now" (2026-10-25: it fired on a lead's checks of its
+                # junior's work); the stuck rule below still holds
             elif n - last_progress == NUDGE_STEPS * 2 and callable(getattr(self, "advisor_fn", None)):
                 # stalled: the cloud advisor is asked by AICUI itself, before the stuck rule stops the work
                 advice = self.advisor_fn(f"I've gone {n - last_progress} steps without progress (no file changed, no "
@@ -1557,6 +1585,14 @@ class Agent:
             return True
         if "logged as change" in result:  # write / delete
             return True
+        m = re.search(r"kept as a draft: (\d+) lines", result)
+        if m:  # a part of a long write is a write when the draft grew (2026-10-25, test16: 193 lines into a draft, and
+            # the stuck rule stopped it there — no part had counted)
+            drafted = getattr(self, "drafted", {})
+            self.drafted = drafted
+            grew = int(m.group(1)) > drafted.get(act.get("path", ""), 0)
+            drafted[act.get("path", "")] = int(m.group(1))
+            return grew
         if result.startswith(("the person said no", "the user said no")):  # reject (the person decided)
             return True
         if tool == "lfd" and result.startswith("Large File Distillation done"):  # create: the project's summary
@@ -2010,9 +2046,20 @@ class Agent:
     def needs_have(self, goal: dict) -> list[tuple[str, str]]:
         """What has come in for a goal, as (what, what it holds): pages by their text (the .html is the same page), PDFs
         by their text, pictures, sounds, data, a downloaded folder by what's in it, records distilled for it. A
-        search's list of results isn't a source."""
-        ev, out = goal.get("evidence", {}), []
-        for rel in ev.get("sources", []):
+        search's list of results isn't a source.
+
+        What came in for any goal counts for every goal, and so does a page kept in sources/ (Ian, 2026-10-25, test16:
+        the deck pages were fetched for goal 1, and goal 13's parser, which reads them, stayed locked)."""
+        out, sources, records = [], [], []
+        for g in [goal] + [x for x in self.goals.load() if x.get("id") != goal.get("id")]:
+            ev = g.get("evidence", {}) or {}
+            sources += [r for r in ev.get("sources", []) if r not in sources]
+            records += [r for r in ev.get("records", []) if r not in records]
+        kept = os.path.join(self.root, "sources")
+        if os.path.isdir(kept):
+            sources += [f"sources/{n}" for n in sorted(os.listdir(kept))
+                        if os.path.isfile(os.path.join(kept, n)) and f"sources/{n}" not in sources]
+        for rel in sources:
             if rel.endswith("/"):  # a download: the folder, by what most of it holds
                 try:
                     kinds = [intake.holds(self.root, rel + n) for n in os.listdir(os.path.join(self.root, rel))]
@@ -2024,7 +2071,7 @@ class Agent:
             h = intake.holds(self.root, rel)
             if h not in ("page markup", "search results", "document"):
                 out.append((rel, h))
-        for r in ev.get("records", []):
+        for r in records:
             try:
                 with open(os.path.join(self.root, GATHERED, f"{r}.json"), encoding="utf-8") as f:
                     fmt = json.load(f).get("format")
@@ -2317,6 +2364,8 @@ class Agent:
                     return "no junior is working with you here"
                 return fn(int(a.get("n") or 0), str(a.get("note", "")))
             if t in ("assign", "review_task"):  # style B's Senior (pair.py)
+                if t == "assign":
+                    self.junior_asks = None  # its question answered in the new task
                 fn = getattr(self, t + "_fn", None)
                 if not callable(fn):
                     return "no junior is working with you here"
@@ -2431,7 +2480,7 @@ class Agent:
                     return (f"goal {goal['id']} NOT ticked — what it takes from outside isn't in yet: "
                             + self.needs_line(goal) + ". Fetch and distill it (with goal " + str(goal["id"]) + "), or "
                             "ask the person.")
-                ok, report = self.verify()
+                ok, report = self.verify(goal)
                 unchecked = goal_stages(self.root, goal)["unchecked"] if goal else []
                 if unchecked:  # use needs checked data (D96): a test has to read what came from a source
                     ok = False
@@ -2712,28 +2761,24 @@ class Agent:
                                + "; ".join(diff) + " (if on purpose, say why; else distill it again)"))
         return out
 
-    def verify(self) -> tuple[bool, str]:
+    def verify(self, goal: dict | None = None) -> tuple[bool, str]:
         """Before a goal is ticked: the project's tests, and its entry point started for a few seconds the way the
         user would start it — the agent's "it works" isn't evidence (2026-10-03: "all four tests pass" with one of
-        them never run; tests that passed while the game crashed on its first frame)."""
+        them never run; tests that passed while the game crashed on its first frame).
+
+        A goal that isn't the last one open is held to its own files (Ian, 2026-10-25, test16: "fix the engine's
+        compile errors" stayed open because tests/ was empty and the GUI ran off the screen — nothing a model working
+        that goal could change): the tests that name its files, a start that crashes in its files. What else the
+        checks see is said, and the last goal open gets all of it."""
+        open_ = [g for g in self.goals.load() if not g["done"]]
+        if goal is not None and any(g["id"] != goal["id"] for g in open_):
+            return self.verify_goal(goal)
         lines, ok = [], True
-        tests = [rel for rel, is_dir, _ in tree(self.root) if not is_dir and rel.count(os.sep) <= 1
-                 and re.match(r"(test_.*|.*_test)\.py$", os.path.basename(rel))]
-        has_pytest = bool(self.venv) and any(p.lower().startswith("pytest ") for p in venv_packages(self.venv))
-        for rel in tests[:6]:
-            if has_pytest:  # pytest runs both kinds of test file
-                how = f"python3 -m pytest -q {shlex.quote(rel)}"
-            elif pytest_style(os.path.join(self.root, rel)):  # run as a script it only defines its tests: "passed"
-                ok = False
-                lines.append(f"{rel}: NOT RUN — its tests are pytest style and pytest isn't in the project's "
-                             "environment: `need` pytest, or write them with unittest")
-                continue
-            else:
-                how = f"python3 {shlex.quote(rel)}"
-            code, out = self.execute(f"timeout 120 {how}", 150, self.bwrap)
-            passed = code == 0
-            ok &= passed
-            lines.append(f"{rel}: {'passed' if passed else 'FAILED'}" + ("" if passed else "\n" + out[-800:]))
+        tests = self.test_files()
+        for rel in tests[:6]:  # pytest style without pytest: run as a script it only defines its tests, "passed"
+            passed, line = self.run_test(rel)
+            ok &= bool(passed)
+            lines.append(line)
         entry = entry_point(self.root)
         if entry and entry.endswith(".html"):  # a web page: its tags were checked when it changed
             entry = None
@@ -2764,6 +2809,64 @@ class Agent:
             # printed how to install it and exited 0 — and the engine goal was ticked with nothing testing its rules)
             ok = False
             lines.append("no tests: a goal is ticked when tests of what it promises pass — write test_*.py first")
+        return ok, "\n".join(lines)
+
+    def test_files(self) -> list[str]:
+        return [rel for rel, is_dir, _ in tree(self.root) if not is_dir and rel.count(os.sep) <= 1
+                and re.match(r"(test_.*|.*_test)\.py$", os.path.basename(rel))]
+
+    def run_test(self, rel: str) -> tuple[bool | None, str]:
+        """One test file: passed, failed, or not run (None) — pytest style without pytest only defines its tests."""
+        if bool(self.venv) and any(p.lower().startswith("pytest ") for p in venv_packages(self.venv)):
+            how = f"python3 -m pytest -q {shlex.quote(rel)}"
+        elif pytest_style(os.path.join(self.root, rel)):
+            return None, (f"{rel}: NOT RUN — its tests are pytest style and pytest isn't in the project's "
+                          "environment: `need` pytest, or write them with unittest")
+        else:
+            how = f"python3 {shlex.quote(rel)}"
+        code, out = self.execute(f"timeout 120 {how}", 150, self.bwrap)
+        return code == 0, f"{rel}: {'passed' if code == 0 else 'FAILED'}" + ("" if code == 0 else "\n" + out[-800:])
+
+    def verify_goal(self, goal: dict) -> tuple[bool, str]:
+        """A goal's own checks (see verify): the tests that name its files (all of them when it names none) must pass,
+        and the program's start must not crash in its files; the rest is said, for the last goal."""
+        files = [f for f in goal.get("files") or [] if f]
+        stems = {os.path.splitext(os.path.basename(f))[0] for f in files} - {""}
+        lines, ok, mine = [], True, []
+        for rel in self.test_files():
+            try:
+                with open(os.path.join(self.root, rel), encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+            except OSError:
+                continue
+            if not files or rel in files or any(re.search(rf"\b{re.escape(s)}\b", text) for s in stems):
+                mine.append(rel)
+        for rel in mine[:6]:
+            passed, line = self.run_test(rel)
+            ok &= bool(passed)
+            lines.append(line)
+        if not mine:
+            lines.append("no test names this goal's files yet (said, not held against it; the last goal open needs "
+                         "tests that pass)")
+        entry = entry_point(self.root)
+        if entry and not entry.endswith((".html", ".htm")):
+            how = f"./{entry}" if entry.endswith(".sh") else f"python3 {shlex.quote(entry)}"
+            code, out = self.execute(f"timeout 5 {how}", 30, self.bwrap)
+            if code in (0, 124):
+                lines.append(f"{entry}: started" + (" and kept running" if code == 124 else " and finished"))
+            elif any(f in out for f in files) or entry in files:
+                ok = False
+                lines.append(f"{entry}: CRASHED in this goal's files (exit {code})\n" + out[-800:])
+            else:
+                lines.append(f"{entry}: stopped (exit {code}), not in this goal's files — said for the last goal:\n"
+                             + out[-300:])
+        page = next((f for f in files if f.lower().endswith((".html", ".htm"))), None)
+        if page and os.path.exists(os.path.join(self.root, page)):
+            problems = [p for p in (check_file(os.path.join(self.root, page)), web_names(self.root)) if p]
+            ok &= not problems
+            lines.append(f"{page} and its CSS/JS: " + ("names and tags line up" if not problems else
+                                                      "PROBLEMS: " + "; ".join(problems)))
+        lines += self.compiled_check()
         return ok, "\n".join(lines)
 
 

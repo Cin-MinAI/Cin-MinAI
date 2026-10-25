@@ -710,13 +710,19 @@ class Pair:
         self.junior.task_lines, self.junior.line_limit = 0, (0 if kind == "test" else lim["lines"])
         steps_were, self.junior.max_steps = self.junior.max_steps, lim["steps"]
         self.junior.edits_only = kind == "fix"
+        # a write task's unfinished draft waits for the next write on its file (2026-10-25, test16: 193 lines set
+        # aside when the task stopped); any other kind of task on the file sets it aside first
+        self.junior.keep_drafts = kind == "write"
+        if kind != "write":
+            self.junior.task_drafts = set(self.current)
+            self.junior.set_aside_drafts()
         try:
             said = self.junior.work(f"[{kind}] Task {n} from your senior: {task}\n{may}", self.stop_junior)
         finally:
             self.current, self.current_table, self.running = set(), None, None
             self.junior.inbox.clear()
             self.junior.max_steps, self.junior.line_limit = steps_were, 0
-            self.junior.edits_only = False
+            self.junior.edits_only = self.junior.keep_drafts = False
             self.junior.history = []  # accepted or not, the next task starts fresh
         changes = self.junior.log.entries()[before:] if hasattr(self.junior.log, "entries") else []
         changed = sorted({c.get("file", "") for c in changes} - {""})
@@ -731,8 +737,10 @@ class Pair:
             trail = "\n".join(f"- {s['did'].get('thinking', '')[:200]} → {str(s.get('result', ''))[:200]}" for s in last)
             result = (f"task {n} ({kind} {rel}) — STUCK POINT from your junior ({verdict}). It said: {said[:700]}\n"
                       f"Its last steps:\n{trail or '(none)'}\nChanged: " + (", ".join(changed) or "nothing") + checks
-                      + "\nDistill its next step: a smaller, exact task (assign, naming the lines or the function and "
-                      "what's wrong) — or patch this one mechanism yourself.")
+                      + ("\nIt asks you: answer in a new task (assign, the same file, your answer in it) — answer "
+                         "goes to the person, not to your junior." if ended == "ask" else
+                         "\nDistill its next step: a smaller, exact task (assign, naming the lines or the function and "
+                         "what's wrong) — or patch this one mechanism yourself."))
         elif ended == "stopped":
             result = f"task {n} ({kind} {rel}) — not done: stopped by the person."
         else:

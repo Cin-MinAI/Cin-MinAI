@@ -197,7 +197,7 @@ class TandemTest(Base):
         review is a flag: the coder hears it once, and a second goal_done ticks the goal."""
         a, t = self.pair([], [{"covered": False, "missing": "no engine implementation code exists"}])
         a.flagged = set()
-        a.verify = lambda: (True, "test_cards.py: passed")
+        a.verify = lambda goal=None: (True, "test_cards.py: passed")
         flagged = a.do({"tool": "goal_done", "id": 1})
         self.assertIn("goal 1 not ticked yet — your helper flags: no engine implementation code exists", flagged)
         self.assertIn("call goal_done again and it's ticked", flagged)
@@ -211,7 +211,7 @@ class TandemTest(Base):
             f.write("x\n")
         self.assertIn("error: the helper couldn't do it", t.read("notes.txt", "what's in it?"))
         a.flagged = set()
-        a.verify = lambda: (True, "test_x.py: passed")
+        a.verify = lambda goal=None: (True, "test_x.py: passed")
         self.assertIn("goal 1 ticked", a.do({"tool": "goal_done", "id": 1}))  # no review answer: the checks decide
 
     def test_an_errand_is_a_read_or_a_look(self):
