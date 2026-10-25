@@ -1,12 +1,31 @@
 # Resume note — where things stand, what's next
 
-Updated **2026-10-24** (latest: journal "the help learns our own windows, and the evals that ran on the wrong chip"; before it "the guide reaches for Wikipedia, and learns to hold a conversation"; before it
+Updated **2026-10-25** (latest: journal "a second opinion, a team on one box, and OSAI goes public"; before it "the help learns our own windows, and the evals that ran on the wrong chip"; before it "the guide reaches for Wikipedia, and learns to hold a conversation"; before it
 "the fill run: offline, a diagnosis that walks, and updates you can trust"; before it "the Team Table at work, and
 update 7"; before it "the git flow, and a machine named Simon"; before it "a protocol for the junior, and how much it can carry"; before it "an ADHD moment"; before it "contexts measured, the lead waits, and a lesson in scripting"; before it "the ISO builds again, and a security plan"; before it "the cloud leads, the cloud advises"; before it "GitHub sign-in, a screen for the models, and the cloud arrives"; before it "a plan first, a summary of everything, and questions you can see"; before it "the regroup, and a search of our own"; before it "style B, a draft that ate a file, and GatheredData"; before it "two cards, style A finished, the web through tools, and a save button for storms"; before it "the closures, looking, the Team Table as the engine, a day of patches, and the flip"; before it "two models on one project, and the finish line"; before it "which model does which job, more models from Hugging Face, and the habit of working"; before it "Cin-MinAI on Ian's own PC, a model that admitted it was guessing, and one model system"; before it "it does things on its own now"; before it "one path for every action"; before it journal "why it exists, and a 125B model on a 2014 PC"; before it "it watches videos"; before it journal "persistence: habits on the bitcode, a memory design, and the Quaddle board"; before it "what the next OS might be, and where Quaddle fits"; before it "AICUI's next version, and a wedding page"; before it "the assistant learns to see"; before it "all six goals, the BIOS change, and a game Ian can launch"; before it "watching the blackjack game get built, and a senior/junior setup
 by hand"; before it the night of 2-3 Oct, AICUI's first real project; before it "AICUI, and knowing where every model is"; before it "a writing partner with a shape, and the right model for every machine"; before it the night of 30 Sept–1 Oct; before it the 28–29 Sept session: from the assistant's engine to an installed
 Cin-MinAI; journal entry of that date). For Ian, Claude and Codex alike: **read this first.** Reasons
 behind decisions: `docs/PLAN.md` (D1–D67). How the work went, day by day: `docs/dev-journal.md`. The guide
 model's story: `docs/guide-model-journal.md`.
+
+## Where we stopped (2026-10-25) — D94 Review built; the team flow; OSAI published
+
+- **All pushed** (main c74f303, then the journal). Ian's NVMe: test build **074559** copied, not yet installed (051846
+  and 065119 were installed and tried that night).
+- **D94 built:** AICUI's Review button (three passes: what breaks from the beginning, from the end, in operation; claims
+  checked in code; the person ticks and sends). The reviewer is the Models view's Review job (ours: the 35B-A3B).
+  Measured ~9 / 10½ / 10 of a 16-item key; on Ian's first real Review, the checks' mistakes were fixed (b13f6ca).
+- **Also in:** the sidebar's start buttons in colour on the grey (pills); the Updates window waits as long as an install
+  takes (the 25 s D-Bus default had stopped it); a junior task with `also` outside the table goes ahead with the first
+  file; **the team flow** (843a612): the cloud Senior reads and gives exact edits, a fix task is edits only, the junior
+  verifies, AICUI adds the diff and a 5 s start to the result.
+- **Measured (test16):** Haiku 4.5 + 9B: junior read 328K free, 15 Haiku calls $0.08. Haiku 5.5 + 35B: 23 min, 38 calls,
+  $0.25 (Haiku 5.5's price is estimated from 4.5: check the real one, cloud.py's PRICES/CHECKED lack the 5 family).
+- **Next:** a test16 round on 074559 against those numbers; then the A/B on a fresh project (Haiku alone vs Haiku + the
+  local team; report size, kind, hardware, time, $, usable); Review's button showing progress; Think it through's
+  streamed thinking budget (may never end, like the reviewer's did); a second public record for OSAI (Wayback /
+  Zenodo, on Ian's word); then build-all (VM screenshots for D84's last two cards, before update 8).
+- **OSAI** (`docs/osai/`): Ian's defensive disclosure, published 2026-10-25 (CC BY 4.0). Changes go in as new commits.
 
 ## Where we stopped (2026-10-24) — D84 batches 1 and 2 in; next: D94
 

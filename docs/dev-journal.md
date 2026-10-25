@@ -2202,3 +2202,81 @@ Still missed:
 everything ("otherwise youre gonna be spending weeks finding a bug"), compaction, and **recall and blend**. In
 recall and blend, a compacted note too far back gets dropped, but the model keeps a flowchart of where it went. It
 can go back to the note, reread it and blend it into the current work.
+
+## 2026-10-24 to 10-25 — a second opinion, a team on one box, and OSAI goes public
+
+**D94: which model reviews.** On Ian's NVMe, three candidates read the same test project, scored against a 16-item
+answer key. Flash-Next thinks well (about 13½ of 16) but took 36 to 46 minutes a review: Ian's 2014 board feeds its
+M.2 slot at about 1 GB/s, so it waits for hardware. The 35B-A3B reviews in about 5 minutes. A pruned 27B from Reddit
+made up bugs. Then Ian redesigned the review itself as three readings for **what breaks: from the beginning, from the
+end, and in operation**. Merged, the three found 6, 10½ and 10 of 16, against about 8½ for one plain pass three times.
+
+**Review, built.** AICUI got a Review button (Ian: "A Review button only", "You see them, then choose"). Another model
+reads the code three ways, and what it says is checked in code before the person sees it: does the quoted line exist,
+does the file really fail to compile, is the name really missing, does the program really stop when started for five
+seconds. The person ticks findings and sends them to the AI. The first build came back empty: streamed, llama.cpp's
+thinking budget never ends the thinking, so the 35B thought for 9,000 tokens and never answered. Asked for the whole
+answer at once, it thinks about 4K and answers. Built: about 9, 10½ and 10 of 16.
+
+**"Lets add some color to the Sidebar!"** The start buttons got eight colours and the chat went white. An hour later,
+in Ian's words: "The white just blasts through and is kind of blinding." The grey came back, and the buttons went from
+boxes to pills with a bit of light on top.
+
+**"Something broke in updates I think."** The Updates window said "Timeout was reached" and froze on Downloading.
+Nothing was broken: all 16 updates had installed. The window had given up after GLib's default 25 seconds while Ian
+was typing his password and Firefox and Thunderbird downloaded. It now waits as long as the install takes, like our
+other admin actions already did.
+
+**The first real Review, watched over Clueless.** Ian ran Review on test16 while autoplay went Rush Hour → Clueless →
+Mean Girls ("Got the review running. Watching Clueless while we do this. Hey that rhymes!"). The review did well and
+the checks did badly. The name check read "`self.detail_name` is never defined" as a claim about `self`, found `self`
+in the file and dropped the best finding of the night, which all three passes had found. The library check tried
+`import DeckBuilderScreen`, a class, saw it fail and marked a made-up "this module is not provided" as checked. And
+that run.sh stopped at once (no CMake) went unsaid. Fixed: the check reads the name the sentence is about, an
+attribute claim is never dropped, only modules the file imports get the import test, and a stop at start always
+comes first. The second run, before the credits: run.sh's stop first, both crashes kept, nothing true dropped.
+
+**A team on one box.** Haiku 4.5 led from the cloud with the 9B as junior on the 1080 Ti. The 9B read 328K tokens for
+free and Haiku paid $0.08 for 15 calls. The 9B also got one thing more right than its senior. Told "you have the
+lists already", it answered that the files were scraped web pages, not data, and then found the lists inside the HTML
+anyway. Then Haiku 5.5 led with the 35B as junior, on the review's findings. Haiku checked all 11 findings itself, and
+well: crashes from clutter, nothing taken on trust. Then three things got in the way:
+- **Ian's "ask" mode** declined its first edit.
+- **A tool that punished its own option.** Told to delegate, Haiku listed the other files in the task's `also`, which
+  only the Team Table takes. It was refused twice and stopped. Now the first file goes ahead and the reply says the
+  rest need their own tasks.
+- **Rewrites.** The 35B tried to rewrite a 221-line file and stalled. Small exact edits all held.
+
+That round: 23 minutes, 38 Haiku calls, $0.25 at the estimated price. Most calls were Haiku re-checking results by
+hand, each one re-sending 23K tokens.
+
+**Reading or writing?** Per token, writing costs five times reading. In agent work, reading is 85-90% of the bill,
+because every call re-sends the whole conversation. Locally it's the other way round: reading is fast, writing is slow.
+Ian's design for the team, built that night: **the Senior reads and gives exact edits; the junior changes only those
+lines, compiles, starts the program, reads the lines back, reports, and drops its context. AICUI adds the diff and its
+own five-second start to the result**, so the Senior judges in one call. It's measured next, on test16.
+
+**Money on the table.** Ian: "There are plenty of sellable features here but one needs to be straight money on the
+table and this is what I built team table for." Team Table was first built by an earlier Claude and Codex working over
+his network, with Gemini helping in a chat window ("That thing can code but its conversation is terrible"). It was
+meant for models working together over a network, back when local models weren't this good. Now the table fits on one
+old PC. The plan: tune the flow on test16, then benchmark on a fresh project of the same kind, Haiku alone against
+Haiku with the local team. The write-up reports the codebase size, what kind of project it is, the hardware, models,
+time and dollars, and whether the result is usable.
+
+**OSAI, published.** Ian's sketch from 2026-10-14, kept in a folder named `OSAI(TopSecretHushHush)` ("just a bit of a
+joke"), went public at 03:58 as a defensive disclosure (`docs/osai/`, CC BY 4.0): an operating system whose AI builds
+the person's environment, while a physically separate security system decides what anything, the AI included, may do.
+Ian added its core that night:
+- **Key-bound lanes.** "If there are key bound functions, those functions physically cannot be performed without the
+  key in... The lane is closed without the key and the circuit is incompleted." The owner chooses which functions, and
+  Sentinel rewires to match.
+- **Updates only through the key.** "The sentinal firmware is only updateable through the key."
+- **At libraries, with stamps on the key and not at the library.** "I want physical accountability."
+
+Published first, it can't be patented by anyone. Why, in his words:
+
+> This is all for the community to try and help information stay free and flowing. The world was good to me with
+> education. It's time to reciprocate and give back, and I have some powerful tools to help.
+
+All pushed (c74f303). Ian's NVMe has test build 074559 waiting, with the team flow in it.
