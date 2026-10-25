@@ -39,6 +39,8 @@ ADMIN = ("org.cinminai.Admin1", "/org/cinminai/Admin1", "org.cinminai.Admin1")
 SETTINGS = "/etc/cinminai/updates.json"  # written by the admin mechanism (SetUpdateSettings), readable by all
 STATUS = "/var/lib/cinminai/updates-status.json"  # the daily run's last result (admin/auto.py)
 DAY = 86400
+NO_TIMEOUT = 0x7fffffff  # the password dialog, the download and apt take as long as they take (D-Bus's default
+# 25 s stopped the window mid-download on 2026-10-25 while the install went on)
 STEPS = ("connect", "genuine", "snapshot", "download", "fingerprints", "install", "after", "back")
 SOUNDS = {"start": "message", "tick": "audio-volume-change", "done": "complete", "warn": "dialog-warning"}
 
@@ -958,7 +960,7 @@ def window() -> int:
             except GLib.Error as e:
                 done(None, f"{Gio.DBusError.get_remote_error(e) or ''}: {e.message}")
         bus.call(*ADMIN, method, GLib.Variant(signature, args) if signature else None, GLib.VariantType("(s)"),
-                 flags, -1, None, reply)
+                 flags, NO_TIMEOUT, None, reply)
 
     def go_online_then(then) -> None:
         """In offline mode: online first (in the background, the window stays responsive)."""

@@ -729,5 +729,16 @@ class Words(unittest.TestCase):
                              window.words("cancelled", lang))
 
 
+class NoTimeout(unittest.TestCase):
+    def test_the_window_waits_for_the_mechanism(self):
+        """2026-10-25: D-Bus's default 25 s ran out while the password and the download took longer; the window said
+        "Timeout was reached" and stopped at Downloading while the install went on."""
+        import inspect
+        src = inspect.getsource(window)
+        self.assertNotIn("flags, -1, None", src)
+        self.assertIn("flags, NO_TIMEOUT, None", src)
+        self.assertEqual(window.NO_TIMEOUT, 0x7fffffff)
+
+
 if __name__ == "__main__":
     unittest.main()
