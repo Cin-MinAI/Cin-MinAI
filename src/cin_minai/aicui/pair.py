@@ -54,6 +54,12 @@ def project_of(root: str) -> str:
     return token_of(root) or hashlib.sha1(os.path.realpath(root).encode()).hexdigest()
 
 
+def within(rel: str, held: str) -> bool:
+    """A file is held by its own name or by a folder it's in."""
+    held = held.rstrip("/")
+    return rel == held or rel.startswith(held + "/")
+
+
 class Pair:
     """senior and junior: two Agents on the same project, each with its own model. `name`: the junior's name on the
     table (a crew's two contributors each have their own queue)."""
@@ -152,12 +158,15 @@ class Pair:
 
     # --- the write guards ------------------------------------------------------------------------------------
     def senior_may_write(self, rel: str) -> str:
-        n = self.held.get(rel)
+        n = next((n for held, n in self.held.items() if within(rel, held)), None)
         return f"{rel} is held by your junior's task {n} until it's done — work on another file meanwhile" if n else ""
 
     def junior_may_write(self, rel: str) -> str:
-        return "" if rel in self.current else (f"{rel} isn't part of your task — you may change only "
-                                              f"{', '.join(sorted(self.current)) or 'the files your senior names'}")
+        # a folder the task names holds the files in it (2026-10-25, test16: goal 21's files were "tests", and every
+        # tests/test_*.cpp the junior wrote was refused; it stopped after 15 steps with nothing written)
+        return "" if any(within(rel, f) for f in self.current) else (
+            f"{rel} isn't part of your task — you may change only "
+            f"{', '.join(sorted(self.current)) or 'the files your senior names'}")
 
     # --- one request: the Senior's ---------------------------------------------------------------------------
     def turn(self, request: str, cancel: threading.Event | None = None) -> str:

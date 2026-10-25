@@ -156,6 +156,16 @@ class PairTest(unittest.TestCase):
         self.assertFalse(os.path.exists(draft))  # another kind of task sets it aside
         self.assertTrue(os.listdir(os.path.join(self.root, ".cinminai", "drafts-stale")))
 
+    def test_a_folder_in_a_task_holds_the_files_in_it(self):
+        """2026-10-25 (test16): goal 21's files were "tests"; every tests/test_*.cpp the junior wrote was refused."""
+        senior, junior, p = self.pair()
+        p.current = {"tests", "Makefile"}
+        self.assertEqual(p.junior_may_write("tests/test_deck.cpp"), "")
+        self.assertIn("isn't part of your task", p.junior_may_write("testsuite/x.cpp"))
+        from unittest import mock
+        with mock.patch.object(type(p), "held", new_callable=mock.PropertyMock, return_value={"tests": 7}):
+            self.assertIn("held by your junior's task 7", p.senior_may_write("tests/test_deck.cpp"))
+
     def test_the_table_is_the_backbone(self):
         """Ian, 2026-10-21: "make the table the backbone". The Junior's queue, its holds and its instructions are on the
         table; the table's refusals reach the Senior; a cancel there frees the file; no team without it."""
