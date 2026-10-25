@@ -184,12 +184,22 @@ def parse(text: str, key: str) -> list[dict]:
             field = f.group(1).lower()
             cur[field] = f.group(2).strip()
         elif field and raw.strip() and not raw.lstrip().startswith("#"):
-            cur[field] = (cur[field] + " " + raw.strip()).strip()
+            joint = "\n" if field == "quote" else " "  # a quote of two lines stays two lines: each is a file's line
+            cur[field] = (cur[field] + joint + raw.strip()).strip()
     if cur and cur.get("wrong"):
         out.append(cur)
     for c in out:
         c["quote"] = c["quote"].strip().strip("`").strip('"').strip()
     return out
+
+
+PER_PASS = 15     # findings a pass may give, worst first (measured passes gave ~10; past that, lists of lines)
+MIN_WRONG = 30    # characters a finding's "wrong" needs: "No", "Y=780.", "Fixed." aren't findings
+
+
+def kept(found: list[dict]) -> list[dict]:
+    """A pass's findings that say something, at most PER_PASS of them, in the order given (worst first)."""
+    return [f for f in found if len(f["wrong"].strip()) >= MIN_WRONG][:PER_PASS]
 
 
 def verdict(text: str) -> str:
@@ -238,14 +248,17 @@ def squash(s: str) -> str:
 IF = re.compile(r"\b(if|when|unless|could|may|might|would|should|potential(ly)?|risk)\b", re.I)
 SYNTAX = re.compile(r"syntax\s*error|missing (colon|bracket|brace|parenthes\w*|paren|quote)|extra (closing )?"
                     r"(parenthes\w*|bracket)|unterminated|indentation\s*error|unbalanced|unclosed", re.I)
-NAME = re.compile(r"NameError|\b(is|isn't|not|never)\s+(imported|defined)\b|undefined name|not in scope", re.I)
+# only the negative: "`on_click` is defined as an empty method" is a true finding a name check would have dropped
+NAME = re.compile(r"NameError|\b(isn't|is not|not|never|wasn't|was not)\s+(been\s+)?(imported|defined)\b|undefined "
+                  r"name|not in scope", re.I)
 MODULE = re.compile(r"ModuleNotFoundError|ImportError|(isn't|is not|not) installed|missing (library|dependency|"
                     r"package|module)", re.I)
-# a claim that the whole program doesn't start (not "Start never opens the board": that's one button)
-START = re.compile(r"\b(crash\w*|fails?|exits?|terminat\w*|stops?|dies)\b[^.]{0,40}\b(on|at|during|upon)\s+"
-                   r"(startup|start-up|launch|start|import)\b|\b(crash\w*|exits?|terminat\w*)\s+(immediately|instantly|"
-                   r"right away)\b|before any (ui|window|gui|screen)|\b(window|app\w*|program|game|gui)\s+(never|won't|"
-                   r"will not|doesn't|does not)\s+(open|start|launch)", re.I)
+# a claim that the whole program doesn't start, named as such: launch, startup, import, before any window. Not "the
+# game never starts" or "Start never opens the board": that's one button (2026-10-24: Start Game's real bug was dropped
+# because the program itself started)
+START = re.compile(r"\b(crash\w*|fails?|exits?|terminat\w*|dies)\b[^.]{0,40}\b(on|at|during|upon)\s+"
+                   r"(startup|start-up|launch|import)\b|\b(crash\w*|exits?|terminat\w*)\s+(immediately|instantly|"
+                   r"right away)\s+(on|at|when)\s+(startup|launch|start-up)\b|before any (ui|window|gui|screen)", re.I)
 TICKS = re.compile(r"`([A-Za-z_][\w.]*)`")
 PIP_NAMES = {"pillow": "PIL", "pyyaml": "yaml", "opencv-python": "cv2", "scikit-learn": "sklearn",
              "beautifulsoup4": "bs4"}
@@ -268,7 +281,8 @@ def place(root: str, shown: list[str], f: dict) -> str:
     f["file"] = rel
     with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as fh:
         lines = fh.read().splitlines()
-    q = squash(f["quote"].split("\\n")[0].split(" / ")[0])[:60].rstrip(".")
+    first = next((line for line in f["quote"].replace("\\n", "\n").splitlines() if line.strip()), "")
+    q = squash(first.split(" / ")[0])[:60].rstrip(".")
     if q:
         hits = [i for i, line in enumerate(lines, 1) if q in squash(line)]
         if not hits:
@@ -344,8 +358,10 @@ def importable(root: str, module: str) -> bool | None:
 def check(root: str, shown: list[str], f: dict, started: dict | None) -> tuple[str, str]:
     """("checked" | "not checked" | "wrong", why) for one finding."""
     bad = place(root, shown, f)
-    if bad:
+    if bad.startswith("there's no file") or " has " in bad:  # a file or line that doesn't exist: made up
         return "wrong", bad
+    if bad:  # a quote not found: kept for the person to judge (2026-10-24: "the project requires a C++ engine",
+        return "not checked", bad + " (it may be about something missing)"  # true, has no line to quote)
     claim = f"{f['wrong']} {f['sees']}"
     full = os.path.join(root, f["file"])
     with open(full, encoding="utf-8", errors="replace") as fh:
@@ -426,6 +442,28 @@ def reviewer_backend(log=None):
     return LlamaCppBackend(cfg, log or (lambda m: None)), plan
 
 
+def whole(backend, messages, *, max_tokens=ANSWER, think=True, sampling=None, cancel=None) -> tuple[str, dict]:
+    """One request, answered whole (not streamed): llama.cpp's thinking budget ends the thinking in time only then.
+    Streamed, the 35B thought through all 9,000 tokens, the budget's message came at the very end and no answer was
+    written (2026-10-24, three passes of six minutes each, empty); the same request whole thought ~4K and answered."""
+    from cin_minai.inference.llamacpp import UnixHTTPConnection
+    backend.load()
+    body = {"model": backend.model_name(), "messages": messages, "stream": False, "max_tokens": max_tokens,
+            "cache_prompt": True, "chat_template_kwargs": {"enable_thinking": bool(think)}, **(sampling or {})}
+    conn = UnixHTTPConnection(backend.sock, float(backend.cfg.get("request_timeout_s", 3600)))
+    try:
+        conn.request("POST", "/v1/chat/completions", body=json.dumps(body).encode(),
+                     headers={"Content-Type": "application/json"})
+        r = conn.getresponse()
+        raw = r.read()
+        if r.status != 200:
+            raise RuntimeError(f"the reviewer's model answered {r.status}: {raw[:300].decode(errors='replace')}")
+        got = json.loads(raw)
+    finally:
+        conn.close()
+    return (got["choices"][0]["message"].get("content") or ""), got.get("timings", {})
+
+
 def loaded_whole(backend, plan: dict) -> None:
     """The review's context or none: a server that fell back to a smaller one can't read the code (it said "room for
     4096" and stopped, 2026-10-24)."""
@@ -464,11 +502,15 @@ def run(root: str, chat, plan: dict, say=print, cancel: threading.Event | None =
             break
         say(f"Review {i} of 3: {title.lower()}…")
         t = time.time()
-        text, _ = chat([{"role": "user", "content": prompt(key, want, code, entry)}], max_tokens=ANSWER, think=True,
+        asked_ = prompt(key, want, code, entry)
+        # as measured: thinking and answer together within ANSWER. Given the context's whole rest (~11K), the 35B
+        # went line by line ("Defines class.", "Stores root.") and ended in fragments ("Y=780.", "No"): 88 and 72 items
+        room = int(plan.get("context") or 16384) - int(len(asked_) / CHARS_PER_TOKEN) - 300
+        text, _ = chat([{"role": "user", "content": asked_}], max_tokens=max(1000, min(ANSWER, room)), think=True,
                        sampling=SAMPLING, cancel=cancel)
         result["passes"][key] = {"seconds": round(time.time() - t), "text": text}
         result["verdicts"][key] = verdict(text)
-        found.append(parse(text, key))
+        found.append(kept(parse(text, key)))
     say("Checking what the review says…")
     started = start(root)
     result["start"] = started
@@ -522,7 +564,7 @@ def main(argv=None) -> int:
         return 2
     say(f"Reviewer: {plan.get('model', '')} ({plan.get('mode', '')})")
     try:
-        result = run(root, backend.chat, plan, say)
+        result = run(root, lambda messages, **kw: whole(backend, messages, **kw), plan, say)
     except Exception as e:  # the model stopped, the card was full…: said, not a traceback
         say(f"ERROR the review stopped: {e}")
         return 1

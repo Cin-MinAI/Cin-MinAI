@@ -109,6 +109,15 @@ class Parse(Project):
         self.assertEqual(review.verdict(ANSWER), "not done")
         self.assertEqual(review.verdict(AGAIN), "done")
 
+    def test_fragments_and_floods_are_left_out(self):
+        """2026-10-24: given too much room, a pass listed lines ("Stores root.") and ended in "Y=780.", "No"."""
+        many = "".join(f"### main.py:{i}\nquote: x\nwrong: A real sentence about what is wrong on line {i}.\nsees: x\n\n"
+                       for i in range(1, 41))
+        short = "### main.py:3\nquote: x\nwrong: No\nsees: x\n"
+        got = review.kept(review.parse(short + many, "beginning"))
+        self.assertEqual(len(got), review.PER_PASS)
+        self.assertEqual(got[0]["line"], 1)  # the fragment is gone, the order kept
+
     def test_the_same_defect_from_two_passes_is_one(self):
         merged = review.merge([review.parse(ANSWER, "beginning"), review.parse(AGAIN, "operation")])
         start = [f for f in merged if f["line"] in (16, 17)]
@@ -153,6 +162,27 @@ class Checks(Project):
         self.assertEqual(f["line"], 17)
         f = {"file": "main.py", "line": 3, "quote": "print('never written')", "wrong": "x", "sees": ""}
         self.assertIn("isn't in main.py", review.place(self.root, ["main.py"], f))
+
+    def test_a_true_finding_that_says_defined_stays(self):
+        """2026-10-24: "`start` is defined as …" was dropped by the name check (it read "is defined" as a claim)."""
+        f = {"file": "main.py", "line": 15, "quote": "def start(self):", "sees": "",
+             "wrong": "`start` is defined as a method that never opens the board."}
+        self.assertEqual(review.check(self.root, ["main.py"], f, None), ("not checked", ""))
+
+    def test_a_button_that_never_starts_the_game_isnt_a_startup_crash(self):
+        """2026-10-24: "the game never starts" (the Start button) was dropped because the program itself started."""
+        f = {"file": "main.py", "line": 16, "quote": "if hasattr(self.root, 'show_view'):", "sees": "",
+             "wrong": "Clicking Start Game crashes with AttributeError, so the game never starts."}
+        started = {"entry": "main.py", "started": True, "code": 124, "out": ""}
+        self.assertEqual(review.check(self.root, ["main.py"], f, started)[0], "not checked")
+
+    def test_a_quote_of_two_lines(self):
+        """The 35B quoted two lines under `quote:`; joined into one, the place check couldn't find it."""
+        got = review.parse("### main.py:6-7\nquote:\nwith open('data/cards.json') as f:\n    return json.load(f)\n"
+                           "wrong: it reads a relative path.\nsees: nothing\n", "end")
+        self.assertEqual(got[0]["quote"], "with open('data/cards.json') as f:\nreturn json.load(f)")
+        self.assertEqual(review.place(self.root, ["main.py"], got[0]), "")
+        self.assertEqual(got[0]["line"], 6)
 
     def test_a_file_named_without_its_folder(self):
         os.makedirs(os.path.join(self.root, "gui"))
