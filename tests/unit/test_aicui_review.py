@@ -184,6 +184,35 @@ class Checks(Project):
         self.assertEqual(review.place(self.root, ["main.py"], got[0]), "")
         self.assertEqual(got[0]["line"], 6)
 
+    def test_an_attribute_never_set_isnt_dropped(self):
+        """2026-10-25 (all three passes): "`self.detail_name` is never defined … the widget is `self.card_name_label`"
+        was checked against `self`, found, and dropped; clicking a card did crash."""
+        with open(os.path.join(self.root, "main.py"), "a") as f:
+            f.write("\n    def show(self, card):\n        self.card_name_label = None\n"
+                    "        self.detail_name.setText(card)\n")
+        f = {"file": "main.py", "line": 44, "quote": "self.detail_name.setText(card)", "sees": "AttributeError",
+             "wrong": "`self.detail_name` is never defined in the class. The actual widget created for this purpose "
+                      "is `self.card_name_label` (line 43)."}
+        self.assertEqual(review.check(self.root, ["main.py"], f, None),
+                         ("not checked", "nothing in main.py sets `detail_name`"))
+        f["wrong"] = "`self.card_name_label` is never defined, so showing a card crashes."
+        state, why = review.check(self.root, ["main.py"], f, None)  # set only in a method that may never run: kept
+        self.assertEqual((state, why[:38]), ("not checked", "main.py sets `card_name_label` on line"))
+
+    def test_a_module_in_the_project_isnt_missing(self):
+        """2026-10-25: "`DeckBuilderScreen` is imported from `gui.deck_builder`, but this module is not provided"
+        (the file was left out for room): `import DeckBuilderScreen` failed and made it the first checked finding."""
+        os.makedirs(os.path.join(self.root, "gui"))
+        open(os.path.join(self.root, "gui", "deck_builder.py"), "w").close()
+        with open(os.path.join(self.root, "main.py"), "a") as f:
+            f.write("from gui.deck_builder import DeckBuilderScreen\n")
+        f = {"file": "main.py", "line": 42, "quote": "from gui.deck_builder import DeckBuilderScreen", "sees": "x",
+             "wrong": "`DeckBuilderScreen` is imported from `gui.deck_builder`, but this module is not provided: "
+                      "ModuleNotFoundError on startup."}
+        with mock.patch.object(review, "importable", side_effect=AssertionError("a class isn't a library")):
+            self.assertEqual(review.check(self.root, ["main.py"], f, None),
+                             ("wrong", "gui/deck_builder.py is in the project"))
+
     def test_a_file_named_without_its_folder(self):
         os.makedirs(os.path.join(self.root, "gui"))
         shutil.move(os.path.join(self.root, "main.py"), os.path.join(self.root, "gui", "main.py"))
@@ -208,6 +237,8 @@ class Reading(Project):
         self.assertIn("Follow the program from run.sh forward", p)
         self.assertIn("### file:line", p)
         self.assertTrue(p.endswith("=== main.py ==="))
+        p = review.prompt("end", "a game", "=== main.py ===", "run.sh", ["gui/deck_builder.py", "gui/utils.py"])
+        self.assertIn("not shown here for room: gui/deck_builder.py, gui/utils.py. They exist", p)
 
     def test_who_wrote_it(self):
         with open(os.path.join(self.root, ".cinminai", "changelog.jsonl"), "w") as f:
@@ -251,6 +282,17 @@ class Run(Project):
                              say=lambda s: None)
         self.assertEqual(got["findings"][0]["state"], "checked")
         self.assertIn("stops as soon as it starts", got["findings"][0]["wrong"])
+
+    def test_a_stop_at_start_isnt_hidden_by_another_checked_finding(self):
+        """2026-10-25: a "fails on startup" checked by the import test hid that run.sh stopped (CMake missing)."""
+        said = "### main.py:2\nquote: import tkinter as tk\nwrong: `tkinter` is not installed, so it fails on startup.\nsees: x\n"
+        with mock.patch.object(review, "start", lambda root: {"entry": "run.sh", "started": False, "code": 1,
+                                                              "out": "Error: CMake is not installed"}), \
+                mock.patch.object(review, "importable", lambda root, m: False):
+            got = review.run(self.root, lambda m, **kw: (said, {}), {"model": "R", "context": 24576},
+                             say=lambda s: None)
+        self.assertEqual([f["passes"] for f in got["findings"]][:1], [["start"]])
+        self.assertIn("CMake", got["findings"][0]["sees"])
 
 
 class Job(unittest.TestCase):

@@ -154,10 +154,13 @@ def pick(root: str, budget_chars: int) -> tuple[list[str], list[str], str]:
     return shown, left, "\n\n".join(parts)
 
 
-def prompt(key: str, want: str, code: str, start: str) -> str:
+def prompt(key: str, want: str, code: str, start: str, left: list[str] = ()) -> str:
     ask = next(p for k, _, p in PASSES if k == key)
+    # the files that didn't fit are named: told nothing, the 35B called gui/deck_builder.py "not provided" (2026-10-25)
+    rest = (f"Also in the project, not shown here for room: {', '.join(left)}. They exist: don't report them as "
+            "missing.\n\n") if left else ""
     return (f"The person asked for: {want}\n\nThe project starts with: {start}. Another model wrote this code.\n\n"
-            + ask.format(start=start) + RULES + code)
+            + rest + ask.format(start=start) + RULES + code)
 
 
 # --- what came back --------------------------------------------------------------------------------------------
@@ -316,6 +319,56 @@ def defined_names(source: str) -> dict[str, int]:
     return out
 
 
+def set_attributes(source: str) -> dict[str, int]:
+    """Every attribute a Python file sets (self.x = …, obj.x += …), with the first line that does."""
+    out: dict[str, int] = {}
+    try:
+        tree_ = ast.parse(source)
+    except SyntaxError:
+        return out
+    for n in ast.walk(tree_):
+        if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store):
+            out.setdefault(n.attr, n.lineno)
+    return out
+
+
+def imported(source: str) -> set[str]:
+    """The modules a Python file imports, as written (gui.deck_builder, PIL)."""
+    try:
+        tree_ = ast.parse(source)
+    except SyntaxError:
+        return set()
+    out = set()
+    for n in ast.walk(tree_):
+        if isinstance(n, ast.Import):
+            out |= {a.name for a in n.names}
+        elif isinstance(n, ast.ImportFrom) and n.module and not n.level:
+            out.add(n.module)
+    return out
+
+
+def subject(claim: str, m: re.Match) -> str:
+    """The name a "not defined" claim is about: the last one named before it in its sentence, else the first after
+    (2026-10-25: "`self.detail_name` is never defined … the widget is `self.card_name_label`" was checked against
+    `self`, and dropped)."""
+    head = claim[:m.start()]
+    cut = max(head.rfind(". "), head.rfind("\n"))
+    before = TICKS.findall(head[cut + 1:])
+    if before:
+        return before[-1]
+    after = TICKS.findall(re.split(r"\.\s|\n", claim[m.end():], maxsplit=1)[0])
+    return after[0] if after else ""
+
+
+def project_module(root: str, module: str) -> str:
+    """The project's own file for a module (gui.deck_builder → gui/deck_builder.py), "" when it isn't one."""
+    rel = module.replace(".", "/")
+    for cand in (rel + ".py", rel + "/__init__.py"):
+        if os.path.isfile(os.path.join(root, cand)):
+            return cand
+    return rel if os.path.isdir(os.path.join(root, rel)) else ""
+
+
 def sandboxed(root: str, command: str, timeout: int) -> tuple[int | None, str]:
     """A command in the project, the way the coder's checks run it: the project's Python first, a virtual screen,
     no network, the person's keys walled off (agent.py execute)."""
@@ -380,22 +433,38 @@ def check(root: str, shown: list[str], f: dict, started: dict | None) -> tuple[s
                 return "wrong", f"{f['file']} reads as JSON without an error"
             except ValueError as e:
                 return "checked", f"JSON: {e}"
-    if py and NAME.search(claim):
+    m = NAME.search(claim) if py else None
+    name = subject(claim, m) if m else ""
+    if "." in name:  # self.x: never dropped, what runs first decides (2026-10-25: `self.player_lp_label` is set only
+        # in a method nobody calls, as the claim said); where the file sets it, for the person to judge
+        attr = name.rsplit(".", 1)[1]
+        sets = {**set_attributes(source), **{k: v for k, v in defined_names(source).items() if k == attr}}
+        return "not checked", (f"{f['file']} sets `{attr}` on line {sets[attr]}" if attr in sets
+                               else f"nothing in {f['file']} sets `{attr}`")
+    if name:
         names = defined_names(source)
-        for name in TICKS.findall(claim):
-            base = name.split(".")[0]
-            if base in names and len(base) > 1:
-                return "wrong", f"`{base}` is imported or defined in {f['file']} (line {names[base]})"
+        if name in names and len(name) > 1:
+            return "wrong", f"`{name}` is imported or defined in {f['file']} (line {names[name]})"
     if MODULE.search(claim):
+        # only modules the file imports: `DeckBuilderScreen` is a class, and `import DeckBuilderScreen` failing made
+        # a made-up "not provided" the review's first checked finding (2026-10-25)
+        uses = imported(source) if py else set()
+        bases = {u.split(".")[0] for u in uses}
+        mine = ""
         for name in TICKS.findall(claim) + re.findall(r"\b(Pillow|PIL|pygame|numpy|requests|yaml)\b", claim):
+            if name in uses and project_module(root, name):
+                mine = mine or project_module(root, name)
+                continue
             module = PIP_NAMES.get(name.lower(), name).split(".")[0]
-            if not re.fullmatch(r"[A-Za-z_]\w*", module):
+            if module not in bases or not re.fullmatch(r"[A-Za-z_]\w*", module) or project_module(root, module):
                 continue
             ok = importable(root, module)
             if ok:
                 return "wrong", f"{module} is installed in the project's Python"
             if ok is False:
                 return "checked", f"`import {module}` fails in the project's Python"
+        if mine:
+            return "wrong", f"{mine} is in the project"
     if started is not None and START.search(claim) and not IF.search(claim):
         if started["started"]:
             return "wrong", f"{started['entry']} started and ran for {START_SECONDS} seconds without stopping"
@@ -502,7 +571,7 @@ def run(root: str, chat, plan: dict, say=print, cancel: threading.Event | None =
             break
         say(f"Review {i} of 3: {title.lower()}…")
         t = time.time()
-        asked_ = prompt(key, want, code, entry)
+        asked_ = prompt(key, want, code, entry, left)
         # as measured: thinking and answer together within ANSWER. Given the context's whole rest (~11K), the 35B
         # went line by line ("Defines class.", "Stores root.") and ended in fragments ("Y=780.", "No"): 88 and 72 items
         room = int(plan.get("context") or 16384) - int(len(asked_) / CHARS_PER_TOKEN) - 300
@@ -518,14 +587,17 @@ def run(root: str, chat, plan: dict, say=print, cancel: threading.Event | None =
         state, why = check(root, shown, f, started)
         f["state"], f["why"] = state, why
         (result["dropped"] if state == "wrong" else result["findings"]).append(f)
-    if started and not started["started"] and not any(f["state"] == "checked" and START.search(f["wrong"])
-                                                      for f in result["findings"]):
+    # said unless a finding was confirmed by this start (2026-10-25: a "fails on startup" checked by something else
+    # hid that run.sh stopped at once)
+    stopped = f"{started['entry']} stopped at once" if started else ""
+    if started and not started["started"] and not any(f["why"].startswith(stopped) for f in result["findings"]):
         result["findings"].insert(0, {"file": started["entry"], "line": 0, "quote": "", "passes": ["start"],
                                       "wrong": f"it stops as soon as it starts (exit {started['code']})",
                                       "sees": started["out"][-400:], "state": "checked",
                                       "why": f"started for {START_SECONDS} s by the review"})
     rank = {"checked": 0, "not checked": 1}
-    result["findings"].sort(key=lambda f: (rank.get(f["state"], 2), -len(f["passes"])))
+    # a program that stops at once first: nothing else can be tried until it starts
+    result["findings"].sort(key=lambda f: (f["passes"] != ["start"], rank.get(f["state"], 2), -len(f["passes"])))
     return result
 
 
