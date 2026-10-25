@@ -238,7 +238,7 @@ You work step by step. Each step: your thinking (short), then exactly one action
   append (add `content` to the end of a file), replace_lines (lines `first`-`last` become `new`; "" deletes them)
 - run (a shell command in the project folder{sandbox}; the web only through the tools below{net})
 - web_search (a `query`; `kind` images for pictures), fetch (an https `url` from the user, a search, a kept page, or a site you've fetched
-  from), download (many such `urls` into a `folder` under assets/, one approval); each asked first
+  from), download (many such `urls` into a `folder` under assets/, one approval); {asked}
 - distill (read `sources` for an `intent`: what it names is kept with where it stood, as a gathered record, and
   written `into` a data file; `format` json, text, or files: the pictures a page names, downloaded into a folder
   under assets/ with an index)
@@ -1059,13 +1059,18 @@ class Agent:
                      f"(pygame, SDL) shows a {w // k}x{h // k} window at the size other windows have" if k > 1 else "")
                      + ". Size a program's window for this screen, or make it resizable.")
         goal_tools, goal_rule = GOAL_TOOLS["senior" if self.plans() else "solo"]
+        # what the web tools ask, as the session has it (2026-10-25, test16: in No permissions, told "you have all
+        # permissions", Haiku stopped to ask for a download it was allowed; the list said "each asked first")
+        asked = ("each asked first" if self.mode not in ("auto", "none") else
+                 "allowed in this session: go ahead, no need to ask")
         parts = dict(root=self.root, files=files or "  (empty)", goals=goals, venv=venv, goal_tools=goal_tools,
-                     goal_rule=goal_rule,
+                     goal_rule=goal_rule, asked=asked,
                      answer_tokens=self.answer_tokens, write_lines=self.write_lines,
                      sandbox=", sandboxed without network" if self.sandbox else "",
                      net=NET_LINE if self.sandbox and self.mode == "auto" and self.role != "junior" else "")
         if self.role == "junior":
-            return JUNIOR_SYSTEM.format(**parts, web=JUNIOR_WEB if getattr(self, "web", False) else "") + \
+            web = JUNIOR_WEB.replace("each asked first", asked) if getattr(self, "web", False) else ""
+            return JUNIOR_SYSTEM.format(**parts, web=web) + \
                 (JUNIOR_TABLE if callable(getattr(self, "table_fn", None)) else "")
         crew = getattr(self, "cloud_crew", "")  # the cloud leads, local contributors work for it
         advisor = (ADVISOR_LINE.format(name=getattr(self, "advisor_name", "a cloud model"))

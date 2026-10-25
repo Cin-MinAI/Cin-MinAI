@@ -654,6 +654,13 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(goals[0]["files"], ["engine/phases.cpp"])  # the person's goal, with the plan's files
         self.assertIn("Already goals, kept as they are", said)
 
+    def test_the_web_tools_say_what_the_session_allows(self):
+        """2026-10-25 (test16): in No permissions Haiku stopped to ask for a download; the list said "each asked first"."""
+        self.assertIn("each asked first", Agent(self.root, Scripted([]), "m", "ask", say=self.said.append).system())
+        for mode in ("auto", "none"):
+            self.assertIn("allowed in this session: go ahead",
+                          Agent(self.root, Scripted([]), "m", mode, say=self.said.append).system())
+
     def test_the_checkpoint_is_the_leads(self):
         """2026-10-25 (test16): Resume gave Haiku the junior's old task 643 as the person's request."""
         a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
