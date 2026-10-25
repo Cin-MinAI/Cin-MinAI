@@ -60,16 +60,13 @@ CSS = b"""
 .proposal .before { opacity: 0.6; }
 .proposal .cell { font-family: monospace; font-size: 88%; padding: 1px 4px; border: 1px solid alpha(@theme_fg_color, 0.12); }
 #input { padding: 6px 8px 8px 8px; }
-#chatscroll, #chatscroll viewport, #chat { background-color: #ffffff; }
-#chat label { color: #241f31; }
-#chat button label, #chat combobox label, #chat entry { color: @theme_fg_color; }
-#chat .bubble.assistant { background: #efeff3; }
-#chat .bubble.user { background: alpha(@theme_selected_bg_color, 0.30); }
-#chat .command, #chat .proposal .cell { border-color: alpha(#000000, 0.18); }
-.start { background-image: none; color: #ffffff; border-color: alpha(#000000, 0.15); text-shadow: none; }
-#chat .start label, .start label { color: #ffffff; }
-.start:hover { background-image: linear-gradient(alpha(#ffffff, 0.12), alpha(#ffffff, 0.12)); }
-.start:active { background-image: linear-gradient(alpha(#000000, 0.12), alpha(#000000, 0.12)); }
+.start { color: #ffffff; text-shadow: none; border: none; border-radius: 16px; padding: 7px 16px;
+         background-image: linear-gradient(to bottom, alpha(#ffffff, 0.20), alpha(#ffffff, 0.0) 60%);
+         box-shadow: inset 0 1px alpha(#ffffff, 0.25), 0 1px 3px alpha(#000000, 0.35); }
+.start label { color: #ffffff; }
+.start:hover { background-image: linear-gradient(to bottom, alpha(#ffffff, 0.30), alpha(#ffffff, 0.08)); }
+.start:active { background-image: linear-gradient(to bottom, alpha(#000000, 0.15), alpha(#000000, 0.0));
+                box-shadow: inset 0 1px 2px alpha(#000000, 0.35); }
 .start.writing { background-color: #1c71d8; }
 .start.journal { background-color: #813d9c; }
 .start.aicui { background-color: #26a269; }
