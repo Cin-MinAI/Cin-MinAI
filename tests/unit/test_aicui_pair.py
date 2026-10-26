@@ -885,5 +885,18 @@ class CrewTest(unittest.TestCase):
         self.assertIn("It imports; nothing fails.", {n: t for n, k, t in lead.inbox}[4])
 
 
+class ContextLineTest(unittest.TestCase):
+    def test_the_senior_is_told_the_juniors_context(self):
+        """Ian, 2026-10-25: "the junior has to be given specific detailed direction with context control included"."""
+        from cin_minai.aicui.pair import context_line
+
+        class Junior:
+            ctx = 32768
+        said = context_line(Junior())
+        self.assertIn("Its context holds 32,768 tokens", said)
+        self.assertIn("Name the files and lines it should read", said)
+        self.assertEqual(context_line(object()), "")
+
+
 if __name__ == "__main__":
     unittest.main()

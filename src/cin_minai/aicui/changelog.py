@@ -131,7 +131,8 @@ class Changelog:
             return None
         before = self._git("rev-parse", "HEAD").strip()
         gone = not os.path.exists(os.path.join(self.root, rel))
-        return self.after(rel, before, model=who, what="deleted outside AICUI" if gone else "changed outside AICUI")
+        where = "outside AICUI" if who == OUTSIDE else "by a command it ran"  # a model's command: its own (agent.ran_by_me)
+        return self.after(rel, before, model=who, what=("deleted " if gone else "changed ") + where)
 
 
 WATCH_EXT = {".py", ".js", ".ts", ".html", ".css", ".json", ".md", ".txt", ".sh", ".c", ".cc", ".cpp", ".h", ".hpp",

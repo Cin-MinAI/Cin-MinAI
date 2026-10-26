@@ -71,6 +71,8 @@ class TandemTest(Base):
     def test_the_coder_leads_the_request_on_the_table(self):
         a, t = self.pair([step("Delete the old one.", tool="replace_lines", path="gui.py", first=2, last=4, new=""),
                           step("Fix the name.", tool="edit", path="gui.py", old="GameApp()", new="GameWindow()"),
+                          step("", tool="answer", text="Removed the old run() and fixed main()."),
+                          # a goal is open: the coder is sent back once to tick what's done (every lead, 2026-10-25)
                           step("", tool="answer", text="Removed the old run() and fixed main().")])
         self.assertEqual(t.turn("continue"), "Removed the old run() and fixed main().")
         with open(os.path.join(self.root, "gui.py")) as f:

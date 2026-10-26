@@ -95,6 +95,7 @@ ACTIONS = [
      "goal": {"type": "integer"}},
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
+    {"tool": "goal_reopen", "id": {"type": "integer"}, "why": STR},
     {"tool": "need", "package": STR, "why": STR},
     {"tool": "look", "target": {"enum": ["program", "page", "screen", "picture"]}, "question": STR, "address": STR},
     {"tool": "ask", "question": STR},
@@ -133,13 +134,13 @@ JUNIOR_WEB = ("\n- web_search (a `query`; `kind` images for pictures), fetch (an
               "fetched or your senior), download (many such `urls` into a `folder` under assets/); each asked first")
 # the goal tools as each card has them: team B's Senior makes the plan (2026-10-10, test7: its tool list said "goal_add"
 # and "write them as goals", so it planned in its thinking, reached for goal_add, and was refused fifteen times)
-GOAL_TOOLS = {"solo": ("- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done)",
+GOAL_TOOLS = {"solo": ("- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done) / goal_reopen",
                        "At the start of a new project, ask about its goals\nand scope and write them as goals"),
               "senior": ("- plan (a new project's goals, made once: the request in its order, each with `from_outside` "
                          "(pages or\n  files that must come from the web or the person, each `what` and its `kind`: text, "
                          "pictures, sound or\n  file — never the project's own work), its `files` and `who` does it; the "
                          "person sees it), goal_add (one more goal for the plan) / "
-                         "goal_done (tick goal `id` when it's done)",
+                         "goal_done (tick goal `id` when it's done) / goal_reopen (`id`, `why`: untick one that isn't)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
 DISTILL_PART = """You distill for this intent: {intent}
@@ -247,7 +248,7 @@ You work step by step. Each step: your thinking (short), then exactly one action
 - need (a package the project needs: the person agrees, AICUI installs it)
 - look (see the program, a page, the screen, or a `picture` in the project at `address`: facts, and your
   `question` answered)
-- ask (a question for the user), answer (tell the user something; ends your turn)
+- ask (a question for the user), answer (ends your turn: request done, or you need the user)
 Your thinking: a sentence or two about your next move, never a copy of the user's message or an error (the user
 sees it).
 Take the user's words as they are ("continue" continues, "look at x" looks at x), against the session goals; one
@@ -295,7 +296,8 @@ The project's files (first lines):
 {files}"""
 
 SENIOR_B = """
-You are the Senior, with your assistant, the junior developer (a smaller, faster model). A new project starts with
+You are the Senior Developer: you lay the skeleton and write the mechanisms that matter; your junior (a smaller,
+faster model) reads, distills and writes inside them. A new project starts with
 plan: the person's request as goals in its order, each with `from_outside` (only what must come from the web or the
 person: a rulebook, lists, pictures — fetched and distilled before its files are written; what the project builds
 itself is never in it), its `files`, and `who` does it (you, or the junior).
@@ -310,11 +312,13 @@ wait; never ask the person how they're going. You have the final word."""
 
 SENIOR_CLOUD = """
 You lead from the cloud. Your contributors are local models on the person's computer: their work costs nothing, and
-every token you read or write is paid. Direct; keep your own reading and writing small. {crew}
+every token you read or write is paid. You're the Senior Developer: lay the skeleton and write the mechanisms that
+matter yourself; give the volume — reading, distilling, errands, exact edits, files inside your skeleton — to your
+contributors, so your tokens go to what needs you. {crew}
 A new project starts with plan: the person's request as goals in its order, each with `from_outside` (only what must
 come from the web or the person), its `files`, and `who` does it (you, or the junior: your contributors). Give work
-with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (you
-read the code; the task is an exact edit: one defect, the lines, what they become, how to check — the junior changes
+with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (know
+the lines first — brief has your contributors read them for you; the task is an exact edit: one defect, the lines, what they become, how to check — the junior changes
 only those lines and checks them), check it, or test (run the program or its tests and report what fails); brief
 (`files`, `question`): they read files and answer you; they can search the web and fetch too (a research task: say what
 to find and where it goes); distill and the pages you fetch go to them first, their notes
@@ -943,6 +947,7 @@ class Agent:
         self.ask = lambda prompt: _asked(ask, prompt)  # one question at a time, whichever agent asks
         self.raw_ask = ask
         self.role = "solo"  # "senior" / "junior" in style B (pair.py); solo and style A use the coder's tools
+        self.cloud = False  # a cloud model works this agent (set where it starts): no 15-step stop, its budget holds it
         self.tick = tick  # tick(text): the terminal's progress line while a step is generated
         self.goals, self.log = Goals(root), Changelog(root)
         self.history: list[dict] = []   # earlier turns: the user's message and the final answer
@@ -954,6 +959,17 @@ class Agent:
         self.bwrap = shutil.which("bwrap") is not None
         self.xvfb = shutil.which("Xvfb") is not None  # a virtual screen for the commands (with_screen)
         self.sandbox = self.bwrap and mode != "none"
+
+    def seat(self) -> str:
+        """Who this agent is on the project: its seat's name at a table or crew, else its role (a draft is its
+        writer's, not every junior's — 2026-10-25, the fixes audit)."""
+        return getattr(self, "seat_name", "") or self.role
+
+    def autopilot(self) -> bool:
+        """No permissions with admin on: nothing reversible asks the person (Ian, 2026-10-25: "if its not irreversible
+        it shouldnt be asking me… It shouldnt ask me with that setup to put stuff in venv"); irreversible still asks
+        (D85)."""
+        return self.mode == "none" and bool(self.admin)
 
     # --- events for AICUI's panes --------------------------------------------------------------------------
     def excluded(self) -> set:
@@ -1061,8 +1077,10 @@ class Agent:
         goal_tools, goal_rule = GOAL_TOOLS["senior" if self.plans() else "solo"]
         # what the web tools ask, as the session has it (2026-10-25, test16: in No permissions, told "you have all
         # permissions", Haiku stopped to ask for a download it was allowed; the list said "each asked first")
-        asked = ("each asked first" if self.mode not in ("auto", "none") else
-                 "allowed in this session: go ahead, no need to ask")
+        # (the same evening, the audit: AICUI still asked the person before the first fetch in Auto and No permissions;
+        # now only autopilot doesn't ask, and the list says what AICUI does)
+        asked = ("allowed in this session: go ahead, no need to ask" if self.autopilot() else
+                 "AICUI asks the person before the first one (\"always\" covers the session): don't ask them yourself")
         parts = dict(root=self.root, files=files or "  (empty)", goals=goals, venv=venv, goal_tools=goal_tools,
                      goal_rule=goal_rule, asked=asked,
                      answer_tokens=self.answer_tokens, write_lines=self.write_lines,
@@ -1079,7 +1097,15 @@ class Agent:
         profile = ("\n" + profile()) if callable(profile) and self.role == "senior" else ""
         seats = getattr(self, "table_seats", "")  # the conference table (conference.py)
         lead = (SENIOR_TABLE.format(seats=seats) if seats else SENIOR_CLOUD.format(crew=crew) if crew else SENIOR_B)
-        return SYSTEM.format(**parts) + (lead if self.role == "senior" else "") + profile + advisor
+        base = SYSTEM.format(**parts)
+        if "errand" in self.excluded():  # no helper here: the list names only the tools this card has (2026-10-25, the
+            # role audit: every lead carried the errand line and "give your helper errands")
+            base = re.sub(r"- errand \(your helper's side job[^\n]*\n", "", base)
+            base = base.replace("; give your helper errands only when they make it faster", "")
+        if self.autopilot():  # nothing reversible asks the person (Ian, 2026-10-25)
+            base = base.replace("the person agrees, AICUI installs it", "AICUI installs it, no question in this session")
+            base = base.replace("AICUI asks the person and builds it as .venv/", "AICUI builds it as .venv/ (no question)")
+        return base + (lead if self.role == "senior" else "") + profile + advisor
 
     def problems(self) -> list[str]:
         """What the checks find in the project's files now, one line a file."""
@@ -1487,7 +1513,9 @@ class Agent:
                                  "person, not to it: give your answer as a new task (assign, the same file, your answer "
                                  "in the task). If this answer is for the person, answer again.")
                 continue
-            open_goals = [g for g in self.goals.load() if not g["done"]] if self.role == "senior" else []
+            # every lead — one model, the Finisher, team A's coder, a Senior — not a junior, whose answer is its task's
+            # result (2026-10-25, the setups audit: the note reached only a Senior)
+            open_goals = [g for g in self.goals.load() if not g["done"]] if self.role != "junior" else []
             if act["tool"] == "answer" and open_goals and self.kinds_done and last_progress > self.goals_nudged:
                 # a lead's progress report isn't the end while goals are open (Ian, 2026-10-25, test16: told to complete
                 # the session goals, Haiku fixed one, said "Goal 10 is done" without ticking it, and answered "Next I
@@ -1497,7 +1525,7 @@ class Agent:
                 self.note(steps, "Goals are still open: " + "; ".join(f"{g['id']}. {g['text'][:80]}" for g in open_goals[:6])
                           + (f" and {len(open_goals) - 6} more" if len(open_goals) > 6 else "") + ". Tick each one "
                           "that's done now with goal_done (one the work already met too: its checks run), then go on "
-                          "with the next. If the person asked only for this, answer again and it goes to them.")
+                          "with the next. If what the person asked is done, or you need them, answer again and it goes to them.")
                 continue
             if act["tool"] in ("answer", "ask"):
                 msg = str(act.get("text") or act.get("question") or "").strip()
@@ -1551,9 +1579,6 @@ class Agent:
                 last_progress = n
                 self.kinds_done.append(act["tool"])
                 self.progress_total = getattr(self, "progress_total", 0) + 1  # across tasks (team B's follow-up)
-            elif self.role == "senior":
-                pass  # a lead reads and judges: no "make the change now" (2026-10-25: it fired on a lead's checks of its
-                # junior's work); the stuck rule below still holds
             elif n - last_progress == NUDGE_STEPS * 2 and callable(getattr(self, "advisor_fn", None)):
                 # stalled: the cloud advisor is asked by AICUI itself, before the stuck rule stops the work
                 advice = self.advisor_fn(f"I've gone {n - last_progress} steps without progress (no file changed, no "
@@ -1562,6 +1587,9 @@ class Agent:
                           f"No progress in the last {n - last_progress} steps. Make the change now, or ask the person.")
                 if advice.startswith("Advice"):
                     last_progress = n  # new knowledge: the advice gets its own steps to be tried
+            elif self.role == "senior":
+                pass  # a lead reads and judges: no "make the change now" (2026-10-25: it fired on a lead's checks of its
+                # junior's work); its advisor above is still asked when it stalls
             elif n - last_progress in (NUDGE_STEPS, NUDGE_STEPS * 2):  # the one progress rule: said, then said again
                 self.note(steps, f"No progress in the last {n - last_progress} steps: no file changed, no new result, "
                                  "no goal moved. " + ("Your junior has tasks out: wait for their results, or make a change "
@@ -1571,7 +1599,10 @@ class Agent:
                                                       "number with replace_lines), or ask the person."))
             if n % CHECKPOINT_STEPS == 0:  # a handover in the chat, and on it goes (Ian: as automated as possible)
                 self.event("handover", text=self.handover(steps, f"{n} steps so far — still working."))
-            if n - last_progress >= STUCK_STEPS:
+            if n - last_progress >= STUCK_STEPS and not self.cloud:
+                # local models only (Ian, 2026-10-25: "cloud needs to be excluded from 15 step rule, thats only for
+                # local models" — Haiku read 14 files in 20 s to write an exact task and was stopped on the 15th, the
+                # assign); a cloud model is held by its budget, and a step refused twice still stops a loop
                 msg = self.handover(steps, f"I've gone {STUCK_STEPS} steps without changing a file, ticking a goal "
                                            "or getting a new result, so I've stopped here.") + \
                     "\nTell me how to go on — a hint about where I'm stuck helps most."
@@ -1652,6 +1683,10 @@ class Agent:
             return True  # create: work given to a contributor (2026-10-12: Haiku leading gave seven tasks and was stopped
             #             for "no progress" — directing is a lead's work)
         if tool == "review_task" and re.match(r"task \d+ (accepted|given)", result):  # accept / reject
+            return True
+        if tool in ("goal_done", "goal_reopen") and result.startswith("error"):  # a ticked goal again isn't news
+            return False  # (2026-10-25, test16: eleven re-ticks of done goals, each counted, and the stuck rule slept)
+        if tool == "goal_reopen":  # destroy: a tick undone
             return True
         if tool in ("run", "goal_done"):  # pass / fail: a verdict, counted when it's a new one
             key = hash((tool, re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result)))  # timings and addresses aren't news
@@ -1753,7 +1788,7 @@ class Agent:
                     "site you've fetched from. "
                     "Addresses from memory are usually wrong: web_search for it, fetch a page that links to it, or ask "
                     "the person.")
-        if not self.fetch_ok:
+        if not (self.fetch_ok or self.autopilot()):
             self.event("busy", doing="waiting for your answer in the terminal", asking=f"fetch {url}"[:120])
             reply = self.ask(f"\033[1mFetch {url} ? This sends the address to {host}, nothing else. "
                              "[y]es / [n]o / [a]lways this session: \033[0m").strip().lower()
@@ -1858,7 +1893,7 @@ class Agent:
         if not ok:
             return "nothing downloaded — " + ("; ".join(refused[:5]) or "no addresses given")
         hosts = sorted({urlsplit(u).hostname for u in ok})
-        if not self.fetch_ok:
+        if not (self.fetch_ok or self.autopilot()):
             self.event("busy", doing="waiting for your answer in the terminal",
                        asking=f"download {len(ok)} files from {', '.join(hosts)[:80]}")
             reply = self.ask(f"\033[1mDownload {len(ok)} files from {', '.join(hosts)} into {folder}/ ? This sends "
@@ -2208,7 +2243,7 @@ class Agent:
         query = " ".join(query.split())[:200]
         if not query:
             return "error: search for what?"
-        if not self.fetch_ok:
+        if not (self.fetch_ok or self.autopilot()):
             self.event("busy", doing="waiting for your answer in the terminal", asking=f"search {query}"[:120])
             reply = self.ask(f"\033[1mSearch the web for \"{query}\" ? This sends the words to the search engine, "
                              "nothing else. [y]es / [n]o / [a]lways this session: \033[0m").strip().lower()
@@ -2280,7 +2315,7 @@ class Agent:
             local = address.startswith("file://")
             if not local and not address.startswith("https://"):
                 return "error: a page is an https:// address (or the project's own .html)"
-            if not local and not self.fetch_ok:  # the address leaves the computer: asked, in every mode (D86)
+            if not local and not (self.fetch_ok or self.autopilot()):  # the address leaves the computer: asked (D86), not in autopilot
                 reply = self.ask(f"\033[1mLook at {address} ? This sends the address to its site, nothing else. "
                                  "[y]es / [n]o / [a]lways this session: \033[0m").strip().lower()
                 if reply[:1] not in ("y", "a"):
@@ -2456,7 +2491,7 @@ class Agent:
                     with open(draft, encoding="utf-8", errors="replace") as f:
                         dlines = f.read().splitlines()
                     meta = self.draft_meta(rel)
-                    mine = meta.get("by") == self.role if meta else rel in getattr(self, "task_drafts", ())
+                    mine = meta.get("by") in (self.seat(), self.role) if meta else rel in getattr(self, "task_drafts", ())
                     if mine:  # 2026-10-13 (test13): it read the old file, saw it empty, and began again — three times,
                         # 150 s each; the draft is its own work so far, to go on from: from the line asked, else its end
                         on_disk = 0
@@ -2539,26 +2574,56 @@ class Agent:
                     return f"error: {e}"
                 if said == "already":
                     return f"{a['package']} is already in the project's environment (or asked for)."
+                if self.autopilot():  # the project's own .venv is reversible: no question (Ian, 2026-10-25)
+                    from .project import build_env
+                    try:
+                        h = build_env(self.root, say=lambda m: self.say(f"\033[2m{m}\033[0m"))
+                    except (OSError, RuntimeError, ValueError) as e:
+                        return f"error: the environment couldn't be built: {e}"
+                    self.venv = venv_of(self.root)
+                    self.event("note", text=f"Installed in .venv: {', '.join(h.get('packages', []))}")
+                    return (f"installed {a['package']} in the project's environment (.venv): Python {h.get('python', '')}; "
+                            f"it has {', '.join(h.get('packages', [])) or 'no packages'}")
                 self.event("env_request", package=a["package"], why=a.get("why", "")[:200])
                 return (f"Asked for {a['package']}: AICUI asks the person and installs it in the project's environment "
                         "(.venv). Go on with other work meanwhile; it's there once they agree.")
             if t == "run":
-                return self.run(a["command"], bool(a.get("network")))
+                return self.ran_by_me(a["command"], lambda: self.run(a["command"], bool(a.get("network"))))
             if t == "goal_add":
                 g = self.goals.add(a["text"], by="ai")
                 self.event("goals")
                 return f"goal {g['id']} added"
+            if t == "goal_reopen":  # a tick taken back (2026-10-25, test16: Haiku ticked two goals whose files didn't
+                # exist, said so, and had no way to undo them)
+                goal = next((g for g in self.goals.load() if g["id"] == int(a["id"])), None)
+                if goal is None:
+                    return f"error: there's no goal {a['id']}"
+                if not goal["done"]:
+                    return f"error: goal {a['id']} is open already"
+                self.goals.set_done(int(a["id"]), False)
+                self.event("goals")
+                self.event("note", text=f"Goal {a['id']} reopened: {str(a.get('why', ''))[:200]}")
+                return f"goal {a['id']} reopened"
             if t == "goal_done":
                 goal = next((g for g in self.goals.load() if g["id"] == int(a["id"])), None)
+                if goal and goal["done"]:
+                    nxt = next((g for g in self.goals.load() if not g["done"]), None)
+                    return (f"error: goal {a['id']} is ticked already — nothing to do; "
+                            + (f"the next open goal is {nxt['id']}: {nxt['text'][:120]}" if nxt else "no goal is open"))
                 if goal and not self.needs_met(goal):
                     return (f"goal {goal['id']} NOT ticked — what it takes from outside isn't in yet: "
                             + self.needs_line(goal) + ". Fetch and distill it (with goal " + str(goal["id"]) + "), or "
                             "ask the person.")
+                missing = [f for f in (goal or {}).get("files") or [] if f and not os.path.exists(os.path.join(self.root, f))]
+                if missing:  # a goal isn't done while its files aren't there (2026-10-25, test16: goals 9 and 21, the
+                    # engine's tests, ticked with no test file written; goal 2 without engine/card.cpp)
+                    return (f"goal {goal['id']} NOT ticked — held by: its files aren't there yet: "
+                            + ", ".join(missing[:8]) + ". Write them (or have the junior write them), then tick it.")
                 ok, report = self.verify(goal)
                 unchecked = goal_stages(self.root, goal)["unchecked"] if goal else []
                 if unchecked:  # use needs checked data (D96): a test has to read what came from a source
                     ok = False
-                    report += ("\n" if report else "") + "not checked by any test: " + ", ".join(unchecked) + \
+                    report += ("\n" if report else "") + "HOLDS IT — not checked by any test: " + ", ".join(unchecked) + \
                         " — a test should read it and compare it with its source (e.g. how many it should hold)"
                 flagged = getattr(self, "flagged", set())
                 if ok and goal and goal["id"] not in flagged and callable(getattr(self, "reviewer", None)):
@@ -2570,8 +2635,11 @@ class Agent:
                                 "You decide: if it's right, do what's missing; if not, call goal_done again and it's "
                                 "ticked.")
                 if not ok:  # the user can still tick it by hand in AICUI
-                    return (f"goal {a['id']} NOT ticked — the checks failed:\n{report}\nFix this, then tick the goal "
-                            "again.")
+                    # which line holds it, said (2026-10-25, test16: a record "changed since it was compiled" is only
+                    # said; Haiku took it for the hold and asked the person twice, while untested data files held it)
+                    return (f"goal {a['id']} NOT ticked — held by what fails below (a test that fails, a crash in its "
+                            "files, data no test reads); the other lines are only said:\n"
+                            f"{report}\nFix what holds it, then tick the goal again.")
                 self.goals.set_done(int(a["id"]), True)
                 self.event("goals")
                 return f"goal {a['id']} ticked. Checks:\n{report}"
@@ -2650,7 +2718,7 @@ class Agent:
             os.makedirs(os.path.dirname(draft), exist_ok=True)
             if not os.path.exists(draft):  # what it starts from, and whose it is (read shows the writer the draft)
                 with open(draft + META, "w", encoding="utf-8") as f:
-                    json.dump({"base": base_of(old), "by": self.role}, f)
+                    json.dump({"base": base_of(old), "by": self.seat()}, f)  # by seat: two juniors, two drafts
             with open(draft, "w" if a["tool"] == "write" else "a", encoding="utf-8") as f:
                 f.write(content)
             with open(draft, encoding="utf-8") as f:
@@ -2735,6 +2803,23 @@ class Agent:
             self.event("check", file=rel, problem=problem)
             return f"{done}. Check: {problem}{later}."
         return done + (". Check: compiles, nothing defined twice." if rel.endswith(".py") else "")
+
+    def ran_by_me(self, command: str, go) -> str:
+        """A command's own writes, credited to the model that ran it, with undo (Ian's test16, 2026-10-25: the junior's
+        script wrote data/cards.json, the watcher logged it "outside AICUI", and the lead asked the person whether to
+        keep "your edits")."""
+        from .changelog import Watcher
+        watch = Watcher(self.log)
+        before = watch.candidates()
+        out = go()
+        who = f"{self.model_name} (ran: {command.strip()[:80]})"
+        for rel, sig in watch.candidates().items():
+            if before.get(rel) != sig:  # changed or made by it
+                try:
+                    self.log.outside(rel, who=who)
+                except Exception:  # the record is a help, never the command's result
+                    pass
+        return out
 
     def run(self, command: str, network: bool = False) -> str:
         self.refresh()
@@ -2865,8 +2950,9 @@ class Agent:
         that goal could change): the tests that name its files, a start that crashes in its files. What else the
         checks see is said, and the last goal open gets all of it."""
         open_ = [g for g in self.goals.load() if not g["done"]]
-        if goal is not None and any(g["id"] != goal["id"] for g in open_):
-            return self.verify_goal(goal)
+        if goal is not None and [f for f in goal.get("files") or [] if f] and any(g["id"] != goal["id"] for g in open_):
+            return self.verify_goal(goal)  # a goal without files (one model's goal_add) gets the whole check: nothing
+            # else holds it (2026-10-25, the setups audit)
         lines, ok = [], True
         tests = self.test_files()
         for rel in tests[:6]:  # pytest style without pytest: run as a script it only defines its tests, "passed"
@@ -3177,6 +3263,7 @@ def main(argv=None) -> int:
     agent = Agent(root, backend.chat, name, mode, a.admin, ctx=int(backend.cfg.get("context", 8192)),
                   say=said, tick=tick)
     agent.chat = backend.chat if use_cloud else card_minded(backend, agent.event, agent.say)
+    agent.cloud = bool(use_cloud)  # the 15-step rule is the local models' (Ian, 2026-10-25)
     agent.save_session()  # this session starts as chosen, not as a session.json left from an earlier one
     team_b = None
     if crew:  # the cloud leads; its local contributors do the reading, writing, testing and fixing (pair.py)
@@ -3220,6 +3307,7 @@ def main(argv=None) -> int:
                       say=lambda s, who=st["name"]: said(f"({who}) {s}", "junior"))
             h.web = True  # "fetch this": seats search and fetch, each asked of the person first
             h.model_file, h.card = getattr(b, "model_file", ""), getattr(b, "card", "")
+            h.cloud = st.get("kind") == "cloud"
             helpers[st["name"]] = h
         try:
             team_b = conference.Table(agent, helpers, setup, say=said)

@@ -54,6 +54,18 @@ def project_of(root: str) -> str:
     return token_of(root) or hashlib.sha1(os.path.realpath(root).encode()).hexdigest()
 
 
+def context_line(junior) -> str:
+    """The junior's context, for the senior to size its task frame by (Ian, 2026-10-25: "the junior has to be given
+    specific detailed direction with context control included… the Sr, whether local or cloud, to assess what the
+    local junior can handle over a task frame")."""
+    ctx = int(getattr(junior, "ctx", 0) or 0)
+    if not ctx:
+        return ""
+    return (f" Its context holds {ctx:,} tokens (about {ctx * 3 // 100 * 10:,} characters of code) for the whole task:"
+            " its instruction, what it reads and what it writes. Name the files and lines it should read, and give it a"
+            " frame that fits; a bigger job goes in parts.")
+
+
 def within(rel: str, held: str) -> bool:
     """A file is held by its own name or by a folder it's in."""
     held = held.rstrip("/")
@@ -67,6 +79,7 @@ class Pair:
     def __init__(self, senior, junior, say=print, engine=False, where: str = "local", name: str = "junior") -> None:
         self.senior, self.junior, self.say = senior, junior, say
         senior.role, junior.role = "senior", "junior"
+        junior.seat_name = name  # its drafts are its own (a crew's coder and reader, a table's seats)
         if engine is False:
             engine = engine_mod.team_engine(project_of(senior.root), senior.root)
         if engine is None:
@@ -556,10 +569,11 @@ class Pair:
         lim = self.limits()
         if not lim["measured"]:
             return (f"Your junior isn't measured on this card yet (the Benchmark measures it): keep its tasks to about "
-                    f"{lim['lines']} lines of code.")
+                    f"{lim['lines']} lines of code." + context_line(self.junior))
         line = (f"Your junior, measured on this card: up to {lim['lines']:,} lines of code and {lim['steps']} steps a "
                 f"task; it kept a {lim['capacity']:,}-line project working. Size each task to that.")
         size = project_lines(self.senior.root)
+        line += context_line(self.junior)
         if lim["capacity"] and size > lim["capacity"]:
             line += (f" This project is {size:,} lines, past what it held: give it one file at a time with exactly what "
                      "it needs from the rest (names, signatures), and check its work closely.")

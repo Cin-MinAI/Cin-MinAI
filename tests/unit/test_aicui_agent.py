@@ -168,7 +168,8 @@ class AgentTest(unittest.TestCase):
         list got a new thought each step). 3,156 on 2026-10-09; 3,689 with distill and the facts rule."""
         from cin_minai.aicui.agent import JUNIOR_SYSTEM, SENIOR_B, SYSTEM
         self.assertLessEqual(len(SYSTEM), 4000)
-        self.assertLessEqual(len(SENIOR_B), 1300)  # 1,218 with follow_up, brief, lfd, permit (tool lines, not steps)
+        self.assertLessEqual(len(SENIOR_B), 1400)  # 1,218 with follow_up, brief, lfd, permit (tool lines, not steps);
+        # the Senior Developer's card, 2026-10-25 (PLAN §1b, the foundation)
         self.assertLessEqual(len(JUNIOR_SYSTEM), 1400)
         for words in ("- distill (", "never type them from memory", "a site you've fetched"):
             self.assertIn(words, SYSTEM)
@@ -228,7 +229,8 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "need", "look", "ask",
+                                 "web_search", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "goal_reopen", "need",
+                                 "look", "ask",
                                  "answer"])
 
     def cut_write(self, path, lines, tool="write"):
@@ -544,6 +546,98 @@ class AgentTest(unittest.TestCase):
         b.role = "senior"
         self.assertEqual(b.turn("what's next?"), "The docs come next.")  # a question, no work: answered at once
 
+    def test_a_cloud_model_reads_past_the_stuck_rule(self):
+        """Ian, 2026-10-25: "cloud needs to be excluded from 15 step rule, thats only for local models" (Haiku read 14
+        files in 20 s to write an exact task and was stopped on the 15th)."""
+        reads = [step(f"Read {i}.", tool="search", pattern=f"nothing{i}") for i in range(20)]
+        a = Agent(self.root, Scripted(reads + [step("", tool="answer", text="Read it all.")]), "m", "auto",
+                  say=self.said.append)
+        a.cloud = True
+        self.assertEqual(a.turn("read everything"), "Read it all.")
+        b = Agent(self.root, Scripted(list(reads)), "m", "auto", say=self.said.append)  # a local model: stopped
+        self.assertIn("steps without changing a file", b.turn("read everything"))
+
+    def test_a_ticked_goal_isnt_ticked_again_and_a_wrong_tick_can_be_reopened(self):
+        """2026-10-25 (test16): Haiku re-ticked done goals eleven times, each counted as progress, then ticked two
+        whose files didn't exist and had no way to take them back."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.goals.add("Fix add()", by="user")
+        a.goals.add("Write the tests", by="user")
+        a.goals.set_done(1, True)
+        said = a.do({"tool": "goal_done", "id": 1})
+        self.assertTrue(said.startswith("error: goal 1 is ticked already"))
+        self.assertIn("the next open goal is 2", said)
+        self.assertFalse(a.progressed({"tool": "goal_done", "id": 1}, said))
+        self.assertEqual(a.do({"tool": "goal_reopen", "id": 1, "why": "no tests yet"}), "goal 1 reopened")
+        self.assertFalse(a.goals.load()[0]["done"])
+        self.assertTrue(a.do({"tool": "goal_reopen", "id": 1, "why": ""}).startswith("error"))
+
+    def test_a_goal_isnt_ticked_while_its_files_are_missing(self):
+        """2026-10-25 (test16): goals 9 and 21, the engine's tests, ticked with no test file written."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.goals.add("Test the engine", by="user")
+        goals = a.goals.load()
+        goals[0]["files"] = ["tests/test_engine.py", "app.py"]
+        a.goals.save(goals)
+        said = a.do({"tool": "goal_done", "id": 1})
+        self.assertIn("held by: its files aren't there yet: tests/test_engine.py", said)
+        self.assertFalse(a.goals.load()[0]["done"])
+
+    def test_autopilot_asks_nothing_reversible(self):
+        """Ian, 2026-10-25: "if its not irreversible it shouldnt be asking me… It shouldnt ask me with that setup to put
+        stuff in venv" — No permissions with admin on."""
+        on = Agent(self.root, Scripted([]), "m", "none", admin=True, say=self.said.append)
+        self.assertTrue(on.autopilot())
+        self.assertIn("AICUI installs it, no question", on.system())
+        for mode, admin in (("none", False), ("auto", True), ("ask", True)):
+            off = Agent(self.root, Scripted([]), "m", mode, admin=admin, say=self.said.append)
+            self.assertFalse(off.autopilot())
+            self.assertIn("the person agrees, AICUI installs it", off.system())
+
+    def test_a_commands_writes_are_the_models(self):
+        """2026-10-25 (test16): the junior's script wrote data/cards.json, the watcher logged it "outside AICUI", and
+        the lead asked the person whether to keep "your edits"."""
+        a = Agent(self.root, Scripted([]), "Qwen3.6-35B", "none", say=self.said.append)
+        a.log.baseline(["app.py"])
+        a.do({"tool": "run", "command": "printf 'def add(a, b):\\n    return a + b\\n' > app.py && echo '[]' > out.json"})
+        made = {e["file"]: e for e in a.log.entries()}
+        self.assertIn("app.py", made)
+        self.assertIn("out.json", made)
+        self.assertTrue(made["app.py"]["model"].startswith("Qwen3.6-35B (ran: printf"))
+        self.assertNotIn("Changed outside AICUI", a.system())
+
+    def test_one_model_and_the_finisher_get_the_goals_note(self):
+        """2026-10-25, the setups audit: the goals-still-open note reached only a Senior; the Finisher's own request
+        says to work the open goals, and one model answered after its first."""
+        a = Agent(self.root, Scripted([step("Wrong operator.", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("Report.", tool="answer", text="Fixed add()."),
+                                       step("Report.", tool="answer", text="Fixed add(); the docs are next.")]),
+                  "m", "auto", say=self.said.append)
+        a.goals.add("Fix add()", by="user")
+        a.goals.add("Write the docs", by="user")
+        self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
+        self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
+
+    def test_a_seniors_advisor_is_asked_when_it_stalls(self):
+        """2026-10-25, the fixes audit: "no nags for a lead" sat before the advisor's branch, so an Advisor over a Senior
+        was never asked after 12 steps without progress."""
+        asked = []
+        reads = [step(f"Read {i}.", tool="search", pattern=f"nothing{i}") for i in range(13)]
+        a = Agent(self.root, Scripted(reads + [step("", tool="answer", text="Done.")]), "m", "auto",
+                  say=self.said.append)
+        a.role = "senior"
+        a.advisor_fn = lambda q, why="": asked.append(why) or "Advice from X: try the tests."
+        a.turn("look around")
+        self.assertIn("stalled", asked)
+
+    def test_a_draft_is_its_seats(self):
+        """2026-10-25, the fixes audit: drafts were owned by role, so two juniors (a crew's coder and reader) shared."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.role, a.seat_name = "junior", "reader"
+        self.assertEqual(a.seat(), "reader")
+        a.seat_name = ""
+        self.assertEqual(a.seat(), "junior")
+
     def test_a_goal_is_held_to_its_own_files_and_the_last_to_the_whole_project(self):
         """Ian, 2026-10-25 (test16): "fix the engine's compile errors" stayed open: tests/ was empty and the GUI ran off
         the screen, nothing that goal's work could change."""
@@ -656,10 +750,12 @@ class AgentTest(unittest.TestCase):
 
     def test_the_web_tools_say_what_the_session_allows(self):
         """2026-10-25 (test16): in No permissions Haiku stopped to ask for a download; the list said "each asked first"."""
-        self.assertIn("each asked first", Agent(self.root, Scripted([]), "m", "ask", say=self.said.append).system())
-        for mode in ("auto", "none"):
-            self.assertIn("allowed in this session: go ahead",
+        for mode in ("ask", "auto", "none"):  # AICUI asks before the first fetch: the list says so, not "you ask"
+            self.assertIn("AICUI asks the person before the first one",
                           Agent(self.root, Scripted([]), "m", mode, say=self.said.append).system())
+        # No permissions with admin on is autopilot (Ian, the same evening): nothing reversible asks
+        self.assertIn("allowed in this session: go ahead",
+                      Agent(self.root, Scripted([]), "m", "none", admin=True, say=self.said.append).system())
 
     def test_the_checkpoint_is_the_leads(self):
         """2026-10-25 (test16): Resume gave Haiku the junior's old task 643 as the person's request."""

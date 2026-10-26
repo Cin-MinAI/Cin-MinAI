@@ -398,9 +398,10 @@ class Table:
         lead.permit_fn = lambda n, allow: next((p for p in self.pairs.values() if n in p.questions),
                                                first).permit(n, allow) if first else f"error: no question {n}"
         lead.lfd_fn = (lambda focus: first.lfd(focus)) if first else (lambda focus: "error: no seat in AICUI for lfd")
-        lead.may_write = lambda rel: next((f"{rel} is held by {n}'s task {h[rel]} until it's done — work on another "
+        from .pair import within
+        lead.may_write = lambda rel: next((f"{rel} is held by {n}'s task {h[k]} until it's done — work on another "
                                            "file meanwhile" for n, h in ((n, x.held) for n, x in self.seats().items())
-                                           if rel in h), "")
+                                           for k in h if within(rel, k)), "")  # a folder holds its files too
         lead.table_fn = lambda tool, a: self.talk(self.lead_member, tool, a)
         for name, p in self.pairs.items():
             p.junior.table_fn = (lambda tool, a, who=p.second: self.talk(who, tool, a))
