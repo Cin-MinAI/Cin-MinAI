@@ -112,6 +112,61 @@ class Cloud(unittest.TestCase):
         self.assertEqual((cloud.settings(self.root)["role"], cloud.settings(self.root)["crew"]), ("lead", "two"))
 
 
+class FreeChoice(unittest.TestCase):
+    """Ian, 2026-10-26: "make a 2 time attempt for every cloud model, first with our arrangement then with whatever you
+    do next" (Claude Sonnet 5.5: 400 "tool_choice: type "tool" and "any" are not supported for this model")."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        old = os.environ.get("XDG_CACHE_HOME")
+        os.environ["XDG_CACHE_HOME"] = os.path.join(self.root, "cache")  # what's remembered stays in the test
+        self.addCleanup(lambda: os.environ.__setitem__("XDG_CACHE_HOME", old) if old is not None
+                        else os.environ.pop("XDG_CACHE_HOME", None))
+
+    @staticmethod
+    def refusal():
+        return urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(
+            b'{"error": {"message": "tool_choice: type \\"tool\\" and \\"any\\" are not supported for this model."}}'))
+
+    def test_a_refused_forced_tool_is_asked_again_with_a_free_choice_and_remembered(self):
+        fake = FakeAnthropic([self.refusal(), REPLY, REPLY])
+        b = cloud.Anthropic(self.root, lambda: "sk-ant-test-key-0123456789abcdef", "claude-sonnet-5-5", opener=fake)
+        messages = [{"role": "system", "content": "You are the coding agent."}, {"role": "user", "content": "go"}]
+        text, _ = b.chat(messages, schema=SCHEMA)
+        self.assertEqual(json.loads(text), STEP)
+        first, second = fake.sent[0][1], fake.sent[1][1]
+        self.assertEqual(first["tool_choice"], {"type": "any"})       # our way first
+        self.assertEqual(second["tool_choice"], {"type": "auto"})     # then a free choice, said in the system text
+        self.assertIn(cloud.CHOOSE_ONE, second["system"][-1]["text"])
+        self.assertTrue(cloud.free_choice("claude-sonnet-5-5"))
+        b.chat(messages, schema=SCHEMA)  # remembered: one request, a free choice at once
+        self.assertEqual((len(fake.sent), fake.sent[2][1]["tool_choice"]), (3, {"type": "auto"}))
+        other = FakeAnthropic([urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(
+            b'{"error": {"message": "max_tokens: too large"}}'))])
+        with self.assertRaises(cloud.CloudError):  # another 400 isn't retried
+            cloud.Anthropic(self.root, lambda: "sk-ant-x" * 5, "claude-haiku-5-5", opener=other).chat(
+                messages, schema=SCHEMA)
+        self.assertEqual(len(other.sent), 1)
+
+    def test_openai_the_same(self):
+        fake = FakeAnthropic([self.refusal(), OPENAI_REPLY])
+        b = cloud.OpenAI(self.root, lambda: "sk-proj-test-key-0123456789abcdef", "gpt-6-astra", opener=fake)
+        from cin_minai.aicui.agent import schema
+        b.chat([{"role": "system", "content": "You are the coder."}, {"role": "user", "content": "go"}],
+               schema=schema())
+        self.assertEqual((fake.sent[0][1]["tool_choice"], fake.sent[1][1]["tool_choice"]), ("required", "auto"))
+        self.assertIn(cloud.CHOOSE_ONE, fake.sent[1][1]["instructions"])
+        self.assertTrue(cloud.free_choice("gpt-6-astra"))
+
+    def test_the_55_prices(self):
+        self.assertEqual(cloud.price_of("claude-haiku-5-5")[:2], (0.10, 0.50))
+        self.assertEqual(cloud.price_of("claude-sonnet-5-5")[:2], (2.00, 10.00))
+        self.assertEqual(cloud.price_of("claude-opus-5-5")[:2], (4.00, 20.00))
+        self.assertEqual(cloud.price_of("claude-haiku-4-5-20251001")[:2], (1.00, 5.00))
+        self.assertTrue(cloud.price_checked("claude-sonnet-5-5"))
+
+
 class Keys(unittest.TestCase):
     def test_a_key_is_checked_by_shape_and_the_error_never_repeats_it(self):
         from tests.unit.test_accounts import FakeKeyring
@@ -228,7 +283,8 @@ class Offered(unittest.TestCase):
                                               "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001",
                                               "claude-3-haiku-20240307"])
         self.assertTrue(cloud.price_checked("claude-haiku-4-5-20251001"))
-        self.assertFalse(cloud.price_checked("claude-opus-5-5"))  # counted at Opus's price, and said so
+        self.assertTrue(cloud.price_checked("claude-opus-5-5"))   # read 2026-10-26
+        self.assertFalse(cloud.price_checked("claude-opus-6"))    # a newer one: counted at Opus's price, and said so
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
         old = cloud.MODELS_CACHE

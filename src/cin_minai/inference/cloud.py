@@ -27,7 +27,11 @@ from typing import Callable
 API = "https://api.anthropic.com/v1"
 VERSION = "2023-06-01"
 # dollars per million tokens: input, output, writing the cache, reading the cache (Anthropic's prices, 2026-10)
-PRICES = {"haiku": (1.00, 5.00, 1.25, 0.10), "sonnet": (3.00, 15.00, 3.75, 0.30), "opus": (5.00, 25.00, 6.25, 0.50)}
+# the 5.5 generation first (read 2026-10-26 from Anthropic's model table; cache writes at 1.25x input; Haiku 5.5's cache
+# read assumed at a tenth of its input; its price doubles past 100K-token prompts, not counted here), then each family
+PRICES = {"haiku-5-5": (0.10, 0.50, 0.125, 0.01), "sonnet-5-5": (2.00, 10.00, 2.50, 0.20),
+          "opus-5-5": (4.00, 20.00, 5.00, 0.20),
+          "haiku": (1.00, 5.00, 1.25, 0.10), "sonnet": (3.00, 15.00, 3.75, 0.30), "opus": (5.00, 25.00, 6.25, 0.50)}
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 SETTINGS = os.path.join(".cinminai", "cloud.json")
 USAGE = os.path.join(".cinminai", "cloud-usage.jsonl")
@@ -116,7 +120,51 @@ def cache_models(models: list, provider: str = "anthropic") -> None:
     os.replace(MODELS_CACHE + ".tmp", MODELS_CACHE)
 
 
-CHECKED = ("claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-8")  # prices read on Anthropic's page, 2026-10-11
+CHECKED = ("claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-8",  # prices read on Anthropic's page, 2026-10-11
+           "claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5")  # and the 5.5 generation's, 2026-10-26
+
+
+# --- forced tool use, tried first and given up per model when refused (Ian, 2026-10-26: "make a 2 time attempt for every
+# cloud model, first with our arrangement then with whatever you do next"; Claude Sonnet 5.5 said 400 "tool_choice: type
+# "tool" and "any" are not supported for this model", as Opus 5.5 and Fable 5.1 do) ----------------------------------------
+CHOOSE_ONE = "Reply only by calling exactly one of your tools, never in plain text."
+
+
+def _free_choice_path() -> str:
+    return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
+                        "cloud-free-choice.json")
+
+
+def free_choice(model: str) -> bool:
+    """Has this model refused forced tool use before (on this computer)? Then it's asked with a free choice at once."""
+    try:
+        with open(_free_choice_path(), encoding="utf-8") as f:
+            return model in json.load(f)
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def remember_free_choice(model: str) -> None:
+    path = _free_choice_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            known = set(json.load(f))
+    except (OSError, ValueError, TypeError):
+        known = set()
+    known.add(model)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(sorted(known), f)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass  # remembered for this call only
+
+
+def refused_choice(e: Exception) -> bool:
+    """The provider refused the request's tool_choice (a 400 that names it), not the request as a whole."""
+    said = str(e)
+    return " 400" in said and "tool_choice" in said
 
 
 def price_checked(model: str) -> bool:
@@ -371,17 +419,30 @@ class Anthropic:
                              "); raise it in AICUI's Cloud models menu to go on")
         tools = flat_tools(schema) if schema is not None else None
         system, turns = self.shape(messages, {t["name"] for t in tools or []})
-        body = {"model": self.model, "max_tokens": int(max_tokens or 4096), "messages": turns}
-        if system:
-            body["system"] = system
-        if tools:  # every action its own tool with flat inputs; the model calls exactly one (see flat_tools)
-            body["tools"] = tools
-            body["tool_choice"] = {"type": "any"}
-        elif schema is not None:  # a schema without actions (a distill's items): one forced tool, its input the reply
-            body["tools"] = [{"name": "reply", "description": "Your reply.", "input_schema": schema}]
-            body["tool_choice"] = {"type": "tool", "name": "reply"}
+        def body_for(forced: bool) -> dict:
+            body = {"model": self.model, "max_tokens": int(max_tokens or 4096), "messages": turns}
+            said = system
+            if not forced and schema is not None:  # a free choice: said in the system text instead
+                said = [dict(b) for b in system] or [{"type": "text", "text": ""}]
+                said[-1]["text"] = (said[-1]["text"] + "\n\n" + CHOOSE_ONE).strip()
+            if said:
+                body["system"] = said
+            if tools:  # every action its own tool with flat inputs; the model calls exactly one (see flat_tools)
+                body["tools"] = tools
+                body["tool_choice"] = {"type": "any"} if forced else {"type": "auto"}
+            elif schema is not None:  # a schema without actions (a distill's items): one tool, its input the reply
+                body["tools"] = [{"name": "reply", "description": "Your reply.", "input_schema": schema}]
+                body["tool_choice"] = {"type": "tool", "name": "reply"} if forced else {"type": "auto"}
+            return body
         start = time.monotonic()
-        got = self._post("messages", body)
+        forced = not free_choice(self.model)
+        try:
+            got = self._post("messages", body_for(forced))
+        except CloudError as e:
+            if not (forced and schema is not None and refused_choice(e)):
+                raise
+            remember_free_choice(self.model)  # once: from now on this model is asked with a free choice
+            got = self._post("messages", body_for(False))
         usage = got.get("usage", {})
         usd = cost(self.model, usage)
         self.log(usage, usd)
@@ -534,8 +595,20 @@ class OpenAI(Anthropic):
             body["tools"] = [{"type": "function", "name": "reply", "description": "Your reply.", "parameters": schema,
                               "strict": False}]
             body["tool_choice"] = {"type": "function", "name": "reply"}
+
+        def free(b: dict) -> dict:  # the same request with a free choice, said in the instructions
+            b = dict(b, tool_choice="auto")
+            b["instructions"] = (b.get("instructions", "") + "\n\n" + CHOOSE_ONE).strip()
+            return b
         start = time.monotonic()
-        got = self._post("responses", body)
+        forced = schema is not None and not free_choice(self.model)
+        try:
+            got = self._post("responses", body if forced or schema is None else free(body))
+        except CloudError as e:
+            if not (forced and refused_choice(e)):
+                raise
+            remember_free_choice(self.model)
+            got = self._post("responses", free(body))
         u = got.get("usage") or {}
         cached = int((u.get("input_tokens_details") or {}).get("cached_tokens") or 0)
         usage = {"input_tokens": max(0, int(u.get("input_tokens") or 0) - cached),
