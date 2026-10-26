@@ -638,9 +638,9 @@ class Workspace(Gtk.ApplicationWindow):
         if not have and accounts.keyring_locked():
             item("Unlock the login keyring (your key may be in it)…", self.cloud_unlock)
         if have:
-            item("Advise the local models (they work; the cloud is asked when it helps)…",
+            item("Advise the local models (local models do the work)…",  # Ian, 2026-10-26
                  lambda: self.cloud_role_dialog("advisor"))
-            item("Lead with the cloud (the local models do the work)…", lambda: self.cloud_role_dialog("lead"))
+            item("Lead with the cloud (local models do some work)…", lambda: self.cloud_role_dialog("lead"))
             item("Finish this project with the cloud…", lambda: self.cloud_role_dialog("finisher"))
             item("Work with the cloud only (no local models)…", lambda: self.cloud_role_dialog("exclusive"))
             if cs["role"] != "off":
@@ -801,8 +801,9 @@ class Workspace(Gtk.ApplicationWindow):
         box.pack_start(Gtk.Label(xalign=0, wrap=True, max_width_chars=52, label=(
             {"finisher": "The cloud model takes this project from where the local models left it to working: it "
                          "runs it, reads what it needs and fixes what fails.",
-             "lead": "The cloud model plans and directs; the models on this computer do the reading, writing, "
-                     "testing and fixing it gives them, for free. The cloud's tokens go to the thinking.",
+             "lead": "The cloud model plans, directs and writes what matters most; the models on this computer do "
+                     "much of the reading, writing, testing and fixing, for free. The cloud's tokens go to the "
+                     "thinking.",
              "advisor": "The models on this computer do all the work, as now. The cloud model is asked for advice "
                         "when they ask for it, or when the work stalls (12 steps without progress): it reads the "
                         "request, the goals and the last steps, and says what to do next. A few times a request — "
