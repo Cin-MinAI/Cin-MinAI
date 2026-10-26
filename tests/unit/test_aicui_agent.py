@@ -618,6 +618,83 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
         self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
 
+    def test_a_juniors_result_wakes_its_stopped_lead_in_autopilot(self):
+        """Ian, 2026-10-26: when the junior "reports a background task and model is stopped" — Luna stopped on a refused
+        request while two results waited for the person to type."""
+        from cin_minai.aicui.agent import WAKE, wake_text
+        a = Agent(self.root, Scripted([]), "m", "none", admin=True, say=self.said.append)
+        a.inbox = [(702, "task", "task 702 — done.")]
+        held = {"person": False, "failed": 0}
+        self.assertTrue(wake_text(a, held).startswith(WAKE + " Task 702 is back"))
+        self.assertIsNone(wake_text(a, {"person": True, "failed": 0}))   # the person's Stop holds it
+        self.assertIsNone(wake_text(a, {"person": False, "failed": 2}))  # two failed turns in a row
+        a.stopped = "ask"
+        self.assertIsNone(wake_text(a, held))                             # waiting for the person's answer
+        a.stopped = "answer"
+        a.history.append({"user": "x", "answer": "error: the cloud budget for this project is used up ($6 of $6)"})
+        self.assertIsNone(wake_text(a, held))
+        a.history.append({"user": "x", "answer": "Stopped on a refusal."})
+        a.inbox = [(702, "progress", "still going")]
+        self.assertIsNone(wake_text(a, held))                             # only a finished task wakes it
+        b = Agent(self.root, Scripted([]), "m", "auto", admin=True, say=self.said.append)
+        b.inbox = [(702, "task", "done")]
+        self.assertIsNone(wake_text(b, held))                             # outside autopilot: the person's call
+
+    @unittest.skipUnless(os.name == "posix", "select on a pipe")
+    def test_the_idle_prompt_reads_the_person_or_wakes(self):
+        from cin_minai.aicui import agent as agent_mod
+        r, w = os.pipe()
+        old = sys.stdin
+        sys.stdin = os.fdopen(r)
+        try:
+            self.assertEqual(agent_mod.idle_read("", lambda: "woken", every=0.01), "woken")
+            os.write(w, b"continue\n")
+            self.assertEqual(agent_mod.idle_read("", lambda: None, every=0.01), "continue")
+        finally:
+            sys.stdin.close()
+            sys.stdin = old
+            os.close(w)
+
+    def test_a_direction_for_an_ended_task_isnt_used(self):
+        """2026-10-26 (test16): task 695's "restore the scaffold" reached the junior on task 696."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.role, a.task_n = "junior", 696
+        a.inbox = [(695, "direction", "restore the scaffold"), (696, "direction", "only the exports")]
+        steps = []
+        a.deliver(steps)
+        said = json.dumps(steps)
+        self.assertNotIn("restore the scaffold", said)
+        self.assertIn("only the exports", said)
+
+    def test_a_check_tasks_new_reads_are_its_progress(self):
+        """2026-10-26 (test16): task 700, a check of six engine files, stopped before it could report."""
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.role, a.task_kind = "junior", "check"
+        self.assertTrue(a.progressed({"tool": "read", "path": "app.py"}, "1: def add(a, b):"))
+        self.assertFalse(a.progressed({"tool": "read", "path": "app.py"}, "1: def add(a, b):"))
+        a.task_kind = "fix"
+        self.assertFalse(a.progressed({"tool": "read", "path": "b.py"}, "1: x"))
+
+    def test_a_replan_that_keeps_the_goals_doesnt_ask(self):
+        """2026-10-26 (test16): three plan questions in an hour after LFD, each the same three goals."""
+        def no_ask(prompt):
+            raise AssertionError("asked: " + prompt[:80])
+        a = Agent(self.root, Scripted([]), "m", "none", admin=True, ask=no_ask, say=self.said.append)
+        a.role = "senior"
+        a.goals.add("Wire the engine to the GUI", by="user")
+        a.goals.add("Write the README", by="user")
+        a.replan_ok = True
+        said = a.make_plan([{"text": "Wire the engine to the GUI", "files": ["gui/main.py"], "who": "senior"},
+                            {"text": "Write the README", "files": ["README.md"], "who": "senior"}])
+        self.assertIn("every goal of it is already a goal", said)
+        asked = []
+        b = Agent(self.root, Scripted([]), "m", "none", admin=True, ask=lambda p: asked.append(p) or "y",
+                  say=self.said.append)
+        b.role, b.replan_ok = "senior", True
+        b.make_plan([{"text": "Wire the engine to the GUI", "files": [], "who": "senior"},
+                     {"text": "Add a sound effects menu", "files": [], "who": "senior"}])
+        self.assertTrue(asked)  # a new goal: the person's to approve
+
     def test_a_seniors_advisor_is_asked_when_it_stalls(self):
         """2026-10-25, the fixes audit: "no nags for a lead" sat before the advisor's branch, so an Advisor over a Senior
         was never asked after 12 steps without progress."""

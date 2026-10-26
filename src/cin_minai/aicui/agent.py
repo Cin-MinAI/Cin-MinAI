@@ -1028,6 +1028,11 @@ class Agent:
         got = False
         while inbox:
             n, kind, text = inbox.pop(0)
+            if kind == "direction" and getattr(self, "task_n", None) not in (None, n):
+                # a direction for a task already done isn't for this one (2026-10-26, test16: task 695's "restore the
+                # scaffold" reached the junior on task 696, which tried to wipe 694's accepted tests)
+                self.event("note", text=f"A direction for task {n} came after it ended; not used on task {self.task_n}.")
+                continue
             got = got or (kind == "task" and ("(brief, by your junior)" in text or "gathered record" in text))
             if kind == "task" and "STUCK POINT from your junior (asks the senior)" in text:
                 self.junior_asks = n  # its question waits for the lead's word (answered with assign, not answer)
@@ -1428,6 +1433,7 @@ class Agent:
         self.drafted: dict[str, int] = {}  # lines in each draft this task wrote (a part that grew it is progress)
         self.junior_asks = None  # a junior task back with a question for the lead (see deliver)
         self.made_here: set[str] = set()  # files this task created (their parts may follow while edits_only)
+        self.read_files: set[str] = set()  # files a check task has read (each new one is its progress)
         last_progress = 0
         unusable = 0  # replies in a row that weren't a step
         empty = 0  # answers or questions with nothing in them
@@ -1684,6 +1690,13 @@ class Agent:
             #             for "no progress" — directing is a lead's work)
         if tool == "review_task" and re.match(r"task \d+ (accepted|given)", result):  # accept / reject
             return True
+        if tool == "read" and self.role == "junior" and getattr(self, "task_kind", "") in ("check", "brief") \
+                and not result.startswith("error"):  # reading is a check task's work: each new file read counts
+            seen = getattr(self, "read_files", set())  # (2026-10-26, test16: task 700, a check of six engine files,
+            self.read_files = seen                     # stopped by the 15-step rule before it could report)
+            if act.get("path") not in seen:
+                seen.add(act.get("path"))
+                return True
         if tool in ("goal_done", "goal_reopen") and result.startswith("error"):  # a ticked goal again isn't news
             return False  # (2026-10-25, test16: eleven re-ticks of done goals, each counted, and the stuck rule slept)
         if tool == "goal_reopen":  # destroy: a tick undone
@@ -2093,8 +2106,17 @@ class Agent:
                              if g["from_outside"] else "")
                           + (f"\n       files: {', '.join(g['files'])}" if g["files"] else "")
                           for i, g in enumerate(goals, 1))
-        self.event("busy", doing="waiting for your answer in the terminal", asking="the plan")
-        reply = self.ask(f"\033[1mThe plan:\n{shown}\nOK? [y]es, or type what to change: \033[0m").strip()
+        def alike(x: str, y: str) -> bool:
+            return difflib.SequenceMatcher(None, x.lower(), y.lower()).ratio() >= 0.85
+        have = self.goals.load()
+        same_plan = replan and all(any(alike(k["text"], g["text"]) for k in have) for g in goals) and all(
+            any(alike(k["text"], g["text"]) for g in goals) for k in have if not k["done"] and k.get("by") == "ai")
+        if same_plan:  # after LFD, a plan that keeps the goals as they are isn't the person's to approve again
+            # (2026-10-26, test16: three plan questions in an hour, the last 9 minutes, each the same three goals)
+            reply = "y"
+        else:
+            self.event("busy", doing="waiting for your answer in the terminal", asking="the plan")
+            reply = self.ask(f"\033[1mThe plan:\n{shown}\nOK? [y]es, or type what to change: \033[0m").strip()
         if reply.lower() in ("", "n", "no"):
             return "the person said no to the plan — ask what they want instead"
         if reply.lower() not in ("y", "yes", "ok", "a"):
@@ -3051,6 +3073,45 @@ class Agent:
 
 
 # --- the model -------------------------------------------------------------------------------------------------
+WAKE = "[started by your junior's result]"  # a turn AICUI began itself, not the person's words
+WAKE_EVERY_S = 2.0
+
+
+def wake_text(agent, held: dict) -> str | None:
+    """In autopilot a junior's result wakes its stopped lead (Ian, 2026-10-26: when the junior "reports a background
+    task and model is stopped" — Luna stopped on a refused request while two results waited). Not after the person's
+    Stop, a question to them, a budget used up, or two failed turns in a row."""
+    inbox = getattr(agent, "inbox", None) or []
+    back = [n for n, kind, _ in list(inbox) if kind == "task"]
+    if not back or held.get("person") or held.get("failed", 0) >= 2 or not agent.autopilot():
+        return None
+    if getattr(agent, "stopped", "") == "ask":
+        return None  # it's waiting for the person's answer
+    last = (agent.history[-1]["answer"] if agent.history else "")
+    if "budget for this project is used up" in last:
+        return None
+    return (f"{WAKE} Task {back[0]} is back from your junior. Review it and go on with the open goals; answer when "
+            "they're done or you're truly blocked.")
+
+
+def idle_read(prompt: str, wake, every: float = WAKE_EVERY_S) -> str:
+    """The person's next request, read as they type it — or, while they haven't, the text of a turn AICUI starts
+    itself (wake() says when)."""
+    import select
+    print(prompt, end="", flush=True)
+    while True:
+        ready, _, _ = select.select([sys.stdin], [], [], every)
+        if ready:
+            line = sys.stdin.readline()
+            if line == "":
+                raise EOFError
+            return line.strip()
+        text = wake()
+        if text:
+            print(f"\r\033[K\033[2m{WAKE}\033[0m")
+            return text
+
+
 def cloud_leads(cloud: dict, team: str) -> bool:
     """The cloud model of the Cloud models menu runs this project (docs/accounts-and-cloud.md) — not at the Team
     Table, whose seats name their own models (2026-10-21: raising the budget in that menu saved its role "lead", and
@@ -3365,25 +3426,35 @@ def main(argv=None) -> int:
     elif use_cloud:  # the cloud model reads pictures itself (2026-10-12: Haiku's looks went unanswered)
         agent.reader = lambda: agent.chat
     first = a.first.strip()
+    held = {"person": False, "failed": 0}  # the person's Stop holds the wake; so do two failed turns in a row
     try:
         while True:
             try:
                 prompt = chatlook.paint("user", "you>", "\033[1;34m") + " "  # in the colour chosen for you
-                text, first = (first, "") if first else (input(prompt).strip(), "")
+                if first:
+                    text, first = first, ""
+                else:
+                    text = idle_read(prompt, lambda: wake_text(agent, held))
             except EOFError:
                 break
             except KeyboardInterrupt:  # Stop while nothing runs: a fresh prompt — and the background work, as chosen
                 print()
+                held["person"] = True
                 bg = team_b or pair.get("tandem")
                 if bg is not None and getattr(bg, "out", 0) > 0:
                     bg.stopped()  # AICUI's question set what stops: both, or one (keep-errands)
                 continue
             if text:
+                woke = text.startswith(WAKE)
+                if not woke:
+                    held["person"], held["failed"] = False, 0  # the person's word: the wake may follow again
                 cancel = threading.Event()
                 try:
                     (team_b or tandem() or agent).turn(text, cancel)
+                    held["failed"] = held["failed"] + 1 if agent.stopped == "error" else 0
                 except KeyboardInterrupt:  # AICUI's Stop button sends Ctrl+C; the server stops when we hang up
                     cancel.set()
+                    held["person"] = True
                     print("\r\033[K(stopped — what's done is saved and in the changelog)")
                     agent.event("answer", text="Stopped. What's done is saved and in the changelog.")
     finally:

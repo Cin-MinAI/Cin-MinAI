@@ -736,6 +736,7 @@ class Pair:
         self.junior.task_lines, self.junior.line_limit = 0, (0 if kind == "test" else lim["lines"])
         steps_were, self.junior.max_steps = self.junior.max_steps, lim["steps"]
         self.junior.edits_only = kind != "test"  # a file that exists: edits, in every task (a fix first, then all)
+        self.junior.task_n, self.junior.task_kind = n, kind  # its directions are this task's; a check reads
         # a write task's unfinished draft waits for the next write on its file (2026-10-25, test16: 193 lines set
         # aside when the task stopped); any other kind of task on the file sets it aside first
         self.junior.keep_drafts = kind == "write"
