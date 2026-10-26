@@ -30,7 +30,7 @@ import time
 
 from .changelog import Changelog
 from . import chatlook, intake, look
-from .project import (DATA_FILES, HIDE, Goals, entry_point, env_state, goal_stages, project_root, tree,
+from .project import (CODE_FILES, DATA_FILES, HIDE, Goals, entry_point, env_state, goal_stages, project_root, tree,
                       want_package)
 
 CHECKPOINT_STEPS = 60  # a handover in the chat every this many steps; the work goes on
@@ -1731,6 +1731,14 @@ class Agent:
         return "\n".join(lines)
 
     # --- the tools ------------------------------------------------------------------------------------------
+    def rel(self, path: str) -> str:
+        """A path as the project names it (relative, "/"), however the model wrote it: an absolute path got past the
+        checks that compare names (2026-10-26, test16: /home/…/gui/sound_manager.py slipped by goal 7's needs lock)."""
+        try:
+            return os.path.relpath(self.path(str(path)), os.path.realpath(self.root)).replace(os.sep, "/")
+        except ValueError:
+            return os.path.normpath(str(path)).replace(os.sep, "/")
+
     def path(self, rel: str) -> str:
         full = os.path.realpath(os.path.join(self.root, rel))
         if not (full == os.path.realpath(self.root) or full.startswith(os.path.realpath(self.root) + os.sep)):
@@ -1976,6 +1984,12 @@ class Agent:
                 return f"error: pictures and files go into a folder under assets/ (e.g. assets/cards), not {dest}"
             if intake.came_in(self.root, dest):
                 return f"error: {dest} is gathered material; compile into a file of the project's own"
+            if os.path.splitext(dest)[1].lower() in CODE_FILES and os.path.isfile(dest_full) and \
+                    os.path.getsize(dest_full):
+                # a record compiles into data, never over code (2026-10-26, test16: a distill "into" sound_manager.py
+                # left its 74 lines as "[]")
+                return (f"error: {dest} is the project's code; a distill compiles into a data file (.json, .md, .txt "
+                        "…) — give `into` a data file, and have the code read it")
         part_chars = max(3000, min(12000, self.ctx * 3 // 4))
         items, texts, used, dropped = [], [], [], 0
         for full in files:
@@ -2224,7 +2238,7 @@ class Agent:
     def needs_block(self, path: str) -> str:
         """A file of a goal whose needs aren't in yet isn't written: facts come from the sources, so the sources come
         first (2026-10-10, test6: 300 lines of card data typed from memory into a code file)."""
-        rel = os.path.normpath(str(path)).replace(os.sep, "/")
+        rel = self.rel(path)
         for g in self.goals.load():
             if not g["done"] and rel in (g.get("files") or []) and not self.needs_met(g):
                 return (f"error: {rel} belongs to goal {g['id']} ({g['text'][:80]}), which {self.needs_line(g)}. "
@@ -2444,7 +2458,7 @@ class Agent:
                 got = self.wait_next(getattr(self, "cancel_event", None))
                 return ("back: your junior's result is in your notes" if got else
                         f"still out after {WAIT_MAX_S // 60} minutes: check on it with follow_up, or go on yourself")
-            if t in CHANGES and os.path.normpath(a.get("path", "")) == REQUEST_FILE:
+            if t in CHANGES and self.rel(a.get("path", "")) == REQUEST_FILE:
                 return f"error: {REQUEST_FILE} is the person's own words; it isn't changed"
             if t in CHANGES:
                 blocked = self.needs_block(a.get("path", ""))
@@ -2908,10 +2922,16 @@ class Agent:
             out, err = p.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             import signal
-            try:
+            family = descendants(p.pid)  # GNU timeout puts what it runs in a group of its own: killpg misses it
+            try:                         # (2026-10-26, test16: two copies of the game ran on for 20 minutes)
                 os.killpg(p.pid, signal.SIGKILL)
             except OSError:
                 pass
+            for pid in family:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
             p.communicate()
             return None, ""
         return p.returncode, (out + err).strip()
@@ -3073,6 +3093,30 @@ class Agent:
 
 
 # --- the model -------------------------------------------------------------------------------------------------
+def descendants(pid: int) -> list[int]:
+    """Every process started under pid, from /proc (whatever group each put itself in)."""
+    kids: dict[int, list[int]] = {}
+    try:
+        names = os.listdir("/proc")
+    except OSError:
+        return []
+    for name in names:
+        if not name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{name}/stat", encoding="utf-8", errors="replace") as f:
+                parent = int(f.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        kids.setdefault(parent, []).append(int(name))
+    out, todo = [], [pid]
+    while todo:
+        for kid in kids.get(todo.pop(), []):
+            out.append(kid)
+            todo.append(kid)
+    return out
+
+
 WAKE = "[started by your junior's result]"  # a turn AICUI began itself, not the person's words
 WAKE_EVERY_S = 2.0
 

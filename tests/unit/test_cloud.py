@@ -159,6 +159,44 @@ class FreeChoice(unittest.TestCase):
         self.assertIn(cloud.CHOOSE_ONE, fake.sent[1][1]["instructions"])
         self.assertTrue(cloud.free_choice("gpt-6-astra"))
 
+    def test_a_stronger_model_gets_thinking_room_a_fallback_and_its_refusals_said(self):
+        """Ian, 2026-10-26: "the first time we've used a more advanced model ... plan for anything that might hold you
+        up": Sonnet 5.5's picture answers came back empty at 300 tokens (its thinking counts), it reported the board in
+        plain text, and it refused twice with no reason kept."""
+        cloud.remember_free_choice("claude-sonnet-5-5")
+        said = {"content": [{"type": "text", "text": "The board is done: a 7-column mat."}], "stop_reason": "end_turn",
+                "model": "claude-sonnet-5-5", "usage": {"input_tokens": 10, "output_tokens": 20}}
+        refused = {"content": [], "stop_reason": "refusal", "stop_details": {"type": "refusal", "category": "cyber"},
+                   "usage": {"input_tokens": 10, "output_tokens": 0}}
+        fake = FakeAnthropic([said, refused])
+        b = cloud.Anthropic(self.root, lambda: "sk-ant-test-key-0123456789abcdef", "claude-sonnet-5-5", opener=fake)
+        text, _ = b.chat([{"role": "user", "content": "go"}], schema=SCHEMA, max_tokens=300)
+        self.assertEqual(json.loads(text), {"thinking": "", "action": {"tool": "answer",
+                                                                      "text": "The board is done: a 7-column mat."}})
+        body, headers = fake.sent[0][1], fake.sent[0][2]
+        self.assertEqual(body["max_tokens"], 300 + cloud.THINKING_ROOM)
+        self.assertEqual((body["fallbacks"], headers["Anthropic-beta"]), ("default", cloud.FALLBACK_BETA))
+        with self.assertRaises(cloud.CloudError) as e:
+            b.chat([{"role": "user", "content": "go"}], schema=SCHEMA)
+        self.assertIn("declined this step (Anthropic's safety filter: cyber)", str(e.exception))
+        kept = sorted(os.listdir(os.path.join(self.root, ".cinminai", "cutoffs")))
+        with open(os.path.join(self.root, ".cinminai", "cutoffs", kept[-1])) as f:
+            self.assertEqual(json.load(f)["stop_details"]["category"], "cyber")
+        older = FakeAnthropic([REPLY])  # Haiku 4.5: no thinking room, no fallback
+        cloud.Anthropic(self.root, lambda: "sk-ant-x" * 5, "claude-haiku-4-5-20251001", opener=older).chat(
+            [{"role": "user", "content": "go"}], schema=SCHEMA, max_tokens=300)
+        self.assertEqual(older.sent[0][1]["max_tokens"], 300)
+        self.assertNotIn("fallbacks", older.sent[0][1])
+
+    def test_the_55_calls_logged_before_their_prices_are_counted_again(self):
+        """2026-10-26: Haiku 5.5 was logged at Haiku 4.5's price, ten times too high; the budget ran out early."""
+        os.makedirs(os.path.join(self.root, ".cinminai"))
+        with open(os.path.join(self.root, cloud.USAGE), "w") as f:
+            f.write(json.dumps({"model": "claude-haiku-5-5", "input_tokens": 1_000_000, "output_tokens": 0,
+                                "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "usd": 1.0}) + "\n")
+            f.write(json.dumps({"model": "gpt-6-luna", "usd": 0.25}) + "\n")
+        self.assertAlmostEqual(cloud.spent(self.root), 0.10 + 0.25, places=6)
+
     def test_the_55_prices(self):
         self.assertEqual(cloud.price_of("claude-haiku-5-5")[:2], (0.10, 0.50))
         self.assertEqual(cloud.price_of("claude-sonnet-5-5")[:2], (2.00, 10.00))

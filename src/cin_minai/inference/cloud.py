@@ -65,6 +65,9 @@ def save_settings(root: str, **change) -> dict:
     return s
 
 
+REPRICED = re.compile(r"claude-(haiku|sonnet|opus)-5-5")
+
+
 def spent(root: str) -> float:
     """Dollars this project has spent on cloud models, from its usage log."""
     total = 0.0
@@ -72,8 +75,13 @@ def spent(root: str) -> float:
         with open(os.path.join(root, USAGE), encoding="utf-8") as f:
             for line in f:
                 try:
-                    total += float(json.loads(line).get("usd", 0))
-                except ValueError:
+                    e = json.loads(line)
+                    model = str(e.get("model", ""))
+                    # the 5.5 generation's calls logged before its prices were read (Haiku 5.5 at Haiku 4.5's, ten
+                    # times too high) are counted again from their tokens (2026-10-26)
+                    total += cost(model, e) if REPRICED.search(model) and "output_tokens" in e else \
+                        float(e.get("usd", 0))
+                except (ValueError, TypeError, AttributeError):
                     pass
     except OSError:
         pass
@@ -128,6 +136,27 @@ CHECKED = ("claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-8",  # prices
 # cloud model, first with our arrangement then with whatever you do next"; Claude Sonnet 5.5 said 400 "tool_choice: type
 # "tool" and "any" are not supported for this model", as Opus 5.5 and Fable 5.1 do) ----------------------------------------
 CHOOSE_ONE = "Reply only by calling exactly one of your tools, never in plain text."
+# the 5 generation thinks before every answer, and its thinking counts against max_tokens (2026-10-26: Sonnet 5.5's
+# picture answers came back empty at look's 300 tokens): room on top, as OpenAI's reasoning models get REASONING_ROOM
+THINKING_ROOM = 4096
+FALLBACK_BETA = "server-side-fallback-2026-07-01"  # a refused step goes to the model Anthropic picks for its category
+
+
+def thinks(model: str) -> bool:
+    return bool(re.match(r"claude-(opus|sonnet|haiku|fable|mythos)-5", model))
+
+
+def is_step(text: str) -> bool:
+    """A step written as JSON text (it's tried as it is)."""
+    try:
+        return isinstance(json.loads(text), dict) and "action" in json.loads(text)
+    except ValueError:
+        return False
+
+
+def falls_back(model: str) -> bool:
+    """The models Anthropic's server-side fallback serves (its "default" routing)."""
+    return model.startswith(("claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"))
 
 
 def _free_choice_path() -> str:
@@ -334,7 +363,7 @@ class Anthropic:
     def unload(self) -> None:
         pass
 
-    def _post(self, path: str, body: dict | None = None) -> dict:
+    def _post(self, path: str, body: dict | None = None, betas: list | None = None) -> dict:
         key = self.key()
         if not key:
             from cin_minai.daemon import accounts
@@ -342,10 +371,12 @@ class Anthropic:
                 raise CloudError("the login keyring is locked, so the Anthropic key can't be read — unlock it from "
                                  "AICUI's Cloud models menu (or Passwords and Keys), then continue")
             raise CloudError("no Anthropic key on this computer — add one from AICUI's Cloud models menu")
+        headers = {"x-api-key": key, "anthropic-version": VERSION, "content-type": "application/json",
+                   "User-Agent": "Cin-MinAI"}
+        if betas:
+            headers["anthropic-beta"] = ",".join(betas)
         req = urllib.request.Request(f"{API}/{path}", data=json.dumps(body).encode() if body is not None else None,
-                                     headers={"x-api-key": key, "anthropic-version": VERSION,
-                                              "content-type": "application/json", "User-Agent": "Cin-MinAI"},
-                                     method="POST" if body is not None else "GET")
+                                     headers=headers, method="POST" if body is not None else "GET")
         try:
             with self.opener(req, timeout=300) as r:
                 return json.loads(r.read())
@@ -420,7 +451,10 @@ class Anthropic:
         tools = flat_tools(schema) if schema is not None else None
         system, turns = self.shape(messages, {t["name"] for t in tools or []})
         def body_for(forced: bool) -> dict:
-            body = {"model": self.model, "max_tokens": int(max_tokens or 4096), "messages": turns}
+            body = {"model": self.model, "messages": turns,
+                    "max_tokens": int(max_tokens or 4096) + (THINKING_ROOM if thinks(self.model) else 0)}
+            if falls_back(self.model):
+                body["fallbacks"] = "default"
             said = system
             if not forced and schema is not None:  # a free choice: said in the system text instead
                 said = [dict(b) for b in system] or [{"type": "text", "text": ""}]
@@ -436,21 +470,32 @@ class Anthropic:
             return body
         start = time.monotonic()
         forced = not free_choice(self.model)
+        betas = [FALLBACK_BETA] if falls_back(self.model) else []
         try:
-            got = self._post("messages", body_for(forced))
+            got = self._post("messages", body_for(forced), betas)
         except CloudError as e:
             if not (forced and schema is not None and refused_choice(e)):
                 raise
             remember_free_choice(self.model)  # once: from now on this model is asked with a free choice
-            got = self._post("messages", body_for(False))
+            got = self._post("messages", body_for(False), betas)
         usage = got.get("usage", {})
-        usd = cost(self.model, usage)
+        usd = cost(got.get("model") or self.model, usage)  # a fallback is billed as the model that answered
         self.log(usage, usd)
+        if got.get("stop_reason") == "refusal":  # the safety filter declined, said with its category (2026-10-26:
+            self.keep(got)                       # Sonnet 5.5 refused twice on test16 and the reason wasn't kept)
+            why = (got.get("stop_details") or {}).get("category") or "no category given"
+            raise CloudError(f"{label(self.model)} declined this step (Anthropic's safety filter: {why}). Go on with "
+                             "another model, or reword the request")
         if schema is not None:
             block = next((b for b in got.get("content", []) if b.get("type") == "tool_use"), None)
             if block is None:  # no tool called: a step written as text is still a step; the reply is kept to study
                 text = "".join(b.get("text", "") for b in got.get("content", []) if b.get("type") == "text").strip()
                 self.keep(got)
+                if text and tools and got.get("stop_reason") == "end_turn" and not is_step(text) and                         any(t["name"] == "answer" for t in tools):
+                    # with a free choice, a reply in plain text that ends the turn is the model's answer (2026-10-26:
+                    # Sonnet 5.5 reported the finished board in text, and AICUI took it for an unusable step)
+                    text = json.dumps({"thinking": "", "action": {"tool": "answer", "text": text}},
+                                      ensure_ascii=False)
             elif tools:  # the agent's step: {"thinking", "action": {"tool": the tool called, its inputs}}
                 need = next((t["input_schema"]["required"] for t in tools if t["name"] == block.get("name")), [])
                 inputs = unleak(dict(block.get("input") or {}), need)
@@ -477,7 +522,8 @@ class Anthropic:
         try:
             os.makedirs(folder, exist_ok=True)
             with open(os.path.join(folder, time.strftime("cloud-%Y%m%d-%H%M%S.json")), "w", encoding="utf-8") as f:
-                json.dump({k: got.get(k) for k in ("stop_reason", "content", "usage")}, f, ensure_ascii=False, indent=1)
+                json.dump({k: got.get(k) for k in ("stop_reason", "stop_details", "model", "content", "usage")}, f,
+                          ensure_ascii=False, indent=1)
         except OSError:
             pass
 

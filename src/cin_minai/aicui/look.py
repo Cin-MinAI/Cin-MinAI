@@ -155,6 +155,11 @@ def report(facts: dict, problems: list[str], answer: str) -> str:
     s = facts["screen"]
     lines = [f"Looked at {facts['target']} ({facts['picture_path']}; facts in {facts['facts_path']})",
              f"screen {s['width']}x{s['height']} at {s['scale']}x scaling"]
+    if facts.get("program"):  # (2026-10-26, test16: Luna rewrote the window setup and run.sh to give its picture a
+        # title bar that this screen can never show, and read 3300x1920 as wrong)
+        lines.append("a virtual screen without a window manager: no window here has a title bar or window buttons "
+                     "(the person's desktop draws those); sizes are physical pixels, the program's at "
+                     f"{s['scale']}x scaling")
     for w in facts.get("windows", []):
         lines.append(f"window \"{w['name']}\": {w['width']}x{w['height']} at {w['x']},{w['y']}")
     if facts.get("program"):  # the state first, in words (2026-10-09: build output in the middle read as "compiling")

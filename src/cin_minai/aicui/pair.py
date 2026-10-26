@@ -390,6 +390,10 @@ class Pair:
                 os.path.relpath(full, root).replace(os.sep, "/") if full.startswith(root + os.sep) else str(f))
         if not found:
             return "error: none of these is a file in the project" + (f" ({', '.join(missing)})" if missing else "")
+        pictures = [f for f in found if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"))]
+        if pictures:  # (2026-10-26, test16: Luna asked its junior to "compare with all four screenshots"; it can't see)
+            return (f"error: your junior can't see pictures ({', '.join(pictures)}): look at them yourself and put what "
+                    "they show in words into the task or the question")
         if len(question.split()) < 3:
             return "error: say what you want to know from them (the question)"
         spec = json.dumps({"files": found, "question": question})

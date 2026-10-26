@@ -618,6 +618,49 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
         self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
 
+    def test_an_absolute_path_is_checked_as_the_project_names_it(self):
+        """2026-10-26 (test16): /home/…/gui/sound_manager.py slipped past goal 7's needs lock (the short name didn't)."""
+        a = Agent(self.root, Scripted([]), "m", "none", admin=True, say=self.said.append)
+        self.assertEqual(a.rel(os.path.join(self.root, "app.py")), "app.py")
+        a.goals.add("Sounds", by="user", from_outside=[{"what": "sound effects", "kind": "sound"}], files=["app.py"])
+        said = a.do({"tool": "write", "path": os.path.join(self.root, "app.py"), "content": "x = 1\n"})
+        self.assertIn("belongs to goal 1", said)
+        said = a.do({"tool": "write", "path": os.path.join(self.root, "original-request.txt"), "content": "x"})
+        self.assertIn("the person's own words", said)
+
+    def test_a_distill_never_writes_over_code(self):
+        """2026-10-26 (test16): a distill "into" sound_manager.py left its 74 lines as "[]"."""
+        os.makedirs(os.path.join(self.root, "sources"))
+        with open(os.path.join(self.root, "sources", "page.txt"), "w") as f:
+            f.write("Card: Dark Knight, ATK 1200\n")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        said = a.distill_now(["sources/page.txt"], "every card with its ATK", into="app.py")
+        self.assertTrue(said.startswith("error: app.py is the project's code"))
+        with open(os.path.join(self.root, "app.py")) as f:
+            self.assertIn("def add", f.read())
+
+    @unittest.skipUnless(os.path.isdir("/proc"), "Linux's /proc")
+    def test_a_command_past_its_limit_takes_everything_it_started(self):
+        """2026-10-26 (test16): `timeout 5 python gui/main.py` put the game in a group of its own; it ran 20 min."""
+        from cin_minai.aicui.agent import descendants
+        a = Agent(self.root, Scripted([]), "m", "none", say=self.said.append)
+        a.xvfb = False
+        code, _ = a.execute("setsid sleep 300 & echo $! > kid.pid; wait", 2, False)
+        self.assertIsNone(code)
+        with open(os.path.join(self.root, "kid.pid")) as f:
+            kid = int(f.read())
+        import time as t
+        t.sleep(0.2)
+        self.assertFalse(os.path.exists(f"/proc/{kid}") and "sleep" in open(f"/proc/{kid}/cmdline").read())
+        self.assertEqual(descendants(-1), [])
+
+    def test_look_says_its_screen_has_no_window_manager(self):
+        from cin_minai.aicui import look as look_mod
+        said = look_mod.report({"target": "program", "picture_path": "p.png", "facts_path": "f.json", "program": True,
+                                "screen": {"width": 3300, "height": 2100, "scale": 3}, "windows": [],
+                                "question": "q"}, [], "")
+        self.assertIn("no window here has a title bar", said)
+
     def test_a_juniors_result_wakes_its_stopped_lead_in_autopilot(self):
         """Ian, 2026-10-26: when the junior "reports a background task and model is stopped" — Luna stopped on a refused
         request while two results waited for the person to type."""
