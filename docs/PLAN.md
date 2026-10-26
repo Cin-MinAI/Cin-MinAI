@@ -291,6 +291,14 @@ input for big information output, and the leverage comes from the prompt you giv
 The local model keeps a working script and reads the person's intentions from the original prompt
 (`original-request.txt`) and the updates given to it. "We need a bigger model and hardware before I trust that."
 
+**Molding the harness to the flow** (Ian, 2026-10-25, building the first fixes): "The cloud cant be stopped for steps
+when its context cap is astronomical, and the junior has to be given specific detailed direction with context control
+included. This will allow the Sr, whether local or cloud, to assess what the local junior can handle over a task
+frame. Contexts need to be inspected for optimal times to dump whats there for whats coming and whats needed." Built
+the same night (973cd48): the 15-step rule is the local models' only; each Senior is told its junior's context and
+frames tasks to fit. Next, not built: inspecting a context for the right moment to dump what's there for what's
+coming (LFD and compaction are the pieces there are).
+
 **Where the code stood, 2026-10-25** (four read-only audits; the fix plan goes to Ian before anything is built):
 
 - *Today's flow fixes, outside their setup:* a goal other than the last open one is checked against its own files,
