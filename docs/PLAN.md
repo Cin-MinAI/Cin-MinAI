@@ -1253,6 +1253,14 @@ record is detected; a lost USB is recovered with the printed code.
   the model rereads the note and blends what it needs into the current frame, instead of losing it),
   measured as everything else is (D33): the same task on the same small model with and without each, kept only if
   it helps.
+- **Ports where they're allowed: AICUI on a Mac first** (Ian, 2026-10-26, for later: "Id love to see this setup on
+  like a mac mini m5 with a big local and frontier cloud… Id like to do ports where allowed. If theres a route to it Id
+  try it later"). Apple Silicon's shared memory holds a big local junior whole (the 1080 Ti keeps the 35B's experts in
+  system RAM, which is why its long reads are slow), so more of the work stays local and the cloud lead's share shrinks.
+  The model side carries over (llama.cpp runs on Metal; the cloud is API calls); the rest is built for Mint: AICUI is
+  GTK, commands run in bwrap, the daemon is on D-Bus, everything ships as .debs. A route: AICUI alone, ported (macOS's
+  own sandbox for bwrap, the same Team Table and cloud code), not the OS; a Linux VM loses the GPU. Only where a
+  platform's terms allow it.
 
 ## 6. Open questions
 
