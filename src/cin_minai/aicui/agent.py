@@ -929,8 +929,9 @@ class Agent:
     def __init__(self, root: str, chat, model_name: str, mode: str = "ask", admin: bool = False,
                  ask=input, say=print, ctx: int = 8192, tick=None) -> None:
         self.root, self.chat, self.model_name, self.ctx = root, chat, model_name, ctx
-        self.read_lines = READ_LINES * max(1, ctx // 8192) + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200
-        self.obs_chars = OBS_CHARS * max(1, ctx // 8192)
+        per = max(1, min(ctx, 32768) // 8192)  # a cloud model's big context isn't a reason to read more at once
+        self.read_lines = READ_LINES * per + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200, 32K and up: 360
+        self.obs_chars = OBS_CHARS * per
         self.reads: dict = {}  # (file, from line, modified) -> the steps that read it in this task
         self.steps: list[dict] = []  # this task's steps so far (the loop guard sees which reads are still in view)
         self.cut, self.lite, self.sys, self.cpt = 0, 0, "", 3.0  # this task (see fit)

@@ -237,7 +237,14 @@ def offered_openai(models: list) -> list:
     return [m for m in OPENAI_OFFER if m in have] or [m for m in OPENAI_PRICES if m in have][:5]
 
 
-def backend(root: str, provider: str, model: str, context: int = 32768):
+# the context a cloud model works in: far past a local model's, so AICUI rarely trims its history — each trim changes
+# the start of the prompt and its cache is written again (2026-10-26, test16: at 32K, Sonnet 5.5 rewrote ~28K tokens
+# of cache on every step, 77 % of a $3.92 stretch). Below the models' own windows, so a long task is still summed up
+# once in a while rather than read whole at every step (a cache read costs too).
+CLOUD_CONTEXT = 120_000
+
+
+def backend(root: str, provider: str, model: str, context: int = CLOUD_CONTEXT):
     """The cloud backend for a provider, its key read from the keyring at each call (never kept)."""
     from cin_minai.daemon import accounts
     cls = OpenAI if provider == "openai" else Anthropic
@@ -351,7 +358,7 @@ def cost(model: str, usage: dict) -> float:
 class Anthropic:
     """A chat backend shaped like the local one: chat(messages, schema, max_tokens, cancel, on_text) -> (text, timings)."""
 
-    def __init__(self, root: str, key: Callable[[], str], model: str = DEFAULT_MODEL, context: int = 32768,
+    def __init__(self, root: str, key: Callable[[], str], model: str = DEFAULT_MODEL, context: int = CLOUD_CONTEXT,
                  opener: Callable = urllib.request.urlopen) -> None:
         self.root, self.key, self.model, self.opener = root, key, model, opener
         self.cfg = {"context": context}
@@ -541,7 +548,7 @@ class OpenAI(Anthropic):
     as Anthropic's — budget first, every call logged with its cost, the agent's step as one forced tool call among
     flat tools — in OpenAI's shapes. OpenAI caches repeated prompt beginnings by itself; cached input is cheaper."""
 
-    def __init__(self, root: str, key: Callable[[], str], model: str = OPENAI_DEFAULT, context: int = 32768,
+    def __init__(self, root: str, key: Callable[[], str], model: str = OPENAI_DEFAULT, context: int = CLOUD_CONTEXT,
                  opener: Callable = urllib.request.urlopen) -> None:
         super().__init__(root, key, model, context, opener)
 

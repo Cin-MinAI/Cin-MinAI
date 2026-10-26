@@ -618,6 +618,22 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
         self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
 
+    def test_a_cloud_models_history_stays_whole_and_its_reads_stay_their_size(self):
+        """2026-10-26 (test16): at a 32K context, Sonnet 5.5's history was trimmed every step, the prompt's start
+        changed, and ~28K tokens of cache were written again each time (77 % of the cost)."""
+        from cin_minai.inference import cloud
+        self.assertGreaterEqual(cloud.CLOUD_CONTEXT, 100_000)
+        big = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=cloud.CLOUD_CONTEXT)
+        mid = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=32768)
+        self.assertEqual((big.read_lines, big.obs_chars), (mid.read_lines, mid.obs_chars))
+        steps = [{"did": step(f"Step {i}.", tool="run", command=f"echo {i}"), "result": "x" * 3000}
+                 for i in range(30)]  # ~90K characters: past 32K's room, well inside the cloud's
+        big.sys = mid.sys = "rules"
+        self.assertEqual(big.fit("go", steps), big.messages("go", steps, 0, 0))  # nothing trimmed
+        self.assertEqual(big.cut, 0)
+        mid.fit("go", steps)
+        self.assertGreater(mid.cut, 0)
+
     def test_an_absolute_path_is_checked_as_the_project_names_it(self):
         """2026-10-26 (test16): /home/…/gui/sound_manager.py slipped past goal 7's needs lock (the short name didn't)."""
         a = Agent(self.root, Scripted([]), "m", "none", admin=True, say=self.said.append)
