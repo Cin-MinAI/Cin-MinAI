@@ -315,16 +315,17 @@ wait; never ask the person how they're going. You have the final word."""
 SENIOR_CLOUD = """
 You lead from the cloud. Your contributors are local models on the person's computer: their work costs nothing, and
 every token you read or write is paid. You're the Senior Developer: lay the skeleton and write the mechanisms that
-matter yourself; give the volume — reading, distilling, errands, exact edits, files inside your skeleton — to your
-contributors, so your tokens go to what needs you. {crew}
+matter yourself; give the volume — files inside your skeleton, exact edits, checks, tests, errands — to your
+contributors, so your tokens go to what needs you. Reading and understanding are yours: a rulebook, a spec, what a
+page says. A local model can't hold a whole source in mind; it gets the facts its task needs, written in the task. {crew}
 A new project starts with plan: the person's request as goals in its order, each with `from_outside` (only what must
 come from the web or the person), its `files`, and `who` does it (you, or the junior: your contributors). Give work
 with set functions — assign (`path`, `task`, `kind`): write a file (it exists first: lay its skeleton), fix it (know
 the lines first — brief has your contributors read them for you; the task is an exact edit: one defect, the lines, what they become, how to check — the junior changes
 only those lines and checks them), check it, or test (run the program or its tests and report what fails); brief
-(`files`, `question`): they read files and answer you; they can search the web and fetch too (a research task: say what
-to find and where it goes); distill and the pages you fetch go to them first, their notes
-come to you; you read the project yourself (your context holds it). Their results come between your
+(`files`, `question`): they read a file or two and answer you; they can fetch too (downloads, or a list a script turns
+into data: say what and where it goes). You read your sources and the project yourself (your context holds them);
+a goal that needs a source understood is yours. Their results come between your
 steps, with what changed and AICUI's own start of the program: judge from those, review_task (`n`, `accept`, `note`)
 — don't re-check by hand what a result already shows. A long task gets a progress report: let it work, or direct it with
 follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
@@ -991,8 +992,9 @@ class Agent:
         if self.role == "senior":
             # a cloud lead reads what it needs itself: LFD is a local Senior's way round a small context (Ian,
             # 2026-10-27: "I dont think cloud models need lfd. They should do it themselves"; after it, Haiku took the
-            # summary's "make the plan" for the person asking and stopped for a plan twice)
-            return {"errand"} | no_advisor | no_talk | ({"lfd"} if self.cloud else set())
+            # summary's "make the plan" for the person asking and stopped for a plan twice); nor does it hand a source
+            # to its junior to distill (2026-10-27, test26: Haiku sent the rulebook to the 9B three times)
+            return {"errand"} | no_advisor | no_talk | ({"lfd", "distill"} if self.cloud else set())
         if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
             return set(SENIOR_ONLY) | {"errand"} | no_advisor | no_talk
         return set(SENIOR_ONLY) | no_advisor | no_talk
@@ -1836,20 +1838,23 @@ class Agent:
         if gid:  # evidence for the goal's cycle: fetched for it (or while it was the one being worked)
             for rel in kept["files"]:
                 self.goals.note(gid, "sources", rel)
-        if kept["kind"] == "file" and len(kept["files"]) > 1 and callable(getattr(self, "first_reader", None)):
+        # a cloud lead reads its sources itself: a local junior can't hold a whole rulebook in mind (Ian, 2026-10-27,
+        #   test26: "The local shouldnt be doing reading and thinking work like that")
+        first = None if self.cloud else getattr(self, "first_reader", None)
+        if kept["kind"] == "file" and len(kept["files"]) > 1 and callable(first):
             return f"saved {url} as {intake.labelled(self.root, kept['files'][0])}, its text as " \
-                f"{intake.labelled(self.root, kept['files'][1])}. " + self.first_reader(kept["files"][1], url, gid)
+                f"{intake.labelled(self.root, kept['files'][1])}. " + first(kept["files"][1], url, gid)
         if kept["kind"] == "file" and len(kept["files"]) > 1:  # a PDF: its text kept as a source beside it
             return (f"saved {url} as {intake.labelled(self.root, kept['files'][0])} ({len(data):,} bytes); its text "
-                    f"({kept['lines']} lines) is in {intake.labelled(self.root, kept['files'][1])} — or give it to your "
-                    "helper as an errand. It begins:\n"
+                    f"({kept['lines']} lines) is in {intake.labelled(self.root, kept['files'][1])}"
+                    + (": read it in parts. " if self.cloud else " — or give it to your helper as an errand. ")
+                    + "It begins:\n"
                     + kept["text"][:min(1200, self.obs_chars - 400)])
         if kept["kind"] == "file":
             return f"saved {url} as {intake.labelled(self.root, kept['files'][0])}, {len(data):,} bytes — in the project to use."
         if not kept["text"].strip():
             return (f"saved {url} as {', '.join(kept['files'])}, but its text is empty: the page as it came (.html) is "
                     "there for a script to read.")
-        first = getattr(self, "first_reader", None)
         if callable(first):  # team B: the junior reads it first and keeps notes; the senior directs from them
             return (f"saved {url} as {' and '.join(intake.labelled(self.root, f) for f in kept['files'])}, "
                     f"{kept['lines']} lines. " + first(kept["files"][0], url, gid))

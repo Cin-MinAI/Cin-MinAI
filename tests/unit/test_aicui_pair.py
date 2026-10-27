@@ -470,6 +470,26 @@ class PairTest(unittest.TestCase):
         with open(os.path.join(self.root, ".cinminai", "gathered", "1.json"), encoding="utf-8") as f:
             self.assertIn("I need the rules of the Battle Phase.", json.load(f)["intent"])  # read for what it was after
 
+    def test_a_cloud_lead_reads_what_it_fetches_itself(self):
+        """Ian, 2026-10-27 (test26, Haiku 5.5 leading the 9B): "it keeps dumping the rulebook reading off on the local
+        model … The local shouldnt be doing reading and thinking work like that." A cloud lead's fetch comes back to it,
+        and it has no distill to hand a source over; a local Senior keeps both."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        senior, junior, p = self.pair()
+        senior.cloud = True
+        senior.fetch_ok = True
+        senior.given("the rules: https://rules.example/rulebook")
+        with mock.patch.object(intake, "get", return_value=(b"<html><body><p>Battle Phase: each monster attacks once."
+                                                             b"</p></body></html>", "text/html")):
+            said = senior.do({"tool": "fetch", "url": "https://rules.example/rulebook"})
+        self.assertIn("Battle Phase: each monster attacks once.", said)
+        self.assertNotIn("Your junior reads it first", said)
+        self.assertEqual(p.out, 0)  # nothing went to the junior
+        self.assertIn("distill", senior.excluded())
+        senior.cloud = False
+        self.assertNotIn("distill", senior.excluded())
+
     def test_a_new_project_starts_with_the_plan_and_its_needs_come_first(self):
         """Ian, 2026-10-10 (test6): the Senior "didnt search, didnt use the junior, and didnt really make a plan" — it laid
         a skeleton and typed the card data from memory. The plan is a tool: the request as goals, each with what it
