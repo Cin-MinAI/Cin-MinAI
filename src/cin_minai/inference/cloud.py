@@ -264,18 +264,28 @@ def offered_openai(models: list) -> list:
 # of cache on every step, 77 % of a $3.92 stretch). Below the models' own windows, so a long task is still summed up
 # once in a while rather than read whole at every step (a cache read costs too).
 CLOUD_CONTEXT = 120_000
+# the models' own windows, where they're known (Anthropic's model table): AICUI works in the model's own context and
+# doesn't trim it (Ian, 2026-10-27: "let the clouds tools be used over ours unless theres something that verifiably
+# reduces token usage without affecting performance"); a model not listed keeps CLOUD_CONTEXT
+WINDOWS = {"claude-haiku-5-5": 1_000_000, "claude-sonnet-5-5": 1_000_000, "claude-opus-5-5": 1_000_000,
+           "claude-fable-5-1": 1_000_000}
 
 
-def backend(root: str, provider: str, model: str, context: int = CLOUD_CONTEXT):
+def window(model: str) -> int:
+    return WINDOWS.get(model, CLOUD_CONTEXT)
+
+
+def backend(root: str, provider: str, model: str, context: int = 0):
     """The cloud backend for a provider, its key read from the keyring at each call (never kept)."""
     from cin_minai.daemon import accounts
     cls = OpenAI if provider == "openai" else Anthropic
-    return cls(root, lambda: accounts.cloud_key(provider), model, context)
+    return cls(root, lambda: accounts.cloud_key(provider), model, context or window(model))
 
 
 def blocks(content) -> list[dict]:
-    """A message's content as Anthropic's blocks: text, and pictures (our image_url data: addresses) as images. No
-    empty text: Anthropic refuses it (2026-10-12: a command that printed nothing ended Haiku's run)."""
+    """A message's content as Anthropic's blocks: text, pictures (our image_url data: addresses) as images, and a PDF
+    (our file part) as a document, read whole, its pages' pictures too. No empty text: Anthropic refuses it
+    (2026-10-12: a command that printed nothing ended Haiku's run)."""
     if isinstance(content, str):
         content = [{"type": "text", "text": content}]
     out = []
@@ -284,6 +294,10 @@ def blocks(content) -> list[dict]:
             head, _, data = ((part.get("image_url") or {}).get("url") or "").partition(",")
             mime = head[5:].split(";")[0] if head.startswith("data:") else "image/jpeg"
             out.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}})
+        elif part.get("type") == "file":
+            data = ((part.get("file") or {}).get("file_data") or "").partition(",")[2]
+            out.append({"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
+                                                       "data": data}})
         elif part.get("type") == "text" and str(part.get("text") or "").strip():
             out.append({"type": "text", "text": str(part["text"])})
     return out or [{"type": "text", "text": "(nothing)"}]
@@ -618,7 +632,8 @@ class OpenAI(Anthropic):
     @staticmethod
     def shape_input(messages: list[dict], names: set | frozenset = frozenset()) -> tuple[str, list[dict]]:
         """Our messages as the Responses API's: the system text as instructions; each earlier step (our JSON) as the
-        function call it was, and the result after it as its function_call_output; pictures as input images."""
+        function call it was, and the result after it as its function_call_output; pictures as input images, a PDF
+        as an input file."""
         instructions = "\n\n".join(m["content"] for m in messages if m["role"] == "system" and
                                    isinstance(m["content"], str))
         items: list[dict] = []
@@ -646,7 +661,8 @@ class OpenAI(Anthropic):
             parts = [{"type": "text", "text": content}] if isinstance(content, str) else list(content or [])
             texts = "\n\n".join(str(p.get("text") or "") for p in parts if p.get("type") == "text").strip()
             pictures = [{"type": "input_image", "image_url": (p.get("image_url") or {}).get("url", "")}
-                        for p in parts if p.get("type") == "image_url"]
+                        for p in parts if p.get("type") == "image_url"] +                 [{"type": "input_file", "filename": (p.get("file") or {}).get("filename", "document.pdf"),
+                  "file_data": (p.get("file") or {}).get("file_data", "")} for p in parts if p.get("type") == "file"]
             if open_call:  # the answer to that call
                 said = texts[len("Result: "):] if texts.startswith("Result: ") else texts
                 items.append({"type": "function_call_output", "call_id": open_call, "output": said or "(nothing)"})

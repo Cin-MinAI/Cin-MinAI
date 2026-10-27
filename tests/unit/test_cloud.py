@@ -481,3 +481,16 @@ class ListedInputs(unittest.TestCase):
         self.assertEqual(cloud.listed({"sources": "sources/rules.txt"}, tools, "distill")["sources"],
                          ["sources/rules.txt"])  # one item, as it is
         self.assertEqual(cloud.listed({"sources": ["a"]}, tools, "distill")["sources"], ["a"])
+
+
+class PdfWhole(unittest.TestCase):
+    def test_a_pdf_goes_as_a_document(self):
+        """Ian, 2026-10-27 (test28): "Cloud models have their own tools to read pdfs"."""
+        part = {"type": "file", "file": {"filename": "rules.pdf", "file_data": "data:application/pdf;base64,JVBERi0="}}
+        doc = cloud.blocks([part, {"type": "text", "text": "The whole PDF, every page."}])
+        self.assertEqual(doc[0], {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
+                                                                 "data": "JVBERi0="}})
+        _, items = cloud.OpenAI.shape_input([{"role": "system", "content": "Distill."},
+                                             {"role": "user", "content": [part]}])
+        self.assertIn({"type": "input_file", "filename": "rules.pdf",
+                       "file_data": "data:application/pdf;base64,JVBERi0="}, items[0]["content"])

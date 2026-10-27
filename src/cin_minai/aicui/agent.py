@@ -16,6 +16,7 @@ matcher's coding model (D60); cloud backends come in a later slice.
 from __future__ import annotations
 
 import argparse
+import base64
 import difflib
 import hashlib
 import json
@@ -39,6 +40,8 @@ SAFETY_STEPS = 600     # the last resort: a runaway the stuck check didn't see
 NUDGE_STEPS = 6        # steps without progress before a note says so (the one progress rule; PLAN §1b closure 3)
 READ_LINES = 80        # a read fits one result (OBS_CHARS) with its "more lines" note
 OBS_CHARS = 3000       # what one tool result may add to the context (8K on an 11 GB card)
+CLOUD_READ_LINES = 2000   # a cloud model's read: a whole file, as its own tools read one
+CLOUD_OBS_CHARS = 120_000  # and a result's room: a long file or a command's output whole (about 30K tokens)
 LIST_ENTRIES = 150     # a listing shows the whole folder, files inside its folders too, up to this many
 RUN_TIMEOUT = 120
 ANSWER_TOKENS = 1800   # room for one step's answer at 8K (thinking + an action); 16K gets 4096 (see Agent)
@@ -144,6 +147,7 @@ GOAL_TOOLS = {"solo": ("- goal_add / goal_done / goal_reopen / goal_remove (the 
                          "goal_done (tick goal `id` when it's done) / goal_reopen (`id`, `why`: untick one that isn't) / "
                          "goal_remove (one you added, not the person's)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
+PDF_WHOLE_MAX = 22_000_000  # a PDF a cloud model reads whole: base64 adds a third, under Anthropic's 32 MB request
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
 DISTILL_PART = """You distill for this intent: {intent}
 From the part below only ({source}, part {n} of {total}), extract every item the intent asks for, exactly as it
@@ -952,7 +956,7 @@ class Agent:
         self.ask = lambda prompt: _asked(ask, prompt)  # one question at a time, whichever agent asks
         self.raw_ask = ask
         self.role = "solo"  # "senior" / "junior" in style B (pair.py); solo and style A use the coder's tools
-        self.cloud = False  # a cloud model works this agent (set where it starts): no 15-step stop, its budget holds it
+        self._cloud = False  # a cloud model works this agent (set where it starts): no 15-step stop, its budget holds it
         self.tick = tick  # tick(text): the terminal's progress line while a step is generated
         self.goals, self.log = Goals(root), Changelog(root)
         self.history: list[dict] = []   # earlier turns: the user's message and the final answer
@@ -964,6 +968,19 @@ class Agent:
         self.bwrap = shutil.which("bwrap") is not None
         self.xvfb = shutil.which("Xvfb") is not None  # a virtual screen for the commands (with_screen)
         self.sandbox = self.bwrap and mode != "none"
+
+    @property
+    def cloud(self) -> bool:
+        return self._cloud
+
+    @cloud.setter
+    def cloud(self, on: bool) -> None:
+        """A cloud model reads as much as it asks for, as its own tools do (Claude Code reads 2,000 lines): the read
+        and output caps are a local model's, sized to its small context (Ian, 2026-10-27: the cloud's tools over ours)."""
+        self._cloud = bool(on)
+        if on:
+            self.read_lines = max(self.read_lines, CLOUD_READ_LINES)
+            self.obs_chars = max(self.obs_chars, CLOUD_OBS_CHARS)
 
     def seat(self) -> str:
         """Who this agent is on the project: its seat's name at a table or crew, else its role (a draft is its
@@ -1191,6 +1208,7 @@ class Agent:
                 else:
                     lines.append(f"- {brief(s['did'])} → {s['result'][:100]}")
             messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(lines)})
+        shown = [i for i, s in enumerate(steps) if s.get("picture")][-3:]  # a cloud model's last three looks
         for i, s in enumerate(steps[len(older):], len(older)):
             if "note" in s:  # a step that went wrong: said as it was, never as an action the model might copy
                 messages.append({"role": "user", "content": s["note"]})
@@ -1200,7 +1218,13 @@ class Agent:
             if i < lite and s["did"].get("action", {}).get("tool") == "read":
                 result = ("(shortened to its map to save room — read the lines you need again)\n"
                           + outline(result))
-            messages.append({"role": "user", "content": "Result: " + result})
+            content = "Result: " + result
+            if i in shown and os.path.isfile(s["picture"]):
+                from cin_minai.daemon.vision import picture
+                mime, data = picture(s["picture"])
+                content = [{"type": "text", "text": content},
+                           {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}]
+            messages.append({"role": "user", "content": content})
         return messages
 
     def fit(self, text: str, steps: list[dict]) -> list[dict]:
@@ -1210,8 +1234,9 @@ class Agent:
         changed every step and the server re-read the whole prompt each time (2026-10-03, 75 s a step at 12.8K)."""
         budget = (self.ctx - self.answer_tokens - 300) * self.cpt
 
-        def size(m):
-            return sum(len(x["content"]) for x in m)
+        def size(m):  # a picture counts as ~1,500 tokens' worth
+            return sum(len(x["content"]) if isinstance(x["content"], str) else
+                       sum(len(p.get("text", "")) if p.get("type") == "text" else 4500 for p in x["content"]) for x in m)
         m = self.messages(text, steps, self.cut, self.lite)
         if size(m) <= budget:
             return m
@@ -1581,6 +1606,8 @@ class Agent:
             self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
+            if getattr(self, "seen_picture", None):  # a cloud model's look: the picture goes with the result
+                steps[-1]["picture"], self.seen_picture = self.seen_picture, None
             dump = getattr(self, "dump_context", None)
             if dump:  # LFD (Ian, 2026-10-10): the context dumped, the summary kept, the plan next
                 self.dump_context = None
@@ -1990,16 +2017,27 @@ class Agent:
         if len(intent) < 6:
             return "error: say what to extract (the intent), e.g. \"each card's name, type, ATK and DEF\""
         base = os.path.realpath(self.root)
-        files, missing = [], []
+        files, missing, whole = [], [], {}
         for src in sources[:12]:
             full = os.path.realpath(os.path.join(base, str(src)))
             if full.lower().endswith((".html", ".htm")) and os.path.isfile(os.path.splitext(full)[0] + ".txt"):
                 full = os.path.splitext(full)[0] + ".txt"  # the page's text, with its pictures and links listed
-            if full.lower().endswith(".pdf") and not os.path.isfile(full + ".txt"):
-                twin = os.path.join(base, "sources", os.path.splitext(os.path.basename(full))[0] + ".txt")
-                full = twin if os.path.isfile(twin) else full
+            if full.lower().endswith(".pdf") and full.startswith(base + os.sep) and os.path.isfile(full):
+                twin = intake.text_twin(base, os.path.relpath(full, base))
+                if self.cloud and os.path.getsize(full) <= PDF_WHOLE_MAX:
+                    # a cloud model reads a PDF itself, whole, its pictures too (Ian, 2026-10-27, test28: "Cloud
+                    #   models have their own tools to read pdfs"); its text is the fallback
+                    whole[os.path.join(base, twin) if twin else full] = full
+                    files.append(os.path.join(base, twin) if twin else full)
+                    continue
+                if not twin:
+                    missing.append(f"{src}: a PDF with no text in it (scanned pages: look at them instead)")
+                    continue
+                full = os.path.join(base, twin)
             if not full.startswith(base + os.sep) or not os.path.isfile(full):
                 missing.append(str(src))
+            elif intake.is_binary(full):
+                missing.append(f"{src}: not a text file")
             else:
                 files.append(full)
         if fmt == "files" and not into:
@@ -2025,10 +2063,20 @@ class Agent:
         part_chars = max(3000, min(12000, self.ctx * 3 // 4))
         items, texts, used, dropped = [], [], [], 0
         for full in files:
-            rel = os.path.relpath(full, base).replace(os.sep, "/")
-            with open(full, encoding="utf-8", errors="replace") as f:
-                text = f.read()
+            pdf = whole.get(full)
+            text = ""
+            if full != pdf:
+                with open(full, encoding="utf-8", errors="replace") as f:
+                    text = f.read()
             parts = [text[i:i + part_chars] for i in range(0, len(text), part_chars)] or [""]
+            if pdf:  # the PDF itself, in one part; if the provider won't take it, its text in parts as before
+                with open(pdf, "rb") as f:
+                    doc = [{"type": "file", "file": {"filename": os.path.basename(pdf), "file_data":
+                            "data:application/pdf;base64," + base64.b64encode(f.read()).decode()}},
+                           {"type": "text", "text": "The whole PDF, every page."}]
+                text_parts, parts = parts if text else [], [doc]
+                full = pdf
+            rel = os.path.relpath(full, base).replace(os.sep, "/")
             used.append({"path": rel, "from": intake.origins(self.root).get(rel, {}).get("from", "the project"),
                          "parts": len(parts)})
             for n, part in enumerate(parts, 1):
@@ -2044,6 +2092,10 @@ class Agent:
                                            "items": {"type": "array", "items": {"type": "object"}}}}
                                        if fmt != "text" else None, max_tokens=self.answer_tokens)
                 except Exception as e:
+                    if pdf and isinstance(part, list) and text_parts:  # refused whole (too many pages): its text
+                        parts.extend(text_parts)
+                        text_parts = []
+                        continue
                     return f"error: the model couldn't distill {rel} ({type(e).__name__}); nothing was kept"
                 if fmt != "text":
                     try:
@@ -2447,12 +2499,31 @@ class Agent:
         if os.path.exists(full(base + "-2.png")):
             facts["motion"] = look.motion(full(base + ".png"), full(base + "-2.png"))
         problems = look.checks(facts)
-        answer = self.ask_picture(full(base + ".png"), facts, question) if question else ""
+        if self.cloud:  # a cloud model sees the picture itself, in its next step, at full detail (Ian, 2026-10-27:
+            # "let the clouds tools be used over ours"; test28: the side call's 300-token answer came back cut off and
+            # Haiku looked twice)
+            self.seen_picture = self.window_crop(full(base + ".png"), facts)
+            answer = "the picture is with this result: look at it for your question"
+        else:
+            answer = self.ask_picture(full(base + ".png"), facts, question) if question else ""
         facts.update(problems=problems, answer=answer)
         look.save(self.root, base, facts)
         self.last_look = facts
         self.event("look", picture=full(base + ".png"), target=target, problems=problems[:5])
         return look.report(facts, problems, answer)
+
+    @staticmethod
+    def window_crop(path: str, facts: dict) -> str:
+        """A program's look: its own window, at full detail; anything else as it was taken."""
+        wins = [w for w in facts.get("windows", []) if facts.get("program")]
+        if not wins:
+            return path
+        from PIL import Image
+        w = wins[0]
+        crop = path[:-4] + "-window.png"
+        with Image.open(path) as im:
+            im.crop((max(0, w["x"]), max(0, w["y"]), w["x"] + w["width"], w["y"] + w["height"])).save(crop)
+        return crop
 
     def ask_picture(self, path: str, facts: dict, question: str) -> str:
         """The one question, to whichever model here reads pictures (AICUI hands one in as `reader`)."""
@@ -2462,15 +2533,7 @@ class Agent:
             return ""
         try:
             from cin_minai.daemon.vision import picture
-            crop = path
-            wins = [w for w in facts.get("windows", []) if facts.get("program")]
-            if wins:  # the program's own window, at full detail
-                from PIL import Image
-                w = wins[0]
-                crop = path[:-4] + "-window.png"
-                with Image.open(path) as im:
-                    im.crop((max(0, w["x"]), max(0, w["y"]), w["x"] + w["width"], w["y"] + w["height"])).save(crop)
-            mime, data = picture(crop)
+            mime, data = picture(self.window_crop(path, facts))
             known = "; ".join(look.checks(facts)) or "none"
             m = facts.get("motion") or {}
             if "moved" in m:
@@ -2565,6 +2628,13 @@ class Agent:
                 full = self.path(a["path"])
                 if full.lower().endswith(intake.PICTURE_EXT[:-1]):  # 2026-10-12: screenshots read as text
                     return f"{a['path']} is a picture: look at it (target picture, address {a['path']}) with your question"
+                if full.lower().endswith(".pdf") and os.path.isfile(full):  # its text, not its bytes (test28)
+                    twin = intake.text_twin(self.root, os.path.relpath(full, self.root))
+                    if not twin:
+                        return f"{a['path']} is a PDF with no text in it (scanned pages): look at its pages instead"
+                    return self.do({**a, "path": twin})
+                if os.path.isfile(full) and intake.is_binary(full):
+                    return f"{a['path']} isn't a text file, so it can't be read; a script can open it"
                 rel = os.path.relpath(full, self.root).replace(os.sep, "/")
                 draft = self.draft_path(rel)
                 note = ""

@@ -618,6 +618,67 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
         self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
 
+    def test_a_pdf_the_person_put_in_is_read_as_its_text(self):
+        """2026-10-27 (test28): Ian put the rulebook PDF in assets/; with no text copy beside it, Haiku 5.5's distill
+        read the PDF's raw bytes in 272 parts."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        os.makedirs(os.path.join(self.root, "assets"))
+        with open(os.path.join(self.root, "assets", "rules.pdf"), "wb") as f:
+            f.write(b"%PDF-1.4\n\0\0\x93binary")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        with mock.patch.object(intake, "pdf_text", return_value="Battle Phase: each monster attacks once.\n") as made:
+            self.assertIn("Battle Phase: each monster attacks once.", a.do({"tool": "read", "path": "assets/rules.pdf"}))
+            a.chat = lambda messages, **kw: ("## sources/rules.txt\nBattle Phase: each monster attacks once.", {})
+            said = a.distill_now(["assets/rules.pdf"], "the Battle Phase rules", "notes/rules.md", "text")
+        self.assertEqual(made.call_count, 1)  # made once, kept as sources/rules.txt
+        self.assertIn("sources/rules.txt", said)
+        with open(os.path.join(self.root, "notes", "rules.md"), encoding="utf-8") as f:
+            self.assertIn("each monster attacks once", f.read())
+        with open(os.path.join(self.root, "assets", "scan.pdf"), "wb") as f:
+            f.write(b"%PDF-1.4\n\0\0")
+        with mock.patch.object(intake, "pdf_text", return_value=""):
+            self.assertIn("no text in it", a.do({"tool": "read", "path": "assets/scan.pdf"}))
+            self.assertIn("no text in it", a.distill_now(["assets/scan.pdf"], "the Battle Phase rules"))
+        with open(os.path.join(self.root, "assets", "game.bin"), "wb") as f:
+            f.write(b"\0\1\2")
+        self.assertIn("isn't a text file", a.do({"tool": "read", "path": "assets/game.bin"}))
+
+    def test_a_cloud_model_reads_a_pdf_whole(self):
+        """Ian, 2026-10-27 (test28): "Cloud models have their own tools to read pdfs." One call with the PDF itself, not
+        its text in parts; when the provider won't take it whole, its text as before."""
+        from unittest import mock
+        from cin_minai.aicui import intake
+        os.makedirs(os.path.join(self.root, "assets"))
+        with open(os.path.join(self.root, "assets", "rules.pdf"), "wb") as f:
+            f.write(b"%PDF-1.4\n\0\0")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.cloud = True
+        sent = []
+
+        def chat(messages, **kw):
+            sent.append(messages)
+            return "Battle Phase: each monster attacks once.", {}
+        a.chat = chat
+        with mock.patch.object(intake, "pdf_text", return_value="Battle Phase text. " * 2000):
+            said = a.distill_now(["assets/rules.pdf"], "the Battle Phase rules", "notes/rules.md", "text")
+        self.assertEqual(len(sent), 1)  # one call, the whole PDF
+        part = sent[0][1]["content"][0]
+        self.assertEqual(part["type"], "file")
+        self.assertTrue(part["file"]["file_data"].startswith("data:application/pdf;base64,"))
+        self.assertIn("assets/rules.pdf", said)
+        sent.clear()
+
+        def refusing(messages, **kw):
+            sent.append(messages)
+            if isinstance(messages[1]["content"], list):
+                raise RuntimeError("too many pages")
+            return "Battle Phase: each monster attacks once.", {}
+        a.chat = refusing
+        said = a.distill_now(["assets/rules.pdf"], "the Battle Phase rules", "notes/rules2.md", "text")
+        self.assertGreater(len(sent), 2)  # refused whole, then its text in parts
+        self.assertIn("distilled", said)
+
     def test_in_autopilot_a_question_doesnt_stop_the_work(self):
         """Ian, 2026-10-27 (test27): Haiku 5.5 stopped twice to ask the starter decks' copy counts, the second time two
         minutes after "continue until all goals are checked", saying it would keep working on the rest."""
@@ -691,6 +752,28 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(big.cut, 0)
         mid.fit("go", steps)
         self.assertGreater(mid.cut, 0)
+
+    def test_a_cloud_model_works_with_its_own_window_reads_and_eyes(self):
+        """Ian, 2026-10-27: "let the clouds tools be used over ours unless theres something that verifiably reduces
+        token usage without affecting performance" — the model's own window, whole reads, and the picture itself
+        (test28: look's 300-token side answer came back cut off and Haiku looked twice)."""
+        from cin_minai.inference import cloud
+        self.assertEqual(cloud.window("claude-haiku-5-5"), 1_000_000)
+        self.assertEqual(cloud.window("some-other-model"), cloud.CLOUD_CONTEXT)
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=cloud.window("claude-haiku-5-5"))
+        local = (a.read_lines, a.obs_chars)
+        a.cloud = True
+        self.assertGreaterEqual(a.read_lines, 2000)
+        self.assertGreater(a.obs_chars, local[1])
+        shot = os.path.join(self.root, "shot.png")
+        with open(shot, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+        steps = [{"did": step("See it.", tool="look", target="program", question="Is the board centered?"),
+                  "result": "the picture is with this result", "picture": shot}]
+        a.sys = "rules"
+        content = a.fit("go", steps)[-1]["content"]
+        self.assertEqual(content[0]["text"], "Result: the picture is with this result")
+        self.assertTrue(content[1]["image_url"]["url"].startswith("data:image/"))
 
     def test_an_absolute_path_is_checked_as_the_project_names_it(self):
         """2026-10-26 (test16): /home/…/gui/sound_manager.py slipped past goal 7's needs lock (the short name didn't)."""

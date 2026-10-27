@@ -211,6 +211,34 @@ def pdf_text(path: str) -> str:
     return out.stdout.decode("utf-8", errors="replace") if out.returncode == 0 else ""
 
 
+def text_twin(root: str, rel: str) -> str:
+    """A PDF in the project, as its text: sources/<name>.txt, made the first time it's needed (a fetched PDF has it
+    already; one the person put in assets/ didn't — 2026-10-27, test28: the rulebook's raw bytes were distilled in
+    272 parts). "" when the PDF holds no text."""
+    name = os.path.splitext(os.path.basename(rel))[0] + ".txt"
+    for twin in (os.path.join("sources", name), rel + ".txt"):
+        if os.path.isfile(os.path.join(root, twin)):
+            return twin.replace(os.sep, "/")
+    text = pdf_text(os.path.join(root, rel))
+    if not text.strip():
+        return ""
+    twin = os.path.join("sources", name).replace(os.sep, "/")
+    os.makedirs(os.path.join(root, "sources"), exist_ok=True)
+    with open(os.path.join(root, twin), "w", encoding="utf-8") as f:
+        f.write(f"From {rel} ({time.strftime('%Y-%m-%d')}) — the text of a PDF in the project.\n{text}")
+    record_origin(root, twin, rel, "the text of " + rel)
+    return twin
+
+
+def is_binary(path: str) -> bool:
+    """A file that isn't text (a PDF, an archive, a program): read as text it's noise."""
+    try:
+        with open(path, "rb") as f:
+            return b"\0" in f.read(4096)
+    except OSError:
+        return False
+
+
 def person_inputs(text: str, root: str, pasted_lines: int = 8) -> list[dict]:
     """What the person brought in their message: links, the project's own files they name, and pasted material
     (a block of lines). [{"kind": "link"|"file"|"pasted", "value"}] — each must be used first (the move contract)."""
