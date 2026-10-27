@@ -113,7 +113,7 @@ ACTIONS = [
             "files": {"type": "array", "items": STR, "maxItems": 12}, "who": {"enum": ["senior", "junior"]}}}}},
     {"tool": "assign", "path": STR, "task": STR, "kind": {"enum": ["write", "fix", "check", "test"]}, "to": STR,
      "also": {"type": "array", "items": STR, "maxItems": 8}},
-    {"tool": "follow_up", "n": {"type": "integer"}, "note": STR},
+    {"tool": "follow_up", "n": {"type": "integer"}, "note": STR, "also": {"type": "array", "items": STR, "maxItems": 6}},
     {"tool": "brief", "files": {"type": "array", "items": STR, "minItems": 1, "maxItems": 20}, "question": STR,
      "to": STR},
     {"tool": "lfd", "focus": STR},
@@ -148,6 +148,8 @@ GOAL_TOOLS = {"solo": ("- goal_add / goal_done / goal_reopen / goal_remove (the 
                          "goal_remove (one you added, not the person's)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
 PDF_WHOLE_MAX = 22_000_000  # a PDF a cloud model reads whole: base64 adds a third, under Anthropic's 32 MB request
+HOLDS = "HOLDS: "  # a check line that keeps a goal open; the rest are only said (2026-10-27, test28: Haiku took a
+SAID = "(said) "   # record line for the hold, rebuilt the file twice and asked the person, while a blank window held it)
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
 DISTILL_PART = """You distill for this intent: {intent}
 From the part below only ({source}, part {n} of {total}), extract every item the intent asks for, exactly as it
@@ -310,7 +312,7 @@ itself is never in it), its `files`, and `who` does it (you, or the junior).
 The person sees it once. Fetch a goal's needs with `goal` N; the junior's goals go to it once their needs are in, or
 give it one file with assign (`path`, `task`, `kind`). Its results come between your steps: review_task (`n`,
 `accept`, `note`); a task that's taking long gets a progress report: let it work, or direct it with follow_up (`n`,
-`note`). It reads ~25x faster than you: brief (`files`, `question`) has it read files and answer you; lfd (`focus`,
+`note`, `also`). It reads ~25x faster than you: brief (`files`, `question`) has it read files and answer you; lfd (`focus`,
 Large File Distillation) has you both summarize every file of a project you don't have in mind, then you plan from
 the summary. Its questions (may it change a file, run a command) come to you too: permit (`n`, `allow`), or leave
 them to the person. Pages you fetch go to the junior first; its notes come to you. Tasks out, nothing else to do:
@@ -333,7 +335,7 @@ yourself (your context holds them);
 a goal that needs a source understood is yours. Their results come between your
 steps, with what changed and AICUI's own start of the program: judge from those, review_task (`n`, `accept`, `note`)
 — don't re-check by hand what a result already shows. A long task gets a progress report: let it work, or direct it with
-follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
+follow_up (`n`, `note`; `also`: files to add to it). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
 else of yours to do: wait (until their next result comes back; waiting costs nothing, each check costs a call) —
 never ask the person how their work is going. You have the final word."""
 
@@ -346,7 +348,7 @@ its tests and report what fails: it changes no file — tests to add are a write
 other files the same task may change, new ones included — a seat changes only the files its task holds, so name every
 file the work needs), brief (`files`, `question`, `to`): a seat in AICUI reads files and answers you. The goals on the paper may be assigned to seats already: they go to their seat once their
 needs are in. Results come between your steps: review_task (`n`, `accept`, `note`); a long task gets a progress
-report: let it work, or direct it with follow_up (`n`, `note`). The table also talks, one speaker at a time: say
+report: let it work, or direct it with follow_up (`n`, `note`; `also`: files to add to it). The table also talks, one speaker at a time: say
 (`text`) when you have something for everyone, pass_floor (`to` a seat) to let one answer; what's said comes to you
 between steps. Keep talk short: work goes in tasks. With tasks out and nothing else of yours to do: wait. You have the
 final word, the person above you."""
@@ -933,6 +935,52 @@ def line_count(full: str) -> str:
     return f" ({data.count(b'\n') + (not data.endswith(b'\n') and bool(data))} lines)"
 
 
+def starts(root: str, entry: str) -> str:
+    """What the entry point runs, said with a blank or stopped window (2026-10-27, test28: run.sh built and ran the C++
+    console engine, the GUI was never started, and Haiku took "the picture is blank" for a question for the person)."""
+    if not entry.endswith(".sh"):
+        return f"{entry} is what the Run button starts: is the window opened from it?"
+    try:
+        with open(os.path.join(root, entry), encoding="utf-8", errors="replace") as f:
+            cmds = [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+    except OSError:
+        return ""
+    return (f"{entry} runs: {' / '.join(cmds[-3:])[:200]}. If the window is another program, make {entry} start it")
+
+
+MAINS = ("main.py", "app.py", "gui.py", "__main__.py")  # a program's own start, when it has a main
+
+
+def unstarted(root: str, entry: str | None, files: list) -> str:
+    """A goal's program (a main.py with a main) that the entry point never reaches, said; "" when there's none."""
+    if not entry:
+        return ""
+    try:
+        with open(os.path.join(root, entry), encoding="utf-8", errors="replace") as f:
+            start = f.read()
+    except OSError:
+        return ""
+    out = []
+    for rel in dict.fromkeys(f for f in files if f):
+        if rel == entry or os.path.basename(rel) not in MAINS or os.sep + "test" in os.sep + rel:
+            continue
+        try:
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
+                if "__main__" not in f.read():
+                    continue
+        except OSError:
+            continue
+        module = os.path.splitext(rel)[0].replace("/", ".")
+        package = os.path.dirname(rel).replace("/", ".")
+        if rel in start or module in start or (package and re.search(rf"\b(from|import)\s+{re.escape(package)}\b", start)):
+            continue
+        out.append(rel)
+    if not out:
+        return ""
+    return (f"{', '.join(out)} has a main, but {entry} doesn't start it: the person's Run button won't reach it — "
+            f"make {entry} start it")
+
+
 class Agent:
     def __init__(self, root: str, chat, model_name: str, mode: str = "ask", admin: bool = False,
                  ask=input, say=print, ctx: int = 8192, tick=None) -> None:
@@ -1484,8 +1532,14 @@ class Agent:
             hook = getattr(self, "each_step", None)
             if callable(hook):
                 hook()  # team B: a junior goal whose needs came in goes to the junior
+            before = len(steps)
             if self.deliver(steps):  # the helper's answers, as soon as they're back; a brief or a record: progress
                 last_progress = n
+            if n == 1 and len(steps) > before and self.role != "junior" and not text.startswith(WAKE):
+                # the person's words come before what was waiting (Ian, 2026-10-27, test28: his "the ruling book must
+                # be used" came the same second as a junior's stuck report, and Haiku took up the report)
+                self.note(steps, "The person's message comes first: act on it before the results above.\n"
+                                 f"The person said: {text[-1500:]}")
             try:
                 raw, t = self.generate(self.fit(text, steps), n, cancel)
             except Exception as e:  # too long after all, or the server failed: compact harder once, else say so
@@ -2593,7 +2647,9 @@ class Agent:
                 fn = getattr(self, "follow_up_fn", None)
                 if not callable(fn):
                     return "no junior is working with you here"
-                return fn(int(a.get("n") or 0), str(a.get("note", "")))
+                also = [str(f) for f in a.get("also") or [] if f]
+                return fn(int(a.get("n") or 0), str(a.get("note", "")), also) if also else \
+                    fn(int(a.get("n") or 0), str(a.get("note", "")))
             if t in ("assign", "review_task"):  # style B's Senior (pair.py)
                 if t == "assign":
                     self.junior_asks = None  # its question answered in the new task
@@ -2798,9 +2854,8 @@ class Agent:
                 if not ok:  # the user can still tick it by hand in AICUI
                     # which line holds it, said (2026-10-25, test16: a record "changed since it was compiled" is only
                     # said; Haiku took it for the hold and asked the person twice, while untested data files held it)
-                    return (f"goal {a['id']} NOT ticked — held by what fails below (a test that fails, a crash in its "
-                            "files, data no test reads); the other lines are only said:\n"
-                            f"{report}\nFix what holds it, then tick the goal again.")
+                    return (f"goal {a['id']} NOT ticked — held only by the lines marked HOLDS below; the other lines "
+                            f"are only said and need nothing:\n{report}\nFix what holds it, then tick the goal again.")
                 self.goals.set_done(int(a["id"]), True)
                 self.event("goals")
                 return f"goal {a['id']} ticked. Checks:\n{report}"
@@ -3079,7 +3134,8 @@ class Agent:
                 with open(os.path.join(self.root, rel), encoding="utf-8") as f:
                     now = f.read()
             except (OSError, ValueError):
-                out.append(f"{rel}: compiled from gathered record {n}, but the file or its record is gone")
+                out.append(SAID + f"{rel}: compiled from gathered record {n}, but the file or its record is gone "
+                           "(nothing to do if it was removed on purpose)")
                 continue
             if record.get("format") not in ("json", "files"):
                 continue
@@ -3093,8 +3149,8 @@ class Agent:
                 have = next(v for v in have.values() if isinstance(v, list))  # {"cards": [...]}: the list inside
             head = f"{rel}: compiled from gathered record {n} ({srcs}) — "
             if not isinstance(have, list):
-                out.append(head + f"not a list any more ({len(want)} items in the record): changed since it was "
-                           "compiled (if on purpose, say why; else distill it again)")
+                out.append(SAID + head + f"not a list any more ({len(want)} items in the record): changed since it "
+                           "was compiled (if on purpose, nothing to do; else distill it again)")
                 continue
             diff = compare_items(want, have)
             if record.get("format") == "files":  # each picture or file the index names, still in the project
@@ -3102,9 +3158,10 @@ class Agent:
                         and not os.path.isfile(os.path.join(self.root, str(it["file"])))]
                 if gone:
                     diff.append(f"{len(gone)} files gone ({', '.join(gone[:4])})")
-            out.append(head + (f"{len(want)} items, as distilled" if not diff else
-                               f"{len(have)} items now, {len(want)} in the record: changed since it was compiled — "
-                               + "; ".join(diff) + " (if on purpose, say why; else distill it again)"))
+            out.append(SAID + head + (f"{len(want)} items, as distilled" if not diff else
+                                      f"{len(have)} items now, {len(want)} in the record: changed since it was "
+                                      "compiled — " + "; ".join(diff) + " (if on purpose, nothing to do; else distill "
+                                      "it again)"))
         return out
 
     def verify(self, goal: dict | None = None) -> tuple[bool, str]:
@@ -3125,7 +3182,7 @@ class Agent:
         for rel in tests[:6]:  # pytest style without pytest: run as a script it only defines its tests, "passed"
             passed, line = self.run_test(rel)
             ok &= bool(passed)
-            lines.append(line)
+            lines.append(line if passed else HOLDS + line)
         entry = entry_point(self.root)
         if entry and entry.endswith(".html"):  # a web page: its tags were checked when it changed
             entry = None
@@ -3134,28 +3191,33 @@ class Agent:
             code, out = self.execute(f"timeout 5 {how}", 30, self.bwrap)
             started = code in (0, 124)  # 124: still running after 5 s — a program with a window or a main loop
             ok &= started
-            lines.append(f"{entry}: " + ("started" + (" and kept running" if code == 124 else " and finished")
-                                         if started else f"CRASHED (exit {code})\n" + out[-800:]))
+            lines.append(f"{entry}: started" + (" and kept running" if code == 124 else " and finished") if started
+                         else HOLDS + f"{entry}: CRASHED (exit {code})\n" + out[-800:])
         page = next((rel for rel, is_dir, _ in tree(self.root) if not is_dir and not kept_material(rel, self.root)
                      and rel.lower().endswith((".html", ".htm")) and rel.count(os.sep) <= 2), None)
         if page:  # a web page: its tags, and the names its CSS and script use
             problems = [p for p in (check_file(os.path.join(self.root, page)), web_names(self.root)) if p]
             ok &= not problems
-            lines.append(f"{page} and its CSS/JS: " + ("names and tags line up" if not problems else
-                                                      "PROBLEMS: " + "; ".join(problems)))
+            lines.append(f"{page} and its CSS/JS: names and tags line up" if not problems else
+                         HOLDS + f"{page} and its CSS/JS: PROBLEMS: " + "; ".join(problems))
         if entry and not entry.endswith((".html", ".htm")) and shutil.which("Xvfb"):
             self.look("program", "", entry)  # what it shows, at the person's screen: facts by code, no model needed
             seen = getattr(self, "last_look", {}) or {}
             if seen.get("windows") or seen.get("problems"):
                 bad = [p for p in seen.get("problems", []) if "runs off" in p or "blank" in p or "stopped" in p]
                 ok &= not bad
-                lines.append(f"{entry} as seen ({seen.get('picture_path', '')}): " +
-                             ("; ".join(seen.get("problems", [])) or "fits the screen, something drawn"))
+                lines.append((HOLDS if bad else "") + f"{entry} as seen ({seen.get('picture_path', '')}): " +
+                             ("; ".join(seen.get("problems", [])) or "fits the screen, something drawn")
+                             + (" — " + starts(self.root, entry) if bad else ""))
+        unreached = unstarted(self.root, entry, [f for g in self.goals.load() for f in g.get("files") or []])
+        if unreached:  # see verify_goal (test28)
+            ok = False
+            lines.append(HOLDS + unreached)
         lines += self.compiled_check()  # GatheredData: data files against the records they were compiled from
         if not tests and not page:  # a start alone proves little (2026-10-08: run.sh built the C++, found no pygame,
             # printed how to install it and exited 0 — and the engine goal was ticked with nothing testing its rules)
             ok = False
-            lines.append("no tests: a goal is ticked when tests of what it promises pass — write test_*.py first")
+            lines.append(HOLDS + "no tests: a goal is ticked when tests of what it promises pass — write test_*.py first")
         return ok, "\n".join(lines)
 
     def test_files(self) -> list[str]:
@@ -3191,7 +3253,7 @@ class Agent:
         for rel in mine[:6]:
             passed, line = self.run_test(rel)
             ok &= bool(passed)
-            lines.append(line)
+            lines.append(line if passed else HOLDS + line)
         if not mine:
             lines.append("no test names this goal's files yet (said, not held against it; the last goal open needs "
                          "tests that pass)")
@@ -3203,7 +3265,7 @@ class Agent:
                 lines.append(f"{entry}: started" + (" and kept running" if code == 124 else " and finished"))
             elif any(f in out for f in files) or entry in files:
                 ok = False
-                lines.append(f"{entry}: CRASHED in this goal's files (exit {code})\n" + out[-800:])
+                lines.append(HOLDS + f"{entry}: CRASHED in this goal's files (exit {code})\n" + out[-800:])
             else:
                 lines.append(f"{entry}: stopped (exit {code}), not in this goal's files — said for the last goal:\n"
                              + out[-300:])
@@ -3211,8 +3273,13 @@ class Agent:
         if page and os.path.exists(os.path.join(self.root, page)):
             problems = [p for p in (check_file(os.path.join(self.root, page)), web_names(self.root)) if p]
             ok &= not problems
-            lines.append(f"{page} and its CSS/JS: " + ("names and tags line up" if not problems else
-                                                      "PROBLEMS: " + "; ".join(problems)))
+            lines.append(f"{page} and its CSS/JS: names and tags line up" if not problems else
+                         HOLDS + f"{page} and its CSS/JS: PROBLEMS: " + "; ".join(problems))
+        unreached = unstarted(self.root, entry, files)
+        if unreached:  # a program the goal made that the Run button never reaches (2026-10-27, test28: the GUI goal was
+            # ticked with gui/main.py written, while run.sh only started the C++ console engine)
+            ok = False
+            lines.append(HOLDS + unreached)
         lines += self.compiled_check()
         return ok, "\n".join(lines)
 

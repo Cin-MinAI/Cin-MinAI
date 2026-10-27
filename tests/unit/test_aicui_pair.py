@@ -670,6 +670,33 @@ class PairTest(unittest.TestCase):
         self.assertIn("isn't with your junior", senior.do({"tool": "follow_up", "n": 9, "note": "Do it differently."}))
         self.assertIn("follow_up (`n`,", senior.system())
 
+    def test_a_follow_up_can_add_a_file_to_the_task(self):
+        """2026-10-27 (test28): Haiku told the junior "you may now create engine/tests/engine_test.cpp too (it is part of
+        this task)"; the task couldn't change that file, the junior was refused twice and stopped after 15 steps."""
+        senior, junior, p = self.pair(junior_steps=[
+            step("Write the new test.", tool="write", path="tests/test_draw.py", content="import rules\n"),
+            step("", tool="answer", text="Done: tests/test_draw.py.")])
+        import threading
+        gate = threading.Event()
+        work = junior.work
+        junior.work = lambda text, cancel: (gate.wait(10), work(text, cancel))[1]
+        senior.do({"tool": "assign", "path": "rules.py", "task": "fill in draw(): take the top card" + DETAIL,
+                   "kind": "write"})
+        for _ in range(100):
+            if p.running:
+                break
+            time.sleep(0.05)
+        said = senior.do({"tool": "follow_up", "n": 2, "note": "Write its test too, in tests/test_draw.py.",
+                          "also": ["tests/test_draw.py"]})
+        self.assertIn("sent to your junior", said)
+        self.assertIn("is held by your junior's task 2", senior.do({"tool": "write", "path": "tests/test_draw.py",
+                                                                  "content": "x = 1\n"}))
+        gate.set()
+        self.wait(p)
+        self.assertTrue(os.path.isfile(os.path.join(self.root, "tests", "test_draw.py")))
+        self.assertIn("isn't with your junior", senior.do({"tool": "follow_up", "n": 2, "note": "And one more file.",
+                                                           "also": ["more.py"]}))
+
     def test_large_file_distillation_meets_in_the_middle_then_the_senior_plans_fresh(self):
         """Ian, 2026-10-10: LFD — "The Sr picks the smallest file in the project by size and puts the Jr on summarizing
         it. It goes to the largest file in the project and does the same. They both write to a common summary… meet in

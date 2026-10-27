@@ -679,6 +679,42 @@ class AgentTest(unittest.TestCase):
         self.assertGreater(len(sent), 2)  # refused whole, then its text in parts
         self.assertIn("distilled", said)
 
+    def test_the_persons_message_comes_before_what_was_waiting(self):
+        """Ian, 2026-10-27 (test28): his "there is a whole ruling book … must be used" came the same second as a junior's
+        stuck report, and Haiku spent 20 steps on the report."""
+        a = Agent(self.root, Scripted([step("", tool="answer", text="On the ruling book now.")]), "m", "auto",
+                  say=self.said.append)
+        a.role = "senior"
+        a.inbox = [(890, "task", "STUCK POINT from your junior (stuck). It said: 15 steps without a change.")]
+        a.turn("Use the ruling book for the engine.")
+        last = a.chat.sent[0][-1]["content"]
+        self.assertIn("The person's message comes first", last)
+        self.assertIn("Use the ruling book for the engine.", last)
+        b = Agent(self.root, Scripted([step("", tool="answer", text="Ok.")]), "m", "auto", say=self.said.append)
+        b.role = "senior"
+        b.turn("Hello.")  # nothing waiting: nothing added
+        self.assertNotIn("comes first", json.dumps(b.chat.sent[0]))
+
+    def test_a_check_says_what_holds_a_goal_and_what_the_run_button_misses(self):
+        """2026-10-27 (test28): the GUI goal was ticked while run.sh only started the C++ console engine; then the
+        last goal stayed open on a blank window, and Haiku took a record line (only said) for the hold."""
+        from cin_minai.aicui import intake
+        from cin_minai.aicui.agent import SAID, starts, unstarted
+        os.makedirs(os.path.join(self.root, "gui"))
+        with open(os.path.join(self.root, "gui", "main.py"), "w") as f:
+            f.write("def main():\n    pass\n\nif __name__ == \"__main__\":\n    main()\n")
+        with open(os.path.join(self.root, "run.sh"), "w") as f:
+            f.write("#!/bin/sh\n# builds the engine\ncd engine && make -s && ./engine_duel\n")
+        said = unstarted(self.root, "run.sh", ["gui/main.py", "gui/field_view.py"])
+        self.assertIn("gui/main.py has a main, but run.sh doesn't start it", said)
+        self.assertIn("cd engine && make -s && ./engine_duel", starts(self.root, "run.sh"))
+        with open(os.path.join(self.root, "run.sh"), "a") as f:
+            f.write("python3 gui/main.py\n")
+        self.assertEqual(unstarted(self.root, "run.sh", ["gui/main.py"]), "")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        intake.record_origin(self.root, "data/gone.json", "gathered record 9", "compiled")
+        self.assertTrue(all(line.startswith(SAID) for line in a.compiled_check()))
+
     def test_in_autopilot_a_question_doesnt_stop_the_work(self):
         """Ian, 2026-10-27 (test27): Haiku 5.5 stopped twice to ask the starter decks' copy counts, the second time two
         minutes after "continue until all goals are checked", saying it would keep working on the rest."""

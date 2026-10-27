@@ -392,7 +392,8 @@ class Table:
         lead.first_reader = first.first_read if first else None
         lead.planned = self.release_goals
         lead.each_step = self.between_steps
-        lead.follow_up_fn = lambda n, note: (self.holder(n).follow_up(n, note) if hasattr(self.holder(n), "follow_up")
+        lead.follow_up_fn = lambda n, note, also=None: (self.holder(n).follow_up(n, note, also)
+                                                        if hasattr(self.holder(n), "follow_up")
                                              else f"error: task {n} is with an outside seat; say it at the table")
         lead.review_task_fn = lambda n, accept, note="": self.holder(n).review(n, accept, note)
         lead.permit_fn = lambda n, allow: next((p for p in self.pairs.values() if n in p.questions),

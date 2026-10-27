@@ -116,6 +116,8 @@ class Pair:
         junior.inbox = []                       # the senior's direction, read at the junior's next step
         self.running: dict | None = None        # the junior's task now: {"n", "what", "since", "log0", "kinds"}
         self.pending_notes: dict[int, list[str]] = {}  # direction for a task that hasn't started
+        self.added: dict[str, int] = {}  # files a follow_up added to a task (`also`): held for it while it's open
+        self.pending_files: dict[int, set] = {}  # and given to it when it starts
         senior.review_task_fn = self.review
         senior.may_write = self.senior_may_write
         junior.may_write = self.junior_may_write
@@ -147,7 +149,11 @@ class Pair:
     @property
     def held(self) -> dict[str, int]:
         """file -> the Junior task that holds it (one writer per file)."""
-        return {path: t["id"] for t in self.open_tasks() for path in spec_of(t).get("hold", [])}
+        tasks = self.open_tasks()
+        out = {path: t["id"] for t in tasks for path in spec_of(t).get("hold", [])}
+        ids = {t["id"] for t in tasks}
+        out.update({path: n for path, n in self.added.items() if n in ids and path not in out})
+        return out
 
     @property
     def listing(self) -> dict[int, dict]:
@@ -506,12 +512,34 @@ class Pair:
         q["event"].set()
         return f"told your junior: {'yes' if allow else 'no'} (question {n})"
 
-    def follow_up(self, n: int, note: str) -> str:
+    def follow_up(self, n: int, note: str, also: list | None = None) -> str:
         """The Senior's direction for a Junior task: read at the Junior's next step if it's working on it, or given
-        with the task if it hasn't started."""
+        with the task if it hasn't started. `also`: files the task may change from now on, new ones included (2026-10-27,
+        test28: Haiku wrote "you may now create engine_test.cpp too", the junior was refused twice and stopped)."""
         note = " ".join(note.split())
         if len(note) < 8:
             return "error: say what the junior should do differently"
+        if also:
+            if n not in self.listing:
+                return f"error: task {n} isn't with your junior (finished, or never given) — give a new task with assign"
+            root = os.path.realpath(self.senior.root)
+            adding = []
+            for f in also:
+                full = os.path.realpath(os.path.join(root, str(f)))
+                if not full.startswith(root + os.sep):
+                    return f"error: {f} isn't in the project"
+                rel = os.path.relpath(full, root).replace(os.sep, "/")
+                other = next((m for held, m in self.held.items() if m != n and within(rel, held)), None)
+                if other:
+                    return f"error: {rel} is held by task {other}; add it when that task is done"
+                adding.append(rel)
+            for rel in adding:
+                self.added[rel] = n
+                if self.running and self.running["n"] == n:
+                    self.current.add(rel)
+                else:
+                    self.pending_files.setdefault(n, set()).add(rel)
+            note += f" (Your task may now change {', '.join(adding)} too.)"
         if self.running and self.running["n"] == n:
             self.junior.inbox.append((n, "direction", note))
             self.senior.event("handoff", by="senior", to="junior", text=f"task {n}: {note}")
@@ -728,6 +756,8 @@ class Pair:
 
     def run_task(self, n: int, rel: str, task: str, kind: str, table: dict | None, files: list | None = None) -> str:
         self.current = set() if kind == "test" else set(files) if files is not None else {rel}
+        if kind != "test":
+            self.current |= self.pending_files.pop(n, set())  # files a follow_up added before it started
         self.current_table = table
         before = len(self.junior.log.entries()) if hasattr(self.junior.log, "entries") else 0
         self.running = {"n": n, "what": f"{kind} {rel}", "since": getattr(self.senior, "progress_total", 0),
@@ -834,7 +864,7 @@ class Crew:
         lead.brief_fn = self.reader.brief
         lead.planned = self.coder.release_goals
         lead.each_step = self.between_steps
-        lead.follow_up_fn = lambda n, note: self.holder(n).follow_up(n, note)
+        lead.follow_up_fn = lambda n, note, also=None: self.holder(n).follow_up(n, note, also)
         lead.review_task_fn = lambda n, accept, note="": self.holder(n).review(n, accept, note)
         lead.permit_fn = lambda n, allow: next((p for p in self.pairs if n in p.questions), self.coder).permit(n, allow)
         lead.lfd_fn = lambda focus: self.coder.lfd(focus, ends=(coder, reader))
