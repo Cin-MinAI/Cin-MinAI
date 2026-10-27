@@ -311,6 +311,20 @@ MARKUP = re.compile(r"</?(thinking|invoke|parameter|function_calls)\b")
 XML_PARAM = re.compile(r'<parameter name="(\w+)">(.*?)(?:</parameter>|$)', re.S)
 
 
+def listed(inputs: dict, tools: list, name: str | None) -> dict:
+    """A list input sent as its JSON text, or as one item, made a list (2026-10-27, test27: Haiku 5.5 gave distill's
+    sources as the text '["sources/Ru…"]', and the rulebook's path was read letter by letter)."""
+    props = next((t["input_schema"].get("properties", {}) for t in tools if t["name"] == name), {})
+    for k, v in list(inputs.items()):
+        if isinstance(v, str) and (props.get(k) or {}).get("type") == "array":
+            try:
+                got = json.loads(v)
+            except ValueError:
+                got = None
+            inputs[k] = got if isinstance(got, list) else [v] if v.strip() else []
+    return inputs
+
+
 def unleak(inputs: dict, required: list) -> dict:
     """Parameters a model wrote into its reason text taken back out, when the call is missing one it needs —
     JSON-style (2026-10-12, Haiku: `Read it.", "path": "a.txt", "start": 1} </invoke>` as the reason, no path) or
@@ -527,7 +541,7 @@ class Anthropic:
                                       ensure_ascii=False)
             elif tools:  # the agent's step: {"thinking", "action": {"tool": the tool called, its inputs}}
                 need = next((t["input_schema"]["required"] for t in tools if t["name"] == block.get("name")), [])
-                inputs = unleak(dict(block.get("input") or {}), need)
+                inputs = listed(unleak(dict(block.get("input") or {}), need), tools, block.get("name"))
                 thinking = str(inputs.pop(WHY, "") or inputs.pop("thinking", ""))
                 text = json.dumps({"thinking": thinking, "action": {"tool": block.get("name", ""), **inputs}},
                                   ensure_ascii=False)
@@ -706,7 +720,7 @@ class OpenAI(Anthropic):
                     inputs = {}
                 if tools:
                     need = next((t["input_schema"]["required"] for t in tools if t["name"] == call.get("name")), [])
-                    inputs = unleak(dict(inputs), need)
+                    inputs = listed(unleak(dict(inputs), need), tools, call.get("name"))
                     thinking = str(inputs.pop(WHY, "") or inputs.pop("thinking", ""))
                     text = json.dumps({"thinking": thinking, "action": {"tool": call.get("name", ""), **inputs}},
                                       ensure_ascii=False)

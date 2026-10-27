@@ -467,3 +467,17 @@ class OpenAITest(unittest.TestCase):
         import re
         self.assertTrue(re.fullmatch(accounts.CLOUD["openai"]["shape"], "sk-proj-" + "a" * 40))
         self.assertFalse(re.fullmatch(accounts.CLOUD["openai"]["shape"], "sk-ant-" + "a" * 40))  # an Anthropic key
+
+
+class ListedInputs(unittest.TestCase):
+    def test_a_list_sent_as_text_is_a_list(self):
+        """2026-10-27 (test27): Haiku 5.5 gave distill's sources as the text '["sources/…"]', and the rulebook's path
+        was read letter by letter."""
+        tools = [{"name": "distill", "input_schema": {"properties": {"sources": {"type": "array"},
+                                                                      "intent": {"type": "string"}}}}]
+        got = cloud.listed({"sources": '["sources/rules.txt", "sources/b.txt"]', "intent": "[the rules]"}, tools,
+                           "distill")
+        self.assertEqual(got, {"sources": ["sources/rules.txt", "sources/b.txt"], "intent": "[the rules]"})
+        self.assertEqual(cloud.listed({"sources": "sources/rules.txt"}, tools, "distill")["sources"],
+                         ["sources/rules.txt"])  # one item, as it is
+        self.assertEqual(cloud.listed({"sources": ["a"]}, tools, "distill")["sources"], ["a"])

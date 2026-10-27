@@ -618,6 +618,28 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
         self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
 
+    def test_in_autopilot_a_question_doesnt_stop_the_work(self):
+        """Ian, 2026-10-27 (test27): Haiku 5.5 stopped twice to ask the starter decks' copy counts, the second time two
+        minutes after "continue until all goals are checked", saying it would keep working on the rest."""
+        a = Agent(self.root, Scripted([step("Need the counts.", tool="ask", question="How many copies per card?"),
+                                       step("Meanwhile.", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("", tool="goal_done", id=1),
+                                       step("Report.", tool="answer", text="add() fixed."),  # nudged: goal 2 is open
+                                       step("Report.", tool="answer", text="add() fixed; the decks wait for you.")]),
+                  "m", "none", admin=True, say=self.said.append)
+        a.goals.add("Fix add()", by="user")
+        a.goals.add("Build the decks", by="user")
+        said = a.turn("work the goals")
+        self.assertIn("add() fixed", said)
+        self.assertIn("Still waiting for your word: How many copies per card?", said)
+        self.assertIn("A question for you (the work goes on): How many copies per card?", self.said)
+        with open(os.path.join(self.root, "app.py"), encoding="utf-8") as f:
+            self.assertIn("a + b", f.read())
+        b = Agent(self.root, Scripted([step("", tool="ask", question="Which colour?")]), "m", "ask",
+                  ask=lambda p: "n", say=self.said.append)  # not autopilot: a question stops as before
+        b.goals.add("Paint it", by="user")
+        self.assertEqual(b.turn("go"), "Which colour?")
+
     def test_the_harness_out_of_the_way(self):
         """Ian, 2026-10-27: "Ok the harness is still in the way" — test22-25's stops that were AICUI's."""
         # autopilot as AICUI has it now, not as the process started (started in Ask, switched after)

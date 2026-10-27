@@ -324,7 +324,8 @@ with set functions — assign (`path`, `task`, `kind`): write a file (it exists 
 the lines first — brief has your contributors read them for you; the task is an exact edit: one defect, the lines, what they become, how to check — the junior changes
 only those lines and checks them), check it, or test (run the program or its tests and report what fails); brief
 (`files`, `question`): they read a file or two and answer you; they can fetch too (downloads, or a list a script turns
-into data: say what and where it goes). You read your sources and the project yourself (your context holds them);
+into data: say what and where it goes). You read your sources (your distill reads with your model) and the project
+yourself (your context holds them);
 a goal that needs a source understood is yours. Their results come between your
 steps, with what changed and AICUI's own start of the program: judge from those, review_task (`n`, `accept`, `note`)
 — don't re-check by hand what a result already shows. A long task gets a progress report: let it work, or direct it with
@@ -992,9 +993,9 @@ class Agent:
         if self.role == "senior":
             # a cloud lead reads what it needs itself: LFD is a local Senior's way round a small context (Ian,
             # 2026-10-27: "I dont think cloud models need lfd. They should do it themselves"; after it, Haiku took the
-            # summary's "make the plan" for the person asking and stopped for a plan twice); nor does it hand a source
-            # to its junior to distill (2026-10-27, test26: Haiku sent the rulebook to the 9B three times)
-            return {"errand"} | no_advisor | no_talk | ({"lfd", "distill"} if self.cloud else set())
+            # summary's "make the plan" for the person asking and stopped for a plan twice); its distill is its own
+            # (do: never the junior's)
+            return {"errand"} | no_advisor | no_talk | ({"lfd"} if self.cloud else set())
         if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
             return set(SENIOR_ONLY) | {"errand"} | no_advisor | no_talk
         return set(SENIOR_ONLY) | no_advisor | no_talk
@@ -1541,8 +1542,23 @@ class Agent:
                 self.note(steps, "Goals are still open: " + "; ".join(f"{g['id']}. {g['text'][:80]}" for g in open_goals[:6])
                           + (f" and {len(open_goals) - 6} more" if len(open_goals) > 6 else "") + ". Tick each one "
                           "that's done now with goal_done (one the work already met too: its checks run), then go on "
-                          "with the next. If what the person asked is done, or you need them, answer again and it goes to them.")
+                          "with the next." + (" In autopilot a question doesn't stop the work: ask posts it to the "
+                                              "person and you go on with the goals that don't need it."
+                                              if self.autopilot() else "") +
+                          " If what the person asked is done, or you need them, answer again and it goes to them.")
                 continue
+            if act["tool"] == "ask" and open_goals and self.autopilot():
+                # autopilot: a question about one part never stops the rest (Ian, 2026-10-27, test27: Haiku 5.5 stopped
+                # twice on the starter decks' copy counts, the second time two minutes after "continue until all goals
+                # are checked", saying it would keep working on the engine and the GUI — an answer ends the turn)
+                q = str(act.get("question") or act.get("text") or "").strip()
+                if q:
+                    self.posted = getattr(self, "posted", []) + [q]
+                    self.event("note", text="A question for you (the work goes on): " + q)
+                    self.say("A question for you (the work goes on): " + q)
+                    steps.append({"did": step, "result": "posted to the person; their word comes when they've read "
+                                  "it. Go on with the goals that don't need it, and leave the ones that do open."})
+                    continue
             if act["tool"] in ("answer", "ask"):
                 msg = str(act.get("text") or act.get("question") or "").strip()
                 if not msg:  # 2026-10-12: Haiku put its whole answer in its thinking; the person saw a blank reply
@@ -1554,6 +1570,9 @@ class Agent:
                     if empty < 3:
                         continue
                     msg = step.get("thinking") or "The model gave an empty answer three times."
+                if getattr(self, "posted", None):  # the questions posted on the way, said again at the end
+                    msg += "\n\nStill waiting for your word: " + " / ".join(self.posted)
+                    self.posted = []
                 self.stopped = act["tool"]
                 self.event("answer", text=msg)
                 self.say(msg)
@@ -2468,6 +2487,8 @@ class Agent:
     def do(self, a: dict) -> str:
         try:
             t = a["tool"]
+            if self.cloud and t in self.excluded():  # a cloud model can name a tool it wasn't given (a local model's
+                return f"error: {t} isn't one of your tools here"  # steps are held to its schema)
             if t not in BEFORE_PLAN and self.plans() and not self.goals.load():
                 return ("error: a new project starts with its plan — plan: the person's request as goals, in the "
                         "request's order, each with what must come from outside (from_outside), its files, and who does it "
@@ -2523,8 +2544,10 @@ class Agent:
             if t in TABLE_TOOLS:  # the conference table's conversation: one speaker at a time (conference.py)
                 fn = getattr(self, "table_fn", None)
                 return fn(t, a) if callable(fn) else "there's no table conversation here"
-            if t == "distill":  # GatheredData: in team B the Senior's reading goes to the Junior (pair.py)
-                delegate = getattr(self, "distiller", None)
+            if t == "distill":  # GatheredData: in team B the Senior's reading goes to the Junior (pair.py); a cloud
+                #   lead reads with its own model (Ian, 2026-10-27: "The local shouldnt be doing reading and thinking
+                #   work like that"; test27: Haiku 5.5 still sent the rulebook to the 9B with distill)
+                delegate = None if self.cloud else getattr(self, "distiller", None)
                 args = (a.get("sources") or [], a.get("intent", ""), a.get("into", ""), a.get("format") or "json")
                 said = delegate(*args) if callable(delegate) else self.distill_now(*args)
                 gid = self.goal_for(a.get("goal"))

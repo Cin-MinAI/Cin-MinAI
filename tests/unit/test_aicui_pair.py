@@ -228,6 +228,25 @@ class PairTest(unittest.TestCase):
         first = next(c for c in self.engine.db.task_tree(p.root["id"])["children"] if "Correction" not in c["title"])
         self.assertEqual(json.loads(first["result"])["verdict"], "rejected")
 
+    def test_a_rejected_goal_task_goes_back_with_its_files(self):
+        """2026-10-27 (test27): Haiku 5.5 rejected the junior's goal task three times and each time got "isn't in the
+        project": a plan's goal holds its files and has no one path."""
+        senior, junior, p = self.pair(junior_steps=[step("", tool="answer", text="Done."),
+                                                    step("", tool="answer", text="Corrected.")])
+        p.queue("", json.dumps({"goal": 1, "files": ["rules.py"], "text": "Goal 1: fill in draw()"}), "goal",
+                "goal 1: fill in draw()", hold=["rules.py"])
+        self.wait(p)
+        back = senior.do({"tool": "review_task", "n": 2, "accept": False, "note": "names with spaces load wrongly"})
+        self.assertIn("task 3 given to your junior", back)
+        self.assertIn("its one correction attempt", back)
+        self.wait(p)
+        sent = json.dumps(junior.chat.sent[-1])
+        self.assertIn("Correction of task 2", sent)
+        self.assertIn("names with spaces load wrongly", sent)
+        self.assertIn("Goal 1: fill in draw()", sent)
+        theirs = senior.do({"tool": "review_task", "n": 3, "accept": False, "note": "still wrong"})
+        self.assertIn("the corrections to rules.py are yours now", theirs)
+
     def test_one_correction_attempt_then_the_corrections_are_the_seniors(self):
         """Ian, 2026-10-15: "Sr gives detail on code specifics and jr executes on script, gives back to sr, sr checks, if
         good jr dumps. if no good sr gives corrections. After the 1st attempt at correction sr takes all script
@@ -486,9 +505,20 @@ class PairTest(unittest.TestCase):
         self.assertIn("Battle Phase: each monster attacks once.", said)
         self.assertNotIn("Your junior reads it first", said)
         self.assertEqual(p.out, 0)  # nothing went to the junior
-        self.assertIn("distill", senior.excluded())
+        # test27: Haiku 5.5 still sent the rulebook to the 9B with distill; a cloud lead's distill reads with its model
+        senior.chat = lambda messages, **kw: ("## sources/rulebook.txt, part 1\nBattle Phase: each monster attacks once.",
+                                              {})
+        said = senior.do({"tool": "distill", "sources": ["sources/rulebook.txt"], "intent": "the Battle Phase",
+                          "into": "notes/rules.md", "format": "text"})
+        self.assertNotIn("given to your junior", said)
+        self.assertEqual(p.out, 0)
+        with open(os.path.join(self.root, "notes", "rules.md"), encoding="utf-8") as f:
+            self.assertIn("each monster attacks once", f.read())
+        self.assertIn("isn't one of your tools", senior.do({"tool": "lfd", "focus": "all"}))  # named, never given
         senior.cloud = False
-        self.assertNotIn("distill", senior.excluded())
+        self.assertIn("given to your junior", senior.do({"tool": "distill", "sources": ["sources/rulebook.txt"],
+                                                         "intent": "the Battle Phase", "into": "notes/rules2.md",
+                                                         "format": "text"}))
 
     def test_a_new_project_starts_with_the_plan_and_its_needs_come_first(self):
         """Ian, 2026-10-10 (test6): the Senior "didnt search, didnt use the junior, and didnt really make a plan" — it laid

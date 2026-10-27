@@ -607,6 +607,23 @@ class Pair:
         self.senior.event("handoff", by="senior", to="junior", text=f"task {n} {verdict}" + (f": {note}" if note else ""))
         if accept:
             return f"task {n} accepted"
+        if done["kind"] == "goal":  # a plan's goal holds its files, no one path (2026-10-27, test27: Haiku 5.5's
+            hold = list(s.get("hold") or [])  # rejection of goal task 856 failed three times: "isn't in the project")
+            if s.get("attempt", 1) >= 2:
+                self.taken_over.update(hold)
+                return (f"task {n} was your junior's correction attempt and it's rejected: the corrections to "
+                        f"{', '.join(hold) or 'its work'} are yours now — make them yourself; the files are free")
+            try:
+                was = json.loads(done["task"])
+            except ValueError:
+                was = {}
+            gid = was.get("goal") if isinstance(was, dict) else None
+            text = (f"Correction of task {n} — your senior's corrections: {note}\nThe task was: "
+                    + (was.get("text", "") if isinstance(was, dict) else done["task"]))
+            said = self.queue("", json.dumps({"goal": gid, "files": hold, "text": text}), "goal",
+                              f"correction of task {n}" + (f" (goal {gid})" if gid else ""), hold=hold,
+                              goal=next((g for g in self.senior.goals.load() if g["id"] == gid), None), attempt=2)
+            return said if said.startswith("error") else said + " This is its one correction attempt; after it, they're yours."
         if s.get("attempt", 1) >= 2 and done["path"]:  # its correction attempt was rejected: the senior's now
             self.taken_over.add(done["path"])
             return (f"task {n} was your junior's correction attempt and it's rejected: the corrections to "
