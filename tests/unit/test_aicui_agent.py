@@ -229,7 +229,7 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "goal_reopen", "need",
+                                 "web_search", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "goal_reopen", "goal_remove", "need",
                                  "look", "ask",
                                  "answer"])
 
@@ -617,6 +617,42 @@ class AgentTest(unittest.TestCase):
         a.goals.add("Write the docs", by="user")
         self.assertEqual(a.turn("work the goals"), "Fixed add(); the docs are next.")
         self.assertIn("Goals are still open", "\n".join(m["content"] for m in a.chat.sent[-1]))
+
+    def test_the_harness_out_of_the_way(self):
+        """Ian, 2026-10-27: "Ok the harness is still in the way" — test22-25's stops that were AICUI's."""
+        # autopilot as AICUI has it now, not as the process started (started in Ask, switched after)
+        a = Agent(self.root, Scripted([]), "m", "ask", say=self.said.append)
+        self.assertFalse(a.autopilot())
+        os.makedirs(os.path.join(self.root, ".cinminai"), exist_ok=True)
+        with open(a.session_path(), "w") as f:
+            json.dump({"mode": "none", "admin": True}, f)
+        self.assertTrue(a.autopilot())
+        # a cloud lead reads the project itself: no LFD; a local Senior keeps it
+        a.role, a.cloud = "senior", True
+        self.assertIn("lfd", a.excluded())
+        a.cloud = False
+        self.assertNotIn("lfd", a.excluded())
+        # a lead removes a goal it added, never the person's
+        a.goals.add("The person's goal", by="user")
+        a.goals.add("A stray goal", by="ai")
+        self.assertEqual(a.do({"tool": "goal_remove", "id": 2, "why": "added by mistake"}), "goal 2 removed")
+        self.assertIn("is the person's", a.do({"tool": "goal_remove", "id": 1, "why": "x"}))
+        self.assertEqual([g["id"] for g in a.goals.load()], [1])
+        # pictures and sounds in assets/ count, however they came (a script's downloads, sounds made in code)
+        a.goals.add("Sounds", by="user", from_outside=[{"what": "sound effects", "kind": "sound"}], files=["s.py"])
+        self.assertIn("belongs to goal", a.needs_block("s.py"))
+        os.makedirs(os.path.join(self.root, "assets", "sounds"))
+        with open(os.path.join(self.root, "assets", "sounds", "attack.wav"), "wb") as f:
+            f.write(b"RIFF")
+        self.assertEqual(a.needs_block("s.py"), "")
+
+    def test_enter_alone_doesnt_turn_down_a_plan(self):
+        replies = ["", "y"]
+        a = Agent(self.root, Scripted([]), "m", "ask", ask=lambda p: replies.pop(0), say=self.said.append)
+        a.role = "senior"
+        said = a.make_plan([{"text": "Write the game", "files": [], "who": "senior"}])
+        self.assertIn("the plan is in", said)
+        self.assertEqual(replies, [])
 
     def test_a_cloud_models_history_stays_whole_and_its_reads_stay_their_size(self):
         """2026-10-26 (test16): at a 32K context, Sonnet 5.5's history was trimmed every step, the prompt's start

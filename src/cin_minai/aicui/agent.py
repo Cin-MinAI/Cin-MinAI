@@ -96,6 +96,7 @@ ACTIONS = [
     {"tool": "goal_add", "text": STR},
     {"tool": "goal_done", "id": {"type": "integer"}},
     {"tool": "goal_reopen", "id": {"type": "integer"}, "why": STR},
+    {"tool": "goal_remove", "id": {"type": "integer"}, "why": STR},
     {"tool": "need", "package": STR, "why": STR},
     {"tool": "look", "target": {"enum": ["program", "page", "screen", "picture"]}, "question": STR, "address": STR},
     {"tool": "ask", "question": STR},
@@ -134,13 +135,14 @@ JUNIOR_WEB = ("\n- web_search (a `query`; `kind` images for pictures), fetch (an
               "fetched or your senior), download (many such `urls` into a `folder` under assets/); each asked first")
 # the goal tools as each card has them: team B's Senior makes the plan (2026-10-10, test7: its tool list said "goal_add"
 # and "write them as goals", so it planned in its thinking, reached for goal_add, and was refused fifteen times)
-GOAL_TOOLS = {"solo": ("- goal_add / goal_done (the session goals: add one, or tick goal `id` when it's really done) / goal_reopen",
+GOAL_TOOLS = {"solo": ("- goal_add / goal_done / goal_reopen / goal_remove (the session goals: add, tick `id` when really done)",
                        "At the start of a new project, ask about its goals\nand scope and write them as goals"),
               "senior": ("- plan (a new project's goals, made once: the request in its order, each with `from_outside` "
                          "(pages or\n  files that must come from the web or the person, each `what` and its `kind`: text, "
                          "pictures, sound or\n  file — never the project's own work), its `files` and `who` does it; the "
                          "person sees it), goal_add (one more goal for the plan) / "
-                         "goal_done (tick goal `id` when it's done) / goal_reopen (`id`, `why`: untick one that isn't)",
+                         "goal_done (tick goal `id` when it's done) / goal_reopen (`id`, `why`: untick one that isn't) / "
+                         "goal_remove (one you added, not the person's)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
 DISTILL_PART = """You distill for this intent: {intent}
@@ -269,7 +271,7 @@ loop; the user opens the program or the page to try it. The user runs it outside
 button: it starts run.sh, else main.py, else opens index.html — so give a program a run.sh (or a main.py) at the
 project's top. Before a goal is ticked, the tests that name its files (test_*.py) run and the entry point is started
 for a few seconds; a goal stays open when they fail in its files. The last goal open gets the whole project's checks
-(tests, the start, the window on the screen). Never edit tests or the entry point to pass.
+(tests, the start, the window on the screen). Never weaken a test to pass; fix a wrong one.
 GitHub and publishing are the person's (AICUI's GitHub menu): no git that changes the repository, no workflows; a
 site is ready with its index.html at the top.{venv}
 
@@ -322,7 +324,7 @@ the lines first — brief has your contributors read them for you; the task is a
 only those lines and checks them), check it, or test (run the program or its tests and report what fails); brief
 (`files`, `question`): they read files and answer you; they can search the web and fetch too (a research task: say what
 to find and where it goes); distill and the pages you fetch go to them first, their notes
-come to you; lfd (`focus`): they summarize the whole project for you to plan from. Their results come between your
+come to you; you read the project yourself (your context holds it). Their results come between your
 steps, with what changed and AICUI's own start of the program: judge from those, review_task (`n`, `accept`, `note`)
 — don't re-check by hand what a result already shows. A long task gets a progress report: let it work, or direct it with
 follow_up (`n`, `note`). Their questions come to you too: permit (`n`, `allow`). With their tasks out and nothing
@@ -969,7 +971,9 @@ class Agent:
     def autopilot(self) -> bool:
         """No permissions with admin on: nothing reversible asks the person (Ian, 2026-10-25: "if its not irreversible
         it shouldnt be asking me… It shouldnt ask me with that setup to put stuff in venv"); irreversible still asks
-        (D85)."""
+        (D85). The person's choice as AICUI has it now (2026-10-27, test22/test25: started in Ask, switched to No
+        permissions with admin after, a lead that only assigns never re-read it — no wake, and it asked for packages)."""
+        self.refresh()
         return self.mode == "none" and bool(self.admin)
 
     # --- events for AICUI's panes --------------------------------------------------------------------------
@@ -985,7 +989,10 @@ class Agent:
         no_talk = set(TABLE_TOOLS)
         no_advisor = set() if callable(getattr(self, "advisor_fn", None)) else {"advisor"}  # the cloud as advisor
         if self.role == "senior":
-            return {"errand"} | no_advisor | no_talk  # its reading goes to the Junior (distill, assign)
+            # a cloud lead reads what it needs itself: LFD is a local Senior's way round a small context (Ian,
+            # 2026-10-27: "I dont think cloud models need lfd. They should do it themselves"; after it, Haiku took the
+            # summary's "make the plan" for the person asking and stopped for a plan twice)
+            return {"errand"} | no_advisor | no_talk | ({"lfd"} if self.cloud else set())
         if not callable(getattr(self, "errand", None)):  # no helper running (alone, or the cloud): no errands
             return set(SENIOR_ONLY) | {"errand"} | no_advisor | no_talk
         return set(SENIOR_ONLY) | no_advisor | no_talk
@@ -1698,9 +1705,9 @@ class Agent:
             if act.get("path") not in seen:
                 seen.add(act.get("path"))
                 return True
-        if tool in ("goal_done", "goal_reopen") and result.startswith("error"):  # a ticked goal again isn't news
+        if tool in ("goal_done", "goal_reopen", "goal_remove") and result.startswith("error"):  # nothing changed
             return False  # (2026-10-25, test16: eleven re-ticks of done goals, each counted, and the stuck rule slept)
-        if tool == "goal_reopen":  # destroy: a tick undone
+        if tool in ("goal_reopen", "goal_remove"):  # destroy: a tick undone, a stray goal gone
             return True
         if tool in ("run", "goal_done"):  # pass / fail: a verdict, counted when it's a new one
             key = hash((tool, re.sub(r"\d+\.\d+s|0x[0-9a-f]+", "", result)))  # timings and addresses aren't news
@@ -2132,6 +2139,8 @@ class Agent:
         else:
             self.event("busy", doing="waiting for your answer in the terminal", asking="the plan")
             reply = self.ask(f"\033[1mThe plan:\n{shown}\nOK? [y]es, or type what to change: \033[0m").strip()
+            if not reply:  # Enter alone isn't an answer: asked once more (an empty "no" rejected plans unseen)
+                reply = self.ask("\033[1mThe plan: y to keep it, n to turn it down, or what to change: \033[0m").strip()
         if reply.lower() in ("", "n", "no"):
             return "the person said no to the plan — ask what they want instead"
         if reply.lower() not in ("y", "yes", "ok", "a"):
@@ -2185,6 +2194,13 @@ class Agent:
         if os.path.isdir(kept):
             sources += [f"sources/{n}" for n in sorted(os.listdir(kept))
                         if os.path.isfile(os.path.join(kept, n)) and f"sources/{n}" not in sources]
+        # pictures and sounds in assets/ count too, however they came: a script's downloads, sounds made in code
+        # when the request allows it (2026-10-26/27: test23's 241 card images fetched by a script and test25's
+        # generated tones weren't seen, and goals that had them stayed locked)
+        assets = os.path.join(self.root, "assets")
+        if os.path.isdir(assets):
+            sources += [f"assets/{n}/" for n in sorted(os.listdir(assets))
+                        if os.path.isdir(os.path.join(assets, n)) and f"assets/{n}/" not in sources]
         for rel in sources:
             if rel.endswith("/"):  # a download: the folder, by what most of it holds
                 try:
@@ -2630,6 +2646,16 @@ class Agent:
                 g = self.goals.add(a["text"], by="ai")
                 self.event("goals")
                 return f"goal {g['id']} added"
+            if t == "goal_remove":  # a goal it added by mistake (2026-10-27, test25: Haiku's stray goal 8, "I have
+                # no tool to delete goals"); the person's goals are theirs (Goals.remove refuses them for the AI)
+                goal = next((g for g in self.goals.load() if g["id"] == int(a["id"])), None)
+                if goal is None:
+                    return f"error: there's no goal {a['id']}"
+                if not self.goals.remove(int(a["id"]), by="ai"):
+                    return f"error: goal {a['id']} is the person's; you tick it when it's done, never remove it"
+                self.event("goals")
+                self.event("note", text=f"Goal {a['id']} removed: {str(a.get('why', ''))[:200]}")
+                return f"goal {a['id']} removed"
             if t == "goal_reopen":  # a tick taken back (2026-10-25, test16: Haiku ticked two goals whose files didn't
                 # exist, said so, and had no way to undo them)
                 goal = next((g for g in self.goals.load() if g["id"] == int(a["id"])), None)

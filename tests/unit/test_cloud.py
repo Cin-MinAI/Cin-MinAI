@@ -22,6 +22,17 @@ from cin_minai.daemon import accounts  # noqa: E402
 from cin_minai.inference import cloud  # noqa: E402
 
 
+_CACHE = tempfile.mkdtemp()
+
+
+def setUpModule():  # what the backend remembers (the last model, free choice) stays in the tests
+    os.environ["XDG_CACHE_HOME"] = _CACHE
+
+
+def tearDownModule():
+    shutil.rmtree(_CACHE, True)
+
+
 class FakeAnthropic:
     def __init__(self, answers):
         self.answers, self.sent = list(answers), []
@@ -196,6 +207,15 @@ class FreeChoice(unittest.TestCase):
                                 "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "usd": 1.0}) + "\n")
             f.write(json.dumps({"model": "gpt-6-luna", "usd": 0.25}) + "\n")
         self.assertAlmostEqual(cloud.spent(self.root), 0.10 + 0.25, places=6)
+
+    def test_a_new_project_starts_from_the_last_model_chosen(self):
+        """2026-10-26 (test22): a new project started on Haiku 4.5, the built-in default, not the Luna Ian chose."""
+        other = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, other, True)
+        self.assertEqual(cloud.settings(other)["model"], cloud.DEFAULT_MODEL)
+        cloud.save_settings(self.root, model="gpt-6-luna", role="lead")
+        fresh = cloud.settings(other)
+        self.assertEqual((fresh["model"], fresh["provider"], fresh["role"]), ("gpt-6-luna", "openai", "off"))
 
     def test_the_55_prices(self):
         self.assertEqual(cloud.price_of("claude-haiku-5-5")[:2], (0.10, 0.50))

@@ -49,14 +49,36 @@ def settings(root: str) -> dict:
             s = json.load(f)
     except (OSError, ValueError):
         s = {}
-    model = s.get("model", DEFAULT_MODEL)
+    model = s.get("model") or last_model() or DEFAULT_MODEL
     return {"provider": provider_of(model), "model": model,
             "role": s.get("role", "off"), "budget_usd": float(s.get("budget_usd", 1.0)),
             "crew": "two" if s.get("crew") == "two" else "one"}
 
 
+def _last_model_path() -> str:
+    return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "cinminai",
+                        "cloud-last-model")
+
+
+def last_model() -> str:
+    """The cloud model the person chose last, in any project: a new project starts from it (2026-10-26, test22: a new
+    project started on Haiku 4.5, the built-in default, though Ian had chosen GPT-6 Luna)."""
+    try:
+        with open(_last_model_path(), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
 def save_settings(root: str, **change) -> dict:
     s = {**settings(root), **change}
+    if change.get("model"):
+        try:
+            os.makedirs(os.path.dirname(_last_model_path()), exist_ok=True)
+            with open(_last_model_path(), "w", encoding="utf-8") as f:
+                f.write(str(change["model"]))
+        except OSError:
+            pass
     path = os.path.join(root, SETTINGS)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w", encoding="utf-8") as f:

@@ -63,7 +63,10 @@ MAX_HOLD_DAYS = 60
 MAX_OWN = 500
 DAY = 86400
 MAX_UPDATES = 3000
-APT_OPTS = ["-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef"]
+APT_OPTS = ["-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef",
+            # another install holding the lock is waited for, not failed on (2026-10-25: the daily run met Ian's own
+            # apt-get install at the same minute and gave up on 16 updates)
+            "-o", "DPkg::Lock::Timeout=600"]
 VERSION_RE = re.compile(r"^[A-Za-z0-9.+~:\-]{1,120}$")
 # what apt says when a source's signature can't be checked (apt 2.8; LANG=C)
 SIGNATURE_PROBLEMS = ("NO_PUBKEY", "EXPKEYSIG", "BADSIG", "is not signed", "GPG error", "The following signatures",
