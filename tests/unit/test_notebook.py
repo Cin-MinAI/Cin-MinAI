@@ -71,6 +71,19 @@ class NotebookTest(unittest.TestCase):
         nb.record("new question", "new answer")
         self.assertEqual([t["user"] for t in nb.turns()], ["new question"])
 
+    def test_never_kept_secrets_and_declined(self):
+        nb = self.nb()
+        nb.record("my password is hunter2 and the key sk-abcdefghijklmnopqrstu", "Noted.")
+        kept = json.dumps(nb.turns())
+        self.assertNotIn("hunter2", kept)
+        self.assertNotIn("sk-abcdefghijklmnopqrstu", kept)
+        b = Scripted([json.dumps({"tool": "decline", "args": {"text": "I can't help with that."}})])
+        h = DATA["help.json"]
+        g = Guide(b, DATA["guide.json"], HelpIndex(h), Tools(h["labels"], h["desktop"], "en"),
+                  {"history_chars": 12000, "cpu_history_chars": 3000}, notebook=nb)
+        g.turn("something declined", lambda t: None, lambda *a: None, threading.Event())
+        self.assertNotIn("something declined", json.dumps(nb.turns()))
+
     def test_turns_fold_into_notes(self):
         nb = self.nb()
         nb.record("My printer won't print", "Let's check the driver.")

@@ -308,13 +308,13 @@ class Guide:
         out = out.strip().splitlines()[0].strip().strip('"') if out.strip() else ""
         return out if 0 < len(out) <= 3 * len(text) + 80 else text
 
-    def remember(self, user: dict, reply: str) -> None:
+    def remember(self, user: dict, reply: str, keep: bool = True) -> None:
         """A turn kept as the talk alone: the person's message and the reply the person saw, no calls or results.
         2026-10-23: with the calls kept, the 4B copied the tools of the turns before (after the help, subjects went to
         the help; after one web search, every subject to the web): Ian's talk 3/11 on the conversation eval, 7/10 kept
         plain (prompt v2.7); follow-ups ("How cold does it get?") still work, the reply carries what was said."""
         self.history += [user, {"role": "assistant", "content": reply}]
-        if self.notebook is not None:
+        if self.notebook is not None and keep:  # a declined request leaves nothing on disk (memory-design §5)
             said = self.asked if self.asked and user["content"].endswith(self.asked) else user["content"]
             try:
                 self.notebook.record(said, reply)
@@ -466,7 +466,7 @@ class Guide:
                 reply = str(args.get("text", ""))
                 if stream.pos is None:  # the stream didn't recognise the layout: send the text whole
                     on_text(reply)
-                self.remember(user, reply)
+                self.remember(user, reply, keep=tool != "decline")
                 return {"reply": reply, "tool": tool, "args": args, "timings": timings}
             if tool == "wikipedia":
                 shelves = library.shelves_for(self.tools.lang)

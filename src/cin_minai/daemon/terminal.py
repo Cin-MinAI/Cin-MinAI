@@ -50,7 +50,7 @@ def about_terminal(text: str, commands: list[dict], now: float | None = None) ->
 # --- redaction (§12.3) ---------------------------------------------------------------------------------------------
 _REDACT = [
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)"), "[private key removed]"),
-    (re.compile(r"(?i)\b((?:password|passwd|pwd|token|secret|api[_-]?key|access[_-]?key)\s*[=:]\s*)(\"[^\"]*\"|'[^']*'|\S+)"),
+    (re.compile(r"(?i)\b((?:password|passwd|pwd|token|secret|api[_-]?key|access[_-]?key|pin)(?:\s*[=:]\s*|\s+is\s+))(\"[^\"]*\"|'[^']*'|\S+)"),
      r"\1[removed]"),
     (re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]{12,}"), r"\1 [removed]"),
     (re.compile(r"\b(AKIA|ASIA)[A-Z0-9]{16}\b"), "[cloud key removed]"),

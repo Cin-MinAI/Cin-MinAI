@@ -4,8 +4,8 @@
 The guide never carries the whole conversation; this does, and hands it only what matters now:
 
 * **The transcript** — every turn (the person's words, the reply, the tool), one file a day in
-  ~/.local/share/cinminai/conversation/, on this computer only, kept KEEP_DAYS days. The journal's talk never comes
-  here (it isn't the guide's turn).
+  ~/.local/share/cinminai/conversation/, on this computer only, kept KEEP_DAYS days. Never kept (docs/memory-design.md
+  §5): the journal's talk (it isn't the guide's turn), secrets (filtered before writing), declined requests.
 * **The notebook** — short lines: the person's goal, what was decided and tried, what's open, facts about their
   computer. When the guide's history is trimmed, the turns it drops are folded in by the model (one short call), and
   the person is shown what was kept, line by line, each removable: never silent, always correctable.
@@ -86,7 +86,10 @@ class Notebook:
         return s
 
     def record(self, user: str, reply: str, tool: str = "") -> None:
-        """One turn into today's transcript; days past KEEP_DAYS are removed."""
+        """One turn into today's transcript, secrets filtered out first (passwords, keys, tokens: the terminal's own
+        filter, SPEC §12.3; memory-design §5); days past KEEP_DAYS are removed."""
+        from .terminal import redact
+        user, reply = redact(user), redact(reply)
         now = self.clock()
         os.makedirs(self.where, exist_ok=True)
         day = dt.date.fromtimestamp(now).isoformat()
