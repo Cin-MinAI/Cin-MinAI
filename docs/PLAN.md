@@ -187,7 +187,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D32 | filled | the transition corpus, published |
 | D33 | filled | standing rule (A/B before adopting) |
 | D34 | filled | standing scope |
-| D35 | partly | the whole computer on a cloud model (2026-10-23) not built; built: Anthropic and OpenAI by API key in the keyring (OpenAI through the Responses API, 2026-10-16; live on Ian's PC the same day: GPT-5.6 Luna finishing a project, 19 calls, $0.0094), the cloud backend with the same sandbox and approvals, AICUI's Cloud models menu for both; the panel's WEB / CLOUD sign (inference/reach.py). One-button Sign in with ChatGPT waits on OpenAI's form — the key covers it, as D35 allows |
+| D35 | partly | the whole computer on a cloud model (2026-10-23): built 2026-10-28 (inference/cloudguide.py: the guide's own turn on the person's model, the choice under Help and the system in the Models view, said plainly before it's used, `run_eval.py --cloud`), offered once a model is measured on the guide's eval (none yet); built before: Anthropic and OpenAI by API key in the keyring (OpenAI through the Responses API, 2026-10-16; live on Ian's PC the same day: GPT-5.6 Luna finishing a project, 19 calls, $0.0094), the cloud backend with the same sandbox and approvals, AICUI's Cloud models menu for both; the panel's WEB / CLOUD sign (inference/reach.py). One-button Sign in with ChatGPT waits on OpenAI's form — the key covers it, as D35 allows |
 | D36 | filled | docs/HELP-WANTED.md |
 | D37 | partly | requirements stated (hardware.md); no testing on 6 GB laptops |
 | D38 | filled | standing rule |

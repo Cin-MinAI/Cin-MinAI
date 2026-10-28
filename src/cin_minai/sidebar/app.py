@@ -1202,6 +1202,8 @@ class Sidebar(Gtk.Application):
                 small = Gtk.Label(label=now, xalign=0, wrap=True, max_width_chars=30)
                 small.get_style_context().add_class("note")
                 box.pack_start(small, False, False, 0)
+                if job["job"] == "system":
+                    self.assistant_choice(box, again)
                 if job["locked"] or not job["active"] or not job["choices"]:
                     continue
                 pick = Gtk.ComboBoxText()
@@ -1271,6 +1273,71 @@ class Sidebar(Gtk.Application):
             GLib.idle_add(fill, v)
 
         self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
+
+    def assistant_choice(self, box: Gtk.Box, again) -> None:
+        """D35: the assistant on the person's own cloud model, under Help and the system. Only models measured on the
+        guide's tests whose provider has a key here are offered, and what goes to the provider is said before it's
+        used; the tools, Allow cards and password stay on this computer."""
+        spot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.pack_start(spot, False, False, 0)
+        names = {"anthropic": "Anthropic", "openai": "OpenAI"}
+
+        def change(what: dict) -> None:
+            spot.set_sensitive(False)
+            self.daemon_async("AssistantCloud", (json.dumps(what),), "(s)", lambda v: again())
+
+        def show(v) -> None:
+            cur, offers = v.get("current"), v.get("offers") or []
+            if cur:
+                spot.pack_start(self.note_label(words.t("a_cloud_now", label=cur["label"], spent=cur["spent_usd"],
+                                                        budget=cur["budget_usd"])), False, False, 0)
+                row = Gtk.Box(spacing=6)
+                back = Gtk.Button(label=words.t("a_cloud_back"))
+                back.connect("clicked", lambda b: change({"model": ""}))
+                more = Gtk.Button(label=words.t("a_cloud_more"))
+                more.connect("clicked", lambda b: change({"budget_usd": cur["budget_usd"] + 2}))
+                row.pack_start(back, False, False, 0)
+                row.pack_start(more, False, False, 0)
+                spot.pack_start(row, False, False, 0)
+            elif not offers:
+                spot.pack_start(self.note_label(words.t("a_cloud_none")), False, False, 0)
+            others = [o for o in offers if not cur or o["model"] != cur["model"]]
+            if others:
+                pick = Gtk.ComboBoxText()
+                pick.append("", words.t("a_cloud_pick"))
+                for o in others:
+                    pick.append(o["model"], words.t("a_cloud_score", label=o["label"], score=o["score"]))
+                pick.set_active_id("")
+                for cell in pick.get_cells():
+                    cell.set_property("ellipsize", 3)  # Pango END
+                warn = self.note_label("")
+                use = Gtk.Button(label=words.t("a_cloud_use"))
+                use.set_halign(Gtk.Align.START)
+
+                def picked(combo) -> None:
+                    m = combo.get_active_id()
+                    o = next((x for x in others if x["model"] == m), None)
+                    if o is None:
+                        warn.hide()
+                        use.hide()
+                        return
+                    budget = (cur or {}).get("budget_usd") or 2.0
+                    warn.set_text(words.t("a_cloud_warn", provider=names.get(o["provider"], o["provider"]),
+                                          budget=budget))
+                    warn.show()
+                    use.show()
+                pick.connect("changed", picked)
+                use.connect("clicked", lambda b: change({"model": pick.get_active_id()}))
+                spot.pack_start(pick, False, False, 0)
+                spot.pack_start(warn, False, False, 0)
+                spot.pack_start(use, False, False, 0)
+                spot.show_all()
+                warn.hide()
+                use.hide()
+                return
+            spot.show_all()
+
+        self.daemon_async("AssistantCloud", (json.dumps({}),), "(s)", show)
 
     def library_view(self, opened: bool = True) -> None:
         """The Library (D68): the Wikipedia shelves on this computer, each removable if the person downloaded it, and

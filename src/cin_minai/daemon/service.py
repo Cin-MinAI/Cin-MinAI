@@ -148,6 +148,10 @@ XML = f"""
     </method>
     <!-- the Models view (SPEC §22.3): each job with its model and the models that can do it here; the models here -->
     <method name="ModelsView"><arg type="s" name="json" direction="out"/></method>
+    <!-- D35: the assistant on the person's own cloud model. change (JSON): empty to read, "model" to choose (an
+         empty model = the guide on this computer), "budget_usd"; json: "current" (the choice or null) and "offers"
+         (the measured models whose provider has a key here) -->
+    <method name="AssistantCloud"><arg type="s" name="change" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- give a job a model on this computer ("" = our pick again); help and the system stay with the guide (D94) -->
     <method name="ModelAssign"><arg type="s" name="job" direction="in"/><arg type="s" name="file" direction="in"/>
       <arg type="s" name="json" direction="out"/></method>
@@ -253,7 +257,8 @@ def save_actions_mode(mode: str) -> None:
 
 class Service:
     def __init__(self, loop: GLib.MainLoop, backend: InferenceBackend, guide: Guide, preload: bool) -> None:
-        self.loop, self.backend, self.guide = loop, backend, guide
+        # backend is the guide on this computer; the guide may run on the person's cloud model instead (D35)
+        self.loop, self.local, self.backend, self.guide = loop, backend, guide.backend, guide
         if hasattr(backend, "on_progress"):  # the live stick's straight read, as a percentage in the header
             backend.on_progress = lambda: GLib.idle_add(self.changed, "Status")
         self.conn: Gio.DBusConnection | None = None
@@ -285,7 +290,7 @@ class Service:
         self.writer = Writer(self.writing_chat)
         self.outlines: dict[str, dict] = {}
         self.journal: Journal | None = None  # the open journal (D55)
-        self.interviewer = Interviewer(backend.chat)
+        self.interviewer = Interviewer(lambda *a, **kw: self.backend.chat(*a, **kw))
         # D59: after an update, restart into the new version when idle; reopen the project that was open
         self.watcher = selfupdate.Watcher()
         self.active_at = time.monotonic()
@@ -641,7 +646,10 @@ class Service:
             self.next_id += 1
             inv.return_value(GLib.Variant("(u)", (self.next_id,)))
             (self.hub_download if method == "HubDownload" else self.bring_in)(self.next_id, a, job)
-        elif method in ("ModelsView", "ModelAssign", "ModelRemove", "HubSearch", "HubFiles", "HubCheck", "ModelsOnDrives"):
+        elif method == "AssistantCloud" and self.busy:
+            inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+        elif method in ("ModelsView", "ModelAssign", "ModelRemove", "HubSearch", "HubFiles", "HubCheck", "ModelsOnDrives",
+                        "AssistantCloud"):
             args = params.unpack() if params is not None else ()
             threading.Thread(target=self.models_call, args=(method, args, inv), daemon=True).start()
         elif method in ("LibraryView", "LibraryCatalog", "LibraryGet", "LibraryStop", "LibraryRemove"):
@@ -1958,10 +1966,12 @@ class Service:
                 out = jobs.assign(self.store, args[0], args[1], guide)
             elif method == "ModelRemove":
                 out = jobs.remove(self.store, args[0])
+            elif method == "AssistantCloud":
+                out = self.assistant_cloud(json.loads(args[0] or "{}"))
             else:
                 out = self.hub_call(method, args)
         except Exception as e:
-            if isinstance(e, (jobs.JobError, hub.HubError)):
+            if isinstance(e, (jobs.JobError, hub.HubError, BackendError)):
                 msg = str(e)
             else:
                 log(f"models view: {type(e).__name__}: {e}")
@@ -1971,6 +1981,34 @@ class Service:
         if method == "ModelAssign":
             log(f"job {args[0]}: " + (f"our pick again ({out.get('model', '')})" if out.get("ours") else out["model"]))
         GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
+
+    def assistant_cloud(self, change: dict) -> dict:
+        """D35: read or change the assistant's model (off the main loop: the keyring is read for the offers); the
+        backend itself is swapped on the main loop, between questions."""
+        from cin_minai.daemon import accounts
+        from cin_minai.inference import cloud, cloudguide
+        if "model" in change or "budget_usd" in change:
+            now = cloudguide.choice()
+            model = str(change["model"]) if "model" in change else (now or {}).get("model", "")
+            budget = change.get("budget_usd")
+            picked = cloudguide.choose(model, float(budget) if budget is not None else None)
+            GLib.idle_add(self.use_assistant, picked if picked.get("model") else None)
+        keyed = {p: bool(accounts.cloud_key(p)) for p in ("anthropic", "openai")}
+        offers = [{"model": m, "label": cloud.label(m), "score": score, "provider": cloud.provider_of(m)}
+                  for m, score in cloudguide.MEASURED.items() if keyed.get(cloud.provider_of(m))]
+        return {"current": cloudguide.choice(), "offers": offers}
+
+    def use_assistant(self, picked: dict | None) -> bool:
+        """The guide on the person's cloud model, or back on this computer (D35)."""
+        from cin_minai.inference.cloudguide import CloudGuide
+        new = CloudGuide(picked["provider"], picked["model"]) if picked else self.local
+        if new is not self.backend:
+            if self.backend is self.local:
+                self.local.unload()  # the card is free for other work while the cloud answers
+            self.backend = self.guide.backend = new
+            log(f"assistant: {'on ' + picked['label'] + ' (cloud)' if picked else 'the guide on this computer'}")
+            self.changed("Status")
+        return False
 
     def library_call(self, method: str, args: tuple, inv) -> None:
         """The Library view (D68) off the main loop: Kiwix's list and its mirrors are on the network. A download runs

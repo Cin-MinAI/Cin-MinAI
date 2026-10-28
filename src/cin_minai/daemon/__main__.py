@@ -38,7 +38,13 @@ def build(cfg: dict, lang: str | None = None) -> tuple[LlamaCppBackend, Guide]:
         office = Office(dbus_call())  # LibreOffice documents the user shared (D20)
     except ImportError:  # no PyGObject: --ask on a bare system
         office = None
-    return backend, Guide(backend, guide_data, HelpIndex(help_data), tools, cfg["guide"], office)
+    # the guide on the person's own cloud model, if they chose one (D35); the local backend stays for coming back
+    from cin_minai.inference import cloudguide
+    picked = cloudguide.choice()
+    talks_to = cloudguide.CloudGuide(picked["provider"], picked["model"]) if picked else backend
+    if picked:
+        log(f"assistant: on {picked['label']} (cloud), the person's choice")
+    return backend, Guide(talks_to, guide_data, HelpIndex(help_data), tools, cfg["guide"], office)
 
 
 def main() -> None:
@@ -61,7 +67,7 @@ def main() -> None:
                                      + (f"\n  {result[:400]}" if result else ""), flush=True),
                                  cancel)
                 print(f"\n  stats: {json.dumps({'tool': out['tool'], 'timings': out['timings']})}\n", flush=True)
-            print(json.dumps(backend.status().__dict__), flush=True)
+            print(json.dumps(guide.backend.status().__dict__), flush=True)
         finally:
             backend.unload()
         return
