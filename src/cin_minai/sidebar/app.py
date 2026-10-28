@@ -1247,6 +1247,10 @@ class Sidebar(Gtk.Application):
         title = Gtk.Label(label=words.t("models"), xalign=0)
         title.get_style_context().add_class("what")
         box.pack_start(title, False, False, 0)
+        helper = Gtk.Button(label=words.t("s_help"))  # D93: what do you want to do? a setup suggested, you decide
+        helper.set_halign(Gtk.Align.START)
+        helper.connect("clicked", lambda b: (b.destroy(), self.setup_helper(box)))
+        box.pack_start(helper, False, False, 0)
         reading = Gtk.Label(label=words.t("m_reading"), xalign=0)
         box.pack_start(reading, False, False, 0)
         self.chat.pack_start(box, False, False, 0)
@@ -1347,6 +1351,56 @@ class Sidebar(Gtk.Application):
             GLib.idle_add(fill, v)
 
         self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
+
+    def setup_helper(self, box: Gtk.Box) -> None:
+        """D93: the person says what they want to do; our pick for each job on this computer is suggested (here or how
+        much to download, how it runs); nothing changes until Use this setup."""
+        area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.pack_start(area, False, False, 0)
+        box.reorder_child(area, 1)
+        area.pack_start(self.note_label(words.t("s_ask")), False, False, 0)
+        ticks = {}
+        for job in ("writing", "coding", "vision", "review"):
+            ticks[job] = Gtk.CheckButton(label=words.t("job_" + job))
+            area.pack_start(ticks[job], False, False, 0)
+        go = Gtk.Button(label=words.t("s_suggest"))
+        go.set_halign(Gtk.Align.START)
+        area.pack_start(go, False, False, 0)
+        out = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        area.pack_start(out, False, False, 0)
+
+        def shown(v) -> None:
+            for c in out.get_children():
+                c.destroy()
+            for s in v["setup"]:
+                if not s["file"]:
+                    what = words.t("s_none")
+                else:
+                    what = s["model"] + " · " + (words.t("s_here") if s["here"] else
+                                                 words.t("s_get", gb=f"{s['download'] / 2**30:.1f}"))
+                out.pack_start(self.note_label(f"{words.t('job_' + s['job'])}: {what}"), False, False, 0)
+            usable = [s["job"] for s in v["setup"] if s["file"] and not s.get("offline")]
+            if v["download"]:
+                out.pack_start(self.note_label(words.t("s_total", gb=f"{v['download'] / 2**30:.1f}")), False, False, 0)
+            if len(usable) > 1:
+                out.pack_start(self.note_label(words.t("s_one_card")), False, False, 0)
+            if not v["space_ok"]:
+                out.pack_start(self.note_label(words.t("s_room", gb=f"{v['download'] / 2**30:.1f}")), False, False, 0)
+            elif usable:
+                use = Gtk.Button(label=words.t("s_use"))
+                use.get_style_context().add_class("suggested-action")
+                use.set_halign(Gtk.Align.START)
+                use.connect("clicked", lambda b: (area.destroy(), self.start_job(
+                    "ModelSetupApply", json.dumps(usable), words.t("s_working"))))
+                out.pack_start(use, False, False, 0)
+            out.show_all()
+
+        def suggest(b) -> None:
+            wants = [j for j, t in ticks.items() if t.get_active()]
+            if wants:
+                self.daemon_async("ModelSetup", (json.dumps(wants),), "(s)", shown)
+        go.connect("clicked", suggest)
+        area.show_all()
 
     def assistant_choice(self, box: Gtk.Box, again) -> None:
         """D35: the assistant on the person's own cloud model, under Help and the system: the models of each provider

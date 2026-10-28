@@ -89,6 +89,21 @@ class Jobs(unittest.TestCase):
         self.assertIn(str(ours["context"]), mine["args"])
         self.assertEqual(ours["context"], matcher.MORE_CONTEXT["coding"])  # 32K fits a free 1080 Ti
 
+    def test_the_setup_helper_suggests_and_changes_nothing(self):
+        before = self.store.state()["use"]
+        v = jobs.suggest(self.store, ["coding", "vision", "review", "help"], machine())
+        by = {s["job"]: s for s in v["setup"]}
+        self.assertEqual(list(by), ["coding", "vision", "review"])  # what it asks about, in its order
+        self.assertTrue(all(s["file"] for s in by.values()))  # a 1080 Ti runs something for each
+        self.assertEqual(by["vision"]["file"], BIG)  # the 27B is here (its header stands in), its picture reader isn't
+        self.assertEqual(by["vision"]["download"], matcher.PROJECTORS[BIG].size)
+        files = {s["file"]: s["download"] for s in by.values() if s["download"]}
+        self.assertEqual(v["download"], sum(files.values()))  # one model wanted twice is downloaded once
+        self.assertEqual(self.store.state()["use"], before)  # nothing changed: the person approves the setup
+        off = jobs.suggest(self.store, ["vision"], machine(), offline=True)
+        self.assertTrue(off["setup"][0]["offline"])
+        self.assertEqual(off["download"], 0)
+
     def test_refused(self):
         for job, file, why in (("system", BIG, "stay with the guide"), ("junior", BIG, "hand-offs"),
                                ("vision", "old-coder-7b.Q4_K_M.gguf", "picture reader"),

@@ -200,3 +200,46 @@ def assign(store, job: str, file: str, guide_path: str = "", machine=None) -> di
         raise JobError(f"{m.name} doesn't run on this computer")
     store.use(job, plan)
     return {"job": job, "model": m.name, "file": m.file, "mode": plan.get("mode", "")}
+
+
+# --- the setup helper (D93: "a small helper in the view asks what the person wants to do and suggests a task setup;
+# the person decides") ---------------------------------------------------------------------------------------------
+HELPED = ("writing", "coding", "vision", "review")  # the jobs the helper asks about; help and the system is always there
+
+
+def suggest(store, wants: list, machine=None, offline: bool = False) -> dict:
+    """For each job the person wants, our pick for this computer (the matcher's, as the Models view offers it):
+    whether it's here or how much to download, how it runs. Nothing is changed: the person approves the setup."""
+    machine = machine or matcher.read_machine(models_dir=store.root)
+    picks = matcher.match(machine)
+    out = []
+    for job in [j for j in HELPED if j in wants]:
+        m, plan = None, None
+        if job in ("writing", "coding"):
+            p = picks.get(BY_JOB[job][1])
+            m = next((x for x in matcher.CATALOG[BY_JOB[job][1]] if p and x.file == p["file"]), None)
+            plan = p
+        elif job == "vision":
+            for x in matcher.CATALOG["coding"]:
+                if x.file in matcher.PROJECTORS and matcher.vision_plan(x, machine):
+                    m, plan = x, matcher.vision_plan(x, machine)
+                    break
+        else:  # review: our measured order
+            by_file = {x.file: x for x in matcher.CATALOG["coding"]}
+            for file in REVIEW_ORDER:
+                x = by_file.get(file)
+                p = x and matcher.plan(x, machine, context(job))
+                if p:
+                    m, plan = x, p
+                    break
+        if m is None:
+            out.append({"job": job, "model": "", "file": ""})
+            continue
+        extra = matcher.PROJECTORS.get(m.file) if job == "vision" else None
+        need = (0 if store.has(m.file) else m.size) + (0 if extra is None or store.has(extra.file) else extra.size)
+        tok = (plan or {}).get("tok_s", 0)
+        out.append({"job": job, "model": m.name, "file": m.file, "here": need == 0, "download": need,
+                    "mode": (plan or {}).get("mode", ""), "tok_s": tok[0] if isinstance(tok, list) else tok,
+                    "offline": offline and need > 0})
+    total = sum({s["file"]: s["download"] for s in out if s.get("download") and not s["offline"]}.values())
+    return {"setup": out, "download": total, "space_ok": total + (2 << 30) <= store.free_bytes()}

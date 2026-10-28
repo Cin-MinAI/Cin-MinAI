@@ -155,6 +155,11 @@ XML = f"""
     </method>
     <!-- the Models view (SPEC §22.3): each job with its model and the models that can do it here; the models here -->
     <method name="ModelsView"><arg type="s" name="json" direction="out"/></method>
+    <!-- D93's setup helper. ModelSetup: in, the jobs the person wants (JSON list); out, our pick for each here, what
+         it would download, whether there's room. ModelSetupApply: the jobs approved (JSON list): each pick
+         downloaded if it isn't here, then given its job; streamed like a reply -->
+    <method name="ModelSetup"><arg type="s" name="wants" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <method name="ModelSetupApply"><arg type="s" name="jobs" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <!-- D35: the assistant on the person's own cloud model. change (JSON): empty to read, "model" to choose (an
          empty model = the guide on this computer), "budget_usd"; json: "current" (the choice or null) and "offers"
          (the models of each provider with a key here) -->
@@ -655,8 +660,17 @@ class Service:
             (self.hub_download if method == "HubDownload" else self.bring_in)(self.next_id, a, job)
         elif method == "AssistantCloud" and self.busy:
             inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+        elif method == "ModelSetupApply":
+            (wanted,) = params.unpack()
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.job(self.next_id, lambda on_text, on_action: self.setup_apply(json.loads(wanted or "[]"), on_text,
+                                                                               on_action))
         elif method in ("ModelsView", "ModelAssign", "ModelRemove", "HubSearch", "HubFiles", "HubCheck", "ModelsOnDrives",
-                        "AssistantCloud"):
+                        "AssistantCloud", "ModelSetup"):
             args = params.unpack() if params is not None else ()
             threading.Thread(target=self.models_call, args=(method, args, inv), daemon=True).start()
         elif method in ("LibraryView", "LibraryCatalog", "LibraryGet", "LibraryStop", "LibraryRemove"):
@@ -1993,6 +2007,8 @@ class Service:
                 out = jobs.remove(self.store, args[0])
             elif method == "AssistantCloud":
                 out = self.assistant_cloud(json.loads(args[0] or "{}"))
+            elif method == "ModelSetup":
+                out = jobs.suggest(self.store, json.loads(args[0] or "[]"), offline=offline.on())
             else:
                 out = self.hub_call(method, args)
         except Exception as e:
@@ -2018,6 +2034,42 @@ class Service:
         on_text(say(lang, "rundown_head") + "\n" + "\n".join("• " + x for x in lines) if lines
                 else say(lang, "rundown_none"))
         return {"tool": "rundown", "lines": len(lines)}
+
+    def setup_apply(self, wanted: list, on_text, on_action) -> dict:
+        """D93: the setup the person approved: each job's pick fetched if it isn't here (one at a time, checked, a
+        picture reader with its model), then given the job. Read again here: what's offered is what's set up."""
+        from . import jobs
+        gb = lambda b: f"{b / 2**30:.1f}"  # noqa: E731
+        guide = config.load()["inference"].get("model", "")
+        done = []
+        for s in jobs.suggest(self.store, wanted, offline=offline.on())["setup"]:
+            name = say(self.guide.tools.lang, "job_" + s["job"])
+            if not s["file"]:
+                on_text(say(self.guide.tools.lang, "setup_none", job=name) + "\n")
+                continue
+            if s["offline"]:
+                on_text(say(self.guide.tools.lang, "setup_offline", model=s["model"], job=name) + "\n")
+                continue
+            m = next(x for ms in matcher.CATALOG.values() for x in ms if x.file == s["file"])
+            for need in [m] + ([matcher.PROJECTORS[m.file]] if s["job"] == "vision" else []):
+                if self.store.has(need.file):
+                    continue
+                on_text(say(self.guide.tools.lang, "setup_get", model=need.name, gb=gb(need.size)) + "\n")
+                try:
+                    hook.run("download_model", lambda: self.store.download(need, lambda have, total: on_action(
+                        "download", {"file": need.file}, "running",
+                        json.dumps({"model": need.name, "have_gb": gb(have), "total_gb": gb(total), "have": have,
+                                    "total": total})), self.cancel),
+                        f"download the model {need.name} from Hugging Face (checked before use)", reversible=False,
+                        private=False)
+                except DownloadStopped:
+                    on_text(say(self.guide.tools.lang, "setup_stopped"))
+                    return {"tool": "model_setup", "done": done}
+            jobs.assign(self.store, s["job"], m.file, guide)
+            done.append(s["job"])
+            on_text(say(self.guide.tools.lang, "setup_done", model=s["model"], job=name) + "\n")
+        self.release_writing_model()
+        return {"tool": "model_setup", "done": done}
 
     def assistant_cloud(self, change: dict) -> dict:
         """D35: read or change the assistant's model (off the main loop: the keyring is read for the offers); the
