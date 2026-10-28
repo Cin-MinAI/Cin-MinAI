@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **69 filled (73 %)**, 16 partly,
+**Count:** 95 live decisions (D18 superseded) — **70 filled (74 %)**, 15 partly,
 4 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96 and D35 filled). 90 % is **86 filled**: 17 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35 and D40 filled). 90 % is **86 filled**: 16 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -192,7 +192,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D37 | partly | requirements stated (hardware.md); no testing on 6 GB laptops |
 | D38 | filled | standing rule |
 | D39 | partly | interpretation corpus generated; not in a shipped guide; personalization not built |
-| D40 | partly | compaction and handovers in AICUI; the sidebar's long-session notebook not built |
+| D40 | filled | compaction and handovers in AICUI; the sidebar's long session (2026-10-28, daemon/notebook.py): the transcript on this computer (30 days, never the journal's talk), trimmed turns folded into notes the person is shown line by line and can take out, recall of an earlier turn by its words (no model), the rundown offered after a pause (yes reads the notes back, no goes straight in, asked once after three no's), New conversation starts the notes fresh. Internal threads and a saved prompt cache not built (they make it cheaper, not continuous) |
 | D41 | partly | method and bench published; no review cycle run since cycle 0 |
 | D42 | parked | post-MVP |
 | D43 | filled | the tuned 4B ships |

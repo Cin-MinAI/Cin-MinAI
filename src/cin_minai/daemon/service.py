@@ -46,6 +46,13 @@ XML = f"""
     <method name="Ask"><arg type="s" name="text" direction="in"/><arg type="u" name="id" direction="out"/></method>
     <method name="Cancel"/>
     <method name="Reset"/>
+    <!-- D40: the rundown of last session, offered when the sidebar opens after a pause. RundownOffer: json "offer";
+         RundownSay: the answer (no, stop, keep), json "ask_stop" after the third no in a row; Rundown: read it back,
+         streamed like a reply. NotebookRemove: a line of the notes taken out (by its place), json "lines" -->
+    <method name="RundownOffer"><arg type="s" name="json" direction="out"/></method>
+    <method name="RundownSay"><arg type="s" name="choice" direction="in"/><arg type="s" name="json" direction="out"/></method>
+    <method name="Rundown"><arg type="u" name="id" direction="out"/></method>
+    <method name="NotebookRemove"><arg type="u" name="index" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- D59: an installed update is waiting (Status update_ready): restart into it now, unless it's answering -->
     <method name="UpdateNow"/>
     <method name="Load"/>
@@ -696,6 +703,24 @@ class Service:
             if interrupt:
                 interrupt()
             inv.return_value(None)
+        elif method in ("RundownOffer", "RundownSay", "NotebookRemove"):
+            nb = self.guide.notebook
+            if nb is None:
+                out = {"offer": False, "lines": []}
+            elif method == "RundownOffer":
+                out = nb.offer()
+            elif method == "RundownSay":
+                out = nb.said(params.unpack()[0])
+            else:
+                out = {"lines": nb.remove(int(params.unpack()[0]))}
+            inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),)))
+        elif method == "Rundown":
+            if self.busy:
+                inv.return_dbus_error(f"{IFACE}.Error.Busy", "still answering; Cancel first")
+                return
+            self.next_id += 1
+            inv.return_value(GLib.Variant("(u)", (self.next_id,)))
+            self.job(self.next_id, self.rundown)
         elif method == "Reset":
             self.guide.reset()
             inv.return_value(None)
@@ -1981,6 +2006,18 @@ class Service:
         if method == "ModelAssign":
             log(f"job {args[0]}: " + (f"our pick again ({out.get('model', '')})" if out.get("ours") else out["model"]))
         GLib.idle_add(lambda: inv.return_value(GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))) and False)
+
+    def rundown(self, on_text, on_action) -> dict:
+        """D40: where we left off, read back from the notes (an earlier session's last turns folded in first)."""
+        nb, lang = self.guide.notebook, self.guide.tools.lang
+        nb.said("yes")
+        lines = nb.lines()
+        if nb.earlier() and not self.guide.caught_up:
+            lines = nb.catch_up(self.backend.chat)
+            self.guide.caught_up = True
+        on_text(say(lang, "rundown_head") + "\n" + "\n".join("• " + x for x in lines) if lines
+                else say(lang, "rundown_none"))
+        return {"tool": "rundown", "lines": len(lines)}
 
     def assistant_cloud(self, change: dict) -> dict:
         """D35: read or change the assistant's model (off the main loop: the keyring is read for the offers); the

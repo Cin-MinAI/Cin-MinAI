@@ -18,6 +18,8 @@ SAY = {
         "size_unknown": 'a few hundred MB to download',
         "search_offer": "I can look that up on the web. Below is exactly what would be sent; nothing leaves this "
                         "computer until you click Search.",
+        "rundown_head": "Here's where we left off:",
+        "rundown_none": "There's nothing to tell yet: our conversation starts here.",
         "search_offline": "I'd need to look that up on the web, and this computer isn't online right now. Connect "
                           "to the internet, then click Search below.",
         "memory_intro": "This is what I have in memory about {subject}:",
@@ -71,6 +73,8 @@ SAY = {
         "size_unknown": 'unos cientos de MB de descarga',
         "search_offer": "Puedo buscarlo en la web. Abajo está exactamente lo que se enviaría; nada sale de este "
                         "equipo hasta que hagas clic en Buscar.",
+        "rundown_head": 'Aquí es donde lo dejamos:',
+        "rundown_none": 'Todavía no hay nada que contar: nuestra conversación empieza aquí.',
         "search_offline": "Tendría que buscarlo en la web, y este equipo no tiene conexión ahora. Conéctate a "
                           "internet y luego haz clic en Buscar abajo.",
         "memory_intro": "Esto es lo que tengo en memoria sobre {subject}:",
@@ -126,6 +130,8 @@ SAY = {
         "size_unknown": 'algumas centenas de MB para baixar',
         "search_offer": "Posso pesquisar isso na web. Abaixo está exatamente o que seria enviado; nada sai deste "
                         "computador até você clicar em Pesquisar.",
+        "rundown_head": 'Foi aqui que paramos:',
+        "rundown_none": 'Ainda não há nada para contar: a nossa conversa começa aqui.',
         "search_offline": "Eu precisaria pesquisar isso na web, e este computador está sem internet agora. "
                           "Conecte-se e clique em Pesquisar abaixo.",
         "memory_intro": "Isto é o que tenho na memória sobre {subject}:",
@@ -181,6 +187,8 @@ SAY = {
         "size_unknown": 'quelques centaines de Mo à télécharger',
         "search_offer": "Je peux le chercher sur le web. Ci-dessous, exactement ce qui serait envoyé ; rien ne quitte "
                         "cet ordinateur avant que vous cliquiez sur Rechercher.",
+        "rundown_head": 'Voici où nous en étions :',
+        "rundown_none": "Il n'y a encore rien à raconter : notre conversation commence ici.",
         "search_offline": "Il faudrait le chercher sur le web, et cet ordinateur n'est pas en ligne pour l'instant. "
                           "Connectez-vous, puis cliquez sur Rechercher ci-dessous.",
         "memory_intro": "Voici ce que j'ai en mémoire sur {subject} :",
@@ -238,6 +246,8 @@ SAY = {
         "size_unknown": 'einige hundert MB zum Herunterladen',
         "search_offer": "Ich kann das im Web nachschlagen. Unten steht genau, was gesendet würde; nichts verlässt "
                         "diesen Computer, bevor Sie auf Suchen klicken.",
+        "rundown_head": 'Hier waren wir stehen geblieben:',
+        "rundown_none": 'Es gibt noch nichts zu erzählen: Unser Gespräch beginnt hier.',
         "search_offline": "Ich müsste das im Web nachschlagen, und dieser Computer ist gerade offline. Verbinden Sie "
                           "sich mit dem Internet und klicken Sie dann unten auf Suchen.",
         "memory_intro": "Das habe ich über {subject} im Gedächtnis:",
@@ -293,6 +303,8 @@ SAY = {
         "size_unknown": 'ダウンロード数百MB',
         "search_offer": "ウェブで調べられます。送信される内容は下のとおりです。「検索」を押すまで、このコンピューターからは"
                         "何も送られません。",
+        "rundown_head": '前回はここまででした:',
+        "rundown_none": 'まだお伝えすることはありません。会話はここから始まります。',
         "search_offline": "ウェブで調べる必要がありますが、今はオフラインです。インターネットに接続してから、下の「検索」を"
                           "押してください。",
         "memory_intro": "{subject}について、私が覚えていることです：",

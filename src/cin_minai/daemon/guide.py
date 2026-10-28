@@ -153,9 +153,12 @@ class Gate:
 
 class Guide:
     def __init__(self, backend: InferenceBackend, data: dict, help_index: HelpIndex, tools: Tools, cfg: dict,
-                 office: Office | None = None) -> None:
+                 office: Office | None = None, notebook=None) -> None:
         self.backend, self.data, self.help, self.tools, self.cfg = backend, data, help_index, tools, cfg
         self.office = office
+        self.notebook = notebook  # D40: the transcript, the notes and recall (notebook.py); None in tests
+        self.caught_up = False  # an earlier session's last turns folded into the notes, at the first turn
+        self.asked = ""  # this turn's own words, for the transcript
         self.history: list[dict] = []
         self.searches: dict[str, dict] = {}  # offered web searches, by id (D55): nothing is sent before Search
         self.terminal_question: str | None = None  # this turn's message with the terminal in front of it (M3)
@@ -311,6 +314,12 @@ class Guide:
         the help; after one web search, every subject to the web): Ian's talk 3/11 on the conversation eval, 7/10 kept
         plain (prompt v2.7); follow-ups ("How cold does it get?") still work, the reply carries what was said."""
         self.history += [user, {"role": "assistant", "content": reply}]
+        if self.notebook is not None:
+            said = self.asked if self.asked and user["content"].endswith(self.asked) else user["content"]
+            try:
+                self.notebook.record(said, reply)
+            except OSError:
+                pass  # a full disk doesn't stop the answer
 
     def document(self) -> tuple[dict | None, str, dict]:
         """(the shared document or None, the system prompt, the schema): with a document shared, the prompt
@@ -332,6 +341,8 @@ class Guide:
 
     def reset(self) -> None:
         self.history.clear()
+        if self.notebook is not None:
+            self.notebook.fresh()
 
     def budget(self) -> int:
         on_cpu = self.backend.status().build == "cpu"
@@ -347,11 +358,29 @@ class Guide:
         size = lambda: sum(len(m["content"]) for m in self.history)
         most = int(self.cfg.get("history_turns", 8))
         over_size, over_turns = size() > self.budget(), self.turns() > most
+        dropped = []
         while self.history and ((over_size and size() > self.budget() // 2) or (over_turns and self.turns() > most // 2)):
-            del self.history[0]
+            dropped.append(self.history.pop(0))
             while self.history and not (self.history[0]["role"] == "user"
                                         and not self.history[0]["content"].startswith("Result of ")):
-                del self.history[0]  # a turn starts with the user's own message
+                dropped.append(self.history.pop(0))  # a turn starts with the user's own message
+        return dropped
+
+    def fold(self, dropped: list[dict], on_action) -> None:
+        """D40: the turns trimmed from the history (and, at the first turn, the end of an earlier session) folded into
+        the notes, and the person shown what was kept. A model that can't answer leaves the notes as they were."""
+        nb = self.notebook
+        pairs = [(a["content"], b["content"]) for a, b in zip(dropped, dropped[1:])
+                 if a["role"] == "user" and b["role"] == "assistant"]
+        turns = ([] if self.caught_up else nb.earlier()) + nb.timed(pairs)
+        self.caught_up = True
+        if not turns:
+            return
+        try:
+            lines = nb.fold(turns, self.backend.chat)
+        except BackendError:
+            return
+        on_action("notebook", {}, "done", json.dumps({"lines": lines}, ensure_ascii=False))
 
     def run_tool(self, tool: str, args: dict, doc: dict | None = None, request: str = "") -> str:
         if doc is not None and tool in self.data["documents"][doc["type"]]["read"]:
@@ -385,7 +414,10 @@ class Guide:
     def turn(self, text: str, on_text: Callable[[str], None], on_action: Callable[[str, dict, str, str], None],
              cancel: threading.Event) -> dict:
         """Answer one message. Returns {"reply", "tool", "args", "timings": [...]}; raises BackendError."""
-        self.trim()
+        dropped = self.trim()
+        if self.notebook is not None:
+            self.fold(dropped, on_action)
+        self.asked = text
         user = {"role": "user", "content": text}
         # a message about the terminal gets the shared terminal's last commands in front of it (M3, §11.5; D77)
         from . import commands as cmdfacts, terminal
@@ -405,6 +437,9 @@ class Guide:
             schema = intent.narrow(schema, text)  # the email tool only when an email is asked for (D88)
             if live_session():
                 system += LIVE_SYSTEM
+            if self.notebook is not None:  # D40: the notes, and an earlier turn these words recall, after the prompt
+                self.notebook.recent = {m["content"] for m in self.history if m["role"] == "assistant"}
+                system += self.notebook.system_note(text)
         messages = [{"role": "system", "content": system}] + self.history + [user]
         edits = set(self.data["documents"][doc["type"]]["edit"]) if doc else set()
         timings = []

@@ -384,9 +384,81 @@ class Sidebar(Gtk.Application):
                                                      Gio.DBusSignalFlags.NONE, self.on_libreoffice)
         self.update_header()
         GLib.idle_add(self.show_waiting)
+        if not self.pending_ask:
+            GLib.idle_add(self.rundown_offer)
         if self.pending_ask:
             text, self.pending_ask = self.pending_ask, None
             self.ask(text)
+
+    def rundown_offer(self) -> bool:
+        """D40: after a pause, "Want a quick rundown of where we left off?" Yes reads the notes back, No goes straight
+        in (after a few no's in a row, asked once whether to stop offering), Start fresh is a new conversation."""
+        try:  # quiet when it fails: an offer, not something the person asked for
+            v = self.proxy.call_sync("RundownOffer", None, Gio.DBusCallFlags.NONE, 10000, None)
+            offer = json.loads(v.unpack()[0]).get("offer")
+        except (GLib.Error, ValueError, AttributeError):
+            offer = False
+        if not offer:
+            return False
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        box.pack_start(Gtk.Label(label=words.t("r_offer"), xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+        row = Gtk.Box(spacing=6)
+
+        def yes(b) -> None:
+            box.destroy()
+            self.start_job("Rundown", (), words.t("r_reading"), "()")
+
+        def no(b) -> None:
+            box.destroy()
+            self.daemon_async("RundownSay", ("no",), "(s)", lambda v: v.get("ask_stop") and self.stop_asking())
+
+        for label, cb in ((words.t("r_yes"), yes), (words.t("r_no"), no),
+                          (words.t("r_fresh"), lambda b: (box.destroy(), self.on_new(None)))):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", cb)
+            row.pack_start(b, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+        return False
+
+    def stop_asking(self) -> None:
+        """Asked once, after the third no in a row (Rule 9, D39)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("proposal")
+        box.pack_start(Gtk.Label(label=words.t("r_stop_q"), xalign=0, wrap=True, max_width_chars=30), False, False, 0)
+        row = Gtk.Box(spacing=6)
+        for label, choice in ((words.t("r_stop"), "stop"), (words.t("r_keep"), "keep")):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", lambda b, c=choice: (box.destroy(),
+                                                      self.daemon_async("RundownSay", (c,), "(s)", lambda v: None)))
+            row.pack_start(b, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
+
+    def notebook_card(self, lines: list) -> None:
+        """D40: the earlier conversation folded into notes, never silently: what was kept, each line removable."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.get_style_context().add_class("proposal")
+        box.pack_start(self.note_label(words.t("n_kept")), False, False, 0)
+        for i, line in enumerate(lines):
+            row = Gtk.Box(spacing=6)
+            text = Gtk.Label(label="• " + line, xalign=0, wrap=True, max_width_chars=28)
+            row.pack_start(text, True, True, 0)
+            x = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
+            x.set_relief(Gtk.ReliefStyle.NONE)
+            x.set_tooltip_text(words.t("n_remove"))
+
+            def remove(b, i=i) -> None:
+                self.daemon_async("NotebookRemove", (i,), "(u)",
+                                  lambda v: (box.destroy(), self.notebook_card(v.get("lines", []))))
+            x.connect("clicked", remove)
+            row.pack_end(x, False, False, 0)
+            box.pack_start(row, False, False, 0)
+        self.chat.pack_start(box, False, False, 0)
+        box.show_all()
 
     def show_waiting(self) -> bool:
         """Cards proposed while the sidebar was closed (the CUDA engine's offer, update 6) are shown when it opens."""
@@ -594,6 +666,8 @@ class Sidebar(Gtk.Application):
             self.reply_started = True
             self.reply.get_style_context().remove_class("waiting")
             self.reply.set_text(args[1])
+        elif signal == "Action" and args[1] == "notebook":  # D40: the notes after a compaction, said and correctable
+            self.notebook_card(json.loads(args[4] or "{}").get("lines", []))
         elif signal == "Action" and args[1] == "outline" and args[3] == "proposal":
             self.outline_card(json.loads(args[4] or "{}"))
         elif signal == "Action" and args[1] == "review" and args[3] == "proposal":

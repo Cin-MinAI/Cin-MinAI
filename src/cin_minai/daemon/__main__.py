@@ -44,7 +44,8 @@ def build(cfg: dict, lang: str | None = None) -> tuple[LlamaCppBackend, Guide]:
     talks_to = cloudguide.CloudGuide(picked["provider"], picked["model"]) if picked else backend
     if picked:
         log(f"assistant: on {picked['label']} (cloud), the person's choice")
-    return backend, Guide(talks_to, guide_data, HelpIndex(help_data), tools, cfg["guide"], office)
+    from .notebook import Notebook  # D40: the conversation kept on this computer, its notes and recall
+    return backend, Guide(talks_to, guide_data, HelpIndex(help_data), tools, cfg["guide"], office, Notebook())
 
 
 def main() -> None:
