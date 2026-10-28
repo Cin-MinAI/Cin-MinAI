@@ -89,6 +89,8 @@ ACTIONS = [
     {"tool": "append", "path": STR, "content": STR},
     {"tool": "run", "command": STR, "network": {"type": "boolean"}},
     {"tool": "web_search", "query": STR, "kind": {"enum": ["pages", "images"]}},
+    {"tool": "habit", "name": STR, "inputs": {"type": "object"}},
+    {"tool": "offer_habit", "name": STR, "for": STR, "script": STR, "check": STR, "output": STR},
     {"tool": "fetch", "url": STR, "goal": {"type": "integer"}},
     {"tool": "download", "urls": {"type": "array", "items": STR, "maxItems": DOWNLOAD_MAX}, "folder": STR,
      "goal": {"type": "integer"}},
@@ -124,7 +126,8 @@ ACTIONS = [
     {"tool": "pass_floor", "to": STR},
     {"tool": "request_floor"},
 ]
-OPTIONAL = {"start", "goal", "into", "format", "kind", "network", "to", "also"}
+OPTIONAL = {"start", "goal", "into", "format", "kind", "network", "to", "also", "output"}
+HABIT_TOOLS = {"habit", "offer_habit"}  # a model with 16K or more: the habits line takes room an 8K context hasn't got
 TABLE_TOOLS = {"say", "pass_floor", "request_floor"}  # the conference table's conversation (conference.py)
 SENIOR_ONLY = {"assign", "review_task", "plan", "follow_up", "brief", "lfd", "permit", "wait"}  # style B's Senior
 WAIT_MAX_S = 900  # wait: until the junior's next result, or this long (Ian, 2026-10-14: wait, don't ask the person)
@@ -942,6 +945,21 @@ def line_count(full: str) -> str:
     return f" ({data.count(b'\n') + (not data.endswith(b'\n') and bool(data))} lines)"
 
 
+def habits_line(root: str) -> str:
+    """The habits a lead can run here (D96), one line each, for its system text."""
+    try:
+        from cin_minai import habits
+        known = habits.every(root)
+    except Exception:
+        return ""
+    if not known:
+        return ""
+    said = "; ".join(f"{h['name']} ({h['for'][:80]}; takes {', '.join(h['takes']) or 'nothing'})" for h in known[:8])
+    return ("\nHabits: a script and its check that worked, run by name, so code carries the bulk — habit (`name`, "
+            f"`inputs`): {said}. offer_habit (`name`, `for`, `script`, `check`, `output`): a script of yours that "
+            "worked, with its check, offered to the person to keep as a habit (they decide).")
+
+
 def starts(root: str, entry: str) -> str:
     """What the entry point runs, said with a blank or stopped window (2026-10-27, test28: run.sh built and ran the C++
     console engine, the GUI was never started, and Haiku took "the picture is blank" for a question for the person)."""
@@ -1077,7 +1095,7 @@ class Agent:
         if self.role == "junior":  # a cloud lead's contributors fetch too (Ian: "Fetch this, write that")
             return {a["tool"] for a in ACTIONS} - JUNIOR_TOOLS - talk - (WEB_TOOLS if getattr(self, "web", False)
                                                                            else set())
-        return self.lead_excluded() - talk
+        return self.lead_excluded() - talk | (HABIT_TOOLS if self.ctx < 16384 else set())
 
     def lead_excluded(self) -> set:
         no_talk = set(TABLE_TOOLS)
@@ -1219,6 +1237,8 @@ class Agent:
         elif env_state(self.root) == "declared":
             venv = ("\nThe project has an environment that isn't built yet: when the work needs a package, use need "
                     "(never pip); AICUI asks the person and builds it as .venv/.")
+        if self.role != "junior" and self.ctx >= 16384:
+            venv += habits_line(self.root)
         screen = re.fullmatch(r"(\d+)x(\d+)@(\d+)", os.environ.get("CINMINAI_SCREEN", ""))
         if screen:  # you run without a display; the person's screen, as AICUI read it
             w, h, k = (int(x) for x in screen.groups())
@@ -1865,6 +1885,8 @@ class Agent:
             return True
         if tool == "lfd" and result.startswith("Large File Distillation done"):  # create: the project's summary
             return True
+        if tool == "habit" and " passed its check" in result:  # create: checked data from a habit (D96)
+            return True
         if tool == "fetch" and result.startswith("saved "):  # create: a new source in the project (Ian, 2026-10-10)
             return True
         if tool == "download" and re.match(r"downloaded [1-9]", result):
@@ -2509,6 +2531,62 @@ class Agent:
                 pass
         return False
 
+    def run_habit(self, name: str, inputs: dict) -> str:
+        """A habit run by name (PLAN D96): its script fetches and structures, its check checks, the model works from
+        the checked output. Paths are the project's; a habit that needs the network is asked like a fetch (D86)."""
+        from cin_minai import habits
+        h = habits.find(name, self.root)
+        if h is None:
+            known = ", ".join(x["name"] for x in habits.every(self.root)) or "none"
+            return f"error: no habit called {name} (habits here: {known})"
+        for key in ("path",):
+            if isinstance(inputs.get(key), str) and inputs[key]:
+                full = os.path.realpath(os.path.join(self.root, inputs[key]))
+                if not full.startswith(os.path.realpath(self.root) + os.sep) or not os.path.exists(full):
+                    return f"error: {inputs[key]} isn't a file in the project"
+                inputs[key] = os.path.relpath(full, self.root)
+        meta = h["meta"]
+        online = meta.get("network") and not (meta.get("offline_with") and inputs.get(meta["offline_with"]))
+        if online and not (self.fetch_ok or self.autopilot()):
+            where = inputs.get("url") or "the internet"
+            self.event("busy", doing="waiting for your answer in the terminal", asking=f"habit {name} {where}"[:120])
+            reply = self.ask(f"\033[1mLet the habit {name} reach {where}? [y]es / [n]o / [a]lways this session: "
+                             "\033[0m").strip().lower()
+            if reply[:1] not in ("y", "a"):
+                return f"the person said no to the habit {name} reaching {where}"
+            self.fetch_ok = reply.startswith("a")
+        self.event("busy", doing=f"running the habit {name}", tokens=0)
+        result = habits.run(name, inputs, self.root, network_ok=bool(online),
+                            runner=lambda command, timeout, network: self.execute(command, timeout, self.sandbox,
+                                                                                    network=network))
+        self.event("habit", name=name, ok=result["ok"], output=result.get("output", ""), place=result.get("place", ""))
+        if result.get("output"):
+            intake.record_origin(self.root, result["output"], f"habit {name}", "habit")
+        return result["said"] + (f"\n(its inputs, output and log are in {result['run']})" if result.get("run") else "")
+
+    def offer_habit(self, a: dict) -> str:
+        """Assimilate (SPEC §23.1, step 6): a script that worked and its check, offered to the person to keep as a habit.
+        The model only offers; AICUI's Keep card is the person's decision (Rule 9, D30). Only what passes its check now
+        is offered."""
+        from cin_minai import habits
+        name = str(a.get("name", "")).strip()
+        if not habits.NAME.match(name):
+            return "error: a habit's name is lowercase letters, digits and dashes (2-41), like cards-from-api"
+        files = {}
+        for key in ("script", "check"):
+            full = os.path.realpath(os.path.join(self.root, str(a.get(key, ""))))
+            if not full.startswith(os.path.realpath(self.root) + os.sep) or not os.path.isfile(full):
+                return f"error: {a.get(key)} isn't a file in the project ({key})"
+            files[key] = os.path.relpath(full, self.root).replace(os.sep, "/")
+        code, out = self.execute(f"python3 {shlex.quote(files['check'])}", 120, self.sandbox)
+        if code != 0:
+            return (f"error: {files['check']} doesn't pass now (exit {code}): only a script whose check passes is "
+                    f"offered\n{(out or '')[-400:]}")
+        self.event("habit_offer", name=name, purpose=str(a.get("for", ""))[:300], script=files["script"],
+                   check=files["check"], output=str(a.get("output", "")))
+        return (f"offered to the person: AICUI shows them a card to keep {files['script']} as the habit {name}; it's kept "
+                "only if they say so. Go on with your work.")
+
     def web_search(self, query: str, kind: str = "pages") -> str:
         """Pages for a query, through the assistant's own search (D55: DuckDuckGo, then Bing) — the query leaves the
         computer, so it's asked like a fetch (D86). Kept as sources/search-….txt; its addresses can then be fetched."""
@@ -2726,6 +2804,11 @@ class Agent:
                     return blocked
             if t == "fetch":
                 return self.fetch(a.get("url", ""), a.get("goal"))
+            if t == "habit":
+                return self.run_habit(str(a.get("name", "")).strip(),
+                                      a.get("inputs") if isinstance(a.get("inputs"), dict) else {})
+            if t == "offer_habit":
+                return self.offer_habit(a)
             if t == "web_search":
                 return self.web_search(a.get("query", ""), a.get("kind") or "pages")
             if t == "download":

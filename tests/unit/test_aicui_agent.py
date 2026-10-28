@@ -230,7 +230,7 @@ class AgentTest(unittest.TestCase):
     def test_schema_lists_every_tool(self):
         tools = [v["properties"]["tool"]["const"] for v in schema()["properties"]["action"]["anyOf"]]
         self.assertEqual(tools, ["read", "list", "search", "edit", "replace_lines", "write", "append", "run",
-                                 "web_search", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "goal_reopen", "goal_remove", "need",
+                                 "web_search", "habit", "offer_habit", "fetch", "download", "distill", "errand", "goal_add", "goal_done", "goal_reopen", "goal_remove", "need",
                                  "look", "ask",
                                  "answer"])
 

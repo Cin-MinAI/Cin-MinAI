@@ -1,0 +1,9 @@
+{
+ "name": "video-segments",
+ "for": "A video file's speech as timed segments (whisper, on this computer): what was said and when",
+ "takes": {"path": "the video file, in the project"},
+ "gives": {"source": "the video", "duration": "its length in seconds", "segments": "[{start, text}]"},
+ "network": false,
+ "timeout": 3600,
+ "origin": "shipped with Cin-MinAI (PLAN D96, SPEC §23.2); the daemon's video pipeline (daemon/video.py)"
+}

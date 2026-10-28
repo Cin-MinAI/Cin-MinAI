@@ -344,6 +344,8 @@ class Workspace(Gtk.ApplicationWindow):
             if e["kind"] == "user":
                 if e.get("via") != "aicui":  # said here already (the answer box, or typed while it worked)
                     self.bubble("user", e.get("text", ""))
+            elif e["kind"] == "habit_offer":  # a script that worked, offered as a habit: the person decides (D96)
+                self.habit_offer(e)
             elif e["kind"] == "question":  # asked while the work goes on: to click and answer
                 self.add_question(str(e.get("id", "")), e.get("text", ""))
             elif e["kind"] == "thinking":  # the Junior's own, in style B, marked as its
@@ -499,6 +501,39 @@ class Workspace(Gtk.ApplicationWindow):
         exp.get_style_context().add_class(f"bubble-{who if who in chatlook.NAMES else 'ai'}")
         row = Gtk.ListBoxRow(activatable=False)
         row.add(exp)
+        self.chat.add(row)
+        row.show_all()
+
+    def habit_offer(self, e: dict) -> None:
+        """The offer card (SPEC §23.3: assimilating is suggested, never decided): keep the AI's script and its check as
+        a habit for this project, for every project, or not at all."""
+        from cin_minai import habits
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.get_style_context().add_class("bubble-app")
+        text = (f"Keep this as a habit? {e.get('script', '')}, checked by {e.get('check', '')}, as “{e.get('name', '')}"
+                f"”: {e.get('purpose', '')}\nA habit runs by name next time, with its check.")
+        label = Gtk.Label(label=text, wrap=True, xalign=0, selectable=True, max_width_chars=48)
+        box.pack_start(label, False, False, 0)
+        row_buttons = Gtk.Box(spacing=4)
+        buttons = []
+
+        def decide(where: str) -> None:
+            for b in buttons:
+                b.set_sensitive(False)
+            if not where:
+                label.set_text(text + "\nNot kept.")
+                return
+            got = habits.keep(self.root, e.get("name", ""), e.get("purpose", ""), e.get("script", ""),
+                              e.get("check", ""), e.get("output", ""), where=where)
+            label.set_text(text + "\n" + got["said"])
+        for title, where in (("Keep for this project", "project"), ("Keep for every project", "yours"), ("No", "")):
+            b = Gtk.Button(label=title)
+            b.connect("clicked", lambda btn, w=where: decide(w))
+            buttons.append(b)
+            row_buttons.pack_start(b, False, False, 0)
+        box.pack_start(row_buttons, False, False, 0)
+        row = Gtk.ListBoxRow(activatable=False)
+        row.add(box)
         self.chat.add(row)
         row.show_all()
 

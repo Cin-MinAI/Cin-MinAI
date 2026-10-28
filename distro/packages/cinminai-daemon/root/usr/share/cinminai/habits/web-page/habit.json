@@ -1,0 +1,10 @@
+{
+ "name": "web-page",
+ "for": "A web page as its title, headings, paragraphs, tables (as rows of cells) and links; from an https address, or an HTML file already in the project",
+ "takes": {"url": "an https address", "path": "or an .html file in the project instead"},
+ "gives": {"source": "where it came from", "title": "the page's title", "blocks": "[{kind: heading|text, text}]", "tables": "[{caption, rows: [[cell...]]}]", "links": "[{text, url}]"},
+ "network": true,
+ "offline_with": "path",
+ "timeout": 120,
+ "origin": "shipped with Cin-MinAI (PLAN D96, SPEC §23.2); the table rows as websearch's page text keeps them"
+}

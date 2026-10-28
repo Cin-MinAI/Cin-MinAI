@@ -1,0 +1,9 @@
+{
+ "name": "table-rows",
+ "for": "A table file (CSV or TSV, a header row first) as rows keyed by its column names",
+ "takes": {"path": "the .csv or .tsv file, in the project"},
+ "gives": {"source": "the file", "columns": "[name...]", "rows": "[{column: value}]", "count": "how many rows"},
+ "network": false,
+ "timeout": 120,
+ "origin": "shipped with Cin-MinAI (PLAN D96, SPEC §23.2)"
+}

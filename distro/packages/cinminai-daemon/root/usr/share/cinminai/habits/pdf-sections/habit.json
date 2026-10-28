@@ -1,0 +1,9 @@
+{
+ "name": "pdf-sections",
+ "for": "A PDF as its pages and sections: every page's text, and the headings with the page each starts on",
+ "takes": {"path": "the PDF, in the project"},
+ "gives": {"source": "the PDF", "pages": "[{page, text}]", "sections": "[{title, page}]"},
+ "network": false,
+ "timeout": 300,
+ "origin": "shipped with Cin-MinAI (PLAN D96, SPEC §23.2)"
+}

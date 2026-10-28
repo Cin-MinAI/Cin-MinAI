@@ -7,7 +7,7 @@ set -euo pipefail
 stage=$1 repo=$2
 py=$stage/usr/lib/python3/dist-packages/cin_minai
 install -d "$py"
-for pkg in daemon inference diag firefox actions; do
+for pkg in daemon inference diag firefox actions habits; do
     cp -r "$repo/src/cin_minai/$pkg" "$py/"
 done
 cp "$repo/src/cin_minai/engine.py" "$py/"  # the multi-model engine on the Team Table (D95), for the daemon and AICUI
