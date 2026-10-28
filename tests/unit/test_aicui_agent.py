@@ -4,6 +4,7 @@
     python3 -m unittest tests.unit.test_aicui_agent -v        (from the repo root)
 """
 
+import importlib.util
 import json
 import os
 import shutil
@@ -735,6 +736,25 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(asked, [WHOLE_ANSWER])
         self.assertIn("CUT OFF at the answer limit: assets/policy.pdf part 1", said)
 
+    @unittest.skipUnless(importlib.util.find_spec("PIL"), "look reads pictures with Pillow")
+    def test_a_picture_in_view_isnt_sent_again_and_a_repeated_step_is_said(self):
+        """2026-10-27 (test29): with three pictures kept and four screenshots, Haiku looked at them in a circle until Ian
+        stopped it; a cloud lead has no step limit, so nothing said it was going round."""
+        os.makedirs(os.path.join(self.root, "screenshots"))
+        from PIL import Image
+        Image.new("RGB", (40, 30), (200, 10, 10)).save(os.path.join(self.root, "screenshots", "a.png"))
+        look = {"tool": "look", "target": "picture", "address": "screenshots/a.png", "question": "What's wrong?"}
+        a = Agent(self.root, Scripted([step("See it.", **look), step("Again.", **look), step("Again.", **look),
+                                       step("", tool="answer", text="The picture is red.")]), "m", "auto",
+                  say=self.said.append)
+        a.cloud = True
+        a.turn("check the screenshot")
+        results = [m["content"] for m in a.chat.sent[-1] if m["role"] == "user"]
+        text = json.dumps(results, ensure_ascii=False)
+        self.assertEqual(text.count('"type": "image_url"'), 1)  # the picture once
+        self.assertIn("you are already seeing screenshots/a.png", text)
+        self.assertIn("You've done this exact step 3 times in this task", text)
+
     def test_what_the_person_says_while_it_works_reaches_it_at_the_next_step(self):
         """Ian, 2026-10-27 (test29): his steer and his answers waited in the terminal until Haiku stopped by itself;
         "you click on it, and an answer box pops up" — AICUI writes them to a file the lead reads at each step."""
@@ -865,9 +885,10 @@ class AgentTest(unittest.TestCase):
         token usage without affecting performance" — the model's own window, whole reads, and the picture itself
         (test28: look's 300-token side answer came back cut off and Haiku looked twice)."""
         from cin_minai.inference import cloud
-        self.assertEqual(cloud.window("claude-haiku-5-5"), 1_000_000)
+        self.assertEqual(cloud.window("claude-sonnet-5-5"), 1_000_000)
+        self.assertEqual(cloud.window("claude-haiku-5-5"), 85_000)  # below its 100K price step (test29)
         self.assertEqual(cloud.window("some-other-model"), cloud.CLOUD_CONTEXT)
-        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=cloud.window("claude-haiku-5-5"))
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append, ctx=cloud.window("claude-sonnet-5-5"))
         local = (a.read_lines, a.obs_chars)
         a.cloud = True
         self.assertGreaterEqual(a.read_lines, 2000)

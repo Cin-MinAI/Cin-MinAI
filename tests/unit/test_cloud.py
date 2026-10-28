@@ -203,10 +203,10 @@ class FreeChoice(unittest.TestCase):
         """2026-10-26: Haiku 5.5 was logged at Haiku 4.5's price, ten times too high; the budget ran out early."""
         os.makedirs(os.path.join(self.root, ".cinminai"))
         with open(os.path.join(self.root, cloud.USAGE), "w") as f:
-            f.write(json.dumps({"model": "claude-haiku-5-5", "input_tokens": 1_000_000, "output_tokens": 0,
+            f.write(json.dumps({"model": "claude-haiku-5-5", "input_tokens": 100_000, "output_tokens": 0,
                                 "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "usd": 1.0}) + "\n")
             f.write(json.dumps({"model": "gpt-6-luna", "usd": 0.25}) + "\n")
-        self.assertAlmostEqual(cloud.spent(self.root), 0.10 + 0.25, places=6)
+        self.assertAlmostEqual(cloud.spent(self.root), 0.01 + 0.25, places=6)  # a 100K prompt: below the price step
 
     def test_a_new_project_starts_from_the_last_model_chosen(self):
         """2026-10-26 (test22): a new project started on Haiku 4.5, the built-in default, not the Luna Ian chose."""
@@ -512,3 +512,16 @@ class PictureInResult(unittest.TestCase):
         self.assertEqual([b["type"] for b in result[0]["content"]], ["text", "image"])
         _, items = cloud.OpenAI.shape_input(msgs, {"look"})
         self.assertIn("The picture your last step's look took", json.dumps(items))
+
+
+class PriceStep(unittest.TestCase):
+    def test_haiku_5_5_costs_five_times_past_100k_prompts(self):
+        """Anthropic's model table: Haiku 5.5 is $0.10/$0.50 up to 100K-token prompts and $0.50/$2.50 above (2026-10-27,
+        test29: 261 of 828 calls past it, $1.31 logged against about $4.17 billed)."""
+        small = {"input_tokens": 1000, "cache_read_input_tokens": 90_000, "output_tokens": 500}
+        big = {"input_tokens": 1000, "cache_read_input_tokens": 120_000, "output_tokens": 500}
+        self.assertAlmostEqual(cloud.cost("claude-haiku-5-5", small), (1000 * 0.10 + 90_000 * 0.01 + 500 * 0.50) / 1e6)
+        self.assertAlmostEqual(cloud.cost("claude-haiku-5-5", big),
+                               5 * (1000 * 0.10 + 120_000 * 0.01 + 500 * 0.50) / 1e6)
+        self.assertAlmostEqual(cloud.cost("claude-sonnet-5-5", big),
+                               (1000 * 2.00 + 120_000 * 0.20 + 500 * 10.00) / 1e6)  # no step for Sonnet

@@ -28,10 +28,14 @@ API = "https://api.anthropic.com/v1"
 VERSION = "2023-06-01"
 # dollars per million tokens: input, output, writing the cache, reading the cache (Anthropic's prices, 2026-10)
 # the 5.5 generation first (read 2026-10-26 from Anthropic's model table; cache writes at 1.25x input; Haiku 5.5's cache
-# read assumed at a tenth of its input; its price doubles past 100K-token prompts, not counted here), then each family
+# read a tenth of its input, as Anthropic's caching page says for every model but Fable and Opus 5.5), then each family
 PRICES = {"haiku-5-5": (0.10, 0.50, 0.125, 0.01), "sonnet-5-5": (2.00, 10.00, 2.50, 0.20),
           "opus-5-5": (4.00, 20.00, 5.00, 0.20),
           "haiku": (1.00, 5.00, 1.25, 0.10), "sonnet": (3.00, 15.00, 3.75, 0.30), "opus": (5.00, 25.00, 6.25, 0.50)}
+# a price step: past this many prompt tokens a call costs this many times more (Anthropic's model table: Haiku 5.5 is
+# $0.10/$0.50 up to 100K-token prompts, $0.50/$2.50 above; 2026-10-27, test29: 261 of 828 calls were past it, $1.31
+# logged against about $4.17 billed, and the credit ran out mid-run)
+STEPS = {"haiku-5-5": (100_000, 5.0)}
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 SETTINGS = os.path.join(".cinminai", "cloud.json")
 USAGE = os.path.join(".cinminai", "cloud-usage.jsonl")
@@ -267,7 +271,9 @@ CLOUD_CONTEXT = 120_000
 # the models' own windows, where they're known (Anthropic's model table): AICUI works in the model's own context and
 # doesn't trim it (Ian, 2026-10-27: "let the clouds tools be used over ours unless theres something that verifiably
 # reduces token usage without affecting performance"); a model not listed keeps CLOUD_CONTEXT
-WINDOWS = {"claude-haiku-5-5": 1_000_000, "claude-sonnet-5-5": 1_000_000, "claude-opus-5-5": 1_000_000,
+# Haiku 5.5 works below its price step (STEPS): its history is summed up before a prompt reaches 100K tokens, where
+# each call would cost five times as much (Ian's rule, 2026-10-27: a local step stays when it cuts tokens 60% or more)
+WINDOWS = {"claude-haiku-5-5": 85_000, "claude-sonnet-5-5": 1_000_000, "claude-opus-5-5": 1_000_000,
            "claude-fable-5-1": 1_000_000}
 
 
@@ -400,9 +406,12 @@ def cost(model: str, usage: dict) -> float:
     """Dollars for one call's usage. OpenAI's usage counts cached tokens inside input_tokens; ours is logged the
     Anthropic way (input apart from cache reads), so both cost the same sum."""
     p_in, p_out, p_write, p_read = price_of(model)
-    return (usage.get("input_tokens", 0) * p_in + usage.get("output_tokens", 0) * p_out
-            + usage.get("cache_creation_input_tokens", 0) * p_write
-            + usage.get("cache_read_input_tokens", 0) * p_read) / 1e6
+    prompt = (usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0)
+              + usage.get("cache_read_input_tokens", 0))
+    times = next((x for k, (line, x) in STEPS.items() if k in str(model) and prompt > line), 1.0)
+    return times * (usage.get("input_tokens", 0) * p_in + usage.get("output_tokens", 0) * p_out
+                    + usage.get("cache_creation_input_tokens", 0) * p_write
+                    + usage.get("cache_read_input_tokens", 0) * p_read) / 1e6
 
 
 class Anthropic:

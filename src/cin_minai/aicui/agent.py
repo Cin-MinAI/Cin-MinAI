@@ -147,6 +147,9 @@ GOAL_TOOLS = {"solo": ("- goal_add / goal_done / goal_reopen / goal_remove (the 
                          "goal_done (tick goal `id` when it's done) / goal_reopen (`id`, `why`: untick one that isn't) / "
                          "goal_remove (one you added, not the person's)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
+PICTURES_KEPT = 8  # the pictures a cloud model keeps in view (2026-10-27, test29: with 3 kept and 4 screenshots, Haiku
+#   looked at them in a circle, each new one pushing the first out of view, until Ian stopped it)
+REPEATS = 3  # the same exact step this many times in a task: said to the model (a cloud lead has no step limit)
 WHOLE_ANSWER = 16_000  # what a cloud model may write about a whole document: twice what reached IV.N, inside the 300 s request
 PDF_WHOLE_MAX = 22_000_000  # a PDF a cloud model reads whole: base64 adds a third, under Anthropic's 32 MB request
 # what the person says while the AI works: AICUI writes it here, the lead reads it at its next step (Ian, 2026-10-27,
@@ -1319,7 +1322,7 @@ class Agent:
                 else:
                     lines.append(f"- {brief(s['did'])} → {s['result'][:100]}")
             messages.append({"role": "user", "content": "Earlier in this task:\n" + "\n".join(lines)})
-        shown = [i for i, s in enumerate(steps) if s.get("picture")][-3:]  # a cloud model's last three looks
+        shown = [i for i, s in enumerate(steps) if s.get("picture")][-PICTURES_KEPT:]  # a cloud model's last looks
         for i, s in enumerate(steps[len(older):], len(older)):
             if "note" in s:  # a step that went wrong: said as it was, never as an action the model might copy
                 messages.append({"role": "user", "content": s["note"]})
@@ -1575,6 +1578,7 @@ class Agent:
             if q[:80] in text:                    # came typed, with the question in it
                 self.posted.pop(qid)
         self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
+        self.seen_pictures, self.repeats = {}, {}  # this task's pictures in view, and its steps so far by kind
         self.stopped = ""  # how it ended: "answer", "ask", "declined", "stuck", "limit", "error" (the table records it)
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
         self.kinds_done: list[str] = []  # what counted as progress in this task, by tool (a check's verdict)
@@ -1728,6 +1732,11 @@ class Agent:
             self.event("busy", step=n, doing=doing(raw), tokens=0)
             result = self.do(act)
             steps.append({"did": step, "result": result[:self.obs_chars]})
+            same = json.dumps(act, sort_keys=True)
+            self.repeats[same] = self.repeats.get(same, 0) + 1
+            if self.repeats[same] == REPEATS:  # a loop, said once (not a step limit: the work goes on)
+                self.note(steps, f"You've done this exact step {REPEATS} times in this task ({brief(step)}). What it "
+                                 "returns won't change: act on what you have, or do something else.")
             if getattr(self, "seen_picture", None):  # a cloud model's look: the picture goes with the result
                 steps[-1]["picture"], self.seen_picture = self.seen_picture, None
             dump = getattr(self, "dump_context", None)
@@ -2632,6 +2641,12 @@ class Agent:
         if self.cloud:  # a cloud model sees the picture itself, in its next step, at full detail (Ian, 2026-10-27:
             # "let the clouds tools be used over ours"; test28: the side call's 300-token answer came back cut off and
             # Haiku looked twice)
+            seen = getattr(self, "seen_pictures", {})
+            if target == "picture" and address in seen:  # already in view: not sent again
+                return (f"you are already seeing {address}: look took it at step {seen[address]} of this task and it "
+                        "is above. Answer your question from it and go on")
+            seen[address or base] = len(getattr(self, "steps", []) or []) + 1
+            self.seen_pictures = seen
             self.seen_picture = self.window_crop(full(base + ".png"), facts)
             shown = {"picture": facts.get("picture_of") or address, "page": address or "the page",
                      "program": "the program's window", "screen": "the person's screen"}.get(target, target)
