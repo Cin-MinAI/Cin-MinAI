@@ -66,10 +66,19 @@ class NotebookTest(unittest.TestCase):
 
     def test_the_transcript_is_kept_a_while(self):
         nb = self.nb()
-        nb.record("old question", "old answer")
+        nb.record("Which driver for my Brother printer?", "The brlaser driver, from Driver Manager.")
         self.clock.t += (KEEP_DAYS + 2) * DAY
         nb.record("new question", "new answer")
-        self.assertEqual([t["user"] for t in nb.turns()], ["new question"])
+        self.assertEqual([t["user"] for t in nb.turns()], ["new question"])  # out of the live transcript
+        self.assertEqual(sorted(os.listdir(self.where)),
+                         sorted(["archive.tar", "index.jsonl", os.path.basename(nb.path(
+                             __import__("datetime").date.fromtimestamp(self.clock.t).isoformat() + ".jsonl"))]))
+        self.assertIn("brlaser", nb.system_note("that brother printer driver again"))  # found in the archive
+        self.clock.t += DAY
+        nb.record("another", "day")  # archiving again doesn't add the day twice
+        import tarfile
+        with tarfile.open(os.path.join(self.where, "archive.tar")) as tar:
+            self.assertEqual(len(tar.getnames()), 1)
 
     def test_never_kept_secrets_and_declined(self):
         nb = self.nb()

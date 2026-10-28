@@ -4,7 +4,8 @@
 The guide never carries the whole conversation; this does, and hands it only what matters now:
 
 * **The transcript** — every turn (the person's words, the reply, the tool), one file a day in
-  ~/.local/share/cinminai/conversation/, on this computer only, kept KEEP_DAYS days. Never kept (docs/memory-design.md
+  ~/.local/share/cinminai/conversation/, on this computer only, KEEP_DAYS days; then each day is folded into
+  archive.tar and its turns indexed by their words (index.jsonl), so recall still finds them. Never kept (docs/memory-design.md
   §5): the journal's talk (it isn't the guide's turn), secrets (filtered before writing), declined requests.
 * **The notebook** — short lines: the person's goal, what was decided and tried, what's open, facts about their
   computer. When the guide's history is trimmed, the turns it drops are folded in by the model (one short call), and
@@ -22,9 +23,12 @@ import datetime as dt
 import json
 import os
 import re
+import tarfile
 import time
 
-KEEP_DAYS = 30
+KEEP_DAYS = 30          # the live transcript; older days are folded into ARCHIVE, their turns in INDEX by their words
+ARCHIVE, INDEX = "archive.tar", "index.jsonl"
+DAY_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}\.jsonl$")
 MAX_LINES = 12          # the notebook stays short: the guide has ~8K tokens on a card (D27)
 PAUSE_S = 2 * 3600      # a rundown is offered after this long without a turn
 NOS = 3
@@ -87,7 +91,7 @@ class Notebook:
 
     def record(self, user: str, reply: str, tool: str = "") -> None:
         """One turn into today's transcript, secrets filtered out first (passwords, keys, tokens: the terminal's own
-        filter, SPEC §12.3; memory-design §5); days past KEEP_DAYS are removed."""
+        filter, SPEC §12.3; memory-design §5); days past KEEP_DAYS are folded into the archive."""
         from .terminal import redact
         user, reply = redact(user), redact(reply)
         now = self.clock()
@@ -96,17 +100,50 @@ class Notebook:
         with open(self.path(f"{day}.jsonl"), "a", encoding="utf-8") as f:
             f.write(json.dumps({"time": now, "user": user, "reply": reply, "tool": tool}, ensure_ascii=False) + "\n")
         oldest = (dt.date.fromtimestamp(now) - dt.timedelta(days=KEEP_DAYS)).isoformat()
-        for name in os.listdir(self.where):
-            if name.endswith(".jsonl") and name[:-6] < oldest:
+        for name in sorted(os.listdir(self.where)):
+            if DAY_FILE.match(name) and name[:-6] < oldest:
                 try:
-                    os.remove(self.path(name))
-                except OSError:
-                    pass
+                    self.archive(name)
+                except (OSError, tarfile.TarError):
+                    pass  # tried again with the next turn
+
+    def archive(self, name: str) -> None:
+        """A day past KEEP_DAYS folded into archive.tar, each of its turns indexed by its words (index.jsonl), then
+        taken out of the live transcript (Ian, 2026-10-28: "keep the 30 days and fold after into .tar and index")."""
+        with open(self.path(name), encoding="utf-8") as f:
+            turns = [t for t in (self._line(x) for x in f) if t]
+        with tarfile.open(self.path(ARCHIVE), "a") as tar:
+            if name not in tar.getnames():
+                tar.add(self.path(name), arcname=name)
+        with open(self.path(INDEX), "a", encoding="utf-8") as f:
+            for t in turns:
+                f.write(json.dumps({"day": name[:-6], "time": t.get("time", 0),
+                                    "words": sorted(words_of(t.get("user", "") + " " + t.get("reply", "")))},
+                                   ensure_ascii=False) + "\n")
+        os.remove(self.path(name))
+
+    @staticmethod
+    def _line(line: str) -> dict | None:
+        try:
+            t = json.loads(line)
+        except ValueError:
+            return None
+        return t if isinstance(t, dict) else None
+
+    def archived(self, day: str, when: float) -> dict | None:
+        """One archived turn, read back from archive.tar."""
+        try:
+            with tarfile.open(self.path(ARCHIVE)) as tar:
+                f = tar.extractfile(f"{day}.jsonl")
+                lines = f.read().decode("utf-8").splitlines() if f else []
+        except (OSError, KeyError, tarfile.TarError):
+            return None
+        return next((t for t in (self._line(x) for x in lines) if t and t.get("time") == when), None)
 
     def turns(self, since: float = 0, before: float | None = None) -> list[dict]:
         out = []
         try:
-            names = sorted(n for n in os.listdir(self.where) if n.endswith(".jsonl"))
+            names = sorted(n for n in os.listdir(self.where) if DAY_FILE.match(n))
         except OSError:
             return []
         for name in names:
@@ -188,13 +225,25 @@ class Notebook:
         asked = words_of(text)
         if len(asked) < 2:
             return None
+        good = lambda n: n >= 2 and n * 2 >= len(asked)  # noqa: E731
         best, score = None, 0
         for t in self.turns():
             if t.get("reply", "") in self.recent:
                 continue  # still in view
             shared = asked & words_of(t.get("user", "") + " " + t.get("reply", ""))
-            if len(shared) >= 2 and len(shared) * 2 >= len(asked) and len(shared) > score:
+            if good(len(shared)) and len(shared) > score:
                 best, score = t, len(shared)
+        found = None  # past the 30 days: the index finds it, the archive gives it back
+        try:
+            with open(self.path(INDEX), encoding="utf-8") as f:
+                for e in (self._line(x) for x in f):
+                    n = len(asked & set((e or {}).get("words", [])))
+                    if e and good(n) and n > score:
+                        found, score = e, n
+        except OSError:
+            pass
+        if found is not None:
+            best = self.archived(found["day"], found["time"]) or best
         return best
 
     # --- the rundown ------------------------------------------------------------------------------------------
