@@ -682,8 +682,8 @@ class OpenAI(Anthropic):
                 items.append({"type": "function_call_output", "call_id": open_call, "output": said or "(nothing)"})
                 open_call = None
                 if pictures:  # the Responses API's call output is text: the picture follows, said to be its own
-                    items.append({"role": "user", "content": [{"type": "input_text", "text": "The picture your last "
-                                  "step's look took (what that call returned):"}] + pictures})
+                    items.append({"role": "user", "content": [{"type": "input_text", "text": "The picture look took at "
+                                  "the last step (what that call returned, not from the person):"}] + pictures})
                 continue
             body = ([{"type": "input_text", "text": texts}] if texts else []) + pictures
             items.append({"role": "user", "content": body or [{"type": "input_text", "text": "(nothing)"}]})

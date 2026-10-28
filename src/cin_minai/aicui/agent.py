@@ -1152,6 +1152,10 @@ class Agent:
             if not text:
                 continue
             got = True
+            if m.get("kind") == "errors":  # developer mode's record of a play session (devwatch.py)
+                self.event("user", text=text, via="aicui")
+                self.note(steps, "While the person played, AICUI's developer mode recorded these errors:\n" + text)
+                continue
             if m.get("kind") == "answer":
                 q = self.posted.pop(str(m.get("id", "")), "") or str(m.get("question", ""))
                 self.event("user", text=f"(answer to: {q[:200]}) {text}", via="aicui")

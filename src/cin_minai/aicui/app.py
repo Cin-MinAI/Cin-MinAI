@@ -115,12 +115,17 @@ class Workspace(Gtk.ApplicationWindow):
         run.set_tooltip_text("Start the project as you would: run.sh, else main.py (with its own Python), "
                              "else index.html in the browser")
         run.connect("clicked", lambda b: self.run_project())
+        dev = Gtk.Button(label="Dev run")
+        dev.set_tooltip_text("Run in developer mode: every error while you play is written down for the AI, with a "
+                             "picture of the window when it happens. On until the program closes")
+        dev.connect("clicked", lambda b: self.run_project(dev=True))
         shots = Gtk.Button(label="Screenshots")
         shots.set_tooltip_text("The project's screenshots folder: put pictures of the program there, and the AI "
                                "looks at them")
         shots.connect("clicked", lambda b: self.open_screenshots())
         bar = Gtk.Box(spacing=4)
         bar.pack_start(run, False, False, 0)
+        bar.pack_start(dev, False, False, 0)
         bar.pack_start(shots, False, False, 0)
         bar.pack_start(self.swap, True, True, 0)
         bar.pack_end(refresh, False, False, 0)
@@ -600,7 +605,7 @@ class Workspace(Gtk.ApplicationWindow):
         row.show_all()
 
     # --- running the project the way the user would ----------------------------------------------------------
-    def run_project(self) -> None:
+    def run_project(self, dev: bool = False) -> None:
         """Run, outside the agent's sandbox, on the real screen: the agent's own checks run headless with its
         project venv, and a newcomer's double-click doesn't (2026-10-03: "No module named pygame", then a game that
         opened and closed at once — and nothing on screen said why)."""
@@ -620,14 +625,111 @@ class Workspace(Gtk.ApplicationWindow):
         if venv:  # the project's environment on, as in the AI's own commands: run.sh's `python3` is the project's
             launcher.setenv("VIRTUAL_ENV", venv, True)  # (2026-10-08: run.sh said `python3 main.py` — the system's,
             launcher.setenv("PATH", os.path.join(venv, "bin") + os.pathsep + os.environ.get("PATH", ""), True)  # no pygame)
+        if dev:  # the program may show its own banner; its output comes as it's printed, a crash leaves its trace
+            for k, v in (("CINMINAI_DEV", "1"), ("PYTHONUNBUFFERED", "1"), ("PYTHONFAULTHANDLER", "1")):
+                launcher.setenv(k, v, True)
         try:
             proc = launcher.spawnv(argv)
         except GLib.Error as e:
             self.bubble("app", f"Couldn't start {entry}: {e.message}")
             return
         self.runs = [r for r in self.runs if r.get_identifier()] + [proc]  # the master Stop ends these too
+        if dev:
+            self.dev_watch(proc, entry)
+            return
         self.bubble("app", f"Running {entry}…")
         proc.communicate_utf8_async(None, None, self.ran, entry)
+
+    def dev_watch(self, proc: Gio.Subprocess, entry: str) -> None:
+        """Developer mode's watcher: the output line by line into the run's log and the error records, the window
+        marked DEVELOPER MODE and captured the first time each error happens; at the end, what was recorded goes to the
+        AI (devwatch.py)."""
+        from . import devwatch
+        run = time.strftime("%Y%m%d-%H%M%S")
+        folder = os.path.join(self.root, devwatch.RUNS, run)
+        os.makedirs(folder, exist_ok=True)
+        log = open(os.path.join(folder, "output.log"), "w", encoding="utf-8")
+        state = {"x": devwatch.Extractor(self.root), "pid": int(proc.get_identifier() or 0), "win": "", "n": 0,
+                 "done": False, "known": {w for w, _ in devwatch.window_list()}}  # the windows open before it
+        self.bubble("app", f"Running {entry} in developer mode: every error is written down for the AI, with a "
+                           "picture of the window. It ends when the program closes.")
+
+        def window() -> str:
+            if not state["win"] and state["pid"]:
+                wins = devwatch.windows_of(devwatch.family(state["pid"]), state["known"])
+                if wins:
+                    state["win"] = wins[0]
+                    devwatch.mark(state["win"])
+            return state["win"]
+
+        def tick() -> bool:  # the window found and marked as soon as it opens
+            if state["done"]:
+                return False
+            window()
+            return not state["win"]
+        GLib.timeout_add_seconds(1, tick)
+
+        def took(record: dict, new: bool) -> None:
+            if new:
+                state["n"] += 1
+                if window():
+                    record["picture"] = self.capture(state["win"], os.path.join(folder, f"error-{state['n']}.png"))
+                devwatch.save(self.root, record, run)
+
+        stream = Gio.DataInputStream.new(proc.get_stdout_pipe())
+
+        def line(src, result) -> None:
+            try:
+                text, _ = src.read_line_finish_utf8(result)
+            except GLib.Error:
+                text = None
+            if text is None:  # the end of its output
+                proc.wait_async(None, ended)
+                return
+            log.write(time.strftime("%H:%M:%S ") + text + "\n")
+            log.flush()
+            for record, new in state["x"].feed(text):
+                took(record, new)
+            src.read_line_async(GLib.PRIORITY_DEFAULT, None, line)
+
+        def ended(p, result) -> None:
+            state["done"] = True
+            code = p.get_exit_status() if p.get_if_exited() else f"signal {p.get_term_sig()}"
+            for record, new in state["x"].ended(code):
+                took(record, new)
+            log.close()
+            records = list(state["x"].records.values())
+            said = devwatch.summary(records, entry, os.path.relpath(log.name, self.root))
+            if not records:
+                self.bubble("app", said)
+            elif self.working():  # the correcting agent gets it at its next step
+                self.to_agent({"kind": "errors", "text": said}, said)
+                self.bubble("app", said + "\n(Sent to the AI at its next step.)")
+            else:
+                box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                box.pack_start(Gtk.Label(label=said, wrap=True, xalign=0, selectable=True, max_width_chars=48),
+                               False, False, 0)
+                send = Gtk.Button(label="Send to the AI")
+                send.connect("clicked", lambda b: self.hand_over(said, b))
+                box.pack_start(send, False, False, 0)
+                box.get_style_context().add_class("bubble-app")
+                row = Gtk.ListBoxRow(activatable=False)
+                row.add(box)
+                self.chat.add(row)
+                row.show_all()
+        stream.read_line_async(GLib.PRIORITY_DEFAULT, None, line)
+
+    def capture(self, wid: str, path: str) -> str:
+        """The program's window as it is now, to a PNG; "" when it can't be read."""
+        try:
+            gi.require_version("GdkX11", "3.0")
+            from gi.repository import GdkX11
+            win = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), int(wid, 16))
+            pb = Gdk.pixbuf_get_from_window(win, 0, 0, win.get_width(), win.get_height())
+            pb.savev(path, "png", [], [])
+            return os.path.relpath(path, self.root)
+        except Exception:
+            return ""
 
     def ran(self, proc: Gio.Subprocess, result, entry: str) -> None:
         try:

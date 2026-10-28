@@ -437,7 +437,7 @@ class OpenAITest(unittest.TestCase):
                                     "arguments": json.dumps({"reason": "Run it.", "command": "bash run.sh"})})
         self.assertEqual(items[2], {"type": "function_call_output", "call_id": "call_step1", "output": "it printed 'ok'"})
         self.assertEqual(items[3]["content"][1:], [{"type": "input_image", "image_url": "data:image/png;base64,AAA"}])
-        self.assertIn("The picture your last step's look took", items[3]["content"][0]["text"])  # said to be its own
+        self.assertIn("The picture look took at the last step", items[3]["content"][0]["text"])  # said to be its own
         self.assertEqual(items[4]["content"][0], {"type": "output_text", "text": "All done."})
 
     def test_the_budget_and_the_errors_are_said(self):
@@ -511,7 +511,7 @@ class PictureInResult(unittest.TestCase):
         self.assertEqual(result[0]["type"], "tool_result")
         self.assertEqual([b["type"] for b in result[0]["content"]], ["text", "image"])
         _, items = cloud.OpenAI.shape_input(msgs, {"look"})
-        self.assertIn("The picture your last step's look took", json.dumps(items))
+        self.assertIn("The picture look took at the last step", json.dumps(items))
 
 
 class PriceStep(unittest.TestCase):
