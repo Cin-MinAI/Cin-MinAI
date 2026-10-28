@@ -26,9 +26,18 @@ class Source:
     use: str = ""               # what it's used for, for the card: "patent records in the news scan"
 
 
-# Nothing is wired yet: the patent office's key waits for Ian's go (2026-10-07). A source is one entry here plus the
-# fetch that calls keys.get(its id); newsscan.KEYED lists the fetches.
-SOURCES: dict[str, Source] = {}
+# A source is one entry here plus the request that calls keys.get(its id). The patent office's key waits for Ian's go
+# (2026-10-07); newsscan.KEYED lists the news fetches.
+SOURCES: dict[str, Source] = {
+    # D93: models whose repository asks for sign-in (hub.py, models.py: only for that repository's files)
+    "huggingface": Source(
+        "Hugging Face", "https://huggingface.co/settings/tokens",
+        ("Sign in at Hugging Face (or make a free account).",
+         "Open Settings, then Access Tokens, and make a new token of the Read type.",
+         "Copy it and paste it below.",
+         "On the model's own page, accept its terms (the button near the top), signed in with the same account."),
+        shape=r"hf_[A-Za-z0-9]{20,200}", use="models that ask you to sign in"),
+}
 
 
 class KeyError_(Exception):

@@ -16,6 +16,7 @@ import os
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from typing import Callable
 
@@ -76,7 +77,9 @@ class ModelStore:
         return os.path.join(self.root, os.path.basename(file))
 
     def has(self, file: str) -> bool:
-        return os.path.isfile(self.path(file))
+        """The model is here: its file, or for a model in parts every part (D93)."""
+        from cin_minai.inference.matcher import split_files
+        return all(os.path.isfile(p) for p in split_files(self.path(file)) or [self.path(file)])
 
     def free_bytes(self) -> int:
         import shutil
@@ -111,8 +114,12 @@ class ModelStore:
 
     def models(self) -> dict:
         """Every model we know of, with where it is and whether it's present (the store's files are always known)."""
+        from cin_minai.inference.matcher import SPLIT
         known = dict(self.state().get("models", {}))
         for f in os.listdir(self.root):
+            m = SPLIT.search(f)
+            if m and m.group(1) != "00001":
+                continue  # a later part of a model in parts: the model is its first part
             if f.endswith(".gguf") and f not in known:
                 known[f] = {"where": "store", "path": self.path(f)}
         return {f: dict(e, present=bool(e.get("path")) and os.path.isfile(e["path"])) for f, e in sorted(known.items())}
@@ -136,6 +143,8 @@ class ModelStore:
         """Move a model out of the store to another drive (copied and checked first); the record says where."""
         if os.path.basename(model.file) in {p.get("file") for p in self.state()["use"].values()}:
             raise ValueError("that model is in use: switch the task to another model first")
+        if getattr(model, "parts", ()):
+            raise ValueError("a model in parts can't be parked yet; remove it instead (it can be downloaded again)")
         if fat32(folder) and model.size >= 4 << 30:
             raise OSError("that drive is formatted FAT32, which can't hold files over 4 GB; exFAT or ext4 can")
         os.makedirs(folder, exist_ok=True)
@@ -156,8 +165,10 @@ class ModelStore:
 
     def delete(self, model, replaced_by: str = "") -> None:
         """Remove a model from the store (an upgrade frees its space); the record keeps its source to fetch it again."""
-        if self.has(model.file):
-            os.remove(self.path(model.file))
+        from cin_minai.inference.matcher import split_files
+        for p in split_files(self.path(model.file)) or [self.path(model.file)]:
+            if os.path.isfile(p):
+                os.remove(p)
         self.record(model, "deleted", replaced_by=replaced_by)
 
     def download(self, model, on_progress: Callable[[int, int], None], cancel: threading.Event) -> str:
@@ -169,17 +180,48 @@ class ModelStore:
         if e and e.get("where") == "parked" and e.get("present"):
             return self.bring_back(model, on_progress, cancel)
         repo, _, rev = model.source.partition("@")
-        url = HF.format(repo=repo, rev=rev or "main", file=getattr(model, "remote", "") or model.file)
-        part = self.path(model.file) + ".part"
+        # a model in parts (D93): each part fetched and checked in turn, the progress counted over the whole model
+        parts = getattr(model, "parts", ()) or ((model.file, model.size, model.sha256,
+                                                  getattr(model, "remote", "") or model.file),)
+        need = sum(size for file, size, _, _ in parts if not os.path.isfile(self.path(file)))
+        if need - sum(os.path.getsize(self.path(f) + ".part") for f, _, _, _ in parts
+                      if os.path.exists(self.path(f) + ".part")) > self.free_bytes() - (2 << 30):
+            raise OSError(f"not enough free disk space: {model.size / 2**30:.1f} GB needed")
+        headers = {}
+        if getattr(model, "gated", False):  # the person's own Hugging Face token, for this repository's files only
+            from . import keys
+            token = keys.get("huggingface")
+            if not token:
+                raise OSError("this model asks you to sign in at Hugging Face: add your token in the Models view")
+            headers["Authorization"] = f"Bearer {token}"
+        done = 0
+        for file, size, sha256, remote in parts:
+            if not os.path.isfile(self.path(file)):
+                url = HF.format(repo=repo, rev=rev or "main", file=remote or file)
+                self._fetch(url, file, size, sha256, headers, lambda have, d=done: on_progress(d + have, model.size),
+                            cancel)
+            done += size
+        on_progress(model.size, model.size)
+        self.record(model, "store")
+        return self.path(model.file)
+
+    def _fetch(self, url: str, file: str, size: int, sha256: str, headers: dict, on_progress, cancel) -> None:
+        """One file into the store: resumes a .part, checked against its SHA-256 before it's kept."""
+        part = self.path(file) + ".part"
         have = os.path.getsize(part) if os.path.exists(part) else 0
-        if have > model.size:  # not ours: start over
+        if have > size:  # not ours: start over
             os.remove(part)
             have = 0
-        if model.size - have > self.free_bytes() - (2 << 30):
-            raise OSError(f"not enough free disk space: {model.size / 2**30:.1f} GB needed")
-        if have < model.size:
-            req = urllib.request.Request(url, headers={"Range": f"bytes={have}-"} if have else {})
-            with self.open(req, timeout=60) as r, open(part, "ab" if have else "wb") as f:
+        if have < size:
+            req = urllib.request.Request(url, headers={**headers, **({"Range": f"bytes={have}-"} if have else {})})
+            try:
+                r = self.open(req, timeout=60)
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403) and headers:
+                    raise OSError("Hugging Face refused the download: open the model's page while signed in and "
+                                  "accept its terms, then try again") from None
+                raise
+            with r, open(part, "ab" if have else "wb") as f:
                 if have and getattr(r, "status", 206) == 200:  # the server ignored the range: start over
                     f.truncate(0)
                     have = 0
@@ -193,15 +235,13 @@ class ModelStore:
                     f.write(chunk)
                     have += len(chunk)
                     if time.monotonic() - last > 0.5:
-                        on_progress(have, model.size)
+                        on_progress(have)
                         last = time.monotonic()
-        on_progress(have, model.size)
-        if not self.verify(part, model.sha256, cancel):
+        on_progress(have)
+        if not self.verify(part, sha256, cancel):
             os.remove(part)
             raise ValueError("the downloaded file didn't match its checksum, so it was removed")
-        os.replace(part, self.path(model.file))
-        self.record(model, "store")
-        return self.path(model.file)
+        os.replace(part, self.path(file))
 
     @staticmethod
     def verify(path: str, sha256: str, cancel: threading.Event | None = None) -> bool:

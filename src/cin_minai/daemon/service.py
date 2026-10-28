@@ -2141,8 +2141,13 @@ class Service:
         if method == "HubSearch":
             return hub.search(args[0])
         if method == "HubFiles":
+            from . import keys
             found = hub.files(args[0])
             self.hub_found[found["repo"]] = found
+            if found["gated"]:  # D93: the person's token opens it; without one, the key card says how to get it
+                found = dict(found, token=keys.has("huggingface"), page=f"https://huggingface.co/{found['repo']}")
+                if not found["token"]:
+                    found["key_card"] = keys.card("huggingface")
             return found
         machine = matcher.read_machine(models_dir=self.store.root)
         if method == "HubCheck":
@@ -2151,7 +2156,8 @@ class Service:
             f = next((x for x in (found or {}).get("files", []) if x["path"] == path), None)
             if f is None:
                 raise hub.HubError("look at the repository's files first")
-            m = hub.model_for(repo, found["revision"], f)
+            from . import keys
+            m = hub.model_for(repo, found["revision"], f, token=keys.get("huggingface") if found["gated"] else "")
             self.hub_checked[m.file] = m
             return {"repo": repo, "file": m.file, "model": m.name, "size": m.size, "licence": found["licence"],
                     "gated": found["gated"], "here": self.store.has(m.file), "free_bytes": self.store.free_bytes(),

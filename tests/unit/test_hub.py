@@ -91,7 +91,7 @@ class Searching(unittest.TestCase):
         v = hub.files("Qwen/Qwen2.5-Coder-7B-Instruct-GGUF", opener=h)
         self.assertEqual((v["revision"], v["licence"], v["gated"]), (REV, "apache-2.0", False))
         why = {f["file"]: f["why_not"] for f in v["files"]}
-        self.assertEqual(why, {"coder-q4_k_m.gguf": "", "coder-q8_0-00001-of-00002.gguf": "in parts",
+        self.assertEqual(why, {"coder-q4_k_m.gguf": "", "coder-q8_0-00001-of-00002.gguf": "a part is missing",
                                "mmproj-F16.gguf": "picture reader", "odd.gguf": "no checksum",
                                "imatrix_unsloth.gguf": "helper file"})
         self.assertEqual(v["files"][0]["sha256"], SHA)
@@ -118,6 +118,90 @@ class Searching(unittest.TestCase):
         self.assertTrue(all(x["fits"] for x in hub.fit(m, machine()).values()))
         with self.assertRaises(hub.HubError):
             hub.model_for("Qwen/Qwen2.5-Coder-7B-Instruct-GGUF", "main", f, opener=h)  # only a pinned revision
+
+
+class Parts(unittest.TestCase):
+    """D93: a model in parts offered as one, checked from its first part, downloaded part by part; a repository that
+    asks for sign-in opened with the person's token, sent only there."""
+
+    def setUp(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        tiny(os.path.join(d, "m.gguf"))
+        with open(os.path.join(d, "m.gguf"), "rb") as f:
+            self.first = f.read()
+        self.second = b"y" * len(self.first)
+        import hashlib
+        self.sums = [hashlib.sha256(x).hexdigest() for x in (self.first, self.second)]
+
+    def opener(self, gated=False):
+        asked = []
+
+        def call(req, timeout=0):
+            url = req.full_url
+            asked.append((url, req.get_header("Authorization")))
+            if url.endswith("/tree/" + REV + "?recursive=true"):
+                return Response(json.dumps([
+                    {"type": "file", "path": f"Q8/big-0000{k + 1}-of-00002.gguf", "size": len(x),
+                     "lfs": {"oid": self.sums[k], "size": len(x)}} for k, x in enumerate((self.first, self.second))
+                ]).encode())
+            if "/api/models/" in url:
+                return Response(json.dumps({"sha": REV, "gated": "auto" if gated else False}).encode())
+            if "/resolve/" in url:
+                body = self.first if "00001-of" in url else self.second
+                rng = req.get_header("Range")
+                return Response(body[:int(rng.split("-")[1]) + 1], 206) if rng else Response(body)
+            raise OSError(url)
+        call.asked = asked
+        return call
+
+    def test_offered_as_one_and_downloaded_part_by_part(self):
+        h = self.opener()
+        v = hub.files("a/big-GGUF", opener=h)
+        (f,) = v["files"]
+        self.assertEqual((f["file"], f["offered"], f["size"], len(f["parts"])),
+                         ("big-00001-of-00002.gguf", True, 2 * len(self.first), 2))
+        with mock.patch.object(hub, "HEADER_STEPS", (600,)):
+            m = hub.model_for("a/big-GGUF", REV, f, opener=h)
+        self.assertEqual((m.name, m.size, m.weights, len(m.parts), m.gated), ("big", 2 * len(self.first), 4000, 2,
+                                                                              False))
+        self.assertTrue(all(auth is None for _, auth in h.asked))  # no token for an open repository
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        store = ModelStore(d, opener=h)
+        seen = []
+        store.download(m, lambda have, total: seen.append((have, total)), __import__("threading").Event())
+        self.assertTrue(store.has("big-00001-of-00002.gguf"))
+        self.assertEqual(seen[-1], (m.size, m.size))
+        self.assertEqual(list(store.models()), ["big-00001-of-00002.gguf"])  # one model, not two
+        local = matcher.model_from_gguf(store.path("big-00001-of-00002.gguf"))  # read back from the parts here
+        self.assertEqual((local.size, local.weights), (m.size, 4000))
+        with open(store.path("big-00002-of-00002.gguf"), "rb") as x:
+            kept = x.read()
+        os.rename(store.path("big-00002-of-00002.gguf"), store.path("elsewhere"))
+        self.assertFalse(store.has("big-00001-of-00002.gguf"))  # a part gone: the model isn't here
+        os.rename(store.path("elsewhere"), store.path("big-00002-of-00002.gguf"))
+        self.assertEqual(kept, self.second)
+        store.delete(m)  # every part goes
+        self.assertEqual([x for x in os.listdir(d) if x.endswith(".gguf")], [])
+
+    def test_signing_in_with_the_token(self):
+        h = self.opener(gated=True)
+        v = hub.files("a/big-GGUF", opener=h)
+        self.assertTrue(v["gated"])
+        with mock.patch.object(hub, "HEADER_STEPS", (600,)):
+            m = hub.model_for("a/big-GGUF", REV, v["files"][0], opener=h, token="hf_" + "x" * 30)
+        self.assertTrue(m.gated)
+        self.assertIn("Bearer hf_" + "x" * 30, [a for u, a in h.asked if "/resolve/" in u])
+        self.assertTrue(all(a is None for u, a in h.asked if "/resolve/" not in u))  # only to the files
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        with mock.patch("cin_minai.daemon.keys.get", return_value=""):
+            with self.assertRaisesRegex(OSError, "sign in"):
+                ModelStore(d, opener=h).download(m, lambda *a: None, __import__("threading").Event())
+        from cin_minai.daemon import keys
+        self.assertIn("huggingface", keys.SOURCES)
+        self.assertTrue(__import__("re").fullmatch(keys.SOURCES["huggingface"].shape, "hf_" + "A1" * 15))
 
 
 class Drives(unittest.TestCase):

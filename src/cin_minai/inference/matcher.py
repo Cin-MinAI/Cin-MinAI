@@ -46,6 +46,10 @@ class Model:
     sha256: str = ""
     size: int = 0           # file bytes
     remote: str = ""        # the file's name in the source repository, when ours differs ("" = the same)
+    # a model in parts (D93): every part, the first included, as (file, size, sha256, path in the repository); file is
+    # the first part's name (llama.cpp opens it and finds the rest beside it), size and weights the whole model's
+    parts: tuple = ()
+    gated: bool = False     # its repository asks for sign-in: the person's Hugging Face token goes with the download
 
 
 # Vision (D64, D78): the projector each model reads pictures with, from its own Hugging Face repository (pinned; the
@@ -282,11 +286,32 @@ def plan(m: Model, machine: Machine, ctx: int) -> dict | None:
     return None
 
 
-def model_from_gguf(path: str, name: str = "", size: int = 0) -> Model:
+SPLIT = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.I)
+
+
+def split_files(path: str) -> list[str]:
+    """A model in parts: every part's path, from any one of them ([] for a whole file)."""
+    m = SPLIT.search(path)
+    if not m:
+        return []
+    n = int(m.group(2))
+    return [path[:m.start()] + f"-{k:05d}-of-{n:05d}.gguf" for k in range(1, n + 1)]
+
+
+def model_from_gguf(path: str, name: str = "", size: int = 0, first: int = 0) -> Model:
     """A matcher entry from a model file's own header (SPEC §22.3): any GGUF — ours, one on a drive, one found on
-    Hugging Face (its first megabytes are enough: size = the whole file's bytes)."""
+    Hugging Face (its first megabytes are enough: size = the whole file's bytes). A model in parts is read from its
+    first part, whose header lists only its own tensors: the weights are scaled by the whole model's size (first =
+    the first part's bytes; on this computer, read from the parts beside it)."""
     from . import gguf
-    g = gguf.read(path, size or None)
+    parts = split_files(path)
+    if parts and not size and all(os.path.isfile(p) for p in parts):
+        size, first = sum(os.path.getsize(p) for p in parts), os.path.getsize(parts[0])
+        path = parts[0]
+    g = gguf.read(path, (first or size) or None)
+    scale = size / first if first and size > first else 1.0
+    if scale != 1.0:
+        g.tensors = {k: (v if k == "token_embd.weight" else int(v * scale)) for k, v in g.tensors.items()}
     experts = g.expert_bytes()
     n_expert = int(g.get("expert_count", 0) or 0)
     used = int(g.get("expert_used_count", 0) or 0)

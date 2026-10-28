@@ -1676,19 +1676,29 @@ class Sidebar(Gtk.Application):
             clear(area)
             checks = []
             area.pack_start(small(words.licence_line(v["licence"])), False, False, 0)
-            if v["gated"]:
+            opened = not v["gated"] or v.get("token")  # D93: a gated repository opens with the person's token
+            if v["gated"] and v.get("token"):
+                area.pack_start(small(words.t("h_gated_ok")), False, False, 0)
+                page = Gtk.LinkButton(uri=v.get("page", ""), label=words.t("h_page"))
+                page.set_halign(Gtk.Align.START)
+                area.pack_start(page, False, False, 0)
+            elif v["gated"]:
                 area.pack_start(small(words.t("h_gated")), False, False, 0)
+                if v.get("key_card"):
+                    self.key_card(v["key_card"])
             for f in v["files"]:
                 line = Gtk.Box(spacing=6)
-                why = {"in parts": "h_parts", "picture reader": "h_mmproj", "no checksum": "h_nosum",
+                why = {"a part is missing": "h_part_missing", "picture reader": "h_mmproj", "no checksum": "h_nosum",
                        "helper file": "h_helper"}.get(f["why_not"])
-                text = f"{f['file']} · {f['size'] / 2**30:.1f} GB" + (f" · {words.t(why)}" if why else "")
+                parts = words.t("h_in_parts", n=len(f["parts"])) if f.get("parts") else ""
+                text = " · ".join(x for x in (f"{f['file']}", f"{f['size'] / 2**30:.1f} GB", parts,
+                                              words.t(why) if why else "") if x)
                 name = Gtk.Label(label=text, xalign=0, wrap=True, max_width_chars=24)
                 name.set_line_wrap_mode(2)  # Pango WORD_CHAR: a long file name breaks instead of widening the dock
                 line.pack_start(name, True, True, 0)
                 result = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
                 result.set_margin_start(12)
-                if f["offered"] and not v["gated"]:
+                if f["offered"] and opened:
                     check = Gtk.Button(label=words.t("h_check"))
 
                     def run_check(b, path=f["path"], result=result, then=None) -> None:

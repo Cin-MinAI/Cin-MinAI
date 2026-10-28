@@ -4,7 +4,8 @@ whoever made it (Ian: "every model; we assume these are for personal use"), with
 not reviewed by us — and whether it runs on this computer.
 
 What leaves the computer (D86, shown before the search is sent): the search words, and which repository and file
-were looked at. Nothing else; no account, no token.
+were looked at. No account; the person's Hugging Face token (kept in the login keyring, keys.py) only for a
+repository that asks for sign-in, and only to that repository's files.
 
 * **Search:** huggingface.co/api/models, GGUF only, most downloaded first.
 * **Files:** the repository's files at one revision (pinned: what was checked is what's fetched), each with its
@@ -13,8 +14,9 @@ were looked at. Nothing else; no account, no token.
   token, the tensors. matcher.plan answers from that, before anything big is downloaded.
 * **Download:** the model store's own (resumes, checked, kept in the user's folder).
 
-A model in parts (…-00001-of-00003.gguf), a picture reader (mmproj) and helper files (an imatrix, a
-speculative-decoding head) aren't offered: shown, with why.
+A model in parts (…-00001-of-00003.gguf) is offered as one model when every part is there with its checksum (D93):
+checked from its first part's header, downloaded part by part. A picture reader (mmproj) and helper files (an
+imatrix, a speculative-decoding head) aren't offered: shown, with why.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ import os
 import re
 import struct
 import tempfile
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Callable
@@ -91,43 +94,62 @@ def files(repo: str, opener: Callable = urllib.request.urlopen) -> dict:
     if not REV.match(rev):
         raise HubError("Hugging Face didn't say which revision this is")
     tree = _get(f"{API}/models/{repo}/tree/{rev}?recursive=true", opener)
-    out = []
+    out, split = [], {}
     for f in tree:
         path = f.get("path") or ""
         if f.get("type") != "file" or not path.lower().endswith(".gguf"):
             continue
         lfs = f.get("lfs") or {}
         name = os.path.basename(path)
-        why = ("in parts" if PARTS.search(name) else "picture reader" if "mmproj" in name.lower() else
-               "helper file" if HELPER.search(name) else
-               "no checksum" if not re.fullmatch(r"[0-9a-f]{64}", lfs.get("oid") or "") else "")
-        out.append({"path": path, "file": name, "size": int(lfs.get("size") or f.get("size") or 0),
-                    "sha256": lfs.get("oid") or "", "offered": not why, "why_not": why})
+        entry = {"path": path, "file": name, "size": int(lfs.get("size") or f.get("size") or 0),
+                 "sha256": lfs.get("oid") or ""}
+        if PARTS.search(name):
+            split.setdefault(path[:PARTS.search(path).start()], []).append(entry)
+            continue
+        why = ("picture reader" if "mmproj" in name.lower() else "helper file" if HELPER.search(name) else
+               "no checksum" if not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) else "")
+        out.append({**entry, "offered": not why, "why_not": why})
+    for parts in split.values():  # one model in parts: offered whole when every part is there, each with its checksum
+        parts.sort(key=lambda p: p["file"])
+        n = int(matcher.SPLIT.search(parts[0]["file"]).group(2))
+        why = ("a part is missing" if len(parts) != n or not parts[0]["file"].lower().endswith(f"-00001-of-{n:05d}.gguf")
+               else "no checksum" if not all(re.fullmatch(r"[0-9a-f]{64}", p["sha256"]) for p in parts) else "")
+        out.append({**parts[0], "size": sum(p["size"] for p in parts), "first": parts[0]["size"], "parts": parts,
+                    "offered": not why, "why_not": why})
     out.sort(key=lambda f: (not f["offered"], f["size"]))
     return {"repo": repo, "revision": rev, "licence": licence(info.get("tags"), info.get("cardData")),
             "gated": bool(info.get("gated")), "files": out}
 
 
-def model_for(repo: str, rev: str, f: dict, opener: Callable = urllib.request.urlopen) -> matcher.Model:
-    """The matcher's entry for one file there, from its header (the first megabytes only)."""
+def model_for(repo: str, rev: str, f: dict, opener: Callable = urllib.request.urlopen, token: str = "") -> matcher.Model:
+    """The matcher's entry for one file there, from its header (the first megabytes only; a model in parts, from its
+    first part's). token: the person's, for a repository that asks for sign-in."""
     check_repo(repo)
     if not REV.match(rev or "") or not f.get("offered"):
         raise HubError("that file can't be checked")
     url = RESOLVE.format(repo=repo, rev=rev, path=urllib.parse.quote(f["path"]))
+    first = f.get("first") or f["size"]
+    auth = {"Authorization": f"Bearer {token}"} if token else {}
     last = None
     with tempfile.TemporaryDirectory() as d:
         head = os.path.join(d, "head.gguf")
         for n in HEADER_STEPS:
-            req = urllib.request.Request(url, headers={**UA, "Range": f"bytes=0-{min(n, f['size']) - 1}"})
+            req = urllib.request.Request(url, headers={**UA, **auth, "Range": f"bytes=0-{min(n, first) - 1}"})
             try:
                 with opener(req, timeout=120) as r, open(head, "wb") as out:
-                    if getattr(r, "status", 206) != 206 and n < f["size"]:
+                    if getattr(r, "status", 206) != 206 and n < first:
                         raise HubError("Hugging Face sent the whole file instead of its start")
                     out.write(r.read(n))
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    raise HubError("Hugging Face asks you to sign in for this model: add your token, and accept the "
+                                   "model's terms on its page") from None
+                raise HubError(f"couldn't read the file's start: {e}") from e
             except OSError as e:
                 raise HubError(f"couldn't read the file's start: {e}") from e
             try:
-                m = matcher.model_from_gguf(head, name=os.path.splitext(f["file"])[0], size=f["size"])
+                name = PARTS.sub("", f["file"]) if f.get("parts") else os.path.splitext(f["file"])[0]
+                m = matcher.model_from_gguf(head, name=name, size=f["size"], first=first if f.get("parts") else 0)
                 break
             except (struct.error, ValueError, UnicodeDecodeError, EOFError) as e:
                 last = e  # the header goes on past what we have: fetch more
@@ -138,7 +160,9 @@ def model_for(repo: str, rev: str, f: dict, opener: Callable = urllib.request.ur
     return matcher.Model(m.name, f["file"], m.weights, m.layers, m.kv8, m.kv4, emb=m.emb, experts=m.experts,
                          active=m.active, note="from Hugging Face, your choice", source=f"{repo}@{rev}",
                          sha256=f["sha256"], size=f["size"],
-                         remote=f["path"] if f["path"] != f["file"] else "")
+                         remote=f["path"] if f["path"] != f["file"] else "",
+                         parts=tuple((p["file"], p["size"], p["sha256"], p["path"]) for p in f.get("parts", [])),
+                         gated=bool(token))
 
 
 def fit(m: matcher.Model, machine) -> dict:
