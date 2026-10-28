@@ -69,8 +69,8 @@ class AgentTest(unittest.TestCase):
         self.assertEqual((len(e), e[0]["file"], e[0]["model"]), (1, "app.py", "Qwen3.8-27B"))
         kinds = [x["kind"] for x in self.events() if x["kind"] not in ("timing", "busy", "idle")]  # diagnostics, indicator
         self.assertEqual(sum(1 for x in self.events() if x["kind"] == "timing"), 5)
-        self.assertEqual(kinds, ["user", "thinking", "thinking", "change", "thinking", "goals", "thinking", "goals",
-                                 "thinking", "answer"])
+        self.assertEqual(kinds, ["user", "thinking", "thinking", "change", "thinking", "goals", "thinking", "tick",
+                                 "goals", "thinking", "answer"])  # tick: what the goal's checks said (test29)
         self.assertTrue(a.goals.load()[0]["done"])
         self.assertTrue(any("+    return a + b" in s for s in self.said))  # the diff was shown before asking
 
@@ -694,6 +694,77 @@ class AgentTest(unittest.TestCase):
         b.role = "senior"
         b.turn("Hello.")  # nothing waiting: nothing added
         self.assertNotIn("comes first", json.dumps(b.chat.sent[0]))
+
+    def test_a_goal_that_names_a_missing_file_isnt_ticked_and_each_tick_is_logged(self):
+        """2026-10-27 (test29): goal 10, "Engine bridge: engine/bridge.cpp …", had no files listed and was ticked on the
+        project's health with no bridge.cpp anywhere; what held a goal couldn't be read afterwards."""
+        from cin_minai.aicui.agent import named_missing
+        os.makedirs(os.path.join(self.root, "engine"))
+        with open(os.path.join(self.root, "engine", "engine.h"), "w") as f:
+            f.write("int x;\n")
+        self.assertEqual(named_missing(self.root, "Engine bridge: engine/bridge.cpp, a CLI that loads data/cards.json"),
+                         ["engine/bridge.cpp", "data/cards.json"])
+        self.assertEqual(named_missing(self.root, "Fix engine.h and app.py; convert assets/cards/*.jpg"), [])
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.goals.add("Engine bridge: engine/bridge.cpp serves the duel", by="ai")
+        said = a.do({"tool": "goal_done", "id": 1})
+        self.assertIn("its words name engine/bridge.cpp, which isn't in the project", said)
+        self.assertFalse(a.goals.load()[0]["done"])
+        ticks = [e for e in self.events() if e["kind"] == "tick"]
+        self.assertEqual((ticks[-1]["id"], ticks[-1]["ok"]), (1, False))
+
+    def test_a_whole_document_read_gets_room_and_says_when_its_cut_off(self):
+        """2026-10-27 (test29): the 58-page policy's notes stopped at IV.N, at a local model's 4,096-token answer;
+        Haiku only saw that "the extract looked partial"."""
+        from cin_minai.aicui.agent import WHOLE_ANSWER
+        from unittest import mock
+        from cin_minai.aicui import intake
+        os.makedirs(os.path.join(self.root, "assets"))
+        with open(os.path.join(self.root, "assets", "policy.pdf"), "wb") as f:
+            f.write(b"%PDF-1.4\n")
+        a = Agent(self.root, Scripted([]), "m", "auto", say=self.said.append)
+        a.cloud = True
+        asked = []
+
+        def chat(messages, max_tokens=0, **kw):
+            asked.append(max_tokens)
+            return "IV.A ... IV.N Card verification", {"capped": True}
+        a.chat = chat
+        with mock.patch.object(intake, "pdf_text", return_value="IV.A rules\n"):
+            said = a.distill_now(["assets/policy.pdf"], "every section's rules", "notes/policy.md", "text")
+        self.assertEqual(asked, [WHOLE_ANSWER])
+        self.assertIn("CUT OFF at the answer limit: assets/policy.pdf part 1", said)
+
+    def test_what_the_person_says_while_it_works_reaches_it_at_the_next_step(self):
+        """Ian, 2026-10-27 (test29): his steer and his answers waited in the terminal until Haiku stopped by itself;
+        "you click on it, and an answer box pops up" — AICUI writes them to a file the lead reads at each step."""
+        said = os.path.join(self.root, ".cinminai", "from-person.jsonl")
+        a = Agent(self.root, Scripted([step("Ask.", tool="ask", question="Which sounds?"),
+                                       step("Go on.", tool="edit", path="app.py", old="a - b", new="a + b"),
+                                       step("", tool="answer", text="Done."),
+                                       step("", tool="answer", text="Done, with the chiptune sounds.")]),
+                  "m", "none", admin=True, say=self.said.append)
+        a.role = "senior"
+        a.goals.add("Fix add()", by="user")
+        a.goals.add("Sounds", by="user")
+        real_do = a.do
+
+        def do(act):  # the person answers in AICUI's box while the edit runs
+            if act.get("tool") == "edit":
+                qid = next(iter(a.posted))
+                os.makedirs(os.path.dirname(said), exist_ok=True)
+                with open(said, "a") as f:
+                    f.write(json.dumps({"kind": "answer", "id": qid, "text": "Make chiptune ones in code."}) + "\n")
+                    f.write(json.dumps({"kind": "message", "text": "And keep the window resizable."}) + "\n")
+            return real_do(act)
+        a.do = do
+        out = a.turn("work the goals")
+        sent = json.dumps(a.chat.sent[2], ensure_ascii=False)
+        self.assertIn("The person answers your question «Which sounds?»: Make chiptune ones in code.", sent)
+        self.assertIn("The person says, while you work: And keep the window resizable.", sent)
+        self.assertNotIn("Still waiting for your word", out)  # answered, so not said again
+        kinds = [e["kind"] for e in self.events()]
+        self.assertIn("question", kinds)
 
     def test_a_check_says_what_holds_a_goal_and_what_the_run_button_misses(self):
         """2026-10-27 (test28): the GUI goal was ticked while run.sh only started the C++ console engine; then the

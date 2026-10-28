@@ -436,8 +436,8 @@ class OpenAITest(unittest.TestCase):
         self.assertEqual(items[1], {"type": "function_call", "call_id": "call_step1", "name": "run",
                                     "arguments": json.dumps({"reason": "Run it.", "command": "bash run.sh"})})
         self.assertEqual(items[2], {"type": "function_call_output", "call_id": "call_step1", "output": "it printed 'ok'"})
-        self.assertEqual(items[3], {"role": "user", "content": [{"type": "input_image",
-                                                                  "image_url": "data:image/png;base64,AAA"}]})
+        self.assertEqual(items[3]["content"][1:], [{"type": "input_image", "image_url": "data:image/png;base64,AAA"}])
+        self.assertIn("The picture your last step's look took", items[3]["content"][0]["text"])  # said to be its own
         self.assertEqual(items[4]["content"][0], {"type": "output_text", "text": "All done."})
 
     def test_the_budget_and_the_errors_are_said(self):
@@ -494,3 +494,21 @@ class PdfWhole(unittest.TestCase):
                                              {"role": "user", "content": [part]}])
         self.assertIn({"type": "input_file", "filename": "rules.pdf",
                        "file_data": "data:application/pdf;base64,JVBERi0="}, items[0]["content"])
+
+
+class PictureInResult(unittest.TestCase):
+    def test_a_looks_picture_goes_inside_its_result(self):
+        """2026-10-27 (test29): beside the result, Haiku looked four times ("the look tool keeps returning only a
+        path") and stopped "rather than editing blind"."""
+        step = json.dumps({"thinking": "See it.", "action": {"tool": "look", "target": "picture", "address": "a.png"}})
+        pic = {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}
+        msgs = [{"role": "system", "content": "rules"}, {"role": "user", "content": "go"},
+                {"role": "assistant", "content": step},
+                {"role": "user", "content": [{"type": "text", "text": "Result: this result holds the picture"}, pic]}]
+        _, turns = cloud.Anthropic.shape(msgs, {"look"})
+        result = turns[-1]["content"]
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["type"], "tool_result")
+        self.assertEqual([b["type"] for b in result[0]["content"]], ["text", "image"])
+        _, items = cloud.OpenAI.shape_input(msgs, {"look"})
+        self.assertIn("The picture your last step's look took", json.dumps(items))

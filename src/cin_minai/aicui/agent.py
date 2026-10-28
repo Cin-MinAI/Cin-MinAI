@@ -147,7 +147,11 @@ GOAL_TOOLS = {"solo": ("- goal_add / goal_done / goal_reopen / goal_remove (the 
                          "goal_done (tick goal `id` when it's done) / goal_reopen (`id`, `why`: untick one that isn't) / "
                          "goal_remove (one you added, not the person's)",
                          "A new project starts with\nits plan (plan), made from the person's request")}
+WHOLE_ANSWER = 16_000  # what a cloud model may write about a whole document: twice what reached IV.N, inside the 300 s request
 PDF_WHOLE_MAX = 22_000_000  # a PDF a cloud model reads whole: base64 adds a third, under Anthropic's 32 MB request
+# what the person says while the AI works: AICUI writes it here, the lead reads it at its next step (Ian, 2026-10-27,
+# test29: his steer and his answers waited in the terminal until Haiku stopped on its own; "an answer box pops up")
+FROM_PERSON = os.path.join(".cinminai", "from-person.jsonl")
 HOLDS = "HOLDS: "  # a check line that keeps a goal open; the rest are only said (2026-10-27, test28: Haiku took a
 SAID = "(said) "   # record line for the hold, rebuilt the file twice and asked the person, while a blank window held it)
 GATHERED = os.path.join(".cinminai", "gathered")  # the gathered records: what was distilled, for what, from where
@@ -949,6 +953,23 @@ def starts(root: str, entry: str) -> str:
 
 
 MAINS = ("main.py", "app.py", "gui.py", "__main__.py")  # a program's own start, when it has a main
+NAMED = re.compile(r"(?<![\w*/.-])((?:[\w.-]+/)*[\w-][\w.-]*\.(?:cpp|hpp|h|c|py|sh|json|txt|md|html|js|css))\b")
+
+
+def named_missing(root: str, text: str) -> list[str]:
+    """The project files a goal's words name that aren't there (a bare name counts when a file has it anywhere)."""
+    out = []
+    names = None
+    for rel in dict.fromkeys(NAMED.findall(text or "")):
+        if os.path.exists(os.path.join(root, rel)):
+            continue
+        if "/" not in rel:
+            if names is None:
+                names = {os.path.basename(r) for r, is_dir, _ in tree(root) if not is_dir}
+            if rel in names:
+                continue
+        out.append(rel)
+    return out
 
 
 def unstarted(root: str, entry: str | None, files: list) -> str:
@@ -989,6 +1010,9 @@ class Agent:
         self.read_lines = READ_LINES * per + (40 if ctx >= 16384 else 0)  # 8K: 80, 16K: 200, 32K and up: 360
         self.obs_chars = OBS_CHARS * per
         self.reads: dict = {}  # (file, from line, modified) -> the steps that read it in this task
+        said = os.path.join(root, FROM_PERSON)
+        self.person_at = os.path.getsize(said) if os.path.exists(said) else 0  # what came before this run is old
+        self.posted: dict[str, str] = {}  # the questions posted to the person in autopilot, by id, not answered yet
         self.steps: list[dict] = []  # this task's steps so far (the loop guard sees which reads are still in view)
         self.cut, self.lite, self.sys, self.cpt = 0, 0, "", 3.0  # this task (see fit)
         self.max_steps = SAFETY_STEPS  # no hard limit while it makes progress (Ian, 2026-10-03)
@@ -1083,7 +1107,8 @@ class Agent:
 
     def wait_errands(self, cancel: threading.Event | None, deadline_s: float = 1800) -> None:
         end = time.time() + deadline_s
-        while self.errands_out() and time.time() < end and not (cancel and cancel.is_set()):
+        while self.errands_out() and time.time() < end and not (cancel and cancel.is_set()) and \
+                not self.person_waiting():
             self.event("busy", doing="waiting for the helper's errand", tokens=0)
             time.sleep(2)
 
@@ -1092,10 +1117,48 @@ class Agent:
         so a cloud lead's waiting costs nothing. True when something came in."""
         end = time.time() + deadline_s
         while self.errands_out() and not getattr(self, "inbox", None) and time.time() < end and \
-                not (cancel and cancel.is_set()):
+                not (cancel and cancel.is_set()) and not self.person_waiting():
             self.event("busy", doing="waiting for your junior's next result", tokens=0)
             time.sleep(2)
-        return bool(getattr(self, "inbox", None))
+        return bool(getattr(self, "inbox", None)) or self.person_waiting()
+
+    def person_waiting(self) -> bool:
+        if self.role == "junior":
+            return False
+        try:
+            return os.path.getsize(os.path.join(self.root, FROM_PERSON)) > self.person_at
+        except OSError:
+            return False
+
+    def take_person(self, steps: list[dict]) -> bool:
+        """What the person said while this lead worked (AICUI's answer box, or the typing box while it's busy): their
+        words, first, at this step. True when something came."""
+        if not self.person_waiting():
+            return False
+        with open(os.path.join(self.root, FROM_PERSON), encoding="utf-8", errors="replace") as f:
+            f.seek(self.person_at)
+            lines = f.readlines()
+            self.person_at = f.tell()
+        got = False
+        for line in lines:
+            try:
+                m = json.loads(line)
+            except ValueError:
+                continue
+            text = str(m.get("text", "")).strip()
+            if not text:
+                continue
+            got = True
+            if m.get("kind") == "answer":
+                q = self.posted.pop(str(m.get("id", "")), "") or str(m.get("question", ""))
+                self.event("user", text=f"(answer to: {q[:200]}) {text}", via="aicui")
+                self.note(steps, "The person answers your question" + (f" «{q[:400]}»" if q else "") +
+                          f": {text}\nTheir word comes first: act on it before anything else.")
+            else:
+                self.event("user", text=text, via="aicui")
+                self.note(steps, f"The person says, while you work: {text}\n"
+                                 "Their word comes first: act on it before anything else.")
+        return got
 
     def deliver(self, steps: list[dict]) -> bool:
         """What the helper finished since the last step, as notes the model reads now. True when one of them is a
@@ -1508,6 +1571,9 @@ class Agent:
 
     def steps_of(self, text: str, cancel: threading.Event | None) -> str:
         steps: list[dict] = []
+        for qid, q in list(self.posted.items()):  # answered in AICUI's box after this lead had stopped: the answer
+            if q[:80] in text:                    # came typed, with the question in it
+                self.posted.pop(qid)
         self.reads, self.cut, self.lite, self.steps = {}, 0, 0, steps
         self.stopped = ""  # how it ended: "answer", "ask", "declined", "stuck", "limit", "error" (the table records it)
         self.outputs: set[int] = set()  # command outputs seen in this task (progress = a new one)
@@ -1534,6 +1600,8 @@ class Agent:
                 hook()  # team B: a junior goal whose needs came in goes to the junior
             before = len(steps)
             if self.deliver(steps):  # the helper's answers, as soon as they're back; a brief or a record: progress
+                last_progress = n
+            if self.take_person(steps):  # the person's word, as soon as it's there
                 last_progress = n
             if n == 1 and len(steps) > before and self.role != "junior" and not text.startswith(WAKE):
                 # the person's words come before what was waiting (Ian, 2026-10-27, test28: his "the ruling book must
@@ -1632,8 +1700,9 @@ class Agent:
                 # are checked", saying it would keep working on the engine and the GUI — an answer ends the turn)
                 q = str(act.get("question") or act.get("text") or "").strip()
                 if q:
-                    self.posted = getattr(self, "posted", []) + [q]
-                    self.event("note", text="A question for you (the work goes on): " + q)
+                    qid = f"{int(time.time() * 1000)}"
+                    self.posted[qid] = q
+                    self.event("question", id=qid, text=q)  # AICUI shows it to click and answer
                     self.say("A question for you (the work goes on): " + q)
                     steps.append({"did": step, "result": "posted to the person; their word comes when they've read "
                                   "it. Go on with the goals that don't need it, and leave the ones that do open."})
@@ -1649,9 +1718,8 @@ class Agent:
                     if empty < 3:
                         continue
                     msg = step.get("thinking") or "The model gave an empty answer three times."
-                if getattr(self, "posted", None):  # the questions posted on the way, said again at the end
-                    msg += "\n\nStill waiting for your word: " + " / ".join(self.posted)
-                    self.posted = []
+                if self.posted:  # the questions posted on the way and not answered, said again at the end
+                    msg += "\n\nStill waiting for your word: " + " / ".join(self.posted.values())
                 self.stopped = act["tool"]
                 self.event("answer", text=msg)
                 self.say(msg)
@@ -2115,7 +2183,7 @@ class Agent:
                 return (f"error: {dest} is the project's code; a distill compiles into a data file (.json, .md, .txt "
                         "…) — give `into` a data file, and have the code read it")
         part_chars = max(3000, min(12000, self.ctx * 3 // 4))
-        items, texts, used, dropped = [], [], [], 0
+        items, texts, used, dropped, cut = [], [], [], 0, []
         for full in files:
             pdf = whole.get(full)
             text = ""
@@ -2141,10 +2209,15 @@ class Agent:
                 ask = DISTILL_PART.format(intent=intent, source=rel, n=n, total=len(parts)) + "\n" + \
                     {"json": DISTILL_JSON, "files": DISTILL_FILES}.get(fmt, DISTILL_TEXT)
                 try:
-                    raw, _ = self.chat([{"role": "system", "content": ask}, {"role": "user", "content": part}],
-                                       schema={"type": "object", "required": ["items"], "properties": {
-                                           "items": {"type": "array", "items": {"type": "object"}}}}
-                                       if fmt != "text" else None, max_tokens=self.answer_tokens)
+                    # a whole document gets room for what a whole document holds (2026-10-27, test29: the 58-page
+                    # policy's notes stopped at IV.N, at the 4,096-token answer a local model's step has)
+                    raw, timing = self.chat([{"role": "system", "content": ask}, {"role": "user", "content": part}],
+                                            schema={"type": "object", "required": ["items"], "properties": {
+                                                "items": {"type": "array", "items": {"type": "object"}}}}
+                                            if fmt != "text" else None,
+                                            max_tokens=WHOLE_ANSWER if isinstance(part, list) else self.answer_tokens)
+                    if isinstance(timing, dict) and timing.get("capped"):
+                        cut.append(f"{rel} part {n}")
                 except Exception as e:
                     if pdf and isinstance(part, list) and text_parts:  # refused whole (too many pages): its text
                         parts.extend(text_parts)
@@ -2191,6 +2264,9 @@ class Agent:
             out += f"; not found: {', '.join(missing)}"
         if dropped:
             out += f"; {dropped} addresses weren't in the sources as given, left out"
+        if cut:  # said, so the lead knows what's missing and why (test29: "the extract looked partial")
+            out += (f"; CUT OFF at the answer limit: {', '.join(cut)} — what came after where it stops isn't in the "
+                    "record: distill that part again with an intent for the sections that are missing")
         if got_files:
             out += "\n" + got_files
         if fmt == "files":  # the index ties each name to its picture: the project's own, compiled from the record
@@ -2557,7 +2633,10 @@ class Agent:
             # "let the clouds tools be used over ours"; test28: the side call's 300-token answer came back cut off and
             # Haiku looked twice)
             self.seen_picture = self.window_crop(full(base + ".png"), facts)
-            answer = "the picture is with this result: look at it for your question"
+            shown = {"picture": facts.get("picture_of") or address, "page": address or "the page",
+                     "program": "the program's window", "screen": "the person's screen"}.get(target, target)
+            answer = (f"this result holds the picture of {shown} that look took: you are seeing it now. Answer your "
+                      "question from it (it is not from the person)")
         else:
             answer = self.ask_picture(full(base + ".png"), facts, question) if question else ""
         facts.update(problems=problems, answer=answer)
@@ -2616,6 +2695,8 @@ class Agent:
                 if not self.errands_out() and not getattr(self, "inbox", None):
                     return "nothing to wait for: your junior has no tasks out — give it one, or work yourself"
                 got = self.wait_next(getattr(self, "cancel_event", None))
+                if self.person_waiting():
+                    return "the person wrote while you waited: their words are in your notes next"
                 return ("back: your junior's result is in your notes" if got else
                         f"still out after {WAIT_MAX_S // 60} minutes: check on it with follow_up, or go on yourself")
             if t in CHANGES and self.rel(a.get("path", "")) == REQUEST_FILE:
@@ -2836,12 +2917,20 @@ class Agent:
                     # engine's tests, ticked with no test file written; goal 2 without engine/card.cpp)
                     return (f"goal {goal['id']} NOT ticked — held by: its files aren't there yet: "
                             + ", ".join(missing[:8]) + ". Write them (or have the junior write them), then tick it.")
+                named = named_missing(self.root, (goal or {}).get("text", ""))
+                if named:  # a goal without files was ticked on the project's health alone (2026-10-27, test29: goal 10,
+                    # "Engine bridge: engine/bridge.cpp …", ticked with no bridge.cpp anywhere)
+                    self.event("tick", id=goal["id"], ok=False, report="names files that aren't there: " + ", ".join(named))
+                    return (f"goal {goal['id']} NOT ticked — its words name {', '.join(named[:6])}, which "
+                            f"{'isn' if len(named) == 1 else 'aren'}'t in the project. Write them, then tick it.")
                 ok, report = self.verify(goal)
                 unchecked = goal_stages(self.root, goal)["unchecked"] if goal else []
                 if unchecked:  # use needs checked data (D96): a test has to read what came from a source
                     ok = False
                     report += ("\n" if report else "") + "HOLDS IT — not checked by any test: " + ", ".join(unchecked) + \
                         " — a test should read it and compare it with its source (e.g. how many it should hold)"
+                # what each tick's checks said, kept (2026-10-27, test29: what held a goal couldn't be read afterwards)
+                self.event("tick", id=int(a["id"]), ok=bool(ok), report=report[-3000:])
                 flagged = getattr(self, "flagged", set())
                 if ok and goal and goal["id"] not in flagged and callable(getattr(self, "reviewer", None)):
                     said = self.reviewer(goal, report)  # the Junior's review is a flag; this model, the Senior, decides

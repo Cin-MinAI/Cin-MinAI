@@ -474,8 +474,13 @@ class Anthropic:
                     turns[-1]["content"][-1].get("type") == "tool_use":  # the answer to that call, first in its turn
                 said = "\n\n".join(p["text"] for p in parts if p["type"] == "text")
                 said = said[len("Result: "):] if said.startswith("Result: ") else said
+                pictures = [p for p in parts if p["type"] != "text"]
+                # a look's picture goes inside its result, so the model takes it for what its call returned (2026-10-27,
+                # test29: beside the result, Haiku looked four times — "the look tool keeps returning only a path" —
+                # and stopped "rather than editing blind")
                 parts = [{"type": "tool_result", "tool_use_id": turns[-1]["content"][-1]["id"],
-                          "content": said or "(nothing)"}] + [p for p in parts if p["type"] != "text"]
+                          "content": ([{"type": "text", "text": said or "(nothing)"}] + pictures) if pictures
+                          else (said or "(nothing)")}]
                 turns.append({"role": "user", "content": parts})
                 continue
             if turns and turns[-1]["role"] == role and turns[-1]["content"][-1].get("type") == "tool_use":
@@ -667,8 +672,9 @@ class OpenAI(Anthropic):
                 said = texts[len("Result: "):] if texts.startswith("Result: ") else texts
                 items.append({"type": "function_call_output", "call_id": open_call, "output": said or "(nothing)"})
                 open_call = None
-                if pictures:
-                    items.append({"role": "user", "content": pictures})
+                if pictures:  # the Responses API's call output is text: the picture follows, said to be its own
+                    items.append({"role": "user", "content": [{"type": "input_text", "text": "The picture your last "
+                                  "step's look took (what that call returned):"}] + pictures})
                 continue
             body = ([{"type": "input_text", "text": texts}] if texts else []) + pictures
             items.append({"role": "user", "content": body or [{"type": "input_text", "text": "(nothing)"}]})

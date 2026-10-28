@@ -37,6 +37,11 @@ CSS = b"""
 .bubble-app { background: alpha(@theme_fg_color, 0.03); border-radius: 6px; padding: 6px; }
 .bubble-cloud { background: alpha(#3584e4, 0.16); border-left: 4px solid #3584e4; border-radius: 6px; padding: 6px; }
 .waiting { background: rgba(255, 170, 0, 0.30); border-radius: 6px; padding: 2px 6px; font-weight: bold; }
+button.bubble-question { background-image: none; background-color: rgba(255, 170, 0, 0.28); border: none;
+  border-left: 4px solid #f5a623; border-radius: 6px; padding: 6px; font-weight: bold; }
+button.bubble-question:hover { background-color: rgba(255, 170, 0, 0.42); }
+button.bubble-question:disabled { background-color: alpha(@theme_fg_color, 0.04); border-left: 4px solid #33d17a;
+  font-weight: normal; }
 """
 
 
@@ -70,7 +75,23 @@ class Workspace(Gtk.ApplicationWindow):
         self.apply_look()
         self.bubble("app", f"Working in {root}. The coding agent runs in the terminal on the right and asks there before "
                           "it changes anything. Tell it about the project here or there; goals go in the middle.")
-        left = titled("Chat history", scrolled(self.chat))
+        # the questions the AI asks while it works (autopilot): each a bubble to click and answer, the chat brought to
+        # it; the button jumps to the next one waiting (Ian, 2026-10-27: "you click on it, and an answer box pops up…
+        # til no questions remain")
+        self.questions: list[dict] = []
+        self.chat_scroll = scrolled(self.chat)
+        self.q_button = Gtk.Button(no_show_all=True)
+        self.q_button.get_style_context().add_class("waiting")
+        self.q_button.set_tooltip_text("The AI's questions waiting for your answer: open the next one")
+        self.q_button.connect("clicked", lambda b: self.next_question(open_it=True))
+        head = Gtk.Box(spacing=4)
+        title = Gtk.Label(label="Chat history", xalign=0)
+        title.get_style_context().add_class("pane-title")
+        head.pack_start(title, True, True, 0)
+        head.pack_end(self.q_button, False, False, 2)
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        left.pack_start(head, False, False, 0)
+        left.pack_start(self.chat_scroll, True, True, 0)
 
         # middle: the working tree, with the changelog behind a button at its bottom
         self.store = Gtk.TreeStore(str, str, str)  # name, git status, relative path
@@ -316,7 +337,10 @@ class Workspace(Gtk.ApplicationWindow):
             except ValueError:
                 continue
             if e["kind"] == "user":
-                self.bubble("user", e.get("text", ""))
+                if e.get("via") != "aicui":  # said here already (the answer box, or typed while it worked)
+                    self.bubble("user", e.get("text", ""))
+            elif e["kind"] == "question":  # asked while the work goes on: to click and answer
+                self.add_question(str(e.get("id", "")), e.get("text", ""))
             elif e["kind"] == "thinking":  # the Junior's own, in style B, marked as its
                 junior = e.get("who") == "junior"
                 self.thought(e.get("text", ""), "Junior's thought" if junior else "Thought", "junior" if junior else "ai")
@@ -472,6 +496,92 @@ class Workspace(Gtk.ApplicationWindow):
         row.add(exp)
         self.chat.add(row)
         row.show_all()
+
+    def add_question(self, qid: str, text: str) -> None:
+        q = {"id": qid, "text": text, "n": len(self.questions) + 1, "answered": False}
+        q["label"] = Gtk.Label(label=f"❓ Question {q['n']}: click to answer\n{text}", wrap=True, xalign=0,
+                               max_width_chars=48)
+        q["button"] = Gtk.Button(relief=Gtk.ReliefStyle.NONE)
+        q["button"].add(q["label"])
+        q["button"].get_style_context().add_class("bubble-question")
+        q["button"].connect("clicked", lambda b, q=q: self.answer_question(q))
+        q["row"] = Gtk.ListBoxRow(activatable=False)
+        q["row"].add(q["button"])
+        self.chat.add(q["row"])
+        q["row"].show_all()
+        self.questions.append(q)
+        self.count_questions()
+        GLib.timeout_add(150, self.scroll_to, q["row"])  # once it has its place in the list
+        if not self.is_active():
+            n = Gio.Notification.new("AICUI: a question for you")
+            n.set_body(text[:200])
+            self.get_application().send_notification("aicui-question", n)
+
+    def scroll_to(self, row: Gtk.ListBoxRow) -> bool:
+        adj = self.chat_scroll.get_vadjustment()
+        adj.set_value(max(0, min(row.get_allocation().y - 8, adj.get_upper() - adj.get_page_size())))
+        return False
+
+    def count_questions(self) -> None:
+        waiting = sum(not q["answered"] for q in self.questions)
+        self.q_button.set_label(f"Questions ({waiting})")
+        self.q_button.set_visible(waiting > 0)
+
+    def next_question(self, open_it: bool = False) -> None:
+        q = next((q for q in self.questions if not q["answered"]), None)
+        if q is None:
+            return
+        self.scroll_to(q["row"])
+        if open_it:
+            self.answer_question(q)
+
+    def answer_question(self, q: dict) -> None:
+        """The answer box: the question, a place to answer, Send. The answer reaches the AI at its next step while it
+        works, or starts its next turn when it has stopped; then the chat moves to the next question waiting."""
+        if q["answered"]:
+            return
+        d = Gtk.Dialog(title=f"Question {q['n']}", transient_for=self, modal=True)
+        d.add_buttons("Later", Gtk.ResponseType.CANCEL, "Send", Gtk.ResponseType.OK)
+        d.set_default_size(560, 320)
+        box = d.get_content_area()
+        box.set_spacing(8)
+        box.set_border_width(10)
+        box.pack_start(Gtk.Label(label=q["text"], wrap=True, xalign=0, selectable=True, max_width_chars=70),
+                       False, False, 0)
+        view = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        frame = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        frame.add(view)
+        box.pack_start(frame, True, True, 0)
+        d.show_all()
+        view.grab_focus()
+        r = d.run()
+        buf = view.get_buffer()
+        text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False).strip()
+        d.destroy()
+        if r != Gtk.ResponseType.OK or not text:
+            return
+        self.to_agent({"kind": "answer", "id": q["id"], "question": q["text"], "text": text},
+                      f"Answer to your question «{q['text'][:300]}»: {text}")
+        q["answered"] = True
+        q["label"].set_text(f"✓ Question {q['n']}: {q['text']}\nYou: {text}")
+        q["button"].set_sensitive(False)
+        self.count_questions()
+        self.next_question()
+
+    def working(self) -> bool:
+        """The AI is in a turn (not stopped, not waiting on a yes/no in its terminal)."""
+        return self.busy is not None and self.busy.get("doing") != "waiting for your answer in the terminal"
+
+    def to_agent(self, said: dict, typed: str) -> None:
+        """The person's words to the AI: at its next step while it works (AICUI's file), else typed into its terminal
+        to start its next turn."""
+        if self.working():
+            path = os.path.join(self.root, ".cinminai", "from-person.jsonl")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({**said, "t": time.time()}, ensure_ascii=False) + "\n")
+        else:
+            self.term.feed_child((" ".join(typed.splitlines()) + "\n").encode())
 
     def bubble(self, who: str, text: str) -> None:
         """A message in the chat, in its speaker's look (chatlook.py); in the terminal style it starts with the
@@ -2088,9 +2198,11 @@ class Workspace(Gtk.ApplicationWindow):
 
     def send(self, entry: Gtk.Entry) -> None:
         text = entry.get_text().strip()
-        if text:  # typed into the terminal, where the agent reads it (the chat shows it from the agent's events)
+        if text:  # while the AI works: at its next step; else typed into its terminal (the chat shows it from events)
             entry.set_text("")
-            self.term.feed_child((" ".join(text.splitlines()) + "\n").encode())
+            if self.working():
+                self.bubble("user", text)
+            self.to_agent({"kind": "message", "text": text}, text)
 
     def watch_outside(self) -> bool:
         """Every few seconds: the project's own files changed outside AICUI (the person's editor, a program the project
