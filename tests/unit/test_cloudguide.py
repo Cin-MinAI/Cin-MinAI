@@ -57,6 +57,9 @@ class CloudGuideTest(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, {"XDG_CACHE_HOME": self.where})
         patcher.start()
         self.addCleanup(patcher.stop)
+        cache = mock.patch.object(cloud, "MODELS_CACHE", os.path.join(self.where, "cloud-models.json"))
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def guide(self, answers):
         self.fake = FakeAnthropic(answers)
@@ -116,12 +119,13 @@ class CloudGuideTest(unittest.TestCase):
         with self.assertRaises(Cancelled):
             b.chat([{"role": "user", "content": "hi"}], cancel=stop)
 
-    def test_offered_only_when_measured(self):
-        with self.assertRaises(BackendError):
-            cloudguide.choose("claude-haiku-5-5", where=self.where)
+    def test_the_choice(self):
         self.assertIsNone(cloudguide.choice(self.where))
-        with mock.patch.dict(cloudguide.MEASURED, {"claude-haiku-5-5": "150/157"}):
-            got = cloudguide.choose("claude-haiku-5-5", where=self.where)
+        cloud.cache_models(["gpt-6-luna", "gpt-6.1-sol"], "openai")
+        offers = cloudguide.offers({"anthropic": False, "openai": True})  # only a provider with a key
+        self.assertEqual([o["model"] for o in offers], ["gpt-6-luna", "gpt-6.1-sol"])
+        self.assertEqual(offers[0]["label"], "GPT-6 Luna")
+        got = cloudguide.choose("claude-haiku-5-5", where=self.where)
         self.assertEqual((got["model"], got["provider"], got["budget_usd"]), ("claude-haiku-5-5", "anthropic", 2.0))
         self.assertEqual(cloudguide.choice(self.where)["label"], "Claude Haiku 5.5")
         self.assertEqual(cloudguide.choose("", 4.0, where=self.where), {"model": ""})  # back to this computer

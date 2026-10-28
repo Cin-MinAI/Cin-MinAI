@@ -1275,9 +1275,9 @@ class Sidebar(Gtk.Application):
         self.proxy.call("ModelsView", None, Gio.DBusCallFlags.NONE, 120000, None, got)
 
     def assistant_choice(self, box: Gtk.Box, again) -> None:
-        """D35: the assistant on the person's own cloud model, under Help and the system. Only models measured on the
-        guide's tests whose provider has a key here are offered, and what goes to the provider is said before it's
-        used; the tools, Allow cards and password stay on this computer."""
+        """D35: the assistant on the person's own cloud model, under Help and the system: the models of each provider
+        with a key here; what goes to the provider is said before it's used; the tools, Allow cards and password stay
+        on this computer."""
         spot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.pack_start(spot, False, False, 0)
         names = {"anthropic": "Anthropic", "openai": "OpenAI"}
@@ -1306,7 +1306,7 @@ class Sidebar(Gtk.Application):
                 pick = Gtk.ComboBoxText()
                 pick.append("", words.t("a_cloud_pick"))
                 for o in others:
-                    pick.append(o["model"], words.t("a_cloud_score", label=o["label"], score=o["score"]))
+                    pick.append(o["model"], o["label"])
                 pick.set_active_id("")
                 for cell in pick.get_cells():
                     cell.set_property("ellipsize", 3)  # Pango END

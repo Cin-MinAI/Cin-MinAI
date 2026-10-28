@@ -384,31 +384,6 @@ class Server:
         return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip(), time.monotonic() - t0
 
 
-class CloudServer:
-    """--cloud MODEL: the same calls through the daemon's own cloud path (inference/cloudguide.py, PLAN D35), so what is
-    measured is what the sidebar does on that model. The key from --api-key-env, else the login keyring; the spend is
-    logged in bench-results/cloud/ and held to --cloud-budget across runs."""
-
-    def __init__(self, model: str, budget: float, key_env: str | None = None):
-        from cin_minai.inference import cloud, cloudguide
-        where = os.path.abspath(os.path.join("bench-results", "cloud"))
-        os.makedirs(os.path.join(where, ".cinminai"), exist_ok=True)
-        with open(os.path.join(where, cloud.SETTINGS), "w", encoding="utf-8") as f:
-            json.dump({"model": model, "role": "eval", "budget_usd": budget}, f)
-        provider = cloud.provider_of(model)
-        inner = None
-        if key_env:
-            cls = cloud.OpenAI if provider == "openai" else cloud.Anthropic
-            inner = cls(where, lambda: os.environ.get(key_env, ""), model, cloud.window(model))
-        self.backend = cloudguide.CloudGuide(provider, model, where, inner)
-        self.where = where
-
-    def chat(self, messages: list, schema_: dict | None, max_tokens: int) -> tuple[str, float]:
-        t0 = time.monotonic()
-        text, _ = self.backend.chat(messages, schema=schema_, max_tokens=max_tokens)
-        return text, time.monotonic() - t0
-
-
 # --- scoring -------------------------------------------------------------------------------------
 
 def arg_ok(rule, value) -> bool:
@@ -614,8 +589,6 @@ def main() -> None:
                                         "cinminai-daemon/gen_data.py); needs cin_minai on PYTHONPATH")
     ap.add_argument("--live", action="store_true", help="tasks marked live get the daemon's live-USB line")
     ap.add_argument("--live-all", action="store_true", help="every task gets it (needs --live)")
-    ap.add_argument("--cloud", help="a cloud model id (Anthropic or OpenAI), through the daemon's cloud path (D35)")
-    ap.add_argument("--cloud-budget", type=float, default=3.0, help="dollars, across runs (bench-results/cloud)")
     ap.add_argument("--dry-run", action="store_true"), ap.add_argument("-v", action="store_true")
     o = ap.parse_args()
     global PROMPT, HELP, LIVE, LIVE_ALL
@@ -646,12 +619,9 @@ def main() -> None:
     if o.config:
         cfg = tomllib.load(open(os.path.expanduser(o.config), "rb"))["inference"]
         url, key, model = url or cfg["url"], key or cfg.get("api_key", ""), model or cfg.get("model", "")
-    if o.cloud:
-        srv, model = CloudServer(o.cloud, o.cloud_budget, o.api_key_env), o.cloud
-    elif not url:
-        ap.error("--url, --config or --cloud needed")
-    else:
-        srv = Server(url, key, model, o.sampling)
+    if not url:
+        ap.error("--url or --config needed")
+    srv = Server(url, key, model, o.sampling)
     out = o.out or os.path.join("bench-results", "guide",
                                 f"{re.sub(r'[^\w.-]+', '_', model or 'model')}-{PROMPT}-{dt.datetime.now():%Y%m%d-%H%M}.jsonl")
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
@@ -671,9 +641,6 @@ def main() -> None:
                 if rec["reply"]:
                     print("    reply:", rec["reply"][:500].replace("\n", "\n           "))
     print("\n" + summary(recs))
-    if o.cloud:
-        from cin_minai.inference import cloud
-        print(f"\ncloud spend so far (bench-results/cloud): ${cloud.spent(srv.where):.4f}")
     print(f"\nresults: {out}")
 
 

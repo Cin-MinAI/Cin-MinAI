@@ -150,7 +150,7 @@ XML = f"""
     <method name="ModelsView"><arg type="s" name="json" direction="out"/></method>
     <!-- D35: the assistant on the person's own cloud model. change (JSON): empty to read, "model" to choose (an
          empty model = the guide on this computer), "budget_usd"; json: "current" (the choice or null) and "offers"
-         (the measured models whose provider has a key here) -->
+         (the models of each provider with a key here) -->
     <method name="AssistantCloud"><arg type="s" name="change" direction="in"/><arg type="s" name="json" direction="out"/></method>
     <!-- give a job a model on this computer ("" = our pick again); help and the system stay with the guide (D94) -->
     <method name="ModelAssign"><arg type="s" name="job" direction="in"/><arg type="s" name="file" direction="in"/>
@@ -1986,7 +1986,7 @@ class Service:
         """D35: read or change the assistant's model (off the main loop: the keyring is read for the offers); the
         backend itself is swapped on the main loop, between questions."""
         from cin_minai.daemon import accounts
-        from cin_minai.inference import cloud, cloudguide
+        from cin_minai.inference import cloudguide
         if "model" in change or "budget_usd" in change:
             now = cloudguide.choice()
             model = str(change["model"]) if "model" in change else (now or {}).get("model", "")
@@ -1994,9 +1994,7 @@ class Service:
             picked = cloudguide.choose(model, float(budget) if budget is not None else None)
             GLib.idle_add(self.use_assistant, picked if picked.get("model") else None)
         keyed = {p: bool(accounts.cloud_key(p)) for p in ("anthropic", "openai")}
-        offers = [{"model": m, "label": cloud.label(m), "score": score, "provider": cloud.provider_of(m)}
-                  for m, score in cloudguide.MEASURED.items() if keyed.get(cloud.provider_of(m))]
-        return {"current": cloudguide.choice(), "offers": offers}
+        return {"current": cloudguide.choice(), "offers": cloudguide.offers(keyed)}
 
     def use_assistant(self, picked: dict | None) -> bool:
         """The guide on the person's cloud model, or back on this computer (D35)."""

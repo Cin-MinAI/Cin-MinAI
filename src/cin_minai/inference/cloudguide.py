@@ -11,8 +11,10 @@ unchanged, since those live in the system, not the model.
 
 * **The choice** is the person's, kept in ~/.local/share/cinminai/assistant/.cinminai/cloud.json with its budget; the
   calls and their cost are logged beside it (cloud-usage.jsonl), as a project's are.
-* **Offered only when measured** on the guide's evals (training/eval/guide/run_eval.py --cloud): MEASURED holds what
-  each model scored, and the Models view shows it beside the choice.
+* **Any model the person has a key for** is offered, the ones AICUI's Cloud models menu lists. Not measured first:
+  Ian, 2026-10-28: "Dont worry about evals on cloud models, theres not much I can do about them and I wont make them
+  better in any way. We can give them our guide cards but thats about it" (they get the guide's prompt and its help
+  cards, as the guide does).
 * **Said plainly** when chosen: what the person asks, and what's read to answer it, goes to the provider.
 """
 
@@ -32,8 +34,6 @@ def root() -> str:
     return os.path.join(base, "cinminai", "assistant")
 
 
-# model -> what it scored on the guide's evals (prompt v2.8); a model not listed isn't offered
-MEASURED: dict[str, str] = {}
 BUDGET_USD = 2.0  # the first budget, raised by the person in the Models view
 
 
@@ -56,8 +56,6 @@ def choose(model: str, budget_usd: float | None = None, where: str | None = None
     """Run the assistant on this cloud model ("" = back to the guide on this computer)."""
     where = where or root()
     now = choice(where)
-    if model and model not in MEASURED:
-        raise BackendError(f"{cloud.label(model)} hasn't been measured on the guide's tests yet, so it isn't offered")
     budget = budget_usd if budget_usd is not None else (now or {}).get("budget_usd") or BUDGET_USD
     # written here, not with cloud.save_settings: that one also makes it AICUI's last model
     path = os.path.join(where, cloud.SETTINGS)
@@ -66,6 +64,13 @@ def choose(model: str, budget_usd: float | None = None, where: str | None = None
         json.dump({"model": model, "role": "assistant" if model else "off", "budget_usd": float(budget)}, f, indent=1)
     os.replace(path + ".tmp", path)
     return choice(where) or {"model": ""}
+
+
+def offers(keyed: dict) -> list[dict]:
+    """The models offered for the assistant: for each provider with a key here, the ones AICUI's menu lists."""
+    return [{"model": m, "label": cloud.label(m), "provider": p}
+            for p in ("anthropic", "openai") if keyed.get(p)
+            for m in (cloud.cached_models(p) or [cloud.PROVIDERS[p]["default"]])]
 
 
 def to_steps(schema: dict) -> dict:
