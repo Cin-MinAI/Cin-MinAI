@@ -640,12 +640,15 @@ TOPICS = [
     # D84, 2026-10-29: the installer's own words (its debconf templates, the system's name as the screen shows it),
     # the pictures Ian's
     {"id": "dual_boot", "windows": "keeping Windows and installing Linux next to it (dual boot)",
+     # D47: one system per drive, each with its own start-up files; the USB guide says the same
      "card": "Dual boot: it's like having two toolboxes in the same spot. They can hold the same tools, or different "
-             "tools in a different box; when the computer starts, you pick which one to open. Back up your files "
-             "first. Then start from the USB stick, double-click {install_cinminai}, and on the {ui_installation_type} "
-             "screen choose {ui_install_alongside}; it shares the drive between the two. Careful: don't choose "
-             "{ui_erase_disk_install}: it removes Windows and everything on the drive. {ui_something_else} is for "
-             "choosing the space yourself.",
+             "tools in a different box; when the computer starts, you pick which one to open. We recommend giving "
+             "each system its own drive: Windows keeps its drive, Cin-MinAI gets another. Back up your files, then "
+             "switch the computer off and unplug the Windows drive while installing, so the installer can't touch "
+             "it. Start from the USB stick, double-click {install_cinminai}, choose {ui_erase_disk_install} and "
+             "check that the drive shown is the right one. Plug the other drive back in afterwards; at start-up, "
+             "the computer's boot menu key (often F12) lets you pick. With only one drive, {ui_install_alongside} "
+             "shares it between the two, but then an update to either one can break the other's start-up.",
      "must": ["install_cinminai"], "steps": True},
     {"id": "secure_boot", "windows": "Secure Boot, and the key the installer asks for",
      "card": "Secure Boot: it's like an ignition key with a transponder. The computer won't even start if the key "

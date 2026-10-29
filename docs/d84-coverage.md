@@ -181,8 +181,8 @@ with batch 1): "fiable", "criador", the developer words.
   Portuguese): guide cycle 1.
 - **Dual boot and Secure Boot: done (2026-10-29).** Written from the installer's own translations (ubiquity's debconf
   templates on the ISO, read by extract_labels.py's INSTALLER table; the name filled in is Cin-MinAI, as Ian saw it
-  on the screen) and Ian's pictures. D84-48/49: 11/12 on the base guide (CPU); the English dual-boot reply left out
-  the erase warning. Japanese replies may write a name without the spaces around Latin words: the eval now ignores
+  on the screen) and Ian's pictures. The dual-boot card follows D47 (each system its own drive, the other unplugged while
+  installing). D84-48/49: 11/12 on the base guide (CPU); the German reply split the Erase disk name in two. Japanese replies may write a name without the spaces around Latin words: the eval now ignores
   spaces when it checks a Japanese name.
 
 ## How the gaps get filled (D84)

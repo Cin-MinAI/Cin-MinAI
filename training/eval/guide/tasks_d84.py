@@ -442,7 +442,11 @@ TASKS = [
            "ja": "Windowsを残したまま、これを一緒にインストールできますか？"},
      "expect": [{"tool": "lookup_help"}],
      "card": CARD["dual_boot"], "live": True,
-     "must": [["{ui_install_alongside}"], [WARN_ERASE]], "must_not": NO_CMD, **STEPS},
+     # D47: the drive erased is Cin-MinAI's own, the Windows one unplugged while installing
+     "must": [["{ui_erase_disk_install}"],
+              ["~(?i)unplug|disconnect|desconect|desenchuf|desligu|débranch|abklemm|abstecken|ausstecken|abzieh|"
+               "heraus|trenn|外し|外す|抜い|抜き|取り外"]],
+     "must_not": NO_CMD, **STEPS},
     {"id": "D84-49", "cat": "transition",
      "q": {"en": "The installer is asking me to choose a security key for Secure Boot. What is that?",
            "es": "El instalador me pide elegir una clave de seguridad para Secure Boot. ¿Qué es eso?",
