@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **77 filled (81 %)**, 8 partly,
+**Count:** 95 live decisions (D18 superseded) — **82 filled (86 %)**, 3 partly,
 4 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35, D40 and D93 filled; 2026-10-29: D20, D31, D41, D29, D84 and D47 filled). 90 % is **86 filled**: 9 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35, D40 and D93 filled; 2026-10-29: D20, D31, D41, D29, D84 and D47 filled, then D24, D37, D39, D67 and D82 closed for now). 90 % is **86 filled**: 4 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -176,7 +176,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D21 | filled | standing rule |
 | D22 | filled | standing rule |
 | D23 | filled | the guide on the ISO, offline from the live USB |
-| D24 | partly | CUDA and Vulkan built; AMD never run on real hardware (HELP-WANTED) |
+| D24 | filled | CUDA and Vulkan built; AMD never run on real hardware: a standing call for AMD testers (HELP-WANTED), reopened by the first AMD report that fails; Ian, 2026-10-29: "Those 5 are closed for now" (D24, D37, D39, D67, D82) |
 | D25 | parked | UI and help in six languages; the Japanese input method and CJK fonts wait: they'd make an already long ISO download longer (Ian, 2026-10-16: parked for this alpha, "to resolve later with more resources") |
 | D26 | filled | public repos, decisions, evals |
 | D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
@@ -189,9 +189,9 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D34 | filled | standing scope |
 | D35 | filled | the whole computer on a cloud model (2026-10-28, inference/cloudguide.py): the guide's own turn on the person's model, the choice under Help and the system in the Models view (any model with a key here, said plainly before it's used, a budget, Back to this computer); before: Anthropic and OpenAI by API key in the keyring (OpenAI through the Responses API, 2026-10-16; live on Ian's PC the same day: GPT-5.6 Luna finishing a project, 19 calls, $0.0094), the cloud backend with the same sandbox and approvals, AICUI's Cloud models menu for both; the panel's WEB / CLOUD sign (inference/reach.py). One-button Sign in with ChatGPT waits on OpenAI's form — the key covers it, as D35 allows |
 | D36 | filled | docs/HELP-WANTED.md |
-| D37 | partly | requirements stated (hardware.md); no testing on 6 GB laptops |
+| D37 | filled | requirements stated (hardware.md); 6 GB laptops not tested by us: a standing call for testers, reopened by a report that fails; Ian, 2026-10-29: "Those 5 are closed for now" (D24, D37, D39, D67, D82) |
 | D38 | filled | standing rule |
-| D39 | partly | interpretation corpus generated; not in a shipped guide; personalization not built |
+| D39 | filled | interpretation corpus generated, into a shipped guide with a guide cycle; personalization goes with D66 (memory and personality); Ian, 2026-10-29: "Those 5 are closed for now" (D24, D37, D39, D67, D82) |
 | D40 | filled | compaction and handovers in AICUI; the sidebar's long session (2026-10-28, daemon/notebook.py): the transcript on this computer (30 days, never the journal's talk), trimmed turns folded into notes the person is shown line by line and can take out, recall of an earlier turn by its words (no model), the rundown offered after a pause (yes reads the notes back, no goes straight in, asked once after three no's), New conversation starts the notes fresh. Internal threads and a saved prompt cache not built (they make it cheaper, not continuous) |
 | D41 | filled | method and bench published, cycle 0 run (the M0 bakeoff); Ian, 2026-10-29: "You can count the review cycle til 5 more months, we already did one" — the next cycle is due about 2027-03 and reopens it if it doesn't run |
 | D42 | parked | post-MVP |
@@ -219,7 +219,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D64 | filled | update 3; in AICUI, looks at a program, a page or the screen (2026-10-09) |
 | D65 | filled | standing rule |
 | D66 | open | memory and personality (M4b) |
-| D67 | partly | action record and walls (M4 slices 1-3); memory atoms not built |
+| D67 | filled | action record and walls (M4 slices 1-3); memory atoms go with D66; Ian, 2026-10-29: "Those 5 are closed for now" (D24, D37, D39, D67, D82) |
 | D68 | filled | web search and fetch; the calculator (SymPy) and Wikipedia (a shelf on this computer, or online after the person agrees) are the guide's own tools, prompt v2.7 (2026-10-23; v2.6 2026-10-22), the history kept as the talk alone (2026-10-23), the Library view to get shelves from Kiwix (2026-10-23). Filled for now (Ian, 2026-10-24: "68 is good for now, push the rest into plan 5b"): Z3, Khan Academy, Lean and LaTeX moved to §5b |
 | D69 | filled | standing rule (guide and AICUI ask) |
 | D70 | filled | the org, the download, the path |
@@ -234,7 +234,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D79 | parked | waits for a test picture with a known answer |
 | D80 | filled | YouTube summaries through our extension |
 | D81 | open | voice not built (whisper only for video files) |
-| D82 | partly | base + matched upgrades + Hugging Face explorer; memory that outlives a model waits for D66 |
+| D82 | filled | base + matched upgrades + Hugging Face explorer; memory that outlives a model goes with D66; Ian, 2026-10-29: "Those 5 are closed for now" (D24, D37, D39, D67, D82) |
 | D83 | open | the host assistant |
 | D84 | filled | **Filled when** (Ian, 2026-10-24): every feature of ours that people open has a help card with its real names in the six languages, and eval items that pass. Done: Updates, Library, offline mode, standing tasks, news scan and its keys, AICUI (GitHub, Team Table) (tasks_d84 100/116 with v2.7, 2026-10-23); D84-19 the live USB told to the guide (2026-10-24); batch 1 (2026-10-24): the assistant itself, writing projects, the journal, the Models view (the AICUI card names the Benchmark), video summaries; batch 2 (2026-10-24): the Requests view, terminal sharing, the internet log, LibreOffice with the assistant (its Assistant menu now in the six languages) — tasks_d84 on the GPU: batch 2's items 24/31, misses kept ("what is the assistant working on?" checks the system). Dual boot and Secure Boot (2026-10-29): the installer's own words from its translations (ubiquity's debconf templates, the name the screen shows: Cin-MinAI, Ian), Ian's pictures (two toolboxes in the same spot; an ignition key with a transponder); tasks_d84 D84-48/49 11/12 on the base guide (on the CPU: the 4070 build wasn't usable); the dual-boot card follows D47 (each system its own drive, the Windows drive unplugged while installing, Erase disk on Cin-MinAI's, the boot menu key), the miss kept: the German reply split the Erase disk name in two |
 | D85 | filled | Ask / Auto / undo on the one action path |
