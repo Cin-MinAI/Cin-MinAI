@@ -637,6 +637,24 @@ TOPICS = [
              "another USB stick. It's slower than after installing. When you're ready to keep it: back up your "
              "files first, then double-click {install_cinminai} on the desktop and follow the steps.",
      "must": ["install_cinminai"], "steps": True},
+    # D84, 2026-10-29: the installer's own words (its debconf templates, the system's name as the screen shows it),
+    # the pictures Ian's
+    {"id": "dual_boot", "windows": "keeping Windows and installing Linux next to it (dual boot)",
+     "card": "Dual boot: it's like having two toolboxes in the same spot. They can hold the same tools, or different "
+             "tools in a different box; when the computer starts, you pick which one to open. Back up your files "
+             "first. Then start from the USB stick, double-click {install_cinminai}, and on the {ui_installation_type} "
+             "screen choose {ui_install_alongside}; it shares the drive between the two. Careful: don't choose "
+             "{ui_erase_disk_install}: it removes Windows and everything on the drive. {ui_something_else} is for "
+             "choosing the space yourself.",
+     "must": ["install_cinminai"], "steps": True},
+    {"id": "secure_boot", "windows": "Secure Boot, and the key the installer asks for",
+     "card": "Secure Boot: it's like an ignition key with a transponder. The computer won't even start if the key "
+             "doesn't match, or if the transponder says what's starting isn't what it expects. If you tick "
+             "{ui_third_party} while installing and the computer has {ui_uefi_secure_boot} on, the installer asks "
+             "you to choose a security key: pick one you'll remember and write it down. At the next restart a "
+             "blue screen in English appears: choose Enroll MOK, then Continue, then Yes, type the key, and choose "
+             "Reboot. After that the computer trusts those drivers.",
+     "must": ["install_cinminai"], "steps": True},
 
     # --- from the hands-on round on the test SSD (2026-10-07): questions the guide answered with invented steps. The
     # system checks behind them are inspect_system "account", "memory", "temperature"; pictures drafted by Claude for

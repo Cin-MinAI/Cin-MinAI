@@ -453,8 +453,12 @@ def stage_b(it: dict, text: str) -> list[str]:
     if it["lang"] not in found and not (found == {"?"} and len(text.split()) <= 12):
         fails.append(f"language {language(text)}")
     low = text.lower()
+    # Japanese runs words together: a name written without the spaces the screen puts around Latin words
+    # ("Cin-MinAIをWindows…" for "Cin-MinAI を Windows…") is still that name (2026-10-29, D84-48)
+    squeeze = (lambda s: re.sub(r"\s+", "", s)) if it["lang"] == "ja" else (lambda s: s)
     for group in it["must"]:
-        if not any(re.search(a[1:], text, re.I) if a.startswith("~") else a.lower() in low for a in group):
+        if not any(re.search(a[1:], text, re.I) if a.startswith("~") else squeeze(a.lower()) in squeeze(low)
+                   for a in group):
             fails.append("missing " + " | ".join(group))
     for pat in it.get("must_not", []):
         if re.search(pat, text, re.I):

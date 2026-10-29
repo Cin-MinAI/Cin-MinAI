@@ -199,6 +199,49 @@ def ui_label(text: str) -> str:
     return re.sub(r"\s*\(_?\w\)$", "", text).replace("_", "")
 
 
+TEMPLATES = "/var/cache/debconf/templates.dat"
+# the installer's words (ubiquity, from its debconf templates: they aren't gettext), with what it fills in at run time:
+# the system's name (Ian, 2026-10-29: the screen says Cin-MinAI) and the name UEFI gives Windows. key -> (template, field)
+INSTALLER = {
+    "ui_installation_type": ("ubiquity/text/part_auto_heading_label", "Description"),
+    "ui_install_alongside": ("ubiquity/partitioner/single_os_resize", "Description"),
+    "ui_erase_disk_install": ("ubiquity/partitioner/no_systems_format", "Description"),
+    "ui_something_else": ("ubiquity/partitioner/advanced", "Description"),
+    "ui_third_party": ("ubiquity/text/prepare_nonfree_software", "Extended_description"),
+    "ui_uefi_secure_boot": ("ubiquity/text/efi_secureboot", "Extended_description"),
+}
+INSTALLER_FILL = {"${DISTRO}": "Cin-MinAI", "${OS}": "Windows Boot Manager"}
+
+
+def installer_labels(path: str) -> dict:
+    """The installer's names in the v1 languages, from its debconf templates (Portuguese: pt_BR first)."""
+    blocks = {}
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for block in f.read().split("\n\n"):
+            m = re.search(r"^Name: (\S+)$", block, re.M)
+            if m:
+                blocks[m.group(1)] = block
+    out = {}
+    for key, (name, field) in INSTALLER.items():
+        block = blocks.get(name)
+        if block is None:
+            continue
+        row = {}
+        for lang, codes in (("en", [""]), *((lang, [f"-{c.lower()}.utf-8" for c in codes])
+                                            for lang, codes in LANGS.items())):
+            for suffix in codes:
+                m = re.search(rf"^{field}{re.escape(suffix)}: (.+)$", block, re.M)
+                if m and m.group(1).strip():
+                    text = m.group(1).strip()
+                    for k, v in INSTALLER_FILL.items():
+                        text = text.replace(k, v)
+                    row[lang] = text
+                    break
+        if "en" in row:
+            out[key] = row
+    return out
+
+
 def main() -> None:
     global ROOT
     ROOT = sys.argv[1] if len(sys.argv) > 1 else "/"
@@ -253,6 +296,8 @@ def main() -> None:
     own_labels, own_ui = own()
     labels.update(own_labels)
     ui.update(own_ui)
+    if os.path.exists(at(TEMPLATES)):
+        ui.update(installer_labels(at(TEMPLATES)))
     if missing:
         print("missing .desktop files: " + ", ".join(missing), file=sys.stderr)
     info = at("/etc/linuxmint/info")

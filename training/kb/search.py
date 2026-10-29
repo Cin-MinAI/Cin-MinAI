@@ -328,6 +328,15 @@ KEYWORDS = {
     "live_usb": "live usb try without installing test drive live session before installing probar sin instalar "
                 "sesión en vivo testar sem instalar sessão live essayer sans installer session live ohne "
                 "installation testen live-sitzung ライブセッション お試し",
+    "dual_boot": "dual boot dual-boot keep windows install alongside next to windows both systems choose at startup "
+                 "two operating systems arranque dual mantener windows junto a windows dual boot manter o windows "
+                 "ao lado do windows double démarrage garder windows à côté de windows dual-boot windows behalten "
+                 "neben windows gleichzeitig beide zusammen nebeneinander ensemble les deux à la fois ambos los dos "
+                 "a la vez os dois junto lado a lado デュアルブート Windowsと共存 Windowsを残す Windowsを残したまま 一緒に 両方 起動しながら",
+    "secure_boot": "secure boot uefi secure boot mok enroll mok security key blue screen at restart third-party "
+                   "drivers arranque seguro clave de seguridad pantalla azul inicialização segura chave de segurança "
+                   "tela azul démarrage sécurisé clé de sécurité écran bleu sicherer start sicherheitsschlüssel "
+                   "blauer bildschirm セキュアブート セキュリティキー 青い画面",
     "admin_account": "administrator account admin account am i an administrator admin rights standard account "
                      "account type cuenta de administrador cuenta de administrador soy administrador tipo de cuenta conta de "
                      "administrador sou "

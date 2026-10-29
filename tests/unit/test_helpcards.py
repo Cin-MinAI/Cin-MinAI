@@ -123,6 +123,13 @@ class HelpCards(unittest.TestCase):
                         "la batterie de mon portable", "Akku vom Laptop", "ノートパソコンのバッテリー"],
             "live_usb": ["can I try it without installing", "probar sin instalar", "testar sem instalar",
                          "essayer sans installer", "ohne Installation testen", "インストールせずにお試しできますか"],
+            # install time (2026-10-29)
+            "dual_boot": ["can I keep Windows and install this next to it", "mantener Windows e instalar junto a él",
+                          "manter o Windows e instalar ao lado", "garder Windows et installer à côté",
+                          "Windows behalten und daneben installieren", "Windowsを残したままインストールできますか"],
+            "secure_boot": ["the installer asks for a Secure Boot security key", "clave de seguridad de Secure Boot",
+                            "chave de segurança do Secure Boot", "clé de sécurité Secure Boot",
+                            "Sicherheitsschlüssel für Secure Boot", "セキュアブートのセキュリティキーとは"],
         }
         for card, questions in asked.items():
             for lang, q in zip(["en", "es", "pt", "fr", "de", "ja"], questions):

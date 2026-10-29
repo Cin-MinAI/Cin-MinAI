@@ -179,9 +179,11 @@ with batch 1): "fiable", "criador", the developer words.
   didn't. Check the chat's repetition guard in the daemon; guide cycle 1.
 - The guide sometimes **checks the system instead of looking up** ("will my files be saved?", automatic login in
   Portuguese): guide cycle 1.
-- **Dual boot and Secure Boot cards wait** for a real install check: the installer's screen file says "Install
-  Linux Mint alongside Windows" (it may be renamed at run time; look at the VM install screenshots), and no Secure
-  Boot text was found in Driver Manager to write steps from.
+- **Dual boot and Secure Boot: done (2026-10-29).** Written from the installer's own translations (ubiquity's debconf
+  templates on the ISO, read by extract_labels.py's INSTALLER table; the name filled in is Cin-MinAI, as Ian saw it
+  on the screen) and Ian's pictures. D84-48/49: 11/12 on the base guide (CPU); the English dual-boot reply left out
+  the erase warning. Japanese replies may write a name without the spaces around Latin words: the eval now ignores
+  spaces when it checks a Japanese name.
 
 ## How the gaps get filled (D84)
 

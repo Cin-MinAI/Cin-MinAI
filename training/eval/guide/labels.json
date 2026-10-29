@@ -1104,6 +1104,54 @@
    "fr": "Arrêter de partager ce document",
    "de": "Freigabe dieses Dokuments beenden",
    "ja": "この文書の共有をやめる"
+  },
+  "ui_install_alongside": {
+   "en": "Install Cin-MinAI alongside Windows Boot Manager",
+   "es": "Instalar Cin-MinAI junto a Windows Boot Manager",
+   "pt": "Instalar Cin-MinAI ao lado do Windows Boot Manager",
+   "fr": "Installer Cin-MinAI à côté de Windows Boot Manager",
+   "de": "Cin-MinAI neben Windows Boot Manager installieren",
+   "ja": "Cin-MinAI を Windows Boot Manager とは別にインストール"
+  },
+  "ui_erase_disk_install": {
+   "en": "Erase disk and install Cin-MinAI",
+   "es": "Borrar disco e instalar Cin-MinAI",
+   "pt": "Apagar disco e reinstalar o Cin-MinAI",
+   "fr": "Effacer le disque et installer Cin-MinAI",
+   "de": "Festplatte löschen und Cin-MinAI installieren",
+   "ja": "ディスクを削除してCin-MinAIをインストール"
+  },
+  "ui_something_else": {
+   "en": "Something else",
+   "es": "Más opciones",
+   "pt": "Opção avançada",
+   "fr": "Autre chose",
+   "de": "Etwas Anderes",
+   "ja": "それ以外"
+  },
+  "ui_third_party": {
+   "en": "Install third-party software for graphics and Wi-Fi hardware and additional media formats",
+   "es": "Instalar programas de terceros para hardware de gráficos y de wifi y formatos multimedia adicionales",
+   "pt": "Instalar programas de terceiros para placas de vídeo, dispositivos Wi-Fi e outros formatos de mídia.",
+   "fr": "Installer un logiciel tiers pour le matériel graphique et Wi-Fi et des formats de média supplémentaires",
+   "de": "Installieren Sie Software von Drittanbietern für Grafik- und Wi-Fi-Hardware und zusätzliche Medienformate",
+   "ja": "グラフィックスとWi-Fiハードウェアと追加のメディアフォーマットのサードパーティ製ソフトウェアをインストールする"
+  },
+  "ui_uefi_secure_boot": {
+   "en": "UEFI Secure Boot",
+   "es": "«Secure Boot» de UEFI",
+   "pt": "Boot Seguro UEFI",
+   "fr": "Secure Boot UEFI",
+   "de": "UEFI Secure Boot",
+   "ja": "UEFI セキュアブート"
+  },
+  "ui_installation_type": {
+   "en": "Installation type",
+   "es": "Tipo de instalación",
+   "pt": "Tipo de instalação",
+   "fr": "Type d’installation",
+   "de": "Installationsart",
+   "ja": "インストールの種類"
   }
  }
 }
