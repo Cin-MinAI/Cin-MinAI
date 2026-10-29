@@ -1261,6 +1261,23 @@ record is detected; a lost USB is recovered with the printed code.
   GTK, commands run in bwrap, the daemon is on D-Bus, everything ships as .debs. A route: AICUI alone, ported (macOS's
   own sandbox for bwrap, the same Team Table and cloud code), not the OS; a Linux VM loses the GPU. Only where a
   platform's terms allow it.
+- **The Claude Code and Codex connector in AICUI** (Ian, 2026-10-28: "When we do the connector the chat box on the left
+  is replaced with the app and the app runs in that window… This should only work in full screen. If you minimize it
+  should break back into normal 2 apps with the chat box on the left"; then: "You can technically just run code in the
+  terminal with a sub, thats what I did on the Pi"; "we could even pad their own files with the harness"). The
+  person's own subscription, through the providers' own apps, so AICUI never handles a sign-in token:
+  - **The left box becomes a terminal** running `claude` or `codex` in the project folder (AICUI's real terminal,
+    D61), in full screen only; leaving full screen brings the chat box back.
+  - **Not installed:** said plainly, with how to install it. **Not signed in:** the app's own sign-in, in that terminal,
+    the first time. **Already running:** a `tmux` session AICUI names per project; clicking it again reattaches (the
+    conversation goes on), leaving full screen detaches without stopping it.
+  - **Its seat at the table** (`cinminai-seat`, aicui/seatmcp.py) registered in the app's own MCP config by the same
+    click, so it takes tasks and changes only the files its task holds.
+  - **The harness written into the apps' own files:** `CLAUDE.md` / `AGENTS.md` carry the team's rules, the goals and
+    the project's map; Claude Code's `.claude/settings.json` its permissions and hooks (after an edit: into AICUI's
+    changelog, with undo; before one: a file the task doesn't hold is refused). A project's own `CLAUDE.md` or
+    `AGENTS.md` is kept: AICUI's part is a marked section.
+  - Their use is the subscription's, so AICUI's budget can't count it; the table counts tasks and time per seat.
 
 ## 6. Open questions
 
