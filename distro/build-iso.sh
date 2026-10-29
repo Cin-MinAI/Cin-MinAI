@@ -174,6 +174,10 @@ if [[ -f $inst ]]; then
     grep -q "^Name=Install Cin-MinAI$" "$inst" || { echo "installer icon: 'Name=Install RELEASE' not found" >&2; exit 1; }
 fi
 
+# D47 in the installer: a drive of its own recommended (encryption suggested), Erase disk preselected on a drive that
+# holds no other system, and with "Something else" the start-up files on the drive holding / (installer/)
+python3 "$here/installer/patch_ubiquity.py" "$rootfs" || exit 1
+
 log "chroot: clean up (build-only files, and logs and caches that differ between runs)"
 chroot "$rootfs" apt-get clean
 cleanup; mounts=()
