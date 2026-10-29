@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **76 filled (80 %)**, 9 partly,
+**Count:** 95 live decisions (D18 superseded) — **77 filled (81 %)**, 8 partly,
 4 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35, D40 and D93 filled; 2026-10-29: D20, D31, D41, D29 and D84 filled). 90 % is **86 filled**: 10 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35, D40 and D93 filled; 2026-10-29: D20, D31, D41, D29, D84 and D47 filled). 90 % is **86 filled**: 9 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -199,7 +199,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D44 | filled | licences in place |
 | D45 | filled | both boot checks passed |
 | D46 | filled | Pages apt repo + Hugging Face |
-| D47 | partly | the recommendation stands; the help cards and the installer work (whole drive as the recommended choice, bootloader always on the drive installed: the M7 fork) not done |
+| D47 | filled | the recommendation stands; the USB guide and the dual-boot help card say it (2026-10-29); the installer (2026-10-29, distro/installer/, hooked into ubiquity at ISO build time): a drive of its own recommended under Installation type with encryption suggested, Erase disk preselected on a drive that holds no other system and that drive offered first, and with Something else the bootloader on the drive holding /; checked by Ian in Hyper-V the same day ("it was there"). Not covered: Something else on UEFI uses the EFI partition the person mounts |
 | D48 | filled | how the assistant runs, as built |
 | D49 | filled | in the guide's prompt |
 | D50 | filled | screen-first boot |
