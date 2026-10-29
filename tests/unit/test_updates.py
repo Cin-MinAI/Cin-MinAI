@@ -742,3 +742,37 @@ class NoTimeout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MonthlyReminder(unittest.TestCase):
+    """D29's honest monthly reminder: online, updates not installing by themselves, a month since apt installed
+    anything, and updates waiting — once a month at most."""
+
+    def test_when_it_comes(self):
+        now, day = 1_800_000_000.0, 86400
+        pending = lambda: 3  # noqa: E731
+        self.assertEqual(window.monthly(now, now - 31 * day, {}, {}, False, pending), 3)
+        self.assertEqual(window.monthly(now, now - 10 * day, {}, {}, False, pending), 0)  # updated lately
+        self.assertEqual(window.monthly(now, now - 31 * day, {"auto": True}, {}, False, pending), 0)  # they install
+        self.assertEqual(window.monthly(now, now - 31 * day, {}, {}, True, pending), 0)  # offline has its own
+        self.assertEqual(window.monthly(now, now - 31 * day, {}, {"month": now - 5 * day}, False, pending), 0)
+        self.assertEqual(window.monthly(now, now - 31 * day, {}, {}, False, lambda: 0), 0)  # nothing waits
+        self.assertEqual(window.monthly(now, 0, {}, {}, False, pending), 0)  # can't tell: no guess
+
+    def test_last_install_from_the_logs(self):
+        import gzip
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        cur, old = os.path.join(d, "history.log"), os.path.join(d, "history.log.1.gz")
+        with open(cur, "w") as f:
+            f.write("\nStart-Date: 2026-10-01  09:00:00\nCommandline: apt-get install x\n")
+        with gzip.open(old, "wt") as f:
+            f.write("\nStart-Date: 2026-09-01  09:00:00\n")
+        self.assertEqual(time.strftime("%Y-%m-%d", time.localtime(window.last_install([cur, old]))), "2026-10-01")
+        self.assertEqual(window.last_install([os.path.join(d, "none")]), 0)
+
+    def test_counting_what_waits(self):
+        class Out:
+            stdout = SIMULATION
+        self.assertEqual(window.waiting(lambda *a, **k: Out()), 3)
+        self.assertIn("3", window.words("n_month", "de", n=3))

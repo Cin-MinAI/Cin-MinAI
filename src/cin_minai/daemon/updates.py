@@ -235,7 +235,7 @@ WORDS_HOLDS = {
            "why_after": "something didn't finish",
            "n_genuine": "An update source couldn't be proven genuine, so nothing was installed. Open Updates to see "
            "which.", "n_stopped": "The daily update stopped. Open Updates to see why.",
-           "n_restart": "Updates were installed. Restart the computer when you're ready to finish.",
+           "n_month": "It's been over a month since updates were installed, and {n} are waiting. Updates fix weaknesses criminals look for: open Updates when you're ready.", "n_restart": "Updates were installed. Restart the computer when you're ready to finish.",
            "n_kev": "A security update you're holding fixes {cves}, which CISA lists as being exploited now. Open "
            "Updates to decide."},
     "es": {"wait_check": "Dejar esperar las actualizaciones nuevas", "wait_days": "días antes, para que otros tengan "
@@ -254,7 +254,7 @@ WORDS_HOLDS = {
            "why_install": "una instalación se detuvo", "why_after": "algo no terminó",
            "n_genuine": "No se pudo demostrar que una fuente de actualizaciones es auténtica, así que no se instaló "
            "nada. Abre Actualizaciones para ver cuál.", "n_stopped": "La actualización diaria se detuvo. Abre "
-           "Actualizaciones para ver por qué.", "n_restart": "Se instalaron actualizaciones. Reinicia el equipo "
+           "Actualizaciones para ver por qué.", "n_month": 'Hace más de un mes que no se instalan actualizaciones, y hay {n} esperando. Las actualizaciones corrigen debilidades que buscan los delincuentes: abre Actualizaciones cuando quieras.', "n_restart": "Se instalaron actualizaciones. Reinicia el equipo "
            "cuando quieras para terminar.", "n_kev": "Una actualización de seguridad que retienes corrige {cves}, que "
            "la CISA indica que se está explotando ahora. Abre Actualizaciones para decidir."},
     "pt": {"wait_check": "Deixar as atualizações novas esperarem", "wait_days": "dias antes, para outros terem tempo "
@@ -273,7 +273,7 @@ WORDS_HOLDS = {
            "why_install": "uma instalação parou", "why_after": "algo não terminou",
            "n_genuine": "Não foi possível provar que uma fonte de atualizações é autêntica, então nada foi instalado. "
            "Abra Atualizações para ver qual.", "n_stopped": "A atualização diária parou. Abra Atualizações para ver "
-           "por quê.", "n_restart": "Atualizações foram instaladas. Reinicie o computador quando quiser para "
+           "por quê.", "n_month": 'Faz mais de um mês que nenhuma atualização foi instalada, e há {n} esperando. As atualizações corrigem fraquezas que criminosos procuram: abra Atualizações quando quiser.', "n_restart": "Atualizações foram instaladas. Reinicie o computador quando quiser para "
            "terminar.", "n_kev": "Uma atualização de segurança que você está segurando corrige {cves}, que a CISA "
            "aponta como explorada agora. Abra Atualizações para decidir."},
     "fr": {"wait_check": "Faire attendre les nouvelles mises à jour", "wait_days": "jours d'abord, pour laisser aux "
@@ -292,7 +292,7 @@ WORDS_HOLDS = {
            "why_install": "une installation s'est arrêtée", "why_after": "quelque chose n'a pas abouti",
            "n_genuine": "L'authenticité d'une source de mises à jour n'a pas pu être prouvée : rien n'a été installé. "
            "Ouvrez Mises à jour pour voir laquelle.", "n_stopped": "La mise à jour quotidienne s'est arrêtée. Ouvrez "
-           "Mises à jour pour voir pourquoi.", "n_restart": "Des mises à jour ont été installées. Redémarrez "
+           "Mises à jour pour voir pourquoi.", "n_month": "Aucune mise à jour n'a été installée depuis plus d'un mois, et {n} attendent. Les mises à jour corrigent des failles que cherchent les criminels : ouvrez Mises à jour quand vous voulez.", "n_restart": "Des mises à jour ont été installées. Redémarrez "
            "l'ordinateur quand vous voulez pour terminer.", "n_kev": "Une mise à jour de sécurité que vous retenez "
            "corrige {cves}, que la CISA signale comme exploitée en ce moment. Ouvrez Mises à jour pour décider."},
     "de": {"wait_check": "Neue Updates warten lassen", "wait_days": "Tage, damit andere Zeit haben, ein Problem darin "
@@ -311,7 +311,7 @@ WORDS_HOLDS = {
            "why_install": "eine Installation hat angehalten", "why_after": "etwas wurde nicht fertig",
            "n_genuine": "Bei einer Update-Quelle ließ sich nicht nachweisen, dass sie echt ist, daher wurde nichts "
            "installiert. Öffnen Sie Updates, um zu sehen, welche.", "n_stopped": "Das tägliche Update hat "
-           "angehalten. Öffnen Sie Updates, um zu sehen, warum.", "n_restart": "Updates wurden installiert. Starten "
+           "angehalten. Öffnen Sie Updates, um zu sehen, warum.", "n_month": 'Seit über einem Monat wurden keine Updates installiert, und {n} warten. Updates schließen Schwachstellen, nach denen Kriminelle suchen: Öffnen Sie Updates, wenn Sie so weit sind.', "n_restart": "Updates wurden installiert. Starten "
            "Sie den Computer neu, wenn es Ihnen passt, um abzuschließen.", "n_kev": "Ein Sicherheitsupdate, das Sie "
            "zurückhalten, behebt {cves}, das die CISA als derzeit ausgenutzt führt. Öffnen Sie Updates, um zu "
            "entscheiden."},
@@ -330,7 +330,7 @@ WORDS_HOLDS = {
            "why_after": "完了していないものがあります",
            "n_genuine": "アップデートの入手元が本物だと確認できなかったため、何もインストールしていません。どれかは「アップデート」を開いて確認してください。",
            "n_stopped": "毎日のアップデートが止まりました。理由は「アップデート」を開いて確認してください。",
-           "n_restart": "アップデートをインストールしました。都合のよいときに再起動して仕上げてください。",
+           "n_month": 'アップデートが1か月以上インストールされておらず、{n} 件が待っています。アップデートは犯罪者が狙う弱点をふさぎます。準備ができたらアップデートを開いてください。', "n_restart": "アップデートをインストールしました。都合のよいときに再起動して仕上げてください。",
            "n_kev": "保留中のセキュリティアップデートは{cves}を修正します。CISAはこれを現在悪用されている脆弱性に挙げています。「アップデート」を開いて判断してください。"},
 }
 # the confirmations and the emergency path (D89, slice 3)
@@ -563,6 +563,54 @@ def notices(status: dict, noticed: dict, code: str | None = None) -> tuple[list[
     return texts, told
 
 
+MONTH = 30 * 86400
+APT_HISTORY = "/var/log/apt/history.log"
+
+
+def last_install(paths: list[str] | None = None) -> float:
+    """When apt last installed anything, from its history log and the rotated ones (readable by everyone); 0 when it
+    can't tell."""
+    import glob
+    import gzip
+    paths = paths if paths is not None else [APT_HISTORY] + glob.glob(APT_HISTORY + ".*.gz")
+    last = 0.0
+    for path in paths:
+        try:
+            opener = gzip.open if path.endswith(".gz") else open
+            with opener(path, "rt", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if line.startswith("Start-Date:"):
+                        try:
+                            last = max(last, time.mktime(time.strptime(" ".join(line.split()[1:3]),
+                                                                       "%Y-%m-%d %H:%M:%S")))
+                        except ValueError:
+                            pass
+        except OSError:
+            pass
+    return last
+
+
+def waiting(run=subprocess.run) -> int:
+    """How many updates apt would install now (its plan from the lists it has, no password)."""
+    try:
+        out = run(["apt-get", "-s", "-o", "Debug::NoLocking=1", "dist-upgrade"], capture_output=True, text=True,
+                  timeout=120).stdout
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    return sum(1 for line in (out or "").splitlines() if line.startswith("Inst "))
+
+
+def monthly(now: float, last: float, settings: dict, told: dict, offline_on: bool, pending) -> int:
+    """D29's honest monthly reminder: online, with updates not installing by themselves, over a month since apt last
+    installed anything, and updates waiting — at most once a month. Returns how many wait (0 = no reminder). Offline
+    mode has its own (offline.py)."""
+    if offline_on or settings.get("auto") or not last:
+        return 0
+    if now - last < MONTH or now - float(told.get("month", 0)) < MONTH:
+        return 0
+    return pending()
+
+
 def noticed_path() -> str:
     return os.path.join(offline.state_dir(), "updates-noticed.json")
 
@@ -570,7 +618,14 @@ def noticed_path() -> str:
 def notify_once() -> int:
     """cinminai-updates --notices: the panel icon runs it at login and every few hours."""
     path = noticed_path()
-    texts, told = notices(read_json(STATUS, {}), read_json(path, {}))
+    noticed = read_json(path, {})
+    texts, told = notices(read_json(STATUS, {}), noticed)
+    now = time.time()
+    told["month"] = noticed.get("month", 0)
+    n = monthly(now, last_install(), read_json(SETTINGS, {}), noticed, offline.on(), waiting)
+    if n:
+        texts.append(words("n_month", n=n))
+        told["month"] = now
     for text in texts:
         try:
             subprocess.run(["notify-send", "-i", "system-software-update", words("title"), text], timeout=10)

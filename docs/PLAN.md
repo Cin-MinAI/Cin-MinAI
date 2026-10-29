@@ -147,9 +147,9 @@ Audited 2026-10-08. **Filled** = built and shipped as decided, or in effect as a
 it built; **open** = not started; **parked** = waits by design (after the release, or for something named). Update a
 row when work lands. D87 was never adopted.
 
-**Count:** 95 live decisions (D18 superseded) — **71 filled (75 %)**, 14 partly,
+**Count:** 95 live decisions (D18 superseded) — **75 filled (79 %)**, 10 partly,
 4 open, 6 parked (2026-10-08: D96 open -> partly; night: D95 filled; 2026-10-13: D63 filled, D35 and D62 open ->
-partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35, D40 and D93 filled). 90 % is **86 filled**: 15 to go.
+partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D28 and D7 filled; 2026-10-22: D29 and D89 open -> partly, then D89 and D88 filled; 2026-10-23: D35 filled -> partly, the whole computer on a cloud model added; 2026-10-28: D96, D35, D40 and D93 filled; 2026-10-29: D20, D31, D41 and D29 filled). 90 % is **86 filled**: 11 to go.
 
 | Decision | Status | Where it stands |
 |---|---|---|
@@ -172,7 +172,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D17 | filled | Cin-MinAI OS branding |
 | D18 | superseded | superseded by D23 |
 | D19 | filled | the relay skips input with echo off; terminals show whether they're seen |
-| D20 | partly | built and shipped; not tested hands-on, Ian's rework pending |
+| D20 | filled | built and shipped; in daily use (Ian, 2026-10-29: "The assistant works in office"); his rework stays open as an improvement, not a gap |
 | D21 | filled | standing rule |
 | D22 | filled | standing rule |
 | D23 | filled | the guide on the ISO, offline from the live USB |
@@ -181,9 +181,9 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D26 | filled | public repos, decisions, evals |
 | D27 | filled | live USB runs the guide (the warm-read fix, 2026-10-07) |
 | D28 | filled | the internet log, off until switched on from the panel icon's menu (2026-10-16), and the panel's WEB / CLOUD sign; offline mode (2026-10-21): "Keep this computer offline" in the same menu switches NetworkManager's networking off for the whole computer, the panel says OFFLINE, the assistant offers no web search, news or download; "Go online to install updates" connects, opens Update Manager and goes back offline after any install finishes; a security-update reminder at most once a month (`daemon/offline.py`, `cinminai-offline`). Offered from the menu, not at first boot: Cin-MinAI has no first-boot screen yet. Offline updates from a USB stick stay an open question (§6) |
-| D29 | partly | the Updates window (2026-10-22, slice 1): apt's own plan in plain words, every step a real check (snapshot when Timeshift is set up, signatures, each file's fingerprint, install, the check afterwards), offline mode handled, sounds as in SPEC §5.7; slice 2 the same day: the holds and automatic updates (D89) |
+| D29 | filled | the Updates window (2026-10-22, slice 1): apt's own plan in plain words, every step a real check (snapshot when Timeshift is set up, signatures, each file's fingerprint, install, the check afterwards), offline mode handled, sounds as in SPEC §5.7; slice 2 the same day: the holds and automatic updates (D89); slice 3 (2026-10-29): the honest monthly reminder online — when updates don't install by themselves, a month has passed since apt installed anything and updates are waiting, the panel's notices say so at most once a month ("Updates fix weaknesses criminals look for"), in the six languages; offline mode keeps its own |
 | D30 | filled | standing rule (offer cards everywhere) |
-| D31 | partly | security updates continuous; model cycle 1 parked |
+| D31 | filled | security updates continuous (Ian, 2026-10-29: "the daily updates are updating"); the model cycle runs with the releases, cycle 1 when it's due |
 | D32 | filled | the transition corpus, published |
 | D33 | filled | standing rule (A/B before adopting) |
 | D34 | filled | standing scope |
@@ -193,7 +193,7 @@ partly; 2026-10-16: D25 partly -> parked, D61 and D35 filled; 2026-10-21: D62, D
 | D38 | filled | standing rule |
 | D39 | partly | interpretation corpus generated; not in a shipped guide; personalization not built |
 | D40 | filled | compaction and handovers in AICUI; the sidebar's long session (2026-10-28, daemon/notebook.py): the transcript on this computer (30 days, never the journal's talk), trimmed turns folded into notes the person is shown line by line and can take out, recall of an earlier turn by its words (no model), the rundown offered after a pause (yes reads the notes back, no goes straight in, asked once after three no's), New conversation starts the notes fresh. Internal threads and a saved prompt cache not built (they make it cheaper, not continuous) |
-| D41 | partly | method and bench published; no review cycle run since cycle 0 |
+| D41 | filled | method and bench published, cycle 0 run (the M0 bakeoff); Ian, 2026-10-29: "You can count the review cycle til 5 more months, we already did one" — the next cycle is due about 2027-03 and reopens it if it doesn't run |
 | D42 | parked | post-MVP |
 | D43 | filled | the tuned 4B ships |
 | D44 | filled | licences in place |
